@@ -14,7 +14,7 @@ Usage:
 from traceback import format_exception
 from logging import getLogger
 from fastapi import status, HTTPException
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
 from pydantic import ValidationError
 from redis.exceptions import RedisError
@@ -78,6 +78,9 @@ def handle(e: Exception) -> None:
             raise UniqueViolation(formatIntegrityError(e))
         if e.orig.diag.sqlstate == FOREIGN_KEY_VIOLATION:
             raise ForeignKeyViolation(formatIntegrityError(e))
+    if isinstance(e, ProgrammingError):
+        message = str(e.orig).split("\n")[0]
+        raise DatabaseError(detail=message)
     if isinstance(e, ValidationError):
         raise PydanticError(detail=e.errors())
     if isinstance(e, RedisError):
@@ -149,6 +152,18 @@ class NetworkError(APIException):
 
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     headers = {"X-Error": "NetworkError"}
+
+    def __init__(self, detail: str):
+        super().__init__(detail=detail)
+
+
+class DatabaseError(APIException):
+    """
+    Raised when a database operation fails.
+    """
+
+    status_code = status.HTTP_501_NOT_IMPLEMENTED
+    headers = {"X-Error": "DatabaseError"}
 
     def __init__(self, detail: str):
         super().__init__(detail=detail)
