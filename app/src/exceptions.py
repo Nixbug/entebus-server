@@ -14,7 +14,7 @@ Usage:
 from traceback import format_exception
 from logging import getLogger
 from fastapi import status, HTTPException
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
 from pydantic import ValidationError
 from redis.exceptions import RedisError
@@ -28,11 +28,10 @@ def formatIntegrityError(e: IntegrityError) -> str:
     """
     Convert a raw SQL IntegrityError into a clean, user-friendly message.
     """
-    errorMessage: str = e.orig.diag.message_detail
-    errorMessage = errorMessage.translate({ord(i): None for i in '\\"\\.\\(\\)'})
-    errorMessage = errorMessage.replace("Key ", "For ")
-    errorMessage = errorMessage.replace("=", " value ")
-    return errorMessage
+    message = e.orig.diag.message_detail
+    cleaned = message.translate({ord(i): None for i in '\\"\\.\\(\\)'})
+    cleaned = cleaned.replace("Key ", "For ").replace("=", " value ")
+    return cleaned
 
 
 def logException(e: Exception) -> None:
@@ -81,12 +80,12 @@ def handle(e: Exception) -> None:
             raise ForeignKeyViolation(formatIntegrityError(e))
     if isinstance(e, ValidationError):
         raise PydanticError(detail=e.errors())
-    if isinstance(e, APIException):
-        raise e
     if isinstance(e, RedisError):
         raise RedisDBError(detail=str(e))
-    if isinstance(e, (ConnectionError, Timeout)):
+    if isinstance(e, (OperationalError, ConnectionError, Timeout)):
         raise NetworkError(detail=str(e))
+    if isinstance(e, APIException):
+        raise e
 
     logException(e)
     raise e
