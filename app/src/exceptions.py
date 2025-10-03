@@ -18,7 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
 from pydantic import ValidationError
 from redis.exceptions import RedisError
-from requests.exceptions import ConnectionError, Timeout, HTTPError
+from requests.exceptions import ConnectionError, Timeout
 
 
 # ---------------------------------------------------------------------------
@@ -26,7 +26,7 @@ from requests.exceptions import ConnectionError, Timeout, HTTPError
 # ---------------------------------------------------------------------------
 def formatIntegrityError(e: IntegrityError) -> str:
     """
-    Format a database integrity error into a user-friendly message.
+    Convert a raw SQL IntegrityError into a clean, user-friendly message.
     """
     errorMessage: str = e.orig.diag.message_detail
     errorMessage = errorMessage.translate({ord(i): None for i in '\\"\\.\\(\\)'})
@@ -36,10 +36,11 @@ def formatIntegrityError(e: IntegrityError) -> str:
 
 
 def logException(e: Exception) -> None:
-    """Log an exception with traceback using Uvicorn's error logger."""
-    detail = str(format_exception(type(e), e, e.__traceback__))
+    """
+    Log an exception with traceback using Uvicorn's error logger.
+    """
     logger = getLogger("uvicorn.error")
-    logger.error(detail)
+    logger.error("".join(format_exception(type(e), e, e.__traceback__)))
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +84,7 @@ def handle(e: Exception) -> None:
     if isinstance(e, APIException):
         raise e
     if isinstance(e, RedisError):
-        raise RedisError(detail=str(e))
+        raise RedisDBError(detail=str(e))
     if isinstance(e, (ConnectionError, Timeout)):
         raise NetworkError(detail=str(e))
 
@@ -125,6 +126,18 @@ class ForeignKeyViolation(APIException):
 
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     headers = {"X-Error": "ForeignKeyViolation"}
+
+    def __init__(self, detail: str):
+        super().__init__(detail=detail)
+
+
+class RedisDBError(APIException):
+    """
+    Raised when a Redis database operation fails.
+    """
+
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    headers = {"X-Error": "RedisDBError"}
 
     def __init__(self, detail: str):
         super().__init__(detail=detail)
