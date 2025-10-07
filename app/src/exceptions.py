@@ -24,7 +24,7 @@ from requests.exceptions import ConnectionError, Timeout
 # ---------------------------------------------------------------------------
 # Utility functions
 # ---------------------------------------------------------------------------
-def formatIntegrityError(e: IntegrityError) -> str:
+def format_integrity_error(e: IntegrityError) -> str:
     """
     Convert a raw SQL IntegrityError into a clean, user-friendly message.
     """
@@ -34,7 +34,7 @@ def formatIntegrityError(e: IntegrityError) -> str:
     return cleaned
 
 
-def logException(e: Exception) -> None:
+def log_exception(e: Exception) -> None:
     """
     Log an exception with traceback using Uvicorn's error logger.
     """
@@ -75,9 +75,9 @@ def handle(e: Exception) -> None:
     """
     if isinstance(e, IntegrityError):
         if e.orig.diag.sqlstate == UNIQUE_VIOLATION:
-            raise UniqueViolation(formatIntegrityError(e))
+            raise UniqueViolation(format_integrity_error(e))
         if e.orig.diag.sqlstate == FOREIGN_KEY_VIOLATION:
-            raise ForeignKeyViolation(formatIntegrityError(e))
+            raise ForeignKeyViolation(format_integrity_error(e))
     if isinstance(e, ProgrammingError):
         message = str(e.orig).split("\n")[0]
         raise DatabaseError(detail=message)
@@ -87,10 +87,11 @@ def handle(e: Exception) -> None:
         raise RedisDBError(detail=str(e))
     if isinstance(e, (OperationalError, ConnectionError, Timeout)):
         raise NetworkError(detail=str(e))
+    # Log and raise an unhandled exception
     if isinstance(e, APIException):
         raise e
 
-    logException(e)
+    log_exception(e)
     raise e
 
 
