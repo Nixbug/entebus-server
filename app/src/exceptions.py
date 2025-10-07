@@ -84,8 +84,10 @@ def handle(e: Exception) -> None:
         sqlstate = getattr(e.orig.diag, "sqlstate", None)
         if sqlstate == UNIQUE_VIOLATION:
             raise UniqueViolation(format_integrity_error(e))
-        if sqlstate == FOREIGN_KEY_VIOLATION:
+        elif sqlstate == FOREIGN_KEY_VIOLATION:
             raise ForeignKeyViolation(format_integrity_error(e))
+        else:
+            raise DatabaseError(detail=format_integrity_error(e))
     if isinstance(e, ProgrammingError):
         raise DatabaseError(detail=format_integrity_error(e))
     if isinstance(e, ValidationError):
