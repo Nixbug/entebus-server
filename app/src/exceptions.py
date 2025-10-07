@@ -24,11 +24,18 @@ from requests.exceptions import ConnectionError, Timeout
 # ---------------------------------------------------------------------------
 # Utility functions
 # ---------------------------------------------------------------------------
-def format_integrity_error(e: IntegrityError) -> str:
+def format_integrity_error(e: Exception) -> str:
     """
     Convert a raw SQL IntegrityError into a clean, user-friendly message.
     """
-    message = e.orig.diag.message_detail
+    if isinstance(e, IntegrityError) and hasattr(e.orig, "diag") and e.orig.diag:
+        message = getattr(e.orig.diag, "message_detail", None)
+        if not message:
+            message = str(e.orig)
+    else:
+        message = str(getattr(e, "orig", e))
+    if "\n" in message:
+        message = message.split("\n")[0]
     cleaned = message.translate({ord(i): None for i in '\\"\\.\\(\\)'})
     cleaned = cleaned.replace("Key ", "For ").replace("=", " value ")
     return cleaned
@@ -74,13 +81,13 @@ def handle(e: Exception) -> None:
     corresponding APIException subclasses.
     """
     if isinstance(e, IntegrityError):
-        if e.orig.diag.sqlstate == UNIQUE_VIOLATION:
+        sqlstate = getattr(e.orig.diag, "sqlstate", None)
+        if sqlstate == UNIQUE_VIOLATION:
             raise UniqueViolation(format_integrity_error(e))
-        if e.orig.diag.sqlstate == FOREIGN_KEY_VIOLATION:
+        if sqlstate == FOREIGN_KEY_VIOLATION:
             raise ForeignKeyViolation(format_integrity_error(e))
     if isinstance(e, ProgrammingError):
-        message = str(e.orig).split("\n")[0]
-        raise DatabaseError(detail=message)
+        raise DatabaseError(detail=format_integrity_error(e))
     if isinstance(e, ValidationError):
         raise PydanticError(detail=e.errors())
     if isinstance(e, RedisError):
