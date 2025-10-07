@@ -10,8 +10,16 @@ All ORM models should inherit from `ORMbase`.
 
 from sqlalchemy import (
     create_engine,
+    TEXT,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    func,
 )
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from secrets import token_hex
 
 from app.src.constants import (
     PSQL_DB_DRIVER,
@@ -21,6 +29,7 @@ from app.src.constants import (
     PSQL_DB_PORT,
     PSQL_DB_USERNAME,
 )
+from app.src.enums import AccountStatus, GenderType, PlatformType
 
 
 # ---------------------------------------------------------------------------
@@ -87,3 +96,62 @@ class ORMbase(DeclarativeBase):
     """
 
     pass
+
+
+class Executive(ORMbase):
+    __tablename__ = "executive"
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String(32), nullable=False, unique=True)
+    password = Column(TEXT, nullable=False)
+    gender = Column(Integer, nullable=False, default=GenderType.OTHER)
+    full_name = Column(TEXT)
+    designation = Column(TEXT)
+    status = Column(Integer, nullable=False, default=AccountStatus.ACTIVE)
+    # Contact details
+    phone_number = Column(TEXT)
+    email_id = Column(TEXT)
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class ExecutiveRoleMap(ORMbase):
+    __tablename__ = "executive_role_map"
+
+    id = Column(Integer, primary_key=True)
+    role_id = Column(
+        Integer, ForeignKey("executive_role.id", ondelete="CASCADE"), nullable=False
+    )
+    executive_id = Column(
+        Integer,
+        ForeignKey("executive.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class ExecutiveToken(ORMbase):
+    __tablename__ = "executive_token"
+
+    id = Column(Integer, primary_key=True)
+    executive_id = Column(
+        Integer,
+        ForeignKey("executive.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    access_token = Column(
+        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+    )
+    expires_in = Column(Integer, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    # Device related details
+    platform_type = Column(Integer, default=PlatformType.OTHER)
+    client_details = Column(TEXT)
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
