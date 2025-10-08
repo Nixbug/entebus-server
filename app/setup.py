@@ -5,7 +5,7 @@ from sqlalchemy import text
 from alembic.script import ScriptDirectory
 
 from app.src import buckets, minio
-from app.src.db import get_db_url, engine, ORMbase, SessionLocal
+from app.src.db import get_db_url, engine, ORMbase, session_local
 
 
 def _alembic_cfg() -> Config:
@@ -69,7 +69,7 @@ def delete_buckets():
 
 
 def create_tables():
-    session = SessionLocal()
+    session = session_local()
     ORMbase.metadata.create_all(engine)
     session.commit()
     print("* All tables created")
@@ -77,7 +77,7 @@ def create_tables():
 
 
 def delete_tables():
-    session = SessionLocal()
+    session = session_local()
     ORMbase.metadata.drop_all(engine)
     session.commit()
     print("* All tables deleted")
