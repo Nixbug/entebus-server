@@ -38,7 +38,9 @@ app.mount("/operator", app_operator, "Operator API")
 app.mount("/public", app_public, "Public API")
 
 
-# Health check endpoint
+# ---------------------------------------------------------------------------
+## Health check endpoint
+# ---------------------------------------------------------------------------
 @app.get(
     "/health",
     tags=["Health Check"],

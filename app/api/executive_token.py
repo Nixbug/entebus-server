@@ -41,7 +41,9 @@ class CreateForm(BaseModel):
     client_details: str | None = Field(Form(max_length=1024, default=None))
 
 
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
+# ---------------------------------------------------------------------------
 @route_executive.post(
     URL_EXECUTIVE_TOKEN,
     tags=["Token"],

@@ -177,3 +177,23 @@ class DatabaseError(APIException):
 
     def __init__(self, detail: str):
         super().__init__(detail=detail)
+
+
+class InvalidCredentials(APIException):
+    """
+    Raised when invalid username or password is provided.
+    """
+
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Invalid username or password"
+    headers = {"X-Error": "InvalidCredentials"}
+
+
+class InactiveAccount(APIException):
+    """
+    Raised when account is not in active status.
+    """
+
+    status_code = status.HTTP_412_PRECONDITION_FAILED
+    detail = "The account is not in active status"
+    headers = {"X-Error": "InactiveAccount"}
