@@ -4,8 +4,8 @@ from alembic.config import Config
 from sqlalchemy import text
 from alembic.script import ScriptDirectory
 
-from app.src import buckets, minio
-from app.src.db import get_db_url, engine, ORMbase, SessionLocal
+from app.src import argon2, buckets, minio
+from app.src.db import ORMbase, Executive, get_db_url, engine, SessionLocal
 
 
 def _alembic_cfg() -> Config:
@@ -84,6 +84,31 @@ def delete_tables():
     session.close()
 
 
+def init_db():
+    """Initialize the database with default users."""
+    session = SessionLocal()
+
+    password = argon2.make_password("password")
+    admin = Executive(
+        username="admin",
+        password=password,
+        full_name="Entebus admin",
+        designation="Administrator",
+    )
+    guest = Executive(
+        username="guest",
+        password=password,
+        full_name="Entebus guest",
+        designation="Guest",
+    )
+
+    session.add_all([admin, guest])
+    session.flush()
+    session.commit()
+    print("* Initialization completed")
+    session.close()
+
+
 # ---- Argparse setup ----
 def main():
     parser = argparse.ArgumentParser(
@@ -112,6 +137,7 @@ def main():
     subparsers.add_parser("delete_tables", help="Delete all tables")
     subparsers.add_parser("create_buckets", help="Create storage buckets")
     subparsers.add_parser("delete_buckets", help="Delete storage buckets")
+    subparsers.add_parser("init_db", help="Initialization completed")
     args = parser.parse_args()
 
     if args.command == "downgrade":
@@ -130,6 +156,8 @@ def main():
         create_buckets()
     elif args.command == "delete_buckets":
         delete_buckets()
+    if args.command == "init_db":
+        init_db()
 
 
 if __name__ == "__main__":
