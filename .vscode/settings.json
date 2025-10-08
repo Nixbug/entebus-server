@@ -5,6 +5,7 @@
         "Nixbug",
         "onupdate",
         "ondelete",
-        "sessionmaker"
+        "sessionmaker",
+        "sqlstate"
     ]
 }
