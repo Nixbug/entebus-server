@@ -3,6 +3,7 @@
         "Entebus",
         "geoalchemy",
         "Nixbug",
+        "OPENOBSERVE",
         "sessionmaker",
         "sqlstate"
     ]
