@@ -56,4 +56,8 @@ def post_log_event(event_data: dict) -> Response:
     Returns:
         requests.Response: The HTTP response object returned by the OpenObserve API.
     """
-    return requests.post(openobserve_url, headers=headers, data=json.dumps(event_data))
+    try:
+        response = requests.post(openobserve_url, headers=headers, data=json.dumps(event_data))
+        response.raise_for_status()
+    except Exception:
+        pass

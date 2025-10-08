@@ -104,11 +104,11 @@ async def create_token(
         session.commit()
         session.refresh(token)
 
-        tokenData = jsonable_encoder(token)
-        tokenLogData = tokenData.copy()
-        tokenLogData.pop("access_token")
-        log_event(token, request_info, tokenLogData)
-        return tokenData
+        token_data = jsonable_encoder(token)
+        token_log_data = token_data.copy()
+        token_log_data.pop("access_token")
+        log_event(token, request_info, token_log_data)
+        return token_data
     except Exception as e:
         exceptions.handle(e)
     finally:
