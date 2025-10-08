@@ -138,6 +138,9 @@ python -m app.setup create_buckets
 
 # Delete all MinIO buckets
 python -m app.setup delete_buckets
+
+# Initialize with sample data
+python3 -m app.setup init_db
 ```
 
 
