@@ -158,7 +158,7 @@ class Executive(ORMbase):
             Enforce the format prescribed by RFC 5322 (https://en.wikipedia.org/wiki/Email_address).
 
         updated_on (DateTime, nullable, onupdate=func.now()):
-            Timestamp of the last update to the executive's profile or credentials.
+            Timestamp automatically update whenever the executive's profile record is modified.
 
         created_on (DateTime, not null, default=func.now()):
             Timestamp of when the executive account was created.
@@ -191,26 +191,23 @@ class ExecutiveRole(ORMbase):
     enabling fine-grained control over executive access and functionality within the system.
 
     Columns:
-        id (Integer):
-            Primary key. Unique identifier for this executive role record.
+        id (Integer, unique, not null):
+            Primary identifier for the executive role.
 
-        name (String(32)):
+        name (String(32), unique, not null):
             Name or label for the role.
-            It should be unique and should be 4-32 characters long.
-            Must not be null and unique.
+            It should be 4-32 characters long.
 
-        permissions (ARRAY(String)):
+        permissions (ARRAY(String), not null):
             List of permissions associated with the role.
             Each permission should be a string representing a specific action or resource.
-            Must not be null.
 
-        created_on (DateTime):
-            Timestamp indicating when this role was created.
-            Defaults to the current timestamp at insertion, must be non-null.
-
-        updated_on (DateTime):
+        updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp of the last update to the role's permissions.
-            Timestamp automatically updated whenever the role's permissions are modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when this role was created.
+
     """
 
     __tablename__ = "executive_role"
@@ -218,10 +215,10 @@ class ExecutiveRole(ORMbase):
     id = Column(Integer, primary_key=True)
     name = Column(String(32), nullable=False, unique=True)
     permissions = Column(ARRAY(String), nullable=False, default=list)
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
 
 
 class ExecutiveRoleMap(ORMbase):
@@ -234,26 +231,24 @@ class ExecutiveRoleMap(ORMbase):
     Role-Based Access Control (RBAC) system.
 
     Columns:
-        id (Integer):
-            Primary key. Unique identifier for this role mapping record.
+        id (Integer, unique, not null):
+            Primary identifier for the executive role mapped.
 
-        role_id (Integer):
+        role_id (Integer, not null):
             Foreign key referencing `executive_role.id`.
             Specifies the role assigned to the executive.
             Cascades on delete — if the role is removed, related mappings are deleted.
 
-        executive_id (Integer):
+        executive_id (Integer, not null):
             Foreign key referencing `executive.id`.
             Identifies the executive receiving the role.
             Cascades on delete — if the executive is removed, related mappings are deleted.
 
-        updated_on (DateTime):
+        updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp automatically updated whenever the mapping record is modified.
-            Useful for auditing or synchronization.
 
-        created_on (DateTime):
+        created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when this mapping was created.
-            Defaults to the current timestamp at insertion, must be non-null.
     """
 
     __tablename__ = "executive_role_map"
@@ -288,43 +283,38 @@ class ExecutiveToken(ORMbase):
     Useful for session management, device tracking, and implementing token-based authentication.
 
     Columns:
-        id (Integer):
-            Primary key. Unique identifier for this executive token record.
+        id (Integer, unique, not null):
+            Primary identifier for the executive token.
 
-        executive_id (Integer):
+        executive_id (Integer, not null):
             Foreign key referencing `executive.id`.
             Identifies the executive associated with this token.
             Cascades on delete — if the executive is removed, related tokens are deleted.
 
-        access_token (String):
-            Unique, securely generated 64-character hexadecimal access token.
-            Automatically generated using a secure random function.
+        access_token (String, not null, unique, default=lambda: token_hex(32)):
+            Securely generated 64-character hexadecimal access token.
             Used to authenticate the executive on subsequent requests.
 
-        expires_in (Integer):
+        expires_in (Integer, not null):
             Token expiration time in seconds.
             Defines the duration after which the token becomes invalid.
 
-        expires_at (DateTime):
-            Token expiration date and time.
+        expires_at (DateTime, not null):
             Defines the date and time after which the token becomes invalid.
 
-        platform_type (Integer):
+        platform_type (Integer, nullable, default=PlatformType.OTHER):
             Enum value indicating the client platform type.
-            Defaults to `PlatformType.OTHER`.
 
-        client_details (TEXT):
-            Optional description of the client device or environment.
+        client_details (TEXT, nullable):
+            Description of the client device or environment.
             May include user agent, app version, IP address, etc.
             Maximum 1024 characters long.
 
-        updated_on (DateTime):
+        updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp automatically updated whenever the token record is modified.
-            Useful for auditing or tracking last usage.
 
-        created_on (DateTime):
+        created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when this token was created.
-            Defaults to the current timestamp at insertion, must be non-null.
     """
 
     __tablename__ = "executive_token"
@@ -357,29 +347,24 @@ class ExecutiveImage(ORMbase):
     allowing for management, retrieval, and replacement of profile or related images.
 
     Columns:
-        id (Integer):
-            Primary key. Unique identifier for the executive image.
+        id (Integer, unique, not null):
+            Primary identifier for the executive image.
 
-        executive_id (Integer):
+        executive_id (Integer, not null, unique):
             Foreign key referencing `executive.id` to whom this image belongs.
-            Must be non-null and unique.
             Cascades on delete — if the executive is removed, related image is deleted.
 
-        file_name (String(128)):
+        file_name (String(128), not null):
             Original name of the uploaded image file, including extension.
-            Must be non-null.
 
-        file_size (Integer):
+        file_size (Integer, not null):
             Size of the uploaded file in bytes.
-            Must be non-null.
 
-        file_type (String(128)):
+        file_type (String(128), not null):
             MIME type of the uploaded file (e.g., "image/jpeg", "image/png").
-            Must be non-null.
 
-        created_on (DateTime):
+       created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the image record was initially created.
-            Defaults to the current timestamp at insertion, must be non-null.
     """
 
     __tablename__ = "executive_image"
