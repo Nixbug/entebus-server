@@ -112,19 +112,18 @@ class Executive(ORMbase):
     necessary to manage executive-level access and communication.
 
     Columns:
-        id (Integer):
-            Primary key. Unique identifier for the executive.
+        id (Integer, unique, not null):
+            Primary identifier for the executive.
 
-        username (String(32)):
-            Unique username used for login or identification within the system.
+        username (String(32), unique, not null):
+            Username used for login or identification within the system.
             Ideally, the username shouldn't be changed once set.
             It should start with an alphabet (uppercase or lowercase).
             It can contain uppercase and lowercase letters, as well as digits from 0 to 9.
             It should be 4-32 characters long.
             May include hyphen (-), period (.), at symbol (@), and underscore (_).
-            Must not be null and unique.
 
-        password (TEXT):
+        password (TEXT, not null):
             Hashed password used for authentication.
             It should be 8-32 characters long.
             Passwords can contain uppercase and lowercase letters, as well as digits from 0 to 9.
@@ -133,40 +132,36 @@ class Executive(ORMbase):
             dollar sign ($), percent (%), ampersand (&), asterisk (*), hash (#),
             exclamation mark (!), caret (^), equals (=), forward slash (/), question mark (?).
 
-        gender (Integer):
+        gender (Integer, not null, default=GenderType.OTHER):
             Represents the executive's gender. Mapped from the `GenderType` enum.
-            Defaults to `GenderType.OTHER`.
 
-        full_name (TEXT):
+        full_name (TEXT, nullable):
             Full name of the executive.
             Maximum 32 characters long.
 
-        designation (TEXT):
+        designation (TEXT, nullable):
             Job title or role description of the executive.
             Maximum 32 characters long.
 
-        status (Integer):
-            Indicates the account status.
-            Mapped from the `AccountStatus` enum. Defaults to `AccountStatus.ACTIVE`.
+        status (Integer, not null, default=AccountStatus.ACTIVE):
+            Indicates the account status. Mapped from the `AccountStatus` enum.
 
-        phone_number (TEXT):
-            Optional contact number of the executive.
+        phone_number (TEXT, nullable):
+            Contact number of the executive.
             Maximum 32 characters long.
             Saved and processed in RFC3966 format (https://datatracker.ietf.org/doc/html/rfc3966).
             Example: "+1-202-555-0143"
 
-        email_id (TEXT):
-            Optional email address for communication and recovery purposes.
+        email_id (TEXT, nullable):
+            Email address of the executive.
             Maximum 256 characters long.
             Enforce the format prescribed by RFC 5322 (https://en.wikipedia.org/wiki/Email_address).
 
-        updated_on (DateTime):
+        updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp of the last update to the executive's profile or credentials.
-            Timestamp automatically updated whenever the executive's profile is modified.
 
-        created_on (DateTime):
+        created_on (DateTime, not null, default=func.now()):
             Timestamp of when the executive account was created.
-            Defaults to the current timestamp at insertion, Must be non-null.
     """
 
     __tablename__ = "executive"
