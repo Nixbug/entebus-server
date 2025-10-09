@@ -47,7 +47,7 @@ def get_db_url() -> str:
 
 db_url = get_db_url()
 engine = create_engine(url=db_url, echo=False)
-session_local = sessionmaker(bind=engine, expire_on_commit=False)
+SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
 # ---------------------------------------------------------------------------
