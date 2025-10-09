@@ -1,3 +1,39 @@
+"""
+Executive Token API Router
+
+This module defines the FastAPI endpoints and associated schemas for managing
+executive access tokens. It provides functionality for creating, refreshing,
+deleting, and fetching executive tokens while enforcing authentication,
+account status checks, and token rotation limits.
+
+Key Features:
+    - Logging: Authentication events are logged for auditing purposes.
+    - Input Validation: Uses Pydantic models and FastAPI Form/Schema validation.
+    - Output Schemas: Returns masked or full token information as needed.
+
+Schemas:
+    - MaskedExecutiveTokenSchema: Token metadata excluding the access token.
+    - ExecutiveTokenSchema: Full token metadata including the access token.
+    - CreateForm: Input form for creating a new token.
+    - UpdateForm: Input form for updating an existing token.
+    - DeleteForm: Input form for deleting a token.
+    - QueryForm: Input form for fetching token details.
+
+Endpoints:
+    - POST /executive/token: Create a new token for an executive.
+    - PATCH /executive/token: Refresh an existing token.
+    - DELETE /executive/token: Delete a token.
+    - GET /executive/token: Fetch token details.
+
+Dependencies:
+    - argon2: Password hashing and verification.
+    - SessionLocal: SQLAlchemy session factory.
+    - enums: AccountStatus and PlatformType.
+    - loggers: Event logging.
+    - constants: MAX_EXECUTIVE_TOKENS, MAX_TOKEN_VALIDITY.
+    - exceptions: Custom API exceptions.
+"""
+
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, status, Form
@@ -17,6 +53,19 @@ route_executive = APIRouter()
 
 ## Output Schema
 class MaskedExecutiveTokenSchema(BaseModel):
+    """
+    Schema for executive token response without revealing the access token.
+
+    Attributes:
+        id (int): Token ID.
+        executive_id (int): ID of the executive owning the token.
+        expires_in (int): Token validity duration in seconds.
+        platform_type (int): Platform type enum value.
+        client_details (Optional[str]): Optional details about the client.
+        updated_on (Optional[datetime]): Last updated timestamp.
+        created_on (datetime): Token creation timestamp.
+    """
+
     id: int
     executive_id: int
     expires_in: int
@@ -27,12 +76,30 @@ class MaskedExecutiveTokenSchema(BaseModel):
 
 
 class ExecutiveTokenSchema(MaskedExecutiveTokenSchema):
+    """
+    Schema for executive token response including the access token.
+
+    Attributes:
+        access_token (str): The generated access token.
+        token_type (Optional[str]): Type of the token (default: "bearer").
+    """
+
     access_token: str
     token_type: Optional[str] = "bearer"
 
 
 ## Input Forms
 class CreateForm(BaseModel):
+    """
+    Form data for creating a new executive token.
+
+    Attributes:
+        username (str): Username of the executive (max 32 chars).
+        password (str): Password of the executive (max 32 chars).
+        platform_type (PlatformType): Platform type of the request.
+        client_details (Optional[str]): Optional client details (max 1024 chars).
+    """
+
     username: str = Field(Form(max_length=32))
     password: str = Field(Form(max_length=32))
     platform_type: PlatformType = Field(
@@ -64,6 +131,20 @@ async def create_token(
     fParam: CreateForm = Depends(),
     request_info=Depends(getters.request_info),
 ):
+    """
+    Create a new executive access token.
+
+    Args:
+        fParam (CreateForm): Form data containing username, password, platform type, and client details.
+        request_info: Metadata about the incoming request for logging.
+
+    Raises:
+        InvalidCredentials: If username or password is incorrect.
+        InactiveAccount: If the executive account is not active.
+
+    Returns:
+        dict: Token information including the access token.
+    """
     try:
         session = SessionLocal()
         executive = (
