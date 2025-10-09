@@ -138,11 +138,11 @@ class Executive(ORMbase):
             Defaults to `GenderType.OTHER`.
 
         full_name (TEXT):
-            Full name of the executive. Optional field used for display and communication.
+            Full name of the executive.
             Maximum 32 characters long.
 
         designation (TEXT):
-            Job title or role description of the executive. Optional field used for display and communication.
+            Job title or role description of the executive.
             Maximum 32 characters long.
 
         status (Integer):
@@ -153,7 +153,7 @@ class Executive(ORMbase):
             Optional contact number of the executive.
             Maximum 32 characters long.
             Saved and processed in RFC3966 format (https://datatracker.ietf.org/doc/html/rfc3966).
-            Phone number start with a plus sign followed by country code and local number.
+            Example: "+1-202-555-0143"
 
         email_id (TEXT):
             Optional email address for communication and recovery purposes.
