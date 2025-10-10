@@ -39,10 +39,12 @@ from typing import Optional
 from fastapi import APIRouter, Depends, status, Form
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from secrets import token_hex
 
+from app.api.bearer import bearer_executive
 from app.src.constants import MAX_EXECUTIVE_TOKENS, MAX_TOKEN_VALIDITY
 from app.src.db import Executive, ExecutiveToken, SessionLocal
-from app.src import argon2, exceptions, getters
+from app.src import argon2, exceptions, getters, validators
 from app.src.enums import AccountStatus, PlatformType
 from app.src.loggers import log_event
 from app.src.functions import enum_str, fuse_exception_responses
@@ -106,6 +108,17 @@ class CreateForm(BaseModel):
         Form(description=enum_str(PlatformType), default=PlatformType.OTHER)
     )
     client_details: str | None = Field(Form(max_length=1024, default=None))
+
+
+class UpdateForm(BaseModel):
+    """
+    Form data for updating an existing executive token.
+
+    Attributes:
+        id (Optional[int]): ID of the token to update (default: None).
+    """
+
+    id: int | None = Field(Form(default=None))
 
 
 # ---------------------------------------------------------------------------
@@ -199,9 +212,77 @@ async def create_token(
 @route_executive.patch(
     URL_EXECUTIVE_TOKEN,
     tags=["Token"],
+    response_model=ExecutiveTokenSchema,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(ExecutiveToken.id),
+        ]
+    ),
+    description="""
+    Refreshes an existing executive access token.
+    If no id is provided, refreshes only the current token (used in this request).  
+    If an id is provided: Must match the current token's access_token (prevents unauthorized refreshes, even by the same executive).    
+    Raises InvalidIdentifier if the token does not exist (avoids ID probing).   
+    Extends expires_at by MAX_TOKEN_VALIDITY seconds.   
+    Rotates the access_token value (invalidates the old token immediately). 
+    Logs the refresh event for auditability.
+    """,
 )
-async def refresh_token():
-    pass
+async def refresh_token(
+    fParam: UpdateForm = Depends(),
+    bearer=Depends(bearer_executive),
+    request_info=Depends(getters.request_info),
+):
+    """
+    Refresh an existing executive access token.
+
+    Args:
+        fParam (UpdateForm): Form data containing the optional token ID to refresh.
+        bearer: Bearer authorization dependency used to validate the current token.
+        request_info: Metadata about the incoming request for logging purposes.
+
+    Raises:
+        UnknownValue: If the specified token ID does not exist.
+        NoPermission: If the provided token does not have permission to refresh another token.
+        Exception: For unexpected errors during token refresh or database operations.
+
+    Returns:
+        dict: Updated token information including the new access token and extended expiry details.
+    """
+    try:
+        session = SessionLocal()
+        token = validators.executive_token(bearer.credentials, session)
+
+        if fParam.id is None:
+            tokenToUpdate = token
+        else:
+            tokenToUpdate = (
+                session.query(ExecutiveToken)
+                .filter(ExecutiveToken.id == fParam.id)
+                .first()
+            )
+            if tokenToUpdate is None:
+                raise exceptions.UnknownValue(ExecutiveToken.id)
+            if tokenToUpdate.access_token != token.access_token:
+                raise exceptions.NoPermission()
+
+        tokenToUpdate.expires_in += MAX_TOKEN_VALIDITY
+        tokenToUpdate.expires_at += timedelta(seconds=MAX_TOKEN_VALIDITY)
+        tokenToUpdate.access_token = token_hex(32)
+        session.commit()
+        session.refresh(tokenToUpdate)
+
+        tokenData = jsonable_encoder(tokenToUpdate)
+        tokenLogData = tokenData.copy()
+        tokenLogData.pop("access_token")
+        log_event(token, request_info, tokenLogData)
+        return tokenData
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
 
 
 @route_executive.delete(
