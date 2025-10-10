@@ -224,7 +224,7 @@ async def create_token(
     Refreshes an existing executive access token.
     If no id is provided, refreshes only the current token (used in this request).  
     If an id is provided: Must match the current token's access_token (prevents unauthorized refreshes, even by the same executive).    
-    Raises InvalidIdentifier if the token does not exist (avoids ID probing).   
+    Raises UnknownValue if the token does not exist (avoids ID probing).   
     Extends expires_at by MAX_TOKEN_VALIDITY seconds.   
     Rotates the access_token value (invalidates the old token immediately). 
     Logs the refresh event for auditability.
@@ -256,29 +256,29 @@ async def refresh_token(
         token = validators.executive_token(bearer.credentials, session)
 
         if fParam.id is None:
-            tokenToUpdate = token
+            updatable_token = token
         else:
-            tokenToUpdate = (
+            updatable_token = (
                 session.query(ExecutiveToken)
                 .filter(ExecutiveToken.id == fParam.id)
                 .first()
             )
-            if tokenToUpdate is None:
+            if updatable_token is None:
                 raise exceptions.UnknownValue(ExecutiveToken.id)
-            if tokenToUpdate.access_token != token.access_token:
+            if updatable_token.access_token != token.access_token:
                 raise exceptions.NoPermission()
 
-        tokenToUpdate.expires_in += MAX_TOKEN_VALIDITY
-        tokenToUpdate.expires_at += timedelta(seconds=MAX_TOKEN_VALIDITY)
-        tokenToUpdate.access_token = token_hex(32)
+        updatable_token.expires_in += MAX_TOKEN_VALIDITY
+        updatable_token.expires_at += timedelta(seconds=MAX_TOKEN_VALIDITY)
+        updatable_token.access_token = token_hex(32)
         session.commit()
-        session.refresh(tokenToUpdate)
+        session.refresh(updatable_token)
 
-        tokenData = jsonable_encoder(tokenToUpdate)
-        tokenLogData = tokenData.copy()
-        tokenLogData.pop("access_token")
-        log_event(token, request_info, tokenLogData)
-        return tokenData
+        token_data = jsonable_encoder(updatable_token)
+        token_log_data = token_data.copy()
+        token_log_data.pop("access_token")
+        log_event(token, request_info, token_log_data)
+        return token_data
     except Exception as e:
         exceptions.handle(e)
     finally:
