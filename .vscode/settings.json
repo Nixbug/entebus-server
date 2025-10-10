@@ -3,6 +3,8 @@
         "Entebus",
         "geoalchemy",
         "Nixbug",
+        "onupdate",
+        "ondelete",
         "sessionmaker",
         "sqlstate"
     ]
