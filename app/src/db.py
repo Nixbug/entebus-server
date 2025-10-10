@@ -207,7 +207,6 @@ class ExecutiveRole(ORMbase):
 
         created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when this role was created.
-
     """
 
     __tablename__ = "executive_role"
