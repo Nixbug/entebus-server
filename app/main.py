@@ -47,15 +47,9 @@ app.mount("/public", app_public, "Public API")
     tags=["Health Check"],
     response_model=HealthStatus,
     description="""
-    Health check endpoint to verify `service status`.     
-    Returns a dictionary with the current status and API version.
+    Performs a health check to verify the availability and responsiveness of the service.     
+    Returns a dictionary with the current status and API version.    
     """,
 )
 async def health_check():
-    """
-    Health check endpoint.
-
-    Returns:
-        dict: A dictionary containing the current status and API version.
-    """
     return {"status": "OK", "version": API_VERSION}
