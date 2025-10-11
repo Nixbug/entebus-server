@@ -46,10 +46,6 @@ app.mount("/public", app_public, "Public API")
     URL_HEALTH,
     tags=["Health Check"],
     response_model=HealthStatus,
-    description="""
-    Performs a health check to verify the availability and responsiveness of the service.     
-    Returns a dictionary with the current status and API version.    
-    """,
 )
 async def health_check():
     """
