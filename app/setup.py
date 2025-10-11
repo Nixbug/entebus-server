@@ -137,7 +137,7 @@ def main():
     subparsers.add_parser("delete_tables", help="Delete all tables")
     subparsers.add_parser("create_buckets", help="Create storage buckets")
     subparsers.add_parser("delete_buckets", help="Delete storage buckets")
-    subparsers.add_parser("initialize", help="Initialize the database")
+    subparsers.add_parser("initialize", help="Initialize the server environment")
     args = parser.parse_args()
 
     if args.command == "downgrade":
