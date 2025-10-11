@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.src.schemas import HealthStatus
 from app.src.constants import API_TITLE, API_VERSION
 from app.api.controller import app_executive, app_operator, app_vendor, app_public
+from app.src.urls import URL_HEALTH
 
 app = FastAPI(title=API_TITLE, version=API_VERSION)
 
@@ -42,7 +43,7 @@ app.mount("/public", app_public, "Public API")
 ## Health check endpoint
 # ---------------------------------------------------------------------------
 @app.get(
-    "/health",
+    URL_HEALTH,
     tags=["Health Check"],
     response_model=HealthStatus,
     description="""
