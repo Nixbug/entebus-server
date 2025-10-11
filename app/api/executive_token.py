@@ -119,31 +119,21 @@ class CreateForm(BaseModel):
     responses=fuse_exception_responses(
         [exceptions.InactiveAccount(), exceptions.InvalidCredentials()]
     ),
-    description="""
-    Issues a new access token for an executive after validating credentials.    
-    If the credentials are valid and the executive account is active, a new token is generated and returned.    
-    Limits active tokens using MAX_EXECUTIVE_TOKENS (token rotation).   
-    Sets expiration with expires_in=MAX_TOKEN_VALIDITY (in seconds).    
-    Logs the authentication event for audit tracking.
-    """,
 )
 async def create_token(
     fParam: CreateForm = Depends(),
     request_info=Depends(getters.request_info),
 ):
     """
-    Create a new executive access token.
+    **Issue a new access token for an executive after validating credentials.**
 
-    Args:
-        fParam (CreateForm): Form data containing username, password, platform type, and client details.
-        request_info: Metadata about the incoming request for logging.
-
-    Raises:
-        InvalidCredentials: If username or password is incorrect.
-        InactiveAccount: If the executive account is not active.
-
-    Returns:
-        dict: Token information including the access token.
+    - Verify the `username` exists in the database.
+    - Verify the `password` using a secure hash check (argon2).
+    - Ensure the executive account is in `active status`.
+    - Limits active tokens using `MAX_EXECUTIVE_TOKENS` (token rotation).
+    - Sets expiration with expires_in=`MAX_TOKEN_VALIDITY` (in seconds).
+    - The expiration timestamp `expires_at` is calculated and stored in utc.
+    - Log the authentication event for auditing, excluding the access token itself for security.
     """
     try:
         session = SessionLocal()
