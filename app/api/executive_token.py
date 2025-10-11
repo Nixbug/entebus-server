@@ -44,7 +44,7 @@ from app.src.constants import MAX_EXECUTIVE_TOKENS, MAX_TOKEN_VALIDITY
 from app.src.db import Executive, ExecutiveToken, SessionLocal
 from app.src import argon2, exceptions, getters
 from app.src.enums import AccountStatus, PlatformType
-from app.src.loggers import log_event
+from app.src.openobserve import log_event
 from app.src.functions import enum_str, fuse_exception_responses
 from app.src.urls import URL_EXECUTIVE_TOKEN
 
