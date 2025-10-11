@@ -140,7 +140,7 @@ python -m app.setup create_buckets
 python -m app.setup delete_buckets
 
 # Initialize with sample data
-python3 -m app.setup init_db
+python3 -m app.setup initialize
 ```
 
 
