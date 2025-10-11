@@ -52,4 +52,9 @@ app.mount("/public", app_public, "Public API")
     """,
 )
 async def health_check():
+    """
+    **Perform a basic health check to verify service availability.**
+    - This endpoint serves as a lightweight check to confirm that the API is running and responsive.
+    - It returns a simple JSON response indicating the current status and version of the API.
+    """
     return {"status": "OK", "version": API_VERSION}
