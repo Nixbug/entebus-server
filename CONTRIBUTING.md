@@ -50,7 +50,7 @@ All branches **must** follow the naming convention:
 1. **Open an Issue** for your feature or bug if it does not exist already.  
 2. **Discuss/assign** the Issue before starting work.  
 3. Create your branch from the `develop` branch:  
-```
+```bash
   git checkout -b <branch-name>
 ```
 4. Commit and push changes to your branch.
