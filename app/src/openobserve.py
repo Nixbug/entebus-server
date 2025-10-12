@@ -10,7 +10,6 @@ The module includes:
     - Preparation of authentication headers for OpenObserve.
     - Utility to send event data (`_post_log_event`) via HTTP POST.
     - High-level function (`log_event`) that combines user and request data.
-    - Optional wrapper (`log_executive_event`) for executive-specific logs.
 
 These functions are primarily used for auditing, analytics,
 and monitoring of API activities across different application contexts.
@@ -106,20 +105,3 @@ def log_event(
 
     log_details.update(data)
     _post_log_event(log_details)
-
-
-# Convenience wrappers (optional — use only if you want explicit naming in routes)
-def log_executive_event(
-    token: ExecutiveToken, request_info: RequestInfo, data: dict
-) -> None:
-    """
-    Convenience wrapper to log events specifically for Executive context.
-
-    Args:
-        token (ExecutiveToken): Authenticated executive token.
-        request_info (RequestInfo): Request metadata (method, path, app ID).
-        data (dict): Additional event details.
-    Returns:
-        None
-    """
-    log_event(token, request_info, data)
