@@ -16,7 +16,6 @@ and monitoring of API activities across different application contexts.
 """
 
 import base64, json, requests
-from typing import Union
 from requests import Response
 
 from app.src.constants import (
@@ -75,7 +74,7 @@ def _post_log_event(event_data: dict) -> Response:
 
 
 def log_event(
-    token: Union[ExecutiveToken],
+    token: ExecutiveToken,
     request_info: RequestInfo,
     data: dict,
 ) -> None:
@@ -83,7 +82,7 @@ def log_event(
     Log an event to OpenObserve with request and user context.
 
     Args:
-        token (Union[ExecutiveToken]): Authenticated user token.
+        token (ExecutiveToken): Authenticated user token.
         request_info (RequestInfo): Metadata about the current request.
         data (dict): Additional event-specific details to include in the log.
 
