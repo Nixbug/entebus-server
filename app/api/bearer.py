@@ -9,7 +9,6 @@ Defined schemes:
 - `bearer_executive`: Authentication for executive users.
 - `bearer_vendor`: Authentication for vendor users.
 - `bearer_operator`: Authentication for operator users.
-
 """
 
 from fastapi.security import HTTPBearer
