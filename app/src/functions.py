@@ -5,15 +5,41 @@ services:
 - `fuse_exception_responses`: Generates OpenAPI-compatible response documentation
   by merging multiple `APIException` instances.
 - `enum_str`: Converts an Enum class into a human-readable string representation.
+- `get_request_info`: Fetches request-related information from the database.
 
 It also includes examples for usage, making it easier for developers to integrate
 these utilities into their projects.
 """
 
 from typing import List, Dict
+from fastapi import Request
 
 from app.src import schemas
 from app.src.exceptions import APIException
+
+
+def get_request_info(request: Request) -> schemas.RequestInfo:
+    """
+    Extract metadata about the incoming request.
+
+    This function retrieves essential request information — HTTP method,
+    path, and associated application ID — and returns it as a
+    `RequestInfo` Pydantic model for structured use across the system.
+
+    Args:
+        request (Request): FastAPI request object.
+
+    Returns:
+        schemas.RequestInfo: Pydantic model containing:
+            - method (str): HTTP method (GET, POST, etc.).
+            - path (str): Path portion of the request URL.
+            - app_id (int): Application ID from app state.
+    """
+    return schemas.RequestInfo(
+        method=request.method,
+        path=request.url.path,
+        app_id=request.scope["app"].state.id,
+    )
 
 
 def fuse_exception_responses(exceptions: List[APIException]) -> Dict[int, dict]:

@@ -42,10 +42,10 @@ from pydantic import BaseModel, Field
 
 from app.src.constants import MAX_EXECUTIVE_TOKENS, MAX_TOKEN_VALIDITY
 from app.src.db import Executive, ExecutiveToken, SessionLocal
-from app.src import argon2, exceptions, getters
+from app.src import argon2, exceptions
 from app.src.enums import AccountStatus, PlatformType
 from app.src.openobserve import log_event
-from app.src.functions import enum_str, fuse_exception_responses
+from app.src.functions import enum_str, fuse_exception_responses, get_request_info
 from app.src.urls import URL_EXECUTIVE_TOKEN
 
 route_executive = APIRouter()
@@ -122,7 +122,7 @@ class CreateForm(BaseModel):
 )
 async def create_token(
     fParam: CreateForm = Depends(),
-    request_info=Depends(getters.request_info),
+    request_info=Depends(get_request_info),
 ):
     """
     **Issue a new access token for an executive after validating credentials.**
