@@ -16,10 +16,15 @@ from pydantic import BaseModel, Field
 from app.api.bearer import bearer_executive
 from app.src.constants import MAX_EXECUTIVE_TOKENS, MAX_TOKEN_VALIDITY
 from app.src.db import Executive, ExecutiveToken, SessionLocal
-from app.src import argon2, exceptions, validators
+from app.src import argon2, exceptions
 from app.src.enums import AccountStatus, PlatformType
 from app.src.openobserve import log_event
-from app.src.functions import enum_str, fuse_exception_responses, get_request_info
+from app.src.functions import (
+    enum_str,
+    fuse_exception_responses,
+    get_request_info,
+    validate_executive_token,
+)
 from app.src.urls import URL_EXECUTIVE_TOKEN
 
 route_executive = APIRouter()
@@ -202,7 +207,7 @@ async def refresh_token(
     """
     try:
         session = SessionLocal()
-        token = validators.executive_token(bearer.credentials, session)
+        token = validate_executive_token(bearer.credentials, session)
 
         if fParam.id is None:
             updatable_token = token
