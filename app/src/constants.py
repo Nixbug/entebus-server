@@ -38,7 +38,7 @@ OPENOBSERVE_PORT = environ.get("OPENOBSERVE_PORT", "5080")
 OPENOBSERVE_USERNAME = environ.get("OPENOBSERVE_USERNAME", "admin@entebus.com")
 OPENOBSERVE_PASSWORD = environ.get("OPENOBSERVE_PASSWORD", "password")
 OPENOBSERVE_ORG = environ.get("OPENOBSERVE_ORG", "nixbug")
-OPENOBSERVE_STREAM = environ.get("OPENOBSERVE_STREAM", "entebus-core-server")
+OPENOBSERVE_STREAM = environ.get("OPENOBSERVE_STREAM", "entebus-server")
 
 
 # ---------------------------------------------------------------------------

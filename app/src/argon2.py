@@ -1,3 +1,10 @@
+"""
+Password hashing utilities using Argon2.
+
+Provides simple helper functions to securely hash and verify passwords
+for authentication.
+"""
+
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 

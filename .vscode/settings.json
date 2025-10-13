@@ -2,9 +2,11 @@
     "cSpell.words": [
         "Entebus",
         "geoalchemy",
+        "jsonable",
         "Nixbug",
         "onupdate",
         "ondelete",
+        "OPENOBSERVE",
         "sessionmaker",
         "sqlstate"
     ]
