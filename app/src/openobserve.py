@@ -28,7 +28,7 @@ from app.src.constants import (
     OPENOBSERVE_STREAM,
     OPENOBSERVE_USERNAME,
 )
-from app.src.db import ExecutiveToken
+from app.src.db import ExecutiveToken, OperatorToken, VendorToken
 from app.src.schemas import RequestInfo
 from app.src.enums import AppID
 
@@ -58,8 +58,8 @@ def _post_log_event(event_data: dict) -> Response:
                 {
                     "_method": "POST",
                     "_path": "/api/v1/routes",
-                    "_app_id": "EXECUTIVE",
-                    "_executive_id": "1"
+                    "_app_id": 1,
+                    "_executive_id": 1,
                 }
 
     Returns:
@@ -75,7 +75,7 @@ def _post_log_event(event_data: dict) -> Response:
 
 
 def log_event(
-    token: Union[ExecutiveToken],
+    token: Union[ExecutiveToken, OperatorToken, VendorToken],
     request_info: RequestInfo,
     data: dict,
 ) -> None:
@@ -83,7 +83,7 @@ def log_event(
     Log an event to OpenObserve with request and user context.
 
     Args:
-        token (Union[ExecutiveToken]): Authenticated user token.
+        token (Union[ExecutiveToken, OperatorToken, VendorToken]): Authenticated user token.
         request_info (RequestInfo): Metadata about the current request.
         data (dict): Additional event-specific details to include in the log.
 
@@ -102,6 +102,10 @@ def log_event(
 
     if request_info.app_id == AppID.EXECUTIVE:
         log_details["_executive_id"] = token.executive_id
+    if request_info.app_id == AppID.OPERATOR:
+        log_details["_operator_id"] = token.operator_id
+    if request_info.app_id == AppID.VENDOR:
+        log_details["_vendor_id"] = token.vendor_id
 
     log_details.update(data)
     _post_log_event(log_details)

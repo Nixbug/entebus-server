@@ -382,3 +382,11 @@ class ExecutiveImage(ORMbase):
     file_type = Column(String(128), nullable=False)
     # Metadata
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class OperatorToken:
+    pass
+
+
+class VendorToken:
+    pass
