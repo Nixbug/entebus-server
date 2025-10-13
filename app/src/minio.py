@@ -1,3 +1,10 @@
+"""
+MinIO utility functions.
+
+Handles basic operations with the configured MinIO server,
+providing a simple interface for managing stored data.
+"""
+
 from typing import BinaryIO, Optional
 from minio import Minio
 from minio.error import S3Error

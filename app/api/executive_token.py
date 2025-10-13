@@ -1,37 +1,9 @@
 """
-Executive Token API Router
+Executive Token API Router for EnteBus.
 
-This module defines the FastAPI endpoints and associated schemas for managing
-executive access tokens. It provides functionality for creating, refreshing,
-deleting, and fetching executive tokens while enforcing authentication,
-account status checks, and token rotation limits.
-
-Key Features:
-    - Logging: Authentication events are logged for auditing purposes.
-    - Input Validation: Uses Pydantic models and FastAPI Form/Schema validation.
-    - Output Schemas: Returns masked or full token information as needed.
-
-Schemas:
-    - MaskedExecutiveTokenSchema: Token metadata excluding the access token.
-    - ExecutiveTokenSchema: Full token metadata including the access token.
-    - CreateForm: Input form for creating a new token.
-    - UpdateForm: Input form for updating an existing token.
-    - DeleteForm: Input form for deleting a token.
-    - QueryForm: Input form for fetching token details.
-
-Endpoints:
-    - POST /executive/token: Create a new token for an executive.
-    - PATCH /executive/token: Refresh an existing token.
-    - DELETE /executive/token: Delete a token.
-    - GET /executive/token: Fetch token details.
-
-Dependencies:
-    - argon2: Password hashing and verification.
-    - SessionLocal: SQLAlchemy session factory.
-    - enums: AccountStatus and PlatformType.
-    - loggers: Event logging.
-    - constants: MAX_EXECUTIVE_TOKENS, MAX_TOKEN_VALIDITY.
-    - exceptions: Custom API exceptions.
+Provides endpoints for managing executive access tokens, including creation,
+refresh, deletion, and retrieval. Uses Pydantic schemas for
+input validation and structured output.
 """
 
 from datetime import datetime, timedelta, timezone

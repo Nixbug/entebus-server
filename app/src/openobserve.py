@@ -6,11 +6,6 @@ to an OpenObserve instance. It supports automatic log enrichment with
 request metadata and user context, enabling consistent tracking of
 API operations across applications.
 
-The module includes:
-    - Preparation of authentication headers for OpenObserve.
-    - Utility to send event data (`_post_log_event`) via HTTP POST.
-    - High-level function (`log_event`) that combines user and request data.
-
 These functions are primarily used for auditing, analytics,
 and monitoring of API activities across different application contexts.
 """

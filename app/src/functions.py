@@ -1,11 +1,6 @@
 """
 This module provides helper functions commonly used across FastAPI routes and
-services:
-
-- `fuse_exception_responses`: Generates OpenAPI-compatible response documentation
-  by merging multiple `APIException` instances.
-- `enum_str`: Converts an Enum class into a human-readable string representation.
-- `get_request_info`: Fetches request-related information from the database.
+services.
 
 It also includes examples for usage, making it easier for developers to integrate
 these utilities into their projects.
