@@ -11,6 +11,7 @@ gateway or service base URL when making requests.
 # ---------------------------------------------------------------------------
 # Common Entities
 # ---------------------------------------------------------------------------
+URL_HEALTH = "/health"
 URL_LANDMARK = "/landmark"
 URL_BUS_STOP = "/landmark/bus_stop"
 

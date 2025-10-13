@@ -1,12 +1,6 @@
 """
 This module provides helper functions commonly used across FastAPI routes and
-services:
-
-- `get_request_info`: Extracts key metadata from incoming FastAPI requests for
-  logging, auditing, or contextual processing.
-- `fuse_exception_responses`: Generates OpenAPI-compatible response documentation
-  by merging multiple `APIException` instances.
-- `enum_str`: Converts an Enum class into a human-readable string representation.
+services.
 
 It also includes examples for usage, making it easier for developers to integrate
 these utilities into their projects.
@@ -21,24 +15,26 @@ from app.src.exceptions import APIException
 
 def get_request_info(request: Request) -> schemas.RequestInfo:
     """
-    Extract request metadata and return it as a `RequestInfo` schema.
+    Extract metadata about the incoming request.
 
-    This function pulls essential information about the incoming request,
-    including the HTTP method, request path, and the `app_id` stored in the
-    application state. It is typically used for logging, auditing, or
-    generating contextual information about requests.
+    This function retrieves essential request information — HTTP method,
+    path, and associated application ID — and returns it as a
+    `RequestInfo` Pydantic model for structured use across the system.
 
     Args:
-        request (Request): The incoming FastAPI request object.
+        request (Request): FastAPI request object.
 
     Returns:
-        schemas.RequestInfo: A dictionary (pydantic model) containing:
-            - method (str): The HTTP method of the request (e.g., GET, POST).
-            - path (str): The request URL path (e.g., "/landmark").
-            - app_id (int): The application identifier (e.g., AppID.EXECUTIVE, AppID.VENDOR)
+        schemas.RequestInfo: Pydantic model containing:
+            - method (str): HTTP method (GET, POST, etc.).
+            - path (str): Path portion of the request URL.
+            - app_id (int): Application ID from app state.
     """
-    app_id: int = request.scope["app"].state.id
-    return {"method": request.method, "path": request.url.path, "app_id": app_id}
+    return schemas.RequestInfo(
+        method=request.method,
+        path=request.url.path,
+        app_id=request.scope["app"].state.id,
+    )
 
 
 def fuse_exception_responses(exceptions: List[APIException]) -> Dict[int, dict]:

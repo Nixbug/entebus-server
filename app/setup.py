@@ -84,7 +84,7 @@ def delete_tables():
     session.close()
 
 
-def init_db():
+def initialize():
     """Initialize the database with default users."""
     session = SessionLocal()
 
@@ -137,7 +137,7 @@ def main():
     subparsers.add_parser("delete_tables", help="Delete all tables")
     subparsers.add_parser("create_buckets", help="Create storage buckets")
     subparsers.add_parser("delete_buckets", help="Delete storage buckets")
-    subparsers.add_parser("init_db", help="Initialization completed")
+    subparsers.add_parser("initialize", help="Initialize the server environment")
     args = parser.parse_args()
 
     if args.command == "downgrade":
@@ -156,8 +156,8 @@ def main():
         create_buckets()
     elif args.command == "delete_buckets":
         delete_buckets()
-    if args.command == "init_db":
-        init_db()
+    if args.command == "initialize":
+        initialize()
 
 
 if __name__ == "__main__":

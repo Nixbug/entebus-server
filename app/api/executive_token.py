@@ -1,53 +1,25 @@
 """
-Executive Token API Router
+Executive Token API Router for EnteBus.
 
-This module defines the FastAPI endpoints and associated schemas for managing
-executive access tokens. It provides functionality for creating, refreshing,
-deleting, and fetching executive tokens while enforcing authentication,
-account status checks, and token rotation limits.
-
-Key Features:
-    - Logging: Authentication events are logged for auditing purposes.
-    - Input Validation: Uses Pydantic models and FastAPI Form/Schema validation.
-    - Output Schemas: Returns masked or full token information as needed.
-
-Schemas:
-    - MaskedExecutiveTokenSchema: Token metadata excluding the access token.
-    - ExecutiveTokenSchema: Full token metadata including the access token.
-    - CreateForm: Input form for creating a new token.
-    - UpdateForm: Input form for updating an existing token.
-    - DeleteForm: Input form for deleting a token.
-    - QueryForm: Input form for fetching token details.
-
-Endpoints:
-    - POST /executive/token: Create a new token for an executive.
-    - PATCH /executive/token: Refresh an existing token.
-    - DELETE /executive/token: Delete a token.
-    - GET /executive/token: Fetch token details.
-
-Dependencies:
-    - argon2: Password hashing and verification.
-    - SessionLocal: SQLAlchemy session factory.
-    - enums: AccountStatus and PlatformType.
-    - loggers: Event logging.
-    - constants: MAX_EXECUTIVE_TOKENS, MAX_TOKEN_VALIDITY.
-    - exceptions: Custom API exceptions.
+Provides endpoints for managing executive access tokens, including creation,
+refresh, deletion, and retrieval. Uses Pydantic schemas for
+input validation and structured output.
 """
 
 from datetime import datetime, timedelta, timezone
+from secrets import token_hex
 from typing import Optional
 from fastapi import APIRouter, Depends, status, Form
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from secrets import token_hex
 
 from app.api.bearer import bearer_executive
 from app.src.constants import MAX_EXECUTIVE_TOKENS, MAX_TOKEN_VALIDITY
 from app.src.db import Executive, ExecutiveToken, SessionLocal
-from app.src import argon2, exceptions, getters, validators
+from app.src import argon2, exceptions, validators
 from app.src.enums import AccountStatus, PlatformType
-from app.src.loggers import log_event
-from app.src.functions import enum_str, fuse_exception_responses
+from app.src.openobserve import log_event
+from app.src.functions import enum_str, fuse_exception_responses, get_request_info
 from app.src.urls import URL_EXECUTIVE_TOKEN
 
 route_executive = APIRouter()
@@ -132,31 +104,21 @@ class UpdateForm(BaseModel):
     responses=fuse_exception_responses(
         [exceptions.InactiveAccount(), exceptions.InvalidCredentials()]
     ),
-    description="""
-    Issues a new access token for an executive after validating credentials.    
-    If the credentials are valid and the executive account is active, a new token is generated and returned.    
-    Limits active tokens using MAX_EXECUTIVE_TOKENS (token rotation).   
-    Sets expiration with expires_in=MAX_TOKEN_VALIDITY (in seconds).    
-    Logs the authentication event for audit tracking.
-    """,
 )
 async def create_token(
     fParam: CreateForm = Depends(),
-    request_info=Depends(getters.request_info),
+    request_info=Depends(get_request_info),
 ):
     """
-    Create a new executive access token.
+    **Issue a new access token for an executive after validating credentials.**
 
-    Args:
-        fParam (CreateForm): Form data containing username, password, platform type, and client details.
-        request_info: Metadata about the incoming request for logging.
-
-    Raises:
-        InvalidCredentials: If username or password is incorrect.
-        InactiveAccount: If the executive account is not active.
-
-    Returns:
-        dict: Token information including the access token.
+    - Verify the `username` exists in the database.
+    - Verify the `password` using a secure hash check (argon2).
+    - Ensure the executive account is in `active status`.
+    - Limits active tokens using `MAX_EXECUTIVE_TOKENS` (token rotation).
+    - Sets expiration with expires_in=`MAX_TOKEN_VALIDITY` (in seconds).
+    - The expiration timestamp `expires_at` is calculated and stored in utc.
+    - Log the authentication event for auditing, excluding the access token itself for security.
     """
     try:
         session = SessionLocal()
@@ -220,36 +182,23 @@ async def create_token(
             exceptions.UnknownValue(ExecutiveToken.id),
         ]
     ),
-    description="""
-    Refreshes an existing executive access token.
-    If no id is provided, refreshes only the current token (used in this request).  
-    If an id is provided: Must match the current token's access_token (prevents unauthorized refreshes, even by the same executive).    
-    Raises UnknownValue if the token does not exist (avoids ID probing).   
-    Extends expires_at by MAX_TOKEN_VALIDITY seconds.   
-    Rotates the access_token value (invalidates the old token immediately). 
-    Logs the refresh event for auditability.
-    """,
 )
 async def refresh_token(
     fParam: UpdateForm = Depends(),
     bearer=Depends(bearer_executive),
-    request_info=Depends(getters.request_info),
+    request_info=Depends(get_request_info),
 ):
     """
-    Refresh an existing executive access token.
+    **Refresh an executive access token and extend its validity.**
 
-    Args:
-        fParam (UpdateForm): Form data containing the optional token ID to refresh.
-        bearer: Bearer authorization dependency used to validate the current token.
-        request_info: Metadata about the incoming request for logging purposes.
-
-    Raises:
-        UnknownValue: If the specified token ID does not exist.
-        NoPermission: If the provided token does not have permission to refresh another token.
-        Exception: For unexpected errors during token refresh or database operations.
-
-    Returns:
-        dict: Updated token information including the new access token and extended expiry details.
+    - Validates the current token.
+    - If `id` is not provided, refreshes the current active token.
+    - If `id` is provided:
+        - Verifies that the token exists in the database.
+        - Ensures it matches the current token's `access_token` to prevent unauthorized refresh attempts.
+    - Extends token validity by adding `MAX_TOKEN_VALIDITY` seconds to both `expires_in` and `expires_at`.
+    - Rotates the `access_token`, immediately invalidating the old one.
+    - Logs the token refresh event for auditing, excluding the new access token from the log for security.
     """
     try:
         session = SessionLocal()

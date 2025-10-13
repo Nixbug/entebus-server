@@ -4,12 +4,6 @@ FastAPI application instances for different user domains.
 This module creates separate FastAPI apps for each type of user domain
 (executive, vendor, operator, public) and tags each app with a corresponding
 AppID for contextual request handling.It also includes routers for each app.
-
-Attributes:
-    app_executive : FastAPI app for executive users.
-    app_vendor : FastAPI app for vendor users.
-    app_operator : FastAPI app for operator users.
-    app_public : FastAPI app for public endpoints.
 """
 
 from fastapi import FastAPI

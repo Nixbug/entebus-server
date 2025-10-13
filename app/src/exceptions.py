@@ -1,14 +1,12 @@
 """
 Centralized exception handling for EnteBus API.
 
-This module provides:
-- Base APIException class extending FastAPI's HTTPException.
-- Custom domain-specific exceptions with appropriate status codes and headers.
-- Utility functions for formatting DB errors, logging, and routing exceptions.
+This module defines a unified approach to managing application errors by
+providing custom exception classes, formatting utilities, and a central
+`handle()` function to normalize and re-raise errors from various sources
+(e.g., database, Redis, Pydantic, network).
 
-Usage:
-    - Raise specific exceptions in route handlers or services.
-    - Use `handle()` to normalize raw exceptions (DB, Redis, Pydantic) into API-friendly responses.
+It ensures consistent error responses across the API.
 """
 
 from traceback import format_exception
