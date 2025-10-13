@@ -99,7 +99,7 @@ def log_event(
         "_app_id": request_info.app_id,
     }
 
-    if request_info.app_id == AppID.EXECUTIVE and isinstance(token, ExecutiveToken):
+    if request_info.app_id == AppID.EXECUTIVE:
         log_details["_executive_id"] = token.executive_id
 
     log_details.update(data)
