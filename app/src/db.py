@@ -309,9 +309,6 @@ class ExecutiveToken(ORMbase):
             May include user agent, app version, IP address, etc.
             Maximum 1024 characters long.
 
-        updated_on (DateTime, nullable, onupdate=func.now()):
-            Timestamp automatically updated whenever the token record is modified.
-
         created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when this token was created.
     """
@@ -334,7 +331,6 @@ class ExecutiveToken(ORMbase):
     platform_type = Column(Integer, default=PlatformType.OTHER)
     client_details = Column(TEXT)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
 
 

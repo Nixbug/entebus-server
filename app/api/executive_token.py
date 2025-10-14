@@ -2,7 +2,7 @@
 Executive Token API Router for EnteBus.
 
 Provides endpoints for managing executive access tokens, including creation,
-refresh, deletion, and retrieval. Uses Pydantic schemas for
+regeneration, deletion, and retrieval. Uses Pydantic schemas for
 input validation and structured output.
 """
 
@@ -41,7 +41,6 @@ class MaskedExecutiveTokenSchema(BaseModel):
         expires_in (int): Token validity duration in seconds.
         platform_type (int): Platform type enum value.
         client_details (Optional[str]): Optional details about the client.
-        updated_on (Optional[datetime]): Last updated timestamp.
         created_on (datetime): Token creation timestamp.
     """
 
@@ -50,7 +49,6 @@ class MaskedExecutiveTokenSchema(BaseModel):
     expires_in: int
     platform_type: int
     client_details: Optional[str]
-    updated_on: Optional[datetime]
     created_on: datetime
 
 
@@ -176,10 +174,11 @@ async def create_token(
         session.close()
 
 
-@route_executive.patch(
-    URL_EXECUTIVE_TOKEN,
+@route_executive.post(
+    URL_EXECUTIVE_TOKEN+"/refresh",
     tags=["Token"],
     response_model=ExecutiveTokenSchema,
+    status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
         [
             exceptions.InvalidToken(),
@@ -188,50 +187,64 @@ async def create_token(
         ]
     ),
 )
-async def refresh_token(
+async def regenerate_token(
     fParam: UpdateForm = Depends(),
     bearer=Depends(bearer_executive),
     request_info=Depends(get_request_info),
 ):
     """
-    **Refresh an executive access token and extend its validity.**
+    **Regenerate an executive access token after validating the current one or a specific one.**
 
     - Validates the current token.
-    - If `id` is not provided, refreshes the current active token.
     - If `id` is provided:
         - Verifies that the token exists in the database.
-        - Ensures it matches the current token's `access_token` to prevent unauthorized refresh attempts.
-    - Extends token validity by adding `MAX_TOKEN_VALIDITY` seconds to both `expires_in` and `expires_at`.
-    - Rotates the `access_token`, immediately invalidating the old one.
-    - Logs the token refresh event for auditing, excluding the new access token from the log for security.
+        - Ensures it matches the current token's `access_token` to prevent unauthorized regeneration attempts.
+    - If `id` is not provided:
+        - Uses the currently authenticated token.
+    - Deletes the old token record to prevent reuse.
+    - Creates a **new token record** with new `access_token`, `expires_in`, and `expires_at`.
+    - Logs the token related event for auditing, excluding the new access token for security.
     """
     try:
         session = SessionLocal()
         token = validate_executive_token(bearer.credentials, session)
 
+        # Determine which token is being regenerated
         if fParam.id is None:
-            updatable_token = token
+            current_token = token
         else:
-            updatable_token = (
+            current_token = (
                 session.query(ExecutiveToken)
                 .filter(ExecutiveToken.id == fParam.id)
                 .first()
             )
-            if updatable_token is None:
+            if current_token is None:
                 raise exceptions.UnknownValue(ExecutiveToken.id)
-            if updatable_token.access_token != token.access_token:
+            if current_token.access_token != token.access_token:
                 raise exceptions.NoPermission()
 
-        updatable_token.expires_in += MAX_TOKEN_VALIDITY
-        updatable_token.expires_at += timedelta(seconds=MAX_TOKEN_VALIDITY)
-        updatable_token.access_token = token_hex(32)
-        session.commit()
-        session.refresh(updatable_token)
+        # Remove the current token (old record)
+        session.delete(current_token)
+        session.flush()
 
-        token_data = jsonable_encoder(updatable_token)
+        # Create a new token record
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=MAX_TOKEN_VALIDITY)
+        regenerate_token = ExecutiveToken(
+            executive_id=token.executive_id,
+            expires_in=MAX_TOKEN_VALIDITY,
+            expires_at=expires_at,
+            platform_type=token.platform_type,
+            client_details=token.client_details,
+        )
+        session.add(regenerate_token)
+        session.commit()
+        session.refresh(regenerate_token)
+
+        # Log without sensitive fields
+        token_data = jsonable_encoder(regenerate_token)
         token_log_data = token_data.copy()
-        token_log_data.pop("access_token")
-        log_event(token, request_info, token_log_data)
+        token_log_data.pop("access_token", None)
+        log_event(regenerate_token, request_info, token_log_data)
         return token_data
     except Exception as e:
         exceptions.handle(e)
