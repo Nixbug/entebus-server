@@ -44,7 +44,7 @@ def validate_executive_token(access_token: str, session: Session) -> ExecutiveTo
     Validate an executive access token.
 
     Args:
-        access_token (str): The bearer token provided by the client.
+        access_token (str): The token string to validate.
         session (Session): Active SQLAlchemy session for DB lookup.
 
     Returns:
@@ -54,7 +54,6 @@ def validate_executive_token(access_token: str, session: Session) -> ExecutiveTo
         exceptions.InvalidToken: If the token is not found or has expired.
     """
     current_time = datetime.now(timezone.utc)
-
     token = (
         session.query(ExecutiveToken)
         .filter(
@@ -63,7 +62,6 @@ def validate_executive_token(access_token: str, session: Session) -> ExecutiveTo
         )
         .first()
     )
-
     if token is None:
         raise exceptions.InvalidToken()
 
