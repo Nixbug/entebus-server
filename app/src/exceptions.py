@@ -217,7 +217,7 @@ class UnknownValue(APIException):
     headers = {"X-Error": "UnknownValue"}
 
     def __init__(self, column: Column):
-        detail = f"Invalid {column.name} is provided"
+        detail = f"Unknown {column.name} is provided"
         super().__init__(detail=detail)
 
 
