@@ -12,7 +12,6 @@ from fastapi import APIRouter, Depends, status, Form
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
-from app.api.bearer import bearer_executive
 from app.src.constants import (
     MAX_EXECUTIVE_TOKENS,
     ACCESS_TOKEN_VALIDITY,
@@ -26,7 +25,6 @@ from app.src.functions import (
     enum_str,
     fuse_exception_responses,
     get_request_info,
-    validate_executive_token,
 )
 from app.src.urls import URL_EXECUTIVE_TOKEN
 
@@ -231,7 +229,7 @@ async def refresh_token(
     request_info=Depends(get_request_info),
 ):
     """
-    **Refresh an executive access token and extend its validity.**
+    **Refresh an executive's access token using a valid refresh token.**
 
     - **Token Verification**
         - Verify the provided refresh token exists in the database.
