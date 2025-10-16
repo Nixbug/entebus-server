@@ -302,17 +302,17 @@ class ExecutiveToken(ORMbase):
             OAuth refresh tokens are enforce the format prescribed by RFC 6749 format (https://datatracker.ietf.org/doc/html/rfc6749)
 
         expires_in (Integer, not null):
-            Token expiration time in seconds.
+            Access token expiration time in seconds.
             Defines the duration after which the token becomes invalid.
 
         expires_at (DateTime, not null):
-            Defines the date and time after which the token becomes invalid.
+            Defines the date and time after which the refresh token becomes invalid.
 
         platform_type (Integer, nullable, default=PlatformType.OTHER):
             Enum value indicating the client platform type.
 
         client_details (TEXT, nullable):
-            Description of the client device or environment.
+            Description of the client device or environment where the access token was issued or used.
             May include user agent, app version, IP address, etc.
             Maximum 1024 characters long.
 
