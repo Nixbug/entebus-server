@@ -141,15 +141,7 @@ async def create_token(
             .all()
         )
         if len(tokens) >= MAX_EXECUTIVE_TOKENS:
-            revoked_token = (
-                session.query(ExecutiveToken)
-                .filter(
-                    ExecutiveToken.executive_id == executive.id,
-                    ExecutiveToken.is_revoked.is_(True),
-                )
-                .order_by(ExecutiveToken.created_on.asc())
-                .first()
-            )
+            revoked_token = next((t for t in tokens if t.is_revoked), None)
             if revoked_token:
                 # Delete revoked token first
                 session.delete(revoked_token)
