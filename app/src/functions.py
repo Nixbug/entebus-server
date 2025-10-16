@@ -6,7 +6,7 @@ It also includes examples for usage, making it easier for developers to integrat
 these utilities into their projects.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict
 from fastapi import Request
 from sqlalchemy.orm.session import Session
@@ -41,7 +41,12 @@ def get_request_info(request: Request) -> schemas.RequestInfo:
 
 def validate_executive_token(access_token: str, session: Session) -> ExecutiveToken:
     """
-    Validate an executive access token.
+    Validate the given executive access token.
+
+    This function ensures that:
+      - The access token exists in the database.
+      - The access token has not expired based on `expires_in` duration.
+      - The token has not been revoked.
 
     Args:
         access_token (str): The token string to validate.
@@ -51,20 +56,23 @@ def validate_executive_token(access_token: str, session: Session) -> ExecutiveTo
         ExecutiveToken: The valid token object from the database.
 
     Raises:
-        exceptions.InvalidToken: If the token is not found or has expired.
+        exceptions.InvalidToken: If the token is not found, expired, or revoked.
     """
     current_time = datetime.now(timezone.utc)
+
     token = (
         session.query(ExecutiveToken)
         .filter(
             ExecutiveToken.access_token == access_token,
-            ExecutiveToken.expires_at > current_time,
+            ExecutiveToken.is_revoked.is_(False),
         )
         .first()
     )
     if token is None:
         raise exceptions.InvalidToken()
-
+    token_expires_on = token.created_on + timedelta(seconds=token.expires_in)
+    if current_time > token_expires_on:
+        raise exceptions.InvalidToken()
     return token
 
 
