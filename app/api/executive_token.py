@@ -200,6 +200,7 @@ async def refresh_token(
     - **Token Verification**
         - Verify the provided refresh token exists in the database.
         - Ensure the refresh token has `not expired` by comparing expires_at with the current UTC time.
+        - Ensure the token has `not revoked`.
     - Remove the current refresh token record from the database to prevent reuse.
     - **Token Creation**
         - Generate a new `Executive Token` with a pair of access and refresh tokens.
@@ -220,11 +221,12 @@ async def refresh_token(
         )
         if token_to_refresh is None:
             raise exceptions.UnknownValue(ExecutiveToken.refresh_token)
-
+        # Check token is not revoked
+        if token_to_refresh.is_revoked:
+            raise exceptions.InvalidToken()
         # Check token expiration
         if token_to_refresh.expires_at < datetime.now(timezone.utc):
             raise exceptions.InvalidToken()
-
         # Remove the current token (old record)
         session.delete(token_to_refresh)
         session.flush()
