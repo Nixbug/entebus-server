@@ -34,18 +34,7 @@ route_executive = APIRouter()
 ## Output Schema
 class MaskedExecutiveTokenSchema(BaseModel):
     """
-    Schema for executive token response without revealing the access token.
-
-    Attributes:
-        id (int): Token ID.
-        executive_id (int): ID of the executive owning the token.
-        expires_in (int): Access token validity duration in seconds.
-        expires_at (datetime): Refresh token expiration timestamp.
-        platform_type (int): Platform type enum value.
-        client_details (Optional[str]): Optional details about the client.
-        is_revoked (bool): Flag indicating if the token is revoked.
-        updated_on (Optional[datetime]): Last updated timestamp.
-        created_on (datetime): Token creation timestamp.
+    Schema for executive token response without revealing the tokens.
     """
 
     id: int
@@ -61,12 +50,7 @@ class MaskedExecutiveTokenSchema(BaseModel):
 
 class ExecutiveTokenSchema(MaskedExecutiveTokenSchema):
     """
-    Schema for executive token response including the access token.
-
-    Attributes:
-        access_token (str): The generated access token.
-        refresh_token (str): The generated refresh token.
-        token_type (Optional[str]): Type of the token (default: "bearer").
+    Schema for executive token response including the tokens.
     """
 
     access_token: str
@@ -78,12 +62,6 @@ class ExecutiveTokenSchema(MaskedExecutiveTokenSchema):
 class CreateForm(BaseModel):
     """
     Form data for creating a new executive token.
-
-    Attributes:
-        username (str): Username of the executive (max 32 chars).
-        password (str): Password of the executive (max 32 chars).
-        platform_type (PlatformType): Platform type of the request.
-        client_details (Optional[str]): Optional client details (max 1024 chars).
     """
 
     username: str = Field(Form(max_length=32))
@@ -96,11 +74,7 @@ class CreateForm(BaseModel):
 
 class UpdateForm(BaseModel):
     """
-    Form data for updating an existing executive token.
-
-    Attributes:
-        refresh_token ([str]): Refresh token of the token to update.
-        grant_type (str): Grant type for token update (default: "refresh_token").
+    Form data for refreshing an executive token.
     """
 
     refresh_token: str = Field(Form())
