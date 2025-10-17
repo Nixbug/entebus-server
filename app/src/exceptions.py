@@ -236,6 +236,6 @@ class InvalidGrantType(APIException):
     Raised when an invalid grant type is provided.
     """
 
-    status_code = status.HTTP_400_BAD_REQUEST
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "Invalid grant type"
     headers = {"X-Error": "InvalidGrantType"}
