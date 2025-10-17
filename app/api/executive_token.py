@@ -209,15 +209,14 @@ async def refresh_token(
         )
         if token_to_refresh is None:
             raise exceptions.UnknownValue(ExecutiveToken.refresh_token)
-        # Check token is not revoked
         if token_to_refresh.is_revoked:
             raise exceptions.InvalidToken()
-        # Check token expiration
+        # TODO: Suspend executive account if a revoked token is used for token generation
         if token_to_refresh.expires_at < datetime.now(timezone.utc):
             raise exceptions.InvalidToken()
         if fParam.grant_type != GrandType.REFRESH_TOKEN:
             raise exceptions.InvalidGrantType()
-        # Revoke the old token (keep it in DB for record)
+        # Revoke the old token
         token_to_refresh.is_revoked = True
 
         # Create new token
