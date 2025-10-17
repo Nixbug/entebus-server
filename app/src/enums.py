@@ -21,6 +21,13 @@ class AppID(IntEnum):
     PUBLIC = 4
 
 
+class GrandType(IntEnum):
+    """Authentication grant types."""
+
+    PASSWORD = 1
+    REFRESH_TOKEN = 2
+
+
 class AccountStatus(IntEnum):
     """Status of an account (executive, operator, vendor, etc.)."""
 

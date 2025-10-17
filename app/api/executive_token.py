@@ -19,7 +19,7 @@ from app.src.constants import (
 )
 from app.src.db import Executive, ExecutiveToken, SessionLocal
 from app.src import argon2, exceptions
-from app.src.enums import AccountStatus, PlatformType
+from app.src.enums import AccountStatus, PlatformType, GrandType
 from app.src.openobserve import log_event
 from app.src.functions import (
     enum_str,
@@ -70,6 +70,9 @@ class CreateForm(BaseModel):
         Form(description=enum_str(PlatformType), default=PlatformType.OTHER)
     )
     client_details: str | None = Field(Form(max_length=1024, default=None))
+    grant_type: GrandType = Field(
+        Form(description=enum_str(GrandType), default=GrandType.PASSWORD)
+    )
 
 
 class UpdateForm(BaseModel):
@@ -78,6 +81,9 @@ class UpdateForm(BaseModel):
     """
 
     refresh_token: str = Field(Form())
+    grant_type: GrandType = Field(
+        Form(description=enum_str(GrandType), default=GrandType.REFRESH_TOKEN)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -123,6 +129,8 @@ async def create_token(
             raise exceptions.InvalidCredentials()
         if executive.status != AccountStatus.ACTIVE:
             raise exceptions.InactiveAccount()
+        if fParam.grant_type != GrandType.PASSWORD:
+            raise exceptions.InvalidGrantType()
 
         # Remove excess tokens from DB
         tokens = (
@@ -207,6 +215,8 @@ async def refresh_token(
         # Check token expiration
         if token_to_refresh.expires_at < datetime.now(timezone.utc):
             raise exceptions.InvalidToken()
+        if fParam.grant_type != GrandType.REFRESH_TOKEN:
+            raise exceptions.InvalidGrantType()
         # Revoke the old token (keep it in DB for record)
         token_to_refresh.is_revoked = True
 
