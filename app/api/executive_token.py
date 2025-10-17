@@ -99,7 +99,7 @@ class UpdateForm(BaseModel):
     ),
 )
 async def create_token(
-    fParam: CreateForm = Depends(),
+    form_param: CreateForm = Depends(),
     request_info=Depends(get_request_info),
 ):
     """
@@ -119,17 +119,17 @@ async def create_token(
         session = SessionLocal()
         executive = (
             session.query(Executive)
-            .filter(Executive.username == fParam.username)
+            .filter(Executive.username == form_param.username)
             .first()
         )
         if executive is None:
             raise exceptions.InvalidCredentials()
 
-        if not argon2.check_password(fParam.password, executive.password):
+        if not argon2.check_password(form_param.password, executive.password):
             raise exceptions.InvalidCredentials()
         if executive.status != AccountStatus.ACTIVE:
             raise exceptions.InactiveAccount()
-        if fParam.grant_type != GrandType.PASSWORD:
+        if form_param.grant_type != GrandType.PASSWORD:
             raise exceptions.InvalidGrantType()
 
         # Remove excess tokens from DB
@@ -152,8 +152,8 @@ async def create_token(
             executive_id=executive.id,
             expires_in=ACCESS_TOKEN_VALIDITY,
             expires_at=expires_at,
-            platform_type=fParam.platform_type,
-            client_details=fParam.client_details,
+            platform_type=form_param.platform_type,
+            client_details=form_param.client_details,
         )
         session.add(token)
         session.commit()
@@ -184,7 +184,7 @@ async def create_token(
     ),
 )
 async def refresh_token(
-    fParam: UpdateForm = Depends(),
+    form_param: UpdateForm = Depends(),
     request_info=Depends(get_request_info),
 ):
     """
@@ -204,7 +204,7 @@ async def refresh_token(
 
         token_to_refresh = (
             session.query(ExecutiveToken)
-            .filter(ExecutiveToken.refresh_token == fParam.refresh_token)
+            .filter(ExecutiveToken.refresh_token == form_param.refresh_token)
             .first()
         )
         if token_to_refresh is None:
@@ -214,7 +214,7 @@ async def refresh_token(
         # TODO: Suspend executive account if a revoked token is used for token generation
         if token_to_refresh.expires_at < datetime.now(timezone.utc):
             raise exceptions.InvalidToken()
-        if fParam.grant_type != GrandType.REFRESH_TOKEN:
+        if form_param.grant_type != GrandType.REFRESH_TOKEN:
             raise exceptions.InvalidGrantType()
         # Revoke the old token
         token_to_refresh.is_revoked = True
