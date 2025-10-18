@@ -100,19 +100,29 @@ def cleanup_old_tokens(
     model_cls: Type[DeclarativeMeta],
     filter_condition: Column,
     max_tokens: int,
-):
+) -> None:
     """
-    Removes excess tokens matching a given filter condition,
-    keeping only the latest valid ones.
-    """
+    Remove excess tokens for a given entity, retaining only the most recent valid ones.
 
+    This function enforces a maximum number of active tokens per entity (executive,
+    operator, vendor.) and deletes older ones beyond the specified limit.
+    Tokens are ordered such that revoked tokens are prioritized for deletion.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        model_cls (Type[DeclarativeMeta]): The valid token object from the database(e.g., ExecutiveToken, OperatorToken, VendorToken).
+        filter_condition (Column): SQLAlchemy filter condition (e.g., ExecutiveToken.executive_id == id).
+        max_tokens (int): The maximum number of tokens allowed.
+
+    Returns:
+        None
+    """
     tokens = (
         session.query(model_cls)
         .filter(filter_condition)
         .order_by(desc(model_cls.is_revoked), asc(model_cls.created_on))
         .all()
     )
-
     # Remove oldest tokens if we exceed max_tokens
     while len(tokens) > max_tokens:
         token_to_delete = tokens.pop(0)
@@ -121,14 +131,30 @@ def cleanup_old_tokens(
 
 
 def authenticate_user(
-    session: Session, model_cls: Type[DeclarativeMeta], form_param: Type
-):
+    session: Session, model_cls: Type[DeclarativeMeta], form_param: Any
+) -> DeclarativeMeta:
     """
     Generic user authentication function for Executive, Operator, Vendor.
+
+    This generic function handles authentication for different account types.
+    It validates the username, password and ensures the account is active.
+    Authenticate a user using the grant type.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        model_cls (Type[DeclarativeMeta]): The valid user object from the database(e.g., Executive, Operator, Vendor).
+        form_param (Any): Form parameters containing username, password, and grant_type.
+
+    Returns:
+        model_cls: The valid user object from the database.
+
+    Raises:
+        InvalidGrantType: If the grant_type is not PASSWORD.
+        InvalidCredentials: If the username or password is invalid.
+        InactiveAccount: If the user account is not active.
     """
     if form_param.grant_type != GrandType.PASSWORD:
         raise exceptions.InvalidGrantType()
-
     user = (
         session.query(model_cls)
         .filter(model_cls.username == form_param.username)
@@ -136,7 +162,6 @@ def authenticate_user(
     )
     if user is None:
         raise exceptions.InvalidCredentials()
-
     if not argon2.check_password(form_param.password, user.password):
         raise exceptions.InvalidCredentials()
     if user.status != AccountStatus.ACTIVE:
@@ -147,10 +172,27 @@ def authenticate_user(
 def validate_and_revoke_refresh_token(
     session: Session,
     model_cls: Type[DeclarativeMeta],
-    form_param: Type,
+    form_param: Any,
 ) -> DeclarativeMeta:
     """
     Validates a refresh token and revokes it.
+
+    This function ensures the provided refresh token exists, is valid,
+    not revoked, and not expired. Once validated, the token is revoked
+    to prevent reuse. It can be used across different token models
+    (ExecutiveToken, OperatorToken, VendorToken).
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        model_cls (Type[DeclarativeMeta]): The valid token object from the database.
+        form_param (Any): Form parameters containing refresh_token and grant_type.
+
+    Returns:
+        model_cls: The valid token object from the database.
+
+    Raises:
+        InvalidGrantType: If the grant_type is not REFRESH_TOKEN.
+        InvalidToken: If the token does not exist, is revoked, or has expired.
     """
     if form_param.grant_type != GrandType.REFRESH_TOKEN:
         raise exceptions.InvalidGrantType()
@@ -174,9 +216,15 @@ def token_to_json(
     token: Union[ExecutiveToken, OperatorToken, VendorToken],
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
-    Convert a token object into two JSON-compatible dicts:
-    - token_data: the full JSON-encoded token
-    - token_log_data: same as token_data but with sensitive fields removed
+    Convert a token object into two JSON-compatible dicts.
+
+    Args:
+        token (Union[ExecutiveToken, OperatorToken, VendorToken]): Token model instance.
+
+    Returns:
+        Tuple[Dict[str, Any], Dict[str, Any]]:
+            - token_data: the full JSON-encoded token.
+            - token_log_data: same as token_data but with sensitive fields removed.
     """
     token_data = jsonable_encoder(token)
     token_log_data = token_data.copy()
