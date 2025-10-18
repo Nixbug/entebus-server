@@ -6,13 +6,13 @@ It also includes examples for usage, making it easier for developers to integrat
 these utilities into their projects.
 """
 
-from datetime import datetime, timedelta, timezone
 from typing import List, Dict
 from fastapi import Request
+from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
+from sqlalchemy.orm import DeclarativeMeta
 
 from app.src import schemas, exceptions
-from app.src.db import ExecutiveToken
 
 
 def get_request_info(request: Request) -> schemas.RequestInfo:
@@ -89,3 +89,28 @@ def enum_str(enum_class) -> str:
         str: A human-readable string representation of the enum members.
     """
     return ", ".join(f"{x.name}: {x.value}" for x in enum_class)
+
+
+def cleanup_old_tokens(
+    session: Session,
+    model_cls: type[DeclarativeMeta],
+    filter_condition: Column,
+    max_tokens: int,
+):
+    """
+    Removes excess tokens matching a given filter condition,
+    keeping only the latest valid ones.
+    """
+
+    tokens = (
+        session.query(model_cls)
+        .filter(filter_condition)
+        .order_by(desc(model_cls.is_revoked), asc(model_cls.created_on))
+        .all()
+    )
+
+    # Remove oldest tokens if we exceed max_tokens
+    while len(tokens) > max_tokens:
+        token_to_delete = tokens.pop(0)
+        session.delete(token_to_delete)
+        session.flush()

@@ -22,6 +22,7 @@ from app.src import argon2, exceptions
 from app.src.enums import AccountStatus, PlatformType, GrandType
 from app.src.openobserve import log_event
 from app.src.functions import (
+    cleanup_old_tokens,
     enum_str,
     fuse_exception_responses,
     get_request_info,
@@ -131,17 +132,13 @@ async def create_token(
         if executive.status != AccountStatus.ACTIVE:
             raise exceptions.InactiveAccount()
 
-        # Remove excess tokens from DB
-        tokens = (
-            session.query(ExecutiveToken)
-            .filter(ExecutiveToken.executive_id == executive.id)
-            .order_by(ExecutiveToken.is_revoked.desc(), ExecutiveToken.created_on.asc())
-            .all()
+        # Remove excess tokens
+        cleanup_old_tokens(
+            session,
+            ExecutiveToken,
+            ExecutiveToken.executive_id == executive.id,
+            MAX_EXECUTIVE_TOKENS - 1,
         )
-        while len(tokens) >= MAX_EXECUTIVE_TOKENS:
-            token_to_delete = tokens.pop(0)
-            session.delete(token_to_delete)
-            session.flush()
 
         # Create a new token
         expires_at = datetime.now(timezone.utc) + timedelta(
@@ -232,16 +229,12 @@ async def refresh_token(
         session.flush()
 
         # Remove excess tokens
-        tokens = (
-            session.query(ExecutiveToken)
-            .filter(ExecutiveToken.executive_id == token_to_refresh.executive_id)
-            .order_by(ExecutiveToken.is_revoked.desc(), ExecutiveToken.created_on.asc())
-            .all()
+        cleanup_old_tokens(
+            session,
+            ExecutiveToken,
+            ExecutiveToken.executive_id == token_to_refresh.executive_id,
+            MAX_EXECUTIVE_TOKENS,
         )
-        while len(tokens) > MAX_EXECUTIVE_TOKENS:
-            token_to_delete = tokens.pop(0)
-            session.delete(token_to_delete)
-            session.flush()
         session.commit()
         session.refresh(refresh_token)
 
