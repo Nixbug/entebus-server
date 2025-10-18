@@ -27,6 +27,7 @@ from app.src.functions import (
     enum_str,
     fuse_exception_responses,
     get_request_info,
+    token_to_json,
     validate_and_revoke_refresh_token,
 )
 from app.src.urls import URL_EXECUTIVE_TOKEN
@@ -144,10 +145,7 @@ async def create_token(
         session.commit()
         session.refresh(token)
 
-        token_data = jsonable_encoder(token)
-        token_log_data = token_data.copy()
-        token_log_data.pop("access_token")
-        token_log_data.pop("refresh_token")
+        token_data, token_log_data = token_to_json(token)
         log_event(token, request_info, token_log_data)
         return token_data
     except Exception as e:
@@ -187,9 +185,7 @@ async def refresh_token(
         session = SessionLocal()
 
         # Validate and revoke the old refresh token
-        token = validate_and_revoke_refresh_token(
-            session, ExecutiveToken, form_param
-        )
+        token = validate_and_revoke_refresh_token(session, ExecutiveToken, form_param)
         # Create new token
         expires_at = datetime.now(timezone.utc) + timedelta(
             seconds=REFRESH_TOKEN_VALIDITY
@@ -214,10 +210,7 @@ async def refresh_token(
         session.commit()
         session.refresh(refresh_token)
 
-        token_data = jsonable_encoder(refresh_token)
-        token_log_data = token_data.copy()
-        token_log_data.pop("access_token")
-        token_log_data.pop("refresh_token")
+        token_data, token_log_data = token_to_json(refresh_token)
         log_event(refresh_token, request_info, token_log_data)
         return token_data
     except Exception as e:

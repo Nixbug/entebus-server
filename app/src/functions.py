@@ -7,13 +7,15 @@ these utilities into their projects.
 """
 
 from datetime import datetime, timezone
-from typing import List, Dict, Type
+from typing import Any, List, Dict, Type, Union, Tuple
 from fastapi import Request
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import DeclarativeMeta
 
 from app.src import argon2, schemas, exceptions
+from app.src.db import ExecutiveToken, OperatorToken, VendorToken
 from app.src.enums import AccountStatus, GrandType
 
 
@@ -166,3 +168,18 @@ def validate_and_revoke_refresh_token(
     token.is_revoked = True
     session.flush()
     return token
+
+
+def token_to_json(
+    token: Union[ExecutiveToken, OperatorToken, VendorToken],
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """
+    Convert a token object into two JSON-compatible dicts:
+    - token_data: the full JSON-encoded token
+    - token_log_data: same as token_data but with sensitive fields removed
+    """
+    token_data = jsonable_encoder(token)
+    token_log_data = token_data.copy()
+    for sensitive_field in ("access_token", "refresh_token"):
+        token_log_data.pop(sensitive_field, None)
+    return token_data, token_log_data
