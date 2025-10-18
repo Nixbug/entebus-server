@@ -205,7 +205,7 @@ async def refresh_token(
             .first()
         )
         if token_to_refresh is None:
-            raise exceptions.UnknownValue(ExecutiveToken.refresh_token)
+            raise exceptions.InvalidToken()
         if token_to_refresh.is_revoked:
             raise exceptions.InvalidToken()
         # TODO: Suspend executive account if a revoked token is used for token generation
