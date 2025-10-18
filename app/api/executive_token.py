@@ -27,6 +27,7 @@ from app.src.functions import (
     enum_str,
     fuse_exception_responses,
     get_request_info,
+    validate_and_revoke_refresh_token,
 )
 from app.src.urls import URL_EXECUTIVE_TOKEN
 
@@ -185,33 +186,20 @@ async def refresh_token(
     try:
         session = SessionLocal()
 
-        if form_param.grant_type != GrandType.REFRESH_TOKEN:
-            raise exceptions.InvalidGrantType()
-        token_to_refresh = (
-            session.query(ExecutiveToken)
-            .filter(ExecutiveToken.refresh_token == form_param.refresh_token)
-            .first()
+        # Validate and revoke the old refresh token
+        token = validate_and_revoke_refresh_token(
+            session, ExecutiveToken, form_param
         )
-        if token_to_refresh is None:
-            raise exceptions.InvalidToken()
-        if token_to_refresh.is_revoked:
-            raise exceptions.InvalidToken()
-        # TODO: Suspend executive account if a revoked token is used for token generation
-        if token_to_refresh.expires_at < datetime.now(timezone.utc):
-            raise exceptions.InvalidToken()
-        # Revoke the old token
-        token_to_refresh.is_revoked = True
-
         # Create new token
         expires_at = datetime.now(timezone.utc) + timedelta(
             seconds=REFRESH_TOKEN_VALIDITY
         )
         refresh_token = ExecutiveToken(
-            executive_id=token_to_refresh.executive_id,
+            executive_id=token.executive_id,
             expires_in=ACCESS_TOKEN_VALIDITY,
             expires_at=expires_at,
-            platform_type=token_to_refresh.platform_type,
-            client_details=token_to_refresh.client_details,
+            platform_type=token.platform_type,
+            client_details=token.client_details,
         )
         session.add(refresh_token)
         session.flush()
@@ -220,7 +208,7 @@ async def refresh_token(
         cleanup_old_tokens(
             session,
             ExecutiveToken,
-            ExecutiveToken.executive_id == token_to_refresh.executive_id,
+            ExecutiveToken.executive_id == token.executive_id,
             MAX_EXECUTIVE_TOKENS,
         )
         session.commit()

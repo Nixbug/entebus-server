@@ -6,6 +6,7 @@ It also includes examples for usage, making it easier for developers to integrat
 these utilities into their projects.
 """
 
+from datetime import datetime, timezone
 from typing import List, Dict, Type
 from fastapi import Request
 from sqlalchemy import Column, asc, desc
@@ -139,3 +140,29 @@ def authenticate_user(
     if user.status != AccountStatus.ACTIVE:
         raise exceptions.InactiveAccount()
     return user
+
+
+def validate_and_revoke_refresh_token(
+    session: Session,
+    model_cls: Type[DeclarativeMeta],
+    form_param: Type,
+) -> DeclarativeMeta:
+    """
+    Validates a refresh token and revokes it.
+    """
+    if form_param.grant_type != GrandType.REFRESH_TOKEN:
+        raise exceptions.InvalidGrantType()
+    token = (
+        session.query(model_cls)
+        .filter(model_cls.refresh_token == form_param.refresh_token)
+        .first()
+    )
+    if token is None or token.is_revoked:
+        raise exceptions.InvalidToken()
+    # TODO: Optionally suspend account if revoked token reuse detected
+    if token.expires_at < datetime.now(timezone.utc):
+        raise exceptions.InvalidToken()
+    # Revoke the current token
+    token.is_revoked = True
+    session.flush()
+    return token
