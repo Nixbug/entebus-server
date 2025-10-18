@@ -39,43 +39,6 @@ def get_request_info(request: Request) -> schemas.RequestInfo:
     )
 
 
-def validate_executive_token(access_token: str, session: Session) -> ExecutiveToken:
-    """
-    Validate the given executive access token.
-
-    This function ensures that:
-      - The access token exists in the database.
-      - The access token has not expired based on `expires_in` duration.
-      - The token has not been revoked.
-
-    Args:
-        access_token (str): The token string to validate.
-        session (Session): Active SQLAlchemy session for DB lookup.
-
-    Returns:
-        ExecutiveToken: The valid token object from the database.
-
-    Raises:
-        exceptions.InvalidToken: If the token is not found, expired, or revoked.
-    """
-    current_time = datetime.now(timezone.utc)
-
-    token = (
-        session.query(ExecutiveToken)
-        .filter(
-            ExecutiveToken.access_token == access_token,
-            ExecutiveToken.is_revoked.is_(False),
-        )
-        .first()
-    )
-    if token is None:
-        raise exceptions.InvalidToken()
-    token_expires_on = token.created_on + timedelta(seconds=token.expires_in)
-    if current_time > token_expires_on:
-        raise exceptions.InvalidToken()
-    return token
-
-
 def fuse_exception_responses(
     exceptions: List[exceptions.APIException],
 ) -> Dict[int, dict]:
