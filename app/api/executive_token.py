@@ -115,6 +115,9 @@ async def create_token(
     """
     try:
         session = SessionLocal()
+
+        if form_param.grant_type != GrandType.PASSWORD:
+            raise exceptions.InvalidGrantType()
         executive = (
             session.query(Executive)
             .filter(Executive.username == form_param.username)
@@ -127,8 +130,6 @@ async def create_token(
             raise exceptions.InvalidCredentials()
         if executive.status != AccountStatus.ACTIVE:
             raise exceptions.InactiveAccount()
-        if form_param.grant_type != GrandType.PASSWORD:
-            raise exceptions.InvalidGrantType()
 
         # Remove excess tokens from DB
         tokens = (
@@ -199,6 +200,8 @@ async def refresh_token(
     try:
         session = SessionLocal()
 
+        if form_param.grant_type != GrandType.REFRESH_TOKEN:
+            raise exceptions.InvalidGrantType()
         token_to_refresh = (
             session.query(ExecutiveToken)
             .filter(ExecutiveToken.refresh_token == form_param.refresh_token)
@@ -211,8 +214,6 @@ async def refresh_token(
         # TODO: Suspend executive account if a revoked token is used for token generation
         if token_to_refresh.expires_at < datetime.now(timezone.utc):
             raise exceptions.InvalidToken()
-        if form_param.grant_type != GrandType.REFRESH_TOKEN:
-            raise exceptions.InvalidGrantType()
         # Revoke the old token
         token_to_refresh.is_revoked = True
 
