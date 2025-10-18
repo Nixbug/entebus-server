@@ -43,7 +43,6 @@ class MaskedExecutiveTokenSchema(BaseModel):
     expires_at: datetime
     platform_type: int
     client_details: Optional[str]
-    is_revoked: bool
     updated_on: Optional[datetime]
     created_on: datetime
 
