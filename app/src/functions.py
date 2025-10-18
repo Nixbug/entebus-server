@@ -6,13 +6,14 @@ It also includes examples for usage, making it easier for developers to integrat
 these utilities into their projects.
 """
 
-from typing import List, Dict
+from typing import List, Dict, Type
 from fastapi import Request
 from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import DeclarativeMeta
 
-from app.src import schemas, exceptions
+from app.src import argon2, schemas, exceptions
+from app.src.enums import AccountStatus, GrandType
 
 
 def get_request_info(request: Request) -> schemas.RequestInfo:
@@ -93,7 +94,7 @@ def enum_str(enum_class) -> str:
 
 def cleanup_old_tokens(
     session: Session,
-    model_cls: type[DeclarativeMeta],
+    model_cls: Type[DeclarativeMeta],
     filter_condition: Column,
     max_tokens: int,
 ):
@@ -114,3 +115,27 @@ def cleanup_old_tokens(
         token_to_delete = tokens.pop(0)
         session.delete(token_to_delete)
         session.flush()
+
+
+def authenticate_user(
+    session: Session, model_cls: Type[DeclarativeMeta], form_param: Type
+):
+    """
+    Generic user authentication function for Executive, Operator, Vendor.
+    """
+    if form_param.grant_type != GrandType.PASSWORD:
+        raise exceptions.InvalidGrantType()
+
+    user = (
+        session.query(model_cls)
+        .filter(model_cls.username == form_param.username)
+        .first()
+    )
+    if user is None:
+        raise exceptions.InvalidCredentials()
+
+    if not argon2.check_password(form_param.password, user.password):
+        raise exceptions.InvalidCredentials()
+    if user.status != AccountStatus.ACTIVE:
+        raise exceptions.InactiveAccount()
+    return user

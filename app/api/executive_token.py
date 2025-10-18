@@ -22,6 +22,7 @@ from app.src import argon2, exceptions
 from app.src.enums import AccountStatus, PlatformType, GrandType
 from app.src.openobserve import log_event
 from app.src.functions import (
+    authenticate_user,
     cleanup_old_tokens,
     enum_str,
     fuse_exception_responses,
@@ -117,20 +118,7 @@ async def create_token(
     try:
         session = SessionLocal()
 
-        if form_param.grant_type != GrandType.PASSWORD:
-            raise exceptions.InvalidGrantType()
-        executive = (
-            session.query(Executive)
-            .filter(Executive.username == form_param.username)
-            .first()
-        )
-        if executive is None:
-            raise exceptions.InvalidCredentials()
-
-        if not argon2.check_password(form_param.password, executive.password):
-            raise exceptions.InvalidCredentials()
-        if executive.status != AccountStatus.ACTIVE:
-            raise exceptions.InactiveAccount()
+        executive = authenticate_user(session, Executive, form_param)
 
         # Remove excess tokens
         cleanup_old_tokens(
