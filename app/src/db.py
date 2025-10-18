@@ -294,12 +294,12 @@ class ExecutiveToken(ORMbase):
         access_token (String, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal access token.
             Used to authenticate the executive on subsequent requests.
-            OAuth access tokens are enforce the format prescribed by RFC 6749 format (https://datatracker.ietf.org/doc/html/rfc6749)
+            In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749)
 
         refresh_token (String, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal access token.
             Used to refresh the access token when needed.
-            OAuth refresh tokens are enforce the format prescribed by RFC 6749 format (https://datatracker.ietf.org/doc/html/rfc6749)
+            In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749)
 
         expires_in (Integer, not null):
             Access token expiration time in seconds.
