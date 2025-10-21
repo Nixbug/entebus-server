@@ -10,6 +10,7 @@ All ORM models should inherit from `ORMbase`.
 
 from sqlalchemy import (
     create_engine,
+    Boolean,
     ARRAY,
     TEXT,
     Column,
@@ -149,7 +150,7 @@ class Executive(ORMbase):
         phone_number (TEXT, nullable):
             Contact number of the executive.
             Maximum 32 characters long.
-            Saved and processed in RFC3966 format (https://datatracker.ietf.org/doc/html/rfc3966).
+            Saved and processed in RFC 3966 format (https://datatracker.ietf.org/doc/html/rfc3966).
             Example: "+1-202-555-0143"
 
         email_id (TEXT, nullable):
@@ -293,21 +294,30 @@ class ExecutiveToken(ORMbase):
         access_token (String, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal access token.
             Used to authenticate the executive on subsequent requests.
+            In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749)
+
+        refresh_token (String, not null, unique, default=lambda: token_hex(32)):
+            Securely generated 64-character hexadecimal access token.
+            Used to refresh the access token when needed.
+            In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749)
 
         expires_in (Integer, not null):
-            Token expiration time in seconds.
+            Access token expiration time in seconds.
             Defines the duration after which the token becomes invalid.
 
         expires_at (DateTime, not null):
-            Defines the date and time after which the token becomes invalid.
+            Defines the date and time after which the refresh token becomes invalid.
 
         platform_type (Integer, nullable, default=PlatformType.OTHER):
             Enum value indicating the client platform type.
 
         client_details (TEXT, nullable):
-            Description of the client device or environment.
+            Description of the client device or environment where the access token was issued or used.
             May include user agent, app version, IP address, etc.
             Maximum 1024 characters long.
+
+        is_revoked (Boolean, not null, default=False):
+            Flag indicating whether the token has been revoked.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp automatically updated whenever the token record is modified.
@@ -325,11 +335,17 @@ class ExecutiveToken(ORMbase):
         nullable=False,
         index=True,
     )
+    # Tokens
     access_token = Column(
         String(64), unique=True, nullable=False, default=lambda: token_hex(32)
     )
+    refresh_token = Column(
+        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+    )
+    # Expirations
     expires_in = Column(Integer, nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
+    is_revoked = Column(Boolean, nullable=False, default=False)
     # Device related details
     platform_type = Column(Integer, default=PlatformType.OTHER)
     client_details = Column(TEXT)

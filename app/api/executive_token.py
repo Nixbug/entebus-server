@@ -9,16 +9,27 @@ input validation and structured output.
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, status, Form
-from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
-from app.src.constants import MAX_EXECUTIVE_TOKENS, MAX_TOKEN_VALIDITY
 from app.src.db import Executive, ExecutiveToken, SessionLocal
-from app.src import argon2, exceptions
-from app.src.enums import AccountStatus, PlatformType
+from app.src import exceptions
+from app.src.enums import PlatformType, GrantType
 from app.src.openobserve import log_event
-from app.src.functions import enum_str, fuse_exception_responses, get_request_info
 from app.src.urls import URL_EXECUTIVE_TOKEN
+from app.src.constants import (
+    MAX_EXECUTIVE_TOKENS,
+    ACCESS_TOKEN_VALIDITY,
+    REFRESH_TOKEN_VALIDITY,
+)
+from app.src.functions import (
+    authenticate_user,
+    cleanup_old_tokens,
+    enum_str,
+    fuse_exception_responses,
+    get_request_info,
+    token_to_json,
+    validate_and_revoke_refresh_token,
+)
 
 route_executive = APIRouter()
 
@@ -26,21 +37,13 @@ route_executive = APIRouter()
 ## Output Schema
 class MaskedExecutiveTokenSchema(BaseModel):
     """
-    Schema for executive token response without revealing the access token.
-
-    Attributes:
-        id (int): Token ID.
-        executive_id (int): ID of the executive owning the token.
-        expires_in (int): Token validity duration in seconds.
-        platform_type (int): Platform type enum value.
-        client_details (Optional[str]): Optional details about the client.
-        updated_on (Optional[datetime]): Last updated timestamp.
-        created_on (datetime): Token creation timestamp.
+    Schema for executive token response without revealing the tokens.
     """
 
     id: int
     executive_id: int
     expires_in: int
+    expires_at: datetime
     platform_type: int
     client_details: Optional[str]
     updated_on: Optional[datetime]
@@ -49,14 +52,11 @@ class MaskedExecutiveTokenSchema(BaseModel):
 
 class ExecutiveTokenSchema(MaskedExecutiveTokenSchema):
     """
-    Schema for executive token response including the access token.
-
-    Attributes:
-        access_token (str): The generated access token.
-        token_type (Optional[str]): Type of the token (default: "bearer").
+    Schema for executive token response including the tokens.
     """
 
     access_token: str
+    refresh_token: str
     token_type: Optional[str] = "bearer"
 
 
@@ -64,12 +64,6 @@ class ExecutiveTokenSchema(MaskedExecutiveTokenSchema):
 class CreateForm(BaseModel):
     """
     Form data for creating a new executive token.
-
-    Attributes:
-        username (str): Username of the executive (max 32 chars).
-        password (str): Password of the executive (max 32 chars).
-        platform_type (PlatformType): Platform type of the request.
-        client_details (Optional[str]): Optional client details (max 1024 chars).
     """
 
     username: str = Field(Form(max_length=32))
@@ -78,6 +72,20 @@ class CreateForm(BaseModel):
         Form(description=enum_str(PlatformType), default=PlatformType.OTHER)
     )
     client_details: str | None = Field(Form(max_length=1024, default=None))
+    grant_type: GrantType = Field(
+        Form(description=enum_str(GrantType), default=GrantType.PASSWORD)
+    )
+
+
+class UpdateForm(BaseModel):
+    """
+    Form data for refreshing an executive token.
+    """
+
+    refresh_token: str = Field(Form())
+    grant_type: GrantType = Field(
+        Form(description=enum_str(GrantType), default=GrantType.REFRESH_TOKEN)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -93,63 +101,50 @@ class CreateForm(BaseModel):
     ),
 )
 async def create_token(
-    fParam: CreateForm = Depends(),
+    form_param: CreateForm = Depends(),
     request_info=Depends(get_request_info),
 ):
     """
     **Issue a new access token for an executive after validating credentials.**
 
-    - Verify the `username` exists in the database.
-    - Verify the `password` using a secure hash check (argon2).
-    - Ensure the executive account is in `active status`.
-    - Limits active tokens using `MAX_EXECUTIVE_TOKENS` (token rotation).
-    - Sets expiration with expires_in=`MAX_TOKEN_VALIDITY` (in seconds).
-    - The expiration timestamp `expires_at` is calculated and stored in utc.
-    - Log the authentication event for auditing, excluding the access token itself for security.
+    - Verify the `username` and `password`.
+    - Ensure the executive account is in `active status` before allowing token creation.
+    - Maintain a limit on the number of active tokens based on `MAX_EXECUTIVE_TOKENS` to control token rotation.
+    - **Token Creation**
+        - Generate a new `Executive Token` with a pair of access and refresh tokens.
+        - The `expires_in` indicates the number of seconds until the access token expires (based on ACCESS_TOKEN_VALIDITY).
+        - The `expires_at` indicates the datetime when the refresh token expires (based on REFRESH_TOKEN_VALIDITY).
+        - A new access token can be generated by using the refresh token before it expires.
     """
     try:
         session = SessionLocal()
-        executive = (
-            session.query(Executive)
-            .filter(Executive.username == fParam.username)
-            .first()
-        )
-        if executive is None:
-            raise exceptions.InvalidCredentials()
 
-        if not argon2.check_password(fParam.password, executive.password):
-            raise exceptions.InvalidCredentials()
-        if executive.status != AccountStatus.ACTIVE:
-            raise exceptions.InactiveAccount()
+        executive = authenticate_user(session, Executive, form_param)
 
-        # Remove excess tokens from DB
-        tokens = (
-            session.query(ExecutiveToken)
-            .filter(ExecutiveToken.executive_id == executive.id)
-            .order_by(ExecutiveToken.created_on.desc())
-            .all()
+        # Remove excess tokens
+        cleanup_old_tokens(
+            session,
+            ExecutiveToken,
+            ExecutiveToken.executive_id == executive.id,
+            MAX_EXECUTIVE_TOKENS - 1,
         )
-        if len(tokens) >= MAX_EXECUTIVE_TOKENS:
-            token = tokens[MAX_EXECUTIVE_TOKENS - 1]
-            session.delete(token)
-            session.flush()
 
         # Create a new token
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=MAX_TOKEN_VALIDITY)
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            seconds=REFRESH_TOKEN_VALIDITY
+        )
         token = ExecutiveToken(
             executive_id=executive.id,
-            expires_in=MAX_TOKEN_VALIDITY,
+            expires_in=ACCESS_TOKEN_VALIDITY,
             expires_at=expires_at,
-            platform_type=fParam.platform_type,
-            client_details=fParam.client_details,
+            platform_type=form_param.platform_type,
+            client_details=form_param.client_details,
         )
         session.add(token)
         session.commit()
         session.refresh(token)
 
-        token_data = jsonable_encoder(token)
-        token_log_data = token_data.copy()
-        token_log_data.pop("access_token")
+        token_data, token_log_data = token_to_json(token)
         log_event(token, request_info, token_log_data)
         return token_data
     except Exception as e:
@@ -158,12 +153,69 @@ async def create_token(
         session.close()
 
 
-@route_executive.patch(
-    URL_EXECUTIVE_TOKEN,
+@route_executive.post(
+    URL_EXECUTIVE_TOKEN + "/refresh",
     tags=["Token"],
+    response_model=ExecutiveTokenSchema,
+    status_code=status.HTTP_201_CREATED,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.UnknownValue(ExecutiveToken.refresh_token),
+        ]
+    ),
 )
-async def refresh_token():
-    pass
+async def refresh_token(
+    form_param: UpdateForm = Depends(),
+    request_info=Depends(get_request_info),
+):
+    """
+    **Refresh an executive's access token using a valid refresh token.**
+
+    - Verify the provided refresh token exists in the database.
+    - Invalidate the current refresh token.
+    - **Token Creation**
+        - Generate a new `Executive Token` with a pair of access and refresh tokens.
+        - The `expires_in` indicates the number of seconds until the access token expires (based on ACCESS_TOKEN_VALIDITY).
+        - The `expires_at` indicates the datetime when the refresh token expires (based on REFRESH_TOKEN_VALIDITY).
+        - A new access token can be generated by using the refresh token before it expires.
+    """
+    try:
+        session = SessionLocal()
+
+        # Validate and revoke the old refresh token
+        token = validate_and_revoke_refresh_token(session, ExecutiveToken, form_param)
+        # Create new token
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            seconds=REFRESH_TOKEN_VALIDITY
+        )
+        refresh_token = ExecutiveToken(
+            executive_id=token.executive_id,
+            expires_in=ACCESS_TOKEN_VALIDITY,
+            expires_at=expires_at,
+            platform_type=token.platform_type,
+            client_details=token.client_details,
+        )
+        session.add(refresh_token)
+        session.flush()
+
+        # Remove excess tokens
+        cleanup_old_tokens(
+            session,
+            ExecutiveToken,
+            ExecutiveToken.executive_id == token.executive_id,
+            MAX_EXECUTIVE_TOKENS,
+        )
+        session.commit()
+        session.refresh(refresh_token)
+
+        token_data, token_log_data = token_to_json(refresh_token)
+        log_event(refresh_token, request_info, token_log_data)
+        return token_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
 
 
 @route_executive.delete(

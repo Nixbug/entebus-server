@@ -9,7 +9,7 @@ They are primarily used for:
     - Consistent state management across services.
 """
 
-from enum import IntEnum
+from enum import IntEnum, StrEnum
 
 
 class AppID(IntEnum):
@@ -19,6 +19,13 @@ class AppID(IntEnum):
     VENDOR = 2
     OPERATOR = 3
     PUBLIC = 4
+
+
+class GrantType(StrEnum):
+    """Authentication grant types."""
+
+    PASSWORD = "password"
+    REFRESH_TOKEN = "refresh_token"
 
 
 class AccountStatus(IntEnum):

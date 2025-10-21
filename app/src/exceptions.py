@@ -12,6 +12,7 @@ It ensures consistent error responses across the API.
 from traceback import format_exception
 from logging import getLogger
 from fastapi import status, HTTPException
+from sqlalchemy import Column
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
 from pydantic import ValidationError
@@ -195,3 +196,46 @@ class InactiveAccount(APIException):
     status_code = status.HTTP_412_PRECONDITION_FAILED
     detail = "The account is not in active status"
     headers = {"X-Error": "InactiveAccount"}
+
+
+class InvalidToken(APIException):
+    """
+    Raised when an invalid token is provided.
+    """
+
+    status_code = status.HTTP_401_UNAUTHORIZED
+    detail = "Invalid token"
+    headers = {"X-Error": "InvalidToken"}
+
+
+class UnknownValue(APIException):
+    """
+    Raised when an unknown id or value is provided.
+    """
+
+    status_code = status.HTTP_404_NOT_FOUND
+    headers = {"X-Error": "UnknownValue"}
+
+    def __init__(self, column: Column):
+        detail = f"Unknown {column.name} is provided"
+        super().__init__(detail=detail)
+
+
+class NoPermission(APIException):
+    """
+    Raised when a user does not have permission to perform an action.
+    """
+
+    status_code = status.HTTP_403_FORBIDDEN
+    detail = "This user has no permission to perform this action"
+    headers = {"X-Error": "NoPermission"}
+
+
+class InvalidGrantType(APIException):
+    """
+    Raised when an invalid grant type is provided.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    detail = "Invalid grant type"
+    headers = {"X-Error": "InvalidGrantType"}
