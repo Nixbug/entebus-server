@@ -7,12 +7,12 @@ these utilities into their projects.
 """
 
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, List, Dict, Type, Union, Tuple
 from fastapi import Request
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
-from sqlalchemy.orm import DeclarativeMeta
 
 from app.src import argon2, schemas, exceptions
 from app.src.db import ExecutiveToken, OperatorToken, VendorToken
@@ -80,7 +80,7 @@ def fuse_exception_responses(
     return responses
 
 
-def enum_str(enum_class) -> str:
+def enum_str(enum_class: Type[Enum]) -> str:
     """
     Convert an Enum class into a comma-separated string of its members.
 
@@ -97,7 +97,7 @@ def enum_str(enum_class) -> str:
 
 def cleanup_old_tokens(
     session: Session,
-    model_cls: Type[DeclarativeMeta],
+    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
     filter_condition: Column,
     max_tokens: int,
 ) -> None:
@@ -131,8 +131,10 @@ def cleanup_old_tokens(
 
 
 def authenticate_user(
-    session: Session, model_cls: Type[DeclarativeMeta], form_param: Any
-) -> DeclarativeMeta:
+    session: Session,
+    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
+    form_param: Any,
+) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
     """
     Generic user authentication function for Executive, Operator, Vendor.
 
@@ -171,9 +173,9 @@ def authenticate_user(
 
 def validate_and_revoke_refresh_token(
     session: Session,
-    model_cls: Type[DeclarativeMeta],
+    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
     form_param: Any,
-) -> DeclarativeMeta:
+) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
     """
     Validates a refresh token and revokes it.
 
