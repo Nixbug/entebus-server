@@ -9,18 +9,18 @@ input validation and structured output.
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, status, Form
-from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
+from app.src.db import Executive, ExecutiveToken, SessionLocal
+from app.src import exceptions
+from app.src.enums import PlatformType, GrantType
+from app.src.openobserve import log_event
+from app.src.urls import URL_EXECUTIVE_TOKEN
 from app.src.constants import (
     MAX_EXECUTIVE_TOKENS,
     ACCESS_TOKEN_VALIDITY,
     REFRESH_TOKEN_VALIDITY,
 )
-from app.src.db import Executive, ExecutiveToken, SessionLocal
-from app.src import argon2, exceptions
-from app.src.enums import AccountStatus, PlatformType, GrandType
-from app.src.openobserve import log_event
 from app.src.functions import (
     authenticate_user,
     cleanup_old_tokens,
@@ -30,7 +30,6 @@ from app.src.functions import (
     token_to_json,
     validate_and_revoke_refresh_token,
 )
-from app.src.urls import URL_EXECUTIVE_TOKEN
 
 route_executive = APIRouter()
 
@@ -73,8 +72,8 @@ class CreateForm(BaseModel):
         Form(description=enum_str(PlatformType), default=PlatformType.OTHER)
     )
     client_details: str | None = Field(Form(max_length=1024, default=None))
-    grant_type: GrandType = Field(
-        Form(description=enum_str(GrandType), default=GrandType.PASSWORD)
+    grant_type: GrantType = Field(
+        Form(description=enum_str(GrantType), default=GrantType.PASSWORD)
     )
 
 
@@ -84,8 +83,8 @@ class UpdateForm(BaseModel):
     """
 
     refresh_token: str = Field(Form())
-    grant_type: GrandType = Field(
-        Form(description=enum_str(GrandType), default=GrandType.REFRESH_TOKEN)
+    grant_type: GrantType = Field(
+        Form(description=enum_str(GrantType), default=GrantType.REFRESH_TOKEN)
     )
 
 

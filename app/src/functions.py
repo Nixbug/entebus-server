@@ -16,7 +16,7 @@ from sqlalchemy.orm.session import Session
 
 from app.src import argon2, schemas, exceptions
 from app.src.db import ExecutiveToken, OperatorToken, VendorToken
-from app.src.enums import AccountStatus, GrandType
+from app.src.enums import AccountStatus, GrantType
 
 
 def get_request_info(request: Request) -> schemas.RequestInfo:
@@ -110,7 +110,7 @@ def cleanup_old_tokens(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[DeclarativeMeta]): The valid token object from the database(e.g., ExecutiveToken, OperatorToken, VendorToken).
+        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The valid token object from the database.
         filter_condition (Column): SQLAlchemy filter condition (e.g., ExecutiveToken.executive_id == id).
         max_tokens (int): The maximum number of tokens allowed.
 
@@ -144,7 +144,7 @@ def authenticate_user(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[DeclarativeMeta]): The valid user object from the database(e.g., Executive, Operator, Vendor).
+        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The valid user object from the database.
         form_param (Any): Form parameters containing username, password, and grant_type.
 
     Returns:
@@ -155,7 +155,7 @@ def authenticate_user(
         InvalidCredentials: If the username or password is invalid.
         InactiveAccount: If the user account is not active.
     """
-    if form_param.grant_type != GrandType.PASSWORD:
+    if form_param.grant_type != GrantType.PASSWORD:
         raise exceptions.InvalidGrantType()
     user = (
         session.query(model_cls)
@@ -186,7 +186,7 @@ def validate_and_revoke_refresh_token(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[DeclarativeMeta]): The valid token object from the database.
+        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The valid token object from the database.
         form_param (Any): Form parameters containing refresh_token and grant_type.
 
     Returns:
@@ -196,7 +196,7 @@ def validate_and_revoke_refresh_token(
         InvalidGrantType: If the grant_type is not REFRESH_TOKEN.
         InvalidToken: If the token does not exist, is revoked, or has expired.
     """
-    if form_param.grant_type != GrandType.REFRESH_TOKEN:
+    if form_param.grant_type != GrantType.REFRESH_TOKEN:
         raise exceptions.InvalidGrantType()
     token = (
         session.query(model_cls)
