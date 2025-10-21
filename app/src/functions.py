@@ -110,7 +110,7 @@ def cleanup_old_tokens(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The valid token object from the database.
+        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The valid ORM model class.
         filter_condition (Column): SQLAlchemy filter condition (e.g., ExecutiveToken.executive_id == id).
         max_tokens (int): The maximum number of tokens allowed.
 
@@ -144,11 +144,11 @@ def authenticate_user(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The valid user object from the database.
+        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The valid ORM model class.
         form_param (Any): Form parameters containing username, password, and grant_type.
 
     Returns:
-        model_cls: The valid user object from the database.
+        user: The valid user object from the database.
 
     Raises:
         InvalidGrantType: If the grant_type is not PASSWORD.
@@ -186,11 +186,11 @@ def validate_and_revoke_refresh_token(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The valid token object from the database.
+        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The valid ORM model class.
         form_param (Any): Form parameters containing refresh_token and grant_type.
 
     Returns:
-        model_cls: The valid token object from the database.
+        token: The valid token object from the database.
 
     Raises:
         InvalidGrantType: If the grant_type is not REFRESH_TOKEN.
