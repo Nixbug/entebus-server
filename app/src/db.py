@@ -11,7 +11,6 @@ All ORM models should inherit from `ORMbase`.
 from sqlalchemy import (
     create_engine,
     Boolean,
-    ARRAY,
     TEXT,
     Column,
     DateTime,
@@ -23,6 +22,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from secrets import token_hex
+from sqlalchemy.dialects.postgresql import JSONB
 
 from app.src.constants import (
     PSQL_DB_DRIVER,
@@ -199,9 +199,9 @@ class ExecutiveRole(ORMbase):
             Name or label for the role.
             It should be 4-32 characters long.
 
-        permissions (ARRAY(String), not null):
+        permissions (JSONB, not null):
             List of permissions associated with the role.
-            Each permission should be a string representing a specific action or resource.
+            These permissions determine which actions the executive can perform within the system.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp of the last update to the role's permissions.
@@ -214,7 +214,7 @@ class ExecutiveRole(ORMbase):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(32), nullable=False, unique=True)
-    permissions = Column(ARRAY(String), nullable=False, default=list)
+    permissions = Column(JSONB, nullable=False, default=list)
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
