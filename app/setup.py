@@ -5,7 +5,15 @@ from sqlalchemy import text
 from alembic.script import ScriptDirectory
 
 from app.src import argon2, buckets, minio
-from app.src.db import ORMbase, Executive, get_db_url, engine, SessionLocal
+from app.src.db import (
+    ORMbase,
+    Executive,
+    ExecutiveRole,
+    ExecutiveRoleMap,
+    get_db_url,
+    engine,
+    SessionLocal,
+)
 
 
 def _alembic_cfg() -> Config:
@@ -104,6 +112,28 @@ def initialize():
 
     session.add_all([admin, guest])
     session.flush()
+
+    admin_permissions = {
+        "executive": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
+        "executive_role": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
+        "executive_token": {"fetch": True},
+    }
+
+    guest_permissions = {
+        "executive": {"fetch": True},
+        "executive_role": {"fetch": False},
+    }
+
+    admin_role = ExecutiveRole(name="Admin", permissions=admin_permissions)
+    guest_role = ExecutiveRole(name="Guest", permissions=guest_permissions)
+
+    session.add_all([admin_role, guest_role])
+    session.flush()
+
+    admin_role_map = ExecutiveRoleMap(role_id=admin_role.id, executive_id=admin.id)
+    guest_role_map = ExecutiveRoleMap(role_id=guest_role.id, executive_id=guest.id)
+    session.add_all([admin_role_map, guest_role_map])
+
     session.commit()
     print("* Initialization completed")
     session.close()
