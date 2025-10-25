@@ -114,14 +114,46 @@ def initialize():
     session.flush()
 
     admin_permissions = {
+        "executive_token": {"fetch": True},
+        "operator_token": {"fetch": True},
+        "vendor_token": {"fetch": True},
         "executive": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
         "executive_role": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
-        "executive_token": {"fetch": True},
+        "landmark": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
+        "bus_stop": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
+        "global_fare":{"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
+        "local_fare":{"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
+        "company": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
+        "operator": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
+        "operator_role": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
+        "bus": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
+        "route": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
+        "schedule": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
+        "service": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
+        "duty": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
+        "business": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
+        "vendor": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
+        "vendor_role": {"fetch": True, "create": True, "update": True, "delete": True, "sudo": True},
     }
 
     guest_permissions = {
         "executive": {"fetch": True},
         "executive_role": {"fetch": False},
+        "landmark": {"fetch": True},
+        "bus_stop": {"fetch": True},
+        "global_fare":{"fetch": True},
+        "local_fare":{"fetch": True},
+        "company": {"fetch": True},
+        "operator": {"fetch": True},
+        "operator_role": {"fetch": True},
+        "bus": {"fetch": True},
+        "route": {"fetch": True},
+        "schedule": {"fetch": True},
+        "service": {"fetch": True},
+        "duty": {"fetch": True},
+        "business": {"fetch": True},
+        "vendor": {"fetch": True},
+        "vendor_role": {"fetch": True},
     }
 
     admin_role = ExecutiveRole(name="Admin", permissions=admin_permissions)
