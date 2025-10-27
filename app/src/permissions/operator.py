@@ -6,23 +6,23 @@ from pydantic import BaseModel, Field
 class CRUDPermission(BaseModel):
     """Generic CRUD permission set — reused by most entities."""
 
-    fetch: Optional[bool] = Field(True, description="Allow fetching/viewing")
-    create: Optional[bool] = Field(True, description="Allow creation")
-    update: Optional[bool] = Field(True, description="Allow updating")
-    delete: Optional[bool] = Field(True, description="Allow deletion")
+    fetch: Optional[bool] = Field(False, description="Allow fetching/viewing")
+    create: Optional[bool] = Field(False, description="Allow creation")
+    update: Optional[bool] = Field(False, description="Allow updating")
+    delete: Optional[bool] = Field(False, description="Allow deletion")
 
 
 class PartialPermission(BaseModel):
     """Generic partial permissions."""
 
-    fetch: Optional[bool] = Field(True, description="Allow fetching/viewing")
-    update: Optional[bool] = Field(True, description="Allow updating")
+    fetch: Optional[bool] = Field(False, description="Allow fetching/viewing")
+    update: Optional[bool] = Field(False, description="Allow updating")
 
 
 class FetchPermission(BaseModel):
     """Specialized permission to fetch."""
 
-    fetch: Optional[bool] = Field(True, description="Allow fetching details")
+    fetch: Optional[bool] = Field(False, description="Allow fetching details")
 
 
 class LandmarkPermission(FetchPermission):

@@ -15,7 +15,7 @@ class CRUDPermission(BaseModel):
 class TokenPermission(BaseModel):
     """Specialized permissions for tokens (only fetch)."""
 
-    fetch: Optional[bool] = Field(True, description="Allow fetching token details")
+    fetch: Optional[bool] = Field(False, description="Allow fetching token details")
 
 
 class LandmarkPermissions(CRUDPermission):
