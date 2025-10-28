@@ -1,4 +1,10 @@
-from typing import Optional
+"""
+Executive Role Permissions Schema.
+
+Provides a set of Pydantic models to define the hierarchical structure of permissions
+for executives within the system.
+"""
+
 from pydantic import BaseModel, Field
 
 
@@ -6,72 +12,72 @@ from pydantic import BaseModel, Field
 class CRUDPermission(BaseModel):
     """Generic CRUD permission set — reused by most entities."""
 
-    create: Optional[bool] = Field(False, description="Allow creation")
-    update: Optional[bool] = Field(False, description="Allow updating")
-    delete: Optional[bool] = Field(False, description="Allow deletion")
+    create: bool = Field(False, description="Allow creation")
+    update: bool = Field(False, description="Allow updating")
+    delete: bool = Field(False, description="Allow deletion")
 
 
 class TokenPermission(BaseModel):
     """Specialized permissions for token management."""
 
-    fetch: Optional[bool] = Field(False, description="Allow fetching token details")
-    delete: Optional[bool] = Field(False, description="Allow deleting token")
+    fetch: bool = Field(False, description="Allow fetching token details")
+    delete: bool = Field(False, description="Allow deleting token")
 
 
 class LandmarkPermissions(CRUDPermission):
     """Landmark related permissions."""
 
-    bus_stop: Optional[CRUDPermission] = None
+    bus_stop: CRUDPermission
 
 
 class ExecutivePermissions(CRUDPermission):
     """Executive related permissions."""
 
-    role: Optional[CRUDPermission] = None
-    token: Optional[TokenPermission] = None
+    role: CRUDPermission
+    token: TokenPermission
 
 
 class VendorPermissions(CRUDPermission):
     """Vendor related permissions."""
 
-    role: Optional[CRUDPermission] = None
-    token: Optional[TokenPermission] = None
+    role: CRUDPermission
+    token: TokenPermission
 
 
 class BusinessPermissions(CRUDPermission):
     """Business related permissions."""
 
-    vendor: Optional[VendorPermissions] = None
+    vendor: VendorPermissions
 
 
 class OperatorPermissions(CRUDPermission):
     """Operator related permissions."""
 
-    role: Optional[CRUDPermission] = None
-    token: Optional[TokenPermission] = None
+    role: CRUDPermission
+    token: TokenPermission
 
 
 class ServicePermissions(CRUDPermission):
     """Service related permissions."""
 
-    duty: Optional[CRUDPermission] = None
+    duty: CRUDPermission
 
 
 class CompanyPermissions(CRUDPermission):
     """Company related permissions."""
 
-    bus: Optional[CRUDPermission] = None
-    fare: Optional[CRUDPermission] = None
-    route: Optional[CRUDPermission] = None
-    operator: Optional[OperatorPermissions] = None
-    service: Optional[ServicePermissions] = None
+    bus: CRUDPermission
+    fare: CRUDPermission
+    route: CRUDPermission
+    operator: OperatorPermissions
+    service: ServicePermissions
 
 
 class PermissionsModel(BaseModel):
     """Top-level hierarchical permission structure for an ExecutiveRole."""
 
-    landmark: Optional[LandmarkPermissions] = None
-    fare: Optional[CRUDPermission] = None
-    executive: Optional[ExecutivePermissions] = None
-    business: Optional[BusinessPermissions] = None
-    company: Optional[CompanyPermissions] = None
+    landmark: LandmarkPermissions
+    fare: CRUDPermission
+    executive: ExecutivePermissions
+    business: BusinessPermissions
+    company: CompanyPermissions
