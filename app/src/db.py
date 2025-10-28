@@ -281,8 +281,8 @@ class ExecutiveToken(ORMbase):
     enabling secure access to the platform with support for token expiration
     and client metadata tracking.
 
-    This table stores unique access tokens mapped to executives along with
-    details about the device or client used and timestamps for auditing.
+    This table stores unique access and refresh tokens mapped to executives,
+    along with details about the device or client used and timestamps for auditing.
     Useful for session management, device tracking, and implementing token-based authentication.
 
     Columns:
@@ -297,19 +297,19 @@ class ExecutiveToken(ORMbase):
         access_token (String, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal access token.
             Used to authenticate the executive on subsequent requests.
-            In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749)
+            In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749).
 
         refresh_token (String, not null, unique, default=lambda: token_hex(32)):
-            Securely generated 64-character hexadecimal access token.
+            Securely generated 64-character hexadecimal refresh token.
             Used to refresh the access token when needed.
-            In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749)
+            In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749).
 
         expires_in (Integer, not null, default=MAX_ACCESS_TOKEN_VALIDITY):
-            Access token expiration time in seconds.
+            Access token expiration duration in seconds.
             Defines the duration after which the token becomes invalid.
 
-        refresh_before (DateTime, not null, default=lambda: now() + REFRESH_TOKEN_VALIDITY):
-            Defines the date and time after which the refresh token becomes invalid.
+        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(timezone.utc) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
+            Defines the UTC timestamp after which the refresh token becomes invalid.
 
         platform_type (Integer, nullable, default=PlatformType.OTHER):
             Enum value indicating the client platform type.
