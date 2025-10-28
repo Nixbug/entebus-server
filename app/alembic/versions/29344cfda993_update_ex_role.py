@@ -1,8 +1,8 @@
-"""auto revise
+"""update_ex_role
 
-Revision ID: 0429b89ad35e
+Revision ID: 29344cfda993
 Revises: b9592064514c
-Create Date: 2025-10-27 03:45:06.953270
+Create Date: 2025-10-28 04:12:29.990350
 
 """
 
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = "0429b89ad35e"
+revision: str = "29344cfda993"
 down_revision: Union[str, Sequence[str], None] = "b9592064514c"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
