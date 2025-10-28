@@ -64,8 +64,10 @@ MINIO_PASSWORD = environ.get("MINIO_PASSWORD", "password")
 MAX_EXECUTIVE_TOKENS = 5  # Maximum tokens per executive
 MAX_OPERATOR_TOKENS = 5  # Maximum tokens per operator
 MAX_VENDOR_TOKENS = 1  # Maximum tokens per vendor
-REFRESH_TOKEN_VALIDITY = 7 * 24 * 60 * 60  # Refresh token validity (in seconds, 7 days)
-ACCESS_TOKEN_VALIDITY = 1 * 60 * 60  # Access token validity (in seconds, 1 hour)
+MAX_REFRESH_TOKEN_VALIDITY = (
+    7 * 24 * 60 * 60
+)  # Refresh token validity (in seconds, 7 days)
+MAX_ACCESS_TOKEN_VALIDITY = 1 * 60 * 60  # Access token validity (in seconds, 1 hour)
 
 
 # ---------------------------------------------------------------------------
