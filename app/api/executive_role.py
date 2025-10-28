@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.src.permissions.operator import PermissionsModel
+from app.src.permissions.executive import PermissionsModel
 
 route_executive = APIRouter()
 
