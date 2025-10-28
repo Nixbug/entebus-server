@@ -206,7 +206,7 @@ def validate_and_revoke_refresh_token(
     if token is None or token.is_revoked:
         raise exceptions.InvalidToken()
     # TODO: Optionally suspend account if revoked token reuse detected
-    if token.expires_at < datetime.now(timezone.utc):
+    if token.refresh_before < datetime.now(timezone.utc):
         raise exceptions.InvalidToken()
     # Revoke the current token
     token.is_revoked = True
