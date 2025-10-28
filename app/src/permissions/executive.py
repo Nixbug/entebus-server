@@ -6,16 +6,16 @@ from pydantic import BaseModel, Field
 class CRUDPermission(BaseModel):
     """Generic CRUD permission set — reused by most entities."""
 
-    fetch: Optional[bool] = Field(False, description="Allow fetching/viewing")
     create: Optional[bool] = Field(False, description="Allow creation")
     update: Optional[bool] = Field(False, description="Allow updating")
     delete: Optional[bool] = Field(False, description="Allow deletion")
 
 
 class TokenPermission(BaseModel):
-    """Specialized permissions for tokens (only fetch)."""
+    """Specialized permissions for token management."""
 
     fetch: Optional[bool] = Field(False, description="Allow fetching token details")
+    delete: Optional[bool] = Field(False, description="Allow deleting token")
 
 
 class LandmarkPermissions(CRUDPermission):
