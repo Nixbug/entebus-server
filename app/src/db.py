@@ -412,5 +412,21 @@ class OperatorToken:
     pass
 
 
+class OperatorRole:
+    pass
+
+
+class OperatorRoleMap:
+    pass
+
+
 class VendorToken:
+    pass
+
+
+class VendorRole:
+    pass
+
+
+class VendorRoleMap:
     pass
