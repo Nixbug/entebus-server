@@ -24,6 +24,7 @@ from app.src.enums import PlatformType, GrantType
 from app.src.openobserve import log_event
 from app.src.urls import URL_EXECUTIVE_TOKEN
 from app.src.constants import MAX_EXECUTIVE_TOKENS
+from app.src.validators import verify_permission, verify_token
 from app.src.functions import (
     authenticate_user,
     cleanup_old_tokens,
@@ -32,8 +33,6 @@ from app.src.functions import (
     get_request_info,
     token_to_json,
     validate_and_revoke_refresh_token,
-    verify_permission,
-    verify_token,
 )
 
 route_executive = APIRouter()
@@ -233,7 +232,7 @@ async def delete_token(
     - Verify that the provided access token exists and is valid.
     - If no `id` is provided, the currently used token will be revoked.
     - If an `id` is provided, the specified token will be revoked after validating user permissions 'executive.token.delete'.
-    - If the token id is invalid or already revoked, the operation is silently ignored.   
+    - If the token id is invalid or already revoked, the operation is silently ignored.
     """
 
     try:
