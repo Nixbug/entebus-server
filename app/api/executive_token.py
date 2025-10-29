@@ -252,7 +252,10 @@ async def delete_token(
             if token_to_delete is None:
                 return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-            is_self_delete = token.executive_id == token_to_delete.executive_id
+            is_self_delete = (
+                token.executive_id == token_to_delete.executive_id
+                and token_to_delete.id == token.id
+            )
             if not is_self_delete:
                 verify_permission(
                     session=session,
