@@ -15,11 +15,7 @@ from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
 
 from app.src import argon2, schemas, exceptions
-from app.src.db import (
-    ExecutiveToken,
-    OperatorToken,
-    VendorToken,
-)
+from app.src.db import ExecutiveToken, OperatorToken, VendorToken
 from app.src.enums import AccountStatus, GrantType
 
 
