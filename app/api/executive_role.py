@@ -11,7 +11,7 @@ from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.src.permissions.executive import PermissionsModel
+from app.src.permissions.executive import PermissionsSchema
 
 route_executive = APIRouter()
 
@@ -20,6 +20,6 @@ route_executive = APIRouter()
 class ExecutiveRoleSchema(BaseModel):
     id: int
     name: str
-    permissions: PermissionsModel
+    permissions: PermissionsSchema
     created_on: datetime
     updated_on: Optional[datetime]

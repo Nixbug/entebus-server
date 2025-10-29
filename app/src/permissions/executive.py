@@ -73,7 +73,7 @@ class CompanyPermissions(CRUDPermission):
     service: ServicePermissions
 
 
-class PermissionsModel(BaseModel):
+class PermissionsSchema(BaseModel):
     """Top-level hierarchical permission structure for an ExecutiveRole."""
 
     landmark: LandmarkPermissions
