@@ -5,7 +5,15 @@ from sqlalchemy import text
 from alembic.script import ScriptDirectory
 
 from app.src import argon2, buckets, minio
-from app.src.db import ORMbase, Executive, get_db_url, engine, SessionLocal
+from app.src.db import (
+    ORMbase,
+    Executive,
+    ExecutiveRole,
+    ExecutiveRoleMap,
+    get_db_url,
+    engine,
+    SessionLocal,
+)
 
 
 def _alembic_cfg() -> Config:
@@ -85,7 +93,7 @@ def delete_tables():
 
 
 def initialize():
-    """Initialize the database with default users."""
+    """Initialize the database with default users with default permissions."""
     session = SessionLocal()
 
     password = argon2.make_password("password")
@@ -104,6 +112,117 @@ def initialize():
 
     session.add_all([admin, guest])
     session.flush()
+
+    admin_permissions = {
+        "landmark": {
+            "create": True,
+            "update": True,
+            "delete": True,
+            "bus_stop": {"create": True, "update": True, "delete": True},
+        },
+        "fare": {"create": True, "update": True, "delete": True},
+        "executive": {
+            "create": True,
+            "update": True,
+            "delete": True,
+            "role": {"create": True, "update": True, "delete": True},
+            "token": {"fetch": True, "delete": True},
+        },
+        "business": {
+            "create": True,
+            "update": True,
+            "delete": True,
+            "vendor": {
+                "create": True,
+                "update": True,
+                "delete": True,
+                "role": {"create": True, "update": True, "delete": True},
+                "token": {"fetch": True, "delete": True},
+            },
+        },
+        "company": {
+            "create": True,
+            "update": True,
+            "delete": True,
+            "bus": {"create": True, "update": True, "delete": True},
+            "fare": {"create": True, "update": True, "delete": True},
+            "route": {"create": True, "update": True, "delete": True},
+            "operator": {
+                "create": True,
+                "update": True,
+                "delete": True,
+                "role": {"create": True, "update": True, "delete": True},
+                "token": {"fetch": True, "delete": True},
+            },
+            "service": {
+                "create": True,
+                "update": True,
+                "delete": True,
+                "duty": {"create": True, "update": True, "delete": True},
+            },
+        },
+    }
+
+    guest_permissions = {
+        "landmark": {
+            "create": False,
+            "update": False,
+            "delete": False,
+            "bus_stop": {"create": False, "update": False, "delete": False},
+        },
+        "fare": {"create": False, "update": False, "delete": False},
+        "executive": {
+            "create": False,
+            "update": False,
+            "delete": False,
+            "role": {"create": False, "update": False, "delete": False},
+            "token": {"fetch": False, "delete": False},
+        },
+        "business": {
+            "create": False,
+            "update": False,
+            "delete": False,
+            "vendor": {
+                "create": False,
+                "update": False,
+                "delete": False,
+                "role": {"create": False, "update": False, "delete": False},
+                "token": {"fetch": False, "delete": False},
+            },
+        },
+        "company": {
+            "create": False,
+            "update": False,
+            "delete": False,
+            "bus": {"create": False, "update": False, "delete": False},
+            "fare": {"create": False, "update": False, "delete": False},
+            "route": {"create": False, "update": False, "delete": False},
+            "operator": {
+                "create": False,
+                "update": False,
+                "delete": False,
+                "role": {"create": False, "update": False, "delete": False},
+                "token": {"fetch": False, "delete": False},
+            },
+            "service": {
+                "create": False,
+                "update": False,
+                "delete": False,
+                "duty": {"create": False, "update": False, "delete": False},
+            },
+        },
+    }
+
+    admin_role = ExecutiveRole(name="Admin", permissions=admin_permissions)
+    guest_role = ExecutiveRole(name="Guest", permissions=guest_permissions)
+
+    session.add_all([admin_role, guest_role])
+    session.flush()
+
+    admin_role_map = ExecutiveRoleMap(role_id=admin_role.id, executive_id=admin.id)
+    guest_role_map = ExecutiveRoleMap(role_id=guest_role.id, executive_id=guest.id)
+    session.add_all([admin_role_map, guest_role_map])
+
     session.commit()
     print("* Initialization completed")
     session.close()
