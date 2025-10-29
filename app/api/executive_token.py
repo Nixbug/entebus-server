@@ -8,10 +8,17 @@ input validation and structured output.
 
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, status, Form
+from fastapi import APIRouter, Depends, Response, status, Form
 from pydantic import BaseModel, Field
 
-from app.src.db import Executive, ExecutiveToken, SessionLocal
+from app.api.bearer import bearer_executive
+from app.src.db import (
+    Executive,
+    ExecutiveRole,
+    ExecutiveRoleMap,
+    ExecutiveToken,
+    SessionLocal,
+)
 from app.src import exceptions
 from app.src.enums import PlatformType, GrantType
 from app.src.openobserve import log_event
@@ -25,6 +32,8 @@ from app.src.functions import (
     get_request_info,
     token_to_json,
     validate_and_revoke_refresh_token,
+    verify_permission,
+    verify_token,
 )
 
 route_executive = APIRouter()
@@ -74,6 +83,12 @@ class UpdateForm(BaseModel):
     grant_type: GrantType = Field(
         Form(description=enum_str(GrantType), default=GrantType.REFRESH_TOKEN)
     )
+
+
+class DeleteForm(BaseModel):
+    """Form data for deleting an executive token."""
+
+    id: int | None = Field(Form(default=None))
 
 
 # ---------------------------------------------------------------------------
@@ -199,9 +214,66 @@ async def refresh_token(
 @route_executive.delete(
     URL_EXECUTIVE_TOKEN,
     tags=["Token"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.UnknownValue(ExecutiveToken.access_token),
+            exceptions.NoPermission(),
+        ]
+    ),
 )
-async def delete_token():
-    pass
+async def delete_token(
+    form_param: DeleteForm = Depends(),
+    bearer=Depends(bearer_executive),
+    request_info=Depends(get_request_info),
+):
+    """
+    Revoke an executive token.
+
+    - Verify the provided access token exists in the database.
+    - Invalidate the current access token.
+
+    """
+    try:
+        session = SessionLocal()
+
+        token = verify_token(session, ExecutiveToken, bearer.credentials)
+
+        if form_param.id is None:
+            token_to_delete = token
+        else:
+            token_to_delete = (
+                session.query(ExecutiveToken)
+                .filter(ExecutiveToken.id == form_param.id)
+                .filter(ExecutiveToken.is_revoked == False)
+                .first()
+            )
+            if token_to_delete is None:
+                raise exceptions.UnknownValue(ExecutiveToken.id)
+
+            is_self_delete = token.executive_id == token_to_delete.executive_id
+            if not is_self_delete:
+                verify_permission(
+                    session=session,
+                    user_id=token.executive_id,
+                    permission_path="executive.token.delete",
+                    # permission_path=PermissionsSchema.executive.token.delete,
+                    role_model_cls=ExecutiveRole,
+                    role_map_model_cls=ExecutiveRoleMap,
+                )
+
+        # Revoke the chosen token
+        token_to_delete.is_revoked = True
+        session.commit()
+
+        token_data, token_log_data = token_to_json(token_to_delete)
+        log_event(token_to_delete, request_info, token_log_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
 
 
 @route_executive.get(
