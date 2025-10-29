@@ -1,15 +1,16 @@
 """
-This module provides helper functions for validating user permissions and tokens.
+This module provides helper functions for validating.
 
 It also includes examples for usage, making it easier for developers to integrate
 these utilities into their projects.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Type, Union
+from typing import Any, Type, Union
 from sqlalchemy.orm.session import Session
 
-from app.src import exceptions
+from app.src import argon2, exceptions
+from app.src.enums import AccountStatus, GrantType
 from app.src.db import (
     ExecutiveRole,
     ExecutiveRoleMap,
@@ -21,6 +22,90 @@ from app.src.db import (
     OperatorRole,
     VendorRole,
 )
+
+
+def authenticate_user(
+    session: Session,
+    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
+    form_param: Any,
+) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
+    """
+    Generic user authentication function for Executive, Operator, Vendor.
+
+    This generic function handles authentication for different account types.
+    It validates the username, password and ensures the account is active.
+    Authenticate a user using the grant type.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The valid ORM model class.
+        form_param (Any): Form parameters containing username, password, and grant_type.
+
+    Returns:
+        user: The valid user object from the database.
+
+    Raises:
+        InvalidGrantType: If the grant_type is not PASSWORD.
+        InvalidCredentials: If the username or password is invalid.
+        InactiveAccount: If the user account is not active.
+    """
+    if form_param.grant_type != GrantType.PASSWORD:
+        raise exceptions.InvalidGrantType()
+    user = (
+        session.query(model_cls)
+        .filter(model_cls.username == form_param.username)
+        .first()
+    )
+    if user is None:
+        raise exceptions.InvalidCredentials()
+    if not argon2.check_password(form_param.password, user.password):
+        raise exceptions.InvalidCredentials()
+    if user.status != AccountStatus.ACTIVE:
+        raise exceptions.InactiveAccount()
+    return user
+
+
+def validate_and_revoke_refresh_token(
+    session: Session,
+    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
+    form_param: Any,
+) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
+    """
+    Validates a refresh token and revokes it.
+
+    This function ensures the provided refresh token exists, is valid,
+    not revoked, and not expired. Once validated, the token is revoked
+    to prevent reuse. It can be used across different token models
+    (ExecutiveToken, OperatorToken, VendorToken).
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The valid ORM model class.
+        form_param (Any): Form parameters containing refresh_token and grant_type.
+
+    Returns:
+        token: The valid token object from the database.
+
+    Raises:
+        InvalidGrantType: If the grant_type is not REFRESH_TOKEN.
+        InvalidToken: If the token does not exist, is revoked, or has expired.
+    """
+    if form_param.grant_type != GrantType.REFRESH_TOKEN:
+        raise exceptions.InvalidGrantType()
+    token = (
+        session.query(model_cls)
+        .filter(model_cls.refresh_token == form_param.refresh_token)
+        .first()
+    )
+    if token is None or token.is_revoked:
+        raise exceptions.InvalidToken()
+    # TODO: Optionally suspend account if revoked token reuse detected
+    if token.refresh_before < datetime.now(timezone.utc):
+        raise exceptions.InvalidToken()
+    # Revoke the current token
+    token.is_revoked = True
+    session.flush()
+    return token
 
 
 def verify_token(

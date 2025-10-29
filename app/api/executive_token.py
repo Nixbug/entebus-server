@@ -24,15 +24,18 @@ from app.src.enums import PlatformType, GrantType
 from app.src.openobserve import log_event
 from app.src.urls import URL_EXECUTIVE_TOKEN
 from app.src.constants import MAX_EXECUTIVE_TOKENS
-from app.src.validators import verify_permission, verify_token
-from app.src.functions import (
+from app.src.validators import (
+    verify_permission,
+    verify_token,
     authenticate_user,
+    validate_and_revoke_refresh_token,
+)
+from app.src.functions import (
     cleanup_old_tokens,
     enum_str,
     fuse_exception_responses,
     get_request_info,
     token_to_json,
-    validate_and_revoke_refresh_token,
 )
 
 route_executive = APIRouter()
