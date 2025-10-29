@@ -218,7 +218,6 @@ async def refresh_token(
     responses=fuse_exception_responses(
         [
             exceptions.InvalidToken(),
-            exceptions.UnknownValue(ExecutiveToken.access_token),
             exceptions.NoPermission(),
         ]
     ),
@@ -229,12 +228,14 @@ async def delete_token(
     request_info=Depends(get_request_info),
 ):
     """
-    Revoke an executive token.
+    **Revokes an access token associated with an executive account.**
 
-    - Verify the provided access token exists in the database.
-    - Invalidate the current access token.
-
+    - Verify that the provided access token exists and is valid.
+    - If no `id` is provided, the currently used token will be revoked.
+    - If an `id` is provided, the specified token will be revoked after validating user permissions 'executive.token.delete'.
+    - If the token id is invalid or already revoked, the operation is silently ignored.   
     """
+
     try:
         session = SessionLocal()
 
@@ -250,7 +251,7 @@ async def delete_token(
                 .first()
             )
             if token_to_delete is None:
-                raise exceptions.UnknownValue(ExecutiveToken.id)
+                return Response(status_code=status.HTTP_204_NO_CONTENT)
 
             is_self_delete = token.executive_id == token_to_delete.executive_id
             if not is_self_delete:
@@ -258,7 +259,6 @@ async def delete_token(
                     session=session,
                     user_id=token.executive_id,
                     permission_path="executive.token.delete",
-                    # permission_path=PermissionsSchema.executive.token.delete,
                     role_model_cls=ExecutiveRole,
                     role_map_model_cls=ExecutiveRoleMap,
                 )
