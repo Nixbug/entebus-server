@@ -8,6 +8,7 @@ This module:
 All ORM models should inherit from `ORMbase`.
 """
 
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import (
     create_engine,
     Boolean,
@@ -31,6 +32,8 @@ from app.src.constants import (
     PSQL_DB_NAME,
     PSQL_DB_PORT,
     PSQL_DB_USERNAME,
+    MAX_REFRESH_TOKEN_VALIDITY,
+    MAX_ACCESS_TOKEN_VALIDITY,
 )
 from app.src.enums import AccountStatus, GenderType, PlatformType
 
@@ -278,8 +281,8 @@ class ExecutiveToken(ORMbase):
     enabling secure access to the platform with support for token expiration
     and client metadata tracking.
 
-    This table stores unique access tokens mapped to executives along with
-    details about the device or client used and timestamps for auditing.
+    This table stores unique access and refresh tokens mapped to executives,
+    along with details about the device or client used and timestamps for auditing.
     Useful for session management, device tracking, and implementing token-based authentication.
 
     Columns:
@@ -294,19 +297,19 @@ class ExecutiveToken(ORMbase):
         access_token (String, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal access token.
             Used to authenticate the executive on subsequent requests.
-            In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749)
+            In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749).
 
         refresh_token (String, not null, unique, default=lambda: token_hex(32)):
-            Securely generated 64-character hexadecimal access token.
+            Securely generated 64-character hexadecimal refresh token.
             Used to refresh the access token when needed.
-            In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749)
+            In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749).
 
-        expires_in (Integer, not null):
-            Access token expiration time in seconds.
+        expires_in (Integer, not null, default=MAX_ACCESS_TOKEN_VALIDITY):
+            Access token expiration duration in seconds.
             Defines the duration after which the token becomes invalid.
 
-        expires_at (DateTime, not null):
-            Defines the date and time after which the refresh token becomes invalid.
+        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(timezone.utc) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
+            Defines the UTC timestamp after which the refresh token becomes invalid.
 
         platform_type (Integer, nullable, default=PlatformType.OTHER):
             Enum value indicating the client platform type.
@@ -343,8 +346,13 @@ class ExecutiveToken(ORMbase):
         String(64), unique=True, nullable=False, default=lambda: token_hex(32)
     )
     # Expirations
-    expires_in = Column(Integer, nullable=False)
-    expires_at = Column(DateTime(timezone=True), nullable=False)
+    expires_in = Column(Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY)
+    refresh_before = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc)
+        + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY),
+    )
     is_revoked = Column(Boolean, nullable=False, default=False)
     # Device related details
     platform_type = Column(Integer, default=PlatformType.OTHER)
