@@ -38,7 +38,7 @@ def authenticate_user(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The valid ORM model class.
+        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The ORM model class.
         form_param (Any): Form parameters containing username, password, and grant_type.
 
     Returns:
@@ -80,7 +80,7 @@ def validate_and_revoke_refresh_token(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The valid ORM model class.
+        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The ORM model class.
         form_param (Any): Form parameters containing refresh_token and grant_type.
 
     Returns:
@@ -117,8 +117,8 @@ def verify_token(
     Generic token validation function for user.
 
     Args:
-        session (Session): Active SQLAlchemy session
-        model_cls (Type[Union[ExecutiveToken, OperatorToken, VendorToken]]): The valid ORM model class.
+        session (Session): Active SQLAlchemy session.
+        model_cls (Type[Union[ExecutiveToken, OperatorToken, VendorToken]]): The ORM model class.
         access_token (str): The access token string to validate.
 
     Returns:
