@@ -123,7 +123,6 @@ async def create_token(
     """
     try:
         session = SessionLocal()
-
         executive = authenticate_user(session, Executive, form_param)
 
         # Remove excess tokens
@@ -182,7 +181,6 @@ async def refresh_token(
     """
     try:
         session = SessionLocal()
-
         # Validate and revoke the old refresh token
         token = validate_and_revoke_refresh_token(session, ExecutiveToken, form_param)
         # Create new token
@@ -240,9 +238,7 @@ async def delete_token(
 
     try:
         session = SessionLocal()
-
         token = verify_token(session, ExecutiveToken, bearer.credentials)
-
         if form_param.id is None:
             token_to_delete = token
         else:
