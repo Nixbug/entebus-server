@@ -348,14 +348,17 @@ async def fetch_token(
 
         query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked == False)
 
-        has_permission = verify_permission(
-            session,
-            "executive.token.fetch",
-            ExecutiveRole,
-            ExecutiveRoleMap,
-            ExecutiveRoleMap.executive_id.name,
-            token,
-        )
+        try:
+            has_permission = verify_permission(
+                session,
+                "executive.token.fetch",
+                ExecutiveRole,
+                ExecutiveRoleMap,
+                ExecutiveRoleMap.executive_id.name,
+                token,
+            )
+        except exceptions.NoPermission:
+            has_permission = False
 
         if query_params.executive_id is not None:
             query = query.filter(
