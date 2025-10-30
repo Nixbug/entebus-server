@@ -1,8 +1,8 @@
 """
-This module provides helper functions for validating.
+This module provides helper functions for validation.
 
-It also includes examples for usage, making it easier for developers to integrate
-these utilities into their projects.
+It includes reusable utilities to handle common operations, 
+making it easier for developers to integrate them into their projects.
 """
 
 from datetime import datetime, timedelta, timezone

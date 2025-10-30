@@ -1,9 +1,7 @@
 """
-This module provides helper functions commonly used across FastAPI routes and
-services.
+This module provides helper functions commonly used across FastAPI routes.
 
-It also includes examples for usage, making it easier for developers to integrate
-these utilities into their projects.
+It offers reusable utilities that make it easier for developers to integrate them into their projects.
 """
 
 from enum import Enum
