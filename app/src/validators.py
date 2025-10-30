@@ -1,7 +1,7 @@
 """
 This module provides helper functions for validation.
 
-It includes reusable utilities to handle common operations, 
+It includes reusable utilities to handle common operations,
 making it easier for developers to integrate them into their projects.
 """
 
@@ -145,39 +145,39 @@ def verify_token(
 
 def verify_permission(
     session: Session,
-    user_id: int,
     permission_path: str,
     role_model_cls: Type[Union[ExecutiveRole, OperatorRole, VendorRole]],
     role_map_model_cls: Type[Union[ExecutiveRoleMap, OperatorRoleMap, VendorRoleMap]],
-):
+    foreign_key: str,
+    token: Union[ExecutiveToken, OperatorToken, VendorToken],
+) -> None:
     """
     Generic permission checker for Executive, Operator, or Vendor users.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        user_id (int): The ID of the user to check
-        permission_path (str): Dot path to check (e.g., "executive.token.delete")
-        role_model_cls (Type): Role model class (e.g., ExecutiveRole)
-        role_map_model_cls (Type): Role mapping class (e.g., ExecutiveRoleMap)
+        permission_path (str): Permission path to check.
+        role_model_cls (Type): Role model class.
+        role_map_model_cls (Type): Role mapping class.
+        foreign_key (str): Foreign key column name in role_map_model_cls.
+        token (object): Authenticated token object.
 
     Raises:
-        NoPermission: If permission is False
+        NoPermission: If the specified permission is not granted.
     """
 
-    role_ids = (
-        session.query(role_map_model_cls.role_id)
-        .filter(role_map_model_cls.executive_id == user_id)
-        .all()
-    )
-    role_ids = [r[0] for r in role_ids]
-    if not role_ids:
-        raise exceptions.NoPermission()
+    # Get the user ID from the token
+    user_id = getattr(token, foreign_key)
 
+    # Fetch roles assigned to the user
     roles = (
         session.query(role_model_cls.permissions)
-        .filter(role_model_cls.id.in_(role_ids))
+        .join(role_map_model_cls, role_model_cls.id == role_map_model_cls.role_id)
+        .filter(getattr(role_map_model_cls, foreign_key) == user_id)
         .all()
     )
+    if not roles:
+        raise exceptions.NoPermission()
 
     keys = permission_path.split(".")
     for (permissions_dict,) in roles:

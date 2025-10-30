@@ -257,11 +257,12 @@ async def delete_token(
             )
             if not is_self_delete:
                 verify_permission(
-                    session=session,
-                    user_id=token.executive_id,
-                    permission_path="executive.token.delete",
-                    role_model_cls=ExecutiveRole,
-                    role_map_model_cls=ExecutiveRoleMap,
+                    session,
+                    "executive.token.delete",
+                    ExecutiveRole,
+                    ExecutiveRoleMap,
+                    ExecutiveRoleMap.executive_id.name,
+                    token,
                 )
 
         # Revoke the chosen token
