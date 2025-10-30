@@ -23,6 +23,7 @@ from app.src.db import (
 from app.src import exceptions
 from app.src.enums import PlatformType, GrantType
 from app.src.openobserve import log_event
+from app.src.permissions.executive import PermissionPath
 from app.src.urls import URL_EXECUTIVE_TOKEN
 from app.src.constants import MAX_EXECUTIVE_TOKENS
 from app.src.validators import (
@@ -136,6 +137,7 @@ class QueryParams(BaseModel):
     # Pagination
     offset: int = Field(Query(default=0, ge=0))
     limit: int = Field(Query(default=20, gt=0, le=100))
+
 
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
@@ -302,7 +304,7 @@ async def delete_token(
             if not is_self_delete:
                 verify_permission(
                     session,
-                    "executive.token.delete",
+                    PermissionPath().executive.token.delete,
                     ExecutiveRole,
                     ExecutiveRoleMap,
                     ExecutiveRoleMap.executive_id.name,
@@ -337,9 +339,9 @@ async def fetch_token(
 
     - If the logged-in executive has `executive.token.fetch` permission, all masked tokens are returned.
     - If the logged-in executive does not have permission, only masked tokens for the logged-in executive are returned.
-    - Filter by ID ranges or lists.   
-    - Sort by ID, creation date, or update date in ascending or descending order. 
-    - Paginate using offset and limit.    
+    - Filter by ID ranges or lists.
+    - Sort by ID, creation date, or update date in ascending or descending order.
+    - Paginate using offset and limit.
     """
     try:
         session = SessionLocal()
@@ -347,61 +349,53 @@ async def fetch_token(
 
         query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked == False)
 
-        has_permission = False
-        try:
-            verify_permission(
-                session,
-                "executive.token.fetch",
-                ExecutiveRole,
-                ExecutiveRoleMap,
-                ExecutiveRoleMap.executive_id.name,
-                token,
-            )
-            has_permission = True
-        except exceptions.NoPermission:
-            has_permission = False
+        has_permission = verify_permission(
+            session,
+            PermissionPath().executive.token.fetch,
+            ExecutiveRole,
+            ExecutiveRoleMap,
+            ExecutiveRoleMap.executive_id.name,
+            token,
+        )
 
-        if has_permission:
-            if query_params.executive_id is not None:
-                query = query.filter(
-                    ExecutiveToken.executive_id == query_params.executive_id
-                )
-            if query_params.platform_type is not None:
-                query = query.filter(
-                    ExecutiveToken.platform_type == query_params.platform_type
-                )
-            if query_params.client_details is not None:
-                query = query.filter(
-                    ExecutiveToken.client_details.ilike(
-                        f"%{query_params.client_details}%"
-                    )
-                )
-            if query_params.id is not None:
-                query = query.filter(ExecutiveToken.id == query_params.id)
-            if query_params.id_ge is not None:
-                query = query.filter(ExecutiveToken.id >= query_params.id_ge)
-            if query_params.id_le is not None:
-                query = query.filter(ExecutiveToken.id <= query_params.id_le)
-            if query_params.id_list is not None:
-                query = query.filter(ExecutiveToken.id.in_(query_params.id_list))
-            if query_params.updated_on_ge is not None:
-                query = query.filter(
-                    ExecutiveToken.updated_on >= query_params.updated_on_ge
-                )
-            if query_params.updated_on_le is not None:
-                query = query.filter(
-                    ExecutiveToken.updated_on <= query_params.updated_on_le
-                )
-            if query_params.created_on_ge is not None:
-                query = query.filter(
-                    ExecutiveToken.created_on >= query_params.created_on_ge
-                )
-            if query_params.created_on_le is not None:
-                query = query.filter(
-                    ExecutiveToken.created_on <= query_params.created_on_le
-                )
-        else:
+        if query_params.executive_id is not None:
+            query = query.filter(
+                ExecutiveToken.executive_id == query_params.executive_id
+            )
+        if has_permission is False:
             query = query.filter(ExecutiveToken.executive_id == token.executive_id)
+        if query_params.platform_type is not None:
+            query = query.filter(
+                ExecutiveToken.platform_type == query_params.platform_type
+            )
+        if query_params.client_details is not None:
+            query = query.filter(
+                ExecutiveToken.client_details.ilike(f"%{query_params.client_details}%")
+            )
+        if query_params.id is not None:
+            query = query.filter(ExecutiveToken.id == query_params.id)
+        if query_params.id_ge is not None:
+            query = query.filter(ExecutiveToken.id >= query_params.id_ge)
+        if query_params.id_le is not None:
+            query = query.filter(ExecutiveToken.id <= query_params.id_le)
+        if query_params.id_list is not None:
+            query = query.filter(ExecutiveToken.id.in_(query_params.id_list))
+        if query_params.updated_on_ge is not None:
+            query = query.filter(
+                ExecutiveToken.updated_on >= query_params.updated_on_ge
+            )
+        if query_params.updated_on_le is not None:
+            query = query.filter(
+                ExecutiveToken.updated_on <= query_params.updated_on_le
+            )
+        if query_params.created_on_ge is not None:
+            query = query.filter(
+                ExecutiveToken.created_on >= query_params.created_on_ge
+            )
+        if query_params.created_on_le is not None:
+            query = query.filter(
+                ExecutiveToken.created_on <= query_params.created_on_le
+            )
 
         # Ordering
         ordering_attr = getattr(ExecutiveToken, OrderBy(query_params.order_by).name)
