@@ -23,7 +23,6 @@ from app.src.db import (
 from app.src import exceptions
 from app.src.enums import PlatformType, GrantType
 from app.src.openobserve import log_event
-from app.src.permissions.executive import PermissionPath
 from app.src.urls import URL_EXECUTIVE_TOKEN
 from app.src.constants import MAX_EXECUTIVE_TOKENS
 from app.src.validators import (
@@ -304,7 +303,7 @@ async def delete_token(
             if not is_self_delete:
                 verify_permission(
                     session,
-                    PermissionPath().executive.token.delete,
+                    "executive.token.delete",
                     ExecutiveRole,
                     ExecutiveRoleMap,
                     ExecutiveRoleMap.executive_id.name,
@@ -351,7 +350,7 @@ async def fetch_token(
 
         has_permission = verify_permission(
             session,
-            PermissionPath().executive.token.fetch,
+            "executive.token.fetch",
             ExecutiveRole,
             ExecutiveRoleMap,
             ExecutiveRoleMap.executive_id.name,
