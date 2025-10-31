@@ -254,7 +254,7 @@ async def delete_token(
                 verify_permission(
                     roles,
                     PermissionSchema,
-                    PermissionPath.EXECUTIVE_TOKEN_DELETE,
+                    PermissionPath.DELETE_EXECUTIVE_TOKEN,
                 )
 
         # Revoke the chosen token
