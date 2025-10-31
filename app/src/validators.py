@@ -39,7 +39,7 @@ def authenticate_user(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The ORM model class.
+        model_cls (Type[Union[ExecutiveToken, OperatorToken, VendorToken]]): The ORM model class.
         form_param (Any): Form parameters containing username, password, and grant_type.
 
     Returns:
@@ -81,7 +81,7 @@ def validate_and_revoke_refresh_token(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The ORM model class.
+        model_cls (Type[Union[ExecutiveToken, OperatorToken, VendorToken]]): The ORM model class.
         form_param (Any): Form parameters containing refresh_token and grant_type.
 
     Returns:
@@ -123,10 +123,10 @@ def verify_token(
         access_token (str): The access token string to validate.
 
     Returns:
-        The valid token model instance
+        The valid token model instance.
 
     Raises:
-        InvalidToken: If token is invalid, revoked, or expired
+        InvalidToken: If token is invalid, revoked, or expired.
     """
     # Get token ensuring it's not revoked
     current_time = datetime.now(timezone.utc)
@@ -153,10 +153,10 @@ def get_executive_role(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        executive_id (int): The ID of the executive user.
+        executive_id (int): The ID of the executive.
 
     Returns:
-        list[ExecutiveRole]: List of ExecutiveRole objects assigned to the user.
+        list[ExecutiveRole]: List of ExecutiveRole objects assigned to the executive.
                              Returns an empty list if no roles are found.
     """
     return (
@@ -176,10 +176,10 @@ def get_vendor_role(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        vendor_id (int): The ID of the vendor user.
+        vendor_id (int): The ID of the vendor.
 
     Returns:
-        list[VendorRole]: List of VendorRole objects assigned to the user.
+        list[VendorRole]: List of VendorRole objects assigned to the vendor.
                           Returns an empty list if no roles are found.
     """
     return (
@@ -199,10 +199,10 @@ def get_operator_role(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        operator_id (int): The ID of the operator user.
+        operator_id (int): The ID of the operator.
 
     Returns:
-        list[OperatorRole]: List of OperatorRole objects assigned to the user.
+        list[OperatorRole]: List of OperatorRole objects assigned to the operator.
                             Returns an empty list if no roles are found.
     """
     return (
@@ -224,7 +224,7 @@ def verify_permission(
 
     Args:
         role_list (list[ExecutiveToken, OperatorToken, VendorToken]): List of roles.
-        permission_schema (BaseModel): Pydantic schema defining the permission structure.
+        permission_schema (BaseModel): Pydantic schema representing the permission structure.
         permission_path (str): Permission path.
         raise_exception (bool): Whether to raise `NoPermission` if permission is not found, defaults to True.
 

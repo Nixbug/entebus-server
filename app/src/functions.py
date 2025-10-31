@@ -107,7 +107,7 @@ def cleanup_old_tokens(
     Args:
         session (Session): Active SQLAlchemy session.
         model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The ORM model class.
-        filter_condition (Column): SQLAlchemy filter condition (e.g., ExecutiveToken.executive_id == id).
+        filter_condition (Column): SQLAlchemy filter condition.
         max_tokens (int): The maximum number of tokens allowed.
 
     Returns:
