@@ -1,8 +1,8 @@
 """
-Executive Role Permissions Schema.
+Executive Role Permissions.
 
-Provides a set of Pydantic models to define the hierarchical structure of permissions
-for executives within the system.
+Provides Pydantic schemas to define the hierarchical structure of permissions
+for executives within the system and permission paths for specific actions.
 """
 
 from pydantic import BaseModel, Field
@@ -11,6 +11,8 @@ from enum import StrEnum
 
 ## Permission Paths
 class PermissionPath(StrEnum):
+    """Permission paths for executives."""
+
     LANDMARK_CREATE = "landmark.create"
     LANDMARK_UPDATE = "landmark.update"
     LANDMARK_DELETE = "landmark.delete"
@@ -150,7 +152,7 @@ class CompanyPermissions(CRUDPermission):
     service: ServicePermissions
 
 
-class PermissionsSchema(BaseModel):
+class PermissionSchema(BaseModel):
     """Top-level hierarchical permission structure for an ExecutiveRole."""
 
     landmark: LandmarkPermissions

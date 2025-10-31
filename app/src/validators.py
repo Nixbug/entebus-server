@@ -222,13 +222,10 @@ def verify_permission(
     """
     Validate if a user has a specific permission based on their roles.
 
-    This function checks whether any of the user's roles include the given permission.
-    It dynamically evaluates the permission path defined in the provided schema.
-
     Args:
-        role_list (list): List of role objects that include permissions data.
+        role_list (list[ExecutiveToken, OperatorToken, VendorToken]): List of roles.
         permission_schema (BaseModel): Pydantic schema defining the permission structure.
-        permission_path (str): Attribute or function used to access the specific permission.
+        permission_path (str): Permission path.
         raise_exception (bool): Whether to raise `NoPermission` if permission is not found, defaults to True.
 
     Returns:
@@ -243,20 +240,16 @@ def verify_permission(
         if raise_exception:
             raise exceptions.NoPermission()
         return False
-
     # Split the path string
     attr_path = permission_path.split(".")
-
     for role in role_list:
         permissions = permission_schema(**role.permissions)
-
         # Dynamically traverse the permission schema
         value = permissions
         for attr in attr_path:
             value = getattr(value, attr)
         if value is True:
             return True
-
     if raise_exception:
         raise exceptions.NoPermission()
     return False
