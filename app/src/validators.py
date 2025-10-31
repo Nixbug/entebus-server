@@ -7,6 +7,7 @@ making it easier for developers to integrate them into their projects.
 
 from datetime import datetime, timedelta, timezone
 from typing import Any, Type, Union
+from pydantic import BaseModel
 from sqlalchemy.orm.session import Session
 
 from app.src import argon2, exceptions
@@ -143,51 +144,119 @@ def verify_token(
     return token
 
 
-def verify_permission(
+def get_executive_role(
     session: Session,
-    permission_path: str,
-    role_model_cls: Type[Union[ExecutiveRole, OperatorRole, VendorRole]],
-    role_map_model_cls: Type[Union[ExecutiveRoleMap, OperatorRoleMap, VendorRoleMap]],
-    foreign_key: str,
-    token: Union[ExecutiveToken, OperatorToken, VendorToken],
-) -> None:
+    executive_id: int,
+) -> list[ExecutiveRole] | None:
     """
-    Generic permission checker for Executive, Operator, or Vendor users.
+    Retrieve all roles assigned to a specific executive.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        permission_path (str): Permission path to check.
-        role_model_cls (Type): Role model class.
-        role_map_model_cls (Type): Role mapping class.
-        foreign_key (str): Foreign key column name in role_map_model_cls.
-        token (object): Authenticated token object.
+        executive_id (int): The ID of the executive user.
 
-    Raises:
-        NoPermission: If the specified permission is not granted.
+    Returns:
+        list[ExecutiveRole]: List of ExecutiveRole objects assigned to the user.
+                             Returns an empty list if no roles are found.
     """
-
-    # Get the user ID from the token
-    user_id = getattr(token, foreign_key)
-
-    # Fetch roles assigned to the user
-    roles = (
-        session.query(role_model_cls.permissions)
-        .join(role_map_model_cls, role_model_cls.id == role_map_model_cls.role_id)
-        .filter(getattr(role_map_model_cls, foreign_key) == user_id)
+    return (
+        session.query(ExecutiveRole)
+        .join(ExecutiveRoleMap, ExecutiveRole.id == ExecutiveRoleMap.role_id)
+        .filter(ExecutiveRoleMap.executive_id == executive_id)
         .all()
     )
-    if not roles:
+
+
+def get_vendor_role(
+    session: Session,
+    vendor_id: int,
+) -> list[VendorRole] | None:
+    """
+    Retrieve all roles assigned to a specific vendor.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        vendor_id (int): The ID of the vendor user.
+
+    Returns:
+        list[VendorRole]: List of VendorRole objects assigned to the user.
+                          Returns an empty list if no roles are found.
+    """
+    return (
+        session.query(VendorRole)
+        .join(VendorRoleMap, VendorRole.id == VendorRoleMap.role_id)
+        .filter(VendorRoleMap.vendor_id == vendor_id)
+        .all()
+    )
+
+
+def get_operator_role(
+    session: Session,
+    operator_id: int,
+) -> list[OperatorRole] | None:
+    """
+    Retrieve all roles assigned to a specific operator.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        operator_id (int): The ID of the operator user.
+
+    Returns:
+        list[OperatorRole]: List of OperatorRole objects assigned to the user.
+                            Returns an empty list if no roles are found.
+    """
+    return (
+        session.query(OperatorRole)
+        .join(OperatorRoleMap, OperatorRole.id == OperatorRoleMap.role_id)
+        .filter(OperatorRoleMap.operator_id == operator_id)
+        .all()
+    )
+
+
+def verify_permission(
+    role_list: list[ExecutiveRole | VendorRole | OperatorRole],
+    permission_schema: BaseModel,
+    permission_path: str,
+    raise_exception: bool = True,
+) -> bool:
+    """
+    Validate if a user has a specific permission based on their roles.
+
+    This function checks whether any of the user's roles include the given permission.
+    It dynamically evaluates the permission path defined in the provided schema.
+
+    Args:
+        role_list (list): List of role objects that include permissions data.
+        permission_schema (BaseModel): Pydantic schema defining the permission structure.
+        permission_path (str): Attribute or function used to access the specific permission.
+        raise_exception (bool): Whether to raise `NoPermission` if permission is not found, defaults to True.
+
+    Returns:
+        bool:
+            - True if the permission is found.
+            - False if not found and `raise_exception=False`.
+
+    Raises:
+        NoPermission: If the user lacks the required permission and `raise_exception=True`.
+    """
+    if role_list is None:
+        if raise_exception:
+            raise exceptions.NoPermission()
+        return False
+
+    # Split the path string
+    attr_path = permission_path.split(".")
+
+    for role in role_list:
+        permissions = permission_schema(**role.permissions)
+
+        # Dynamically traverse the permission schema
+        value = permissions
+        for attr in attr_path:
+            value = getattr(value, attr)
+        if value is True:
+            return True
+
+    if raise_exception:
         raise exceptions.NoPermission()
-
-    keys = permission_path.split(".")
-    for (permissions_dict,) in roles:
-        current = permissions_dict
-        try:
-            for key in keys:
-                current = current[key]
-            if current is True:
-                return True
-        except (KeyError, TypeError):
-            continue
-
-    raise exceptions.NoPermission()
+    return False
