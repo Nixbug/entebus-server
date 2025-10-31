@@ -14,17 +14,17 @@ from pydantic import BaseModel, Field
 from app.api.bearer import bearer_executive
 from app.src.db import (
     Executive,
-    ExecutiveRole,
-    ExecutiveRoleMap,
     ExecutiveToken,
     SessionLocal,
 )
 from app.src import exceptions
 from app.src.enums import PlatformType, GrantType
 from app.src.openobserve import log_event
+from app.src.permissions.executive import PermissionPath, PermissionsSchema
 from app.src.urls import URL_EXECUTIVE_TOKEN
 from app.src.constants import MAX_EXECUTIVE_TOKENS
 from app.src.validators import (
+    get_executive_role,
     verify_permission,
     verify_token,
     authenticate_user,
@@ -251,18 +251,14 @@ async def delete_token(
             if token_to_delete is None:
                 return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-            is_self_delete = (
-                token.executive_id == token_to_delete.executive_id
-                and token_to_delete.id == token.id
-            )
+            is_self_delete = token_to_delete.id == token.id
+
             if not is_self_delete:
+                roles = get_executive_role(session, token.executive_id)
                 verify_permission(
-                    session,
-                    "executive.token.delete",
-                    ExecutiveRole,
-                    ExecutiveRoleMap,
-                    ExecutiveRoleMap.executive_id.name,
-                    token,
+                    roles,
+                    PermissionsSchema,
+                    PermissionPath.EXECUTIVE_TOKEN_DELETE,
                 )
 
         # Revoke the chosen token
