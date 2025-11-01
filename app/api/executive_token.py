@@ -48,7 +48,6 @@ class MaskedExecutiveTokenSchema(BaseModel):
     refresh_before: datetime
     platform_type: int
     client_details: Optional[str]
-    updated_on: Optional[datetime]
     created_on: datetime
 
 
@@ -297,6 +296,7 @@ async def delete_token(
         # Revoke the chosen token
         token_to_delete.is_revoked = True
         session.commit()
+        session.refresh(token_to_delete)
 
         _, token_log_data = token_to_json(token_to_delete)
         log_event(token_to_delete, request_info, token_log_data)
