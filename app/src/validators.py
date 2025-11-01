@@ -10,6 +10,7 @@ from typing import Any, Type, Union
 from pydantic import BaseModel
 from sqlalchemy.orm.session import Session
 
+from app.src.functions import get_by_path
 from app.src import argon2, exceptions
 from app.src.enums import AccountStatus, GrantType
 from app.src.db import (
@@ -151,7 +152,7 @@ def verify_permission(
     Validate if a user has a specific permission based on their roles.
 
     Args:
-        role_list (list[ExecutiveToken, OperatorToken, VendorToken]): List of roles.
+        role_list (list[ExecutiveRole | VendorRole | OperatorRole]): List of roles.
         permission_schema (BaseModel): Pydantic schema representing the permission structure.
         permission_path (str): Permission path.
         raise_exception (bool): Whether to raise `NoPermission` if permission is not found, defaults to True.
@@ -164,20 +165,13 @@ def verify_permission(
     Raises:
         NoPermission: If the user lacks the required permission and `raise_exception=True`.
     """
-    if role_list is None:
-        if raise_exception:
-            raise exceptions.NoPermission()
-        return False
-    # Split the path string
-    attr_path = permission_path.split(".")
-    for role in role_list:
+    for role in role_list or []:
         permissions = permission_schema(**role.permissions)
-        # Dynamically traverse the permission schema
-        value = permissions
-        for attr in attr_path:
-            value = getattr(value, attr)
-        if value is True:
+        permissions_dict = permissions.model_dump()
+        value = get_by_path(permissions_dict, permission_path)
+        if value:
             return True
+
     if raise_exception:
         raise exceptions.NoPermission()
     return False

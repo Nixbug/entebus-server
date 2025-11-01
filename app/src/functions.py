@@ -224,3 +224,12 @@ def get_operator_roles(
         .filter(OperatorRoleMap.operator_id == operator_id)
         .all()
     )
+
+
+def get_by_path(data: dict, path: str):
+    """
+    Traverse nested dictionary using dot-separated keys.
+    """
+    for key in path.split("."):
+        data = data[key]
+    return data
