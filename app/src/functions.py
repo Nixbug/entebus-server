@@ -226,9 +226,16 @@ def get_operator_roles(
     )
 
 
-def get_by_path(data: dict, path: str):
+def get_by_path(data: dict, path: str) -> Any:
     """
-    Traverse nested dictionary using dot-separated keys.
+    Retrieve a nested value from a dictionary using a dot-separated key path.
+
+    Args:
+        data (dict): The dictionary to traverse.
+        path (str): Dot-separated string representing the path.
+
+    Returns:
+        Any: The value at the specified path.
     """
     for key in path.split("."):
         data = data[key]
