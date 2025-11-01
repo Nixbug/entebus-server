@@ -17,11 +17,10 @@ from app.src.db import Executive, ExecutiveToken, SessionLocal
 from app.src import exceptions
 from app.src.enums import PlatformType, GrantType
 from app.src.openobserve import log_event
-from app.src.permissions.executive import PermissionPath, PermissionSchema
+from app.src.permissions.executive import PermissionPath
 from app.src.urls import URL_EXECUTIVE_TOKEN
 from app.src.constants import MAX_EXECUTIVE_TOKENS
 from app.src.validators import (
-    get_executive_role,
     verify_permission,
     verify_token,
     authenticate_user,
@@ -33,6 +32,7 @@ from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
     token_to_json,
+    get_executive_roles,
 )
 
 route_executive = APIRouter()
@@ -296,18 +296,17 @@ async def delete_token(
             is_self_delete = token_to_delete.id == token.id
 
             if not is_self_delete:
-                roles = get_executive_role(session, token.executive_id)
+                roles = get_executive_roles(session, token.executive_id)
                 verify_permission(
                     roles,
-                    PermissionSchema,
-                    PermissionPath.EXECUTIVE_TOKEN_DELETE,
+                    PermissionPath.DELETE_EXECUTIVE_TOKEN,
                 )
 
         # Revoke the chosen token
         token_to_delete.is_revoked = True
         session.commit()
 
-        token_data, token_log_data = token_to_json(token_to_delete)
+        _, token_log_data = token_to_json(token_to_delete)
         log_event(token_to_delete, request_info, token_log_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:

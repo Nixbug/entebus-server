@@ -12,7 +12,17 @@ from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
 
 from app.src import schemas, exceptions
-from app.src.db import ExecutiveToken, OperatorToken, VendorToken
+from app.src.db import (
+    ExecutiveRole,
+    ExecutiveRoleMap,
+    ExecutiveToken,
+    OperatorRole,
+    OperatorRoleMap,
+    OperatorToken,
+    VendorRole,
+    VendorRoleMap,
+    VendorToken,
+)
 
 
 def get_request_info(request: Request) -> schemas.RequestInfo:
@@ -145,3 +155,88 @@ def token_to_json(
     for sensitive_field in ("access_token", "refresh_token"):
         token_log_data.pop(sensitive_field, None)
     return token_data, token_log_data
+
+
+def get_executive_roles(
+    session: Session,
+    executive_id: int,
+) -> list[ExecutiveRole]:
+    """
+    Retrieve all roles assigned to a specific executive.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        executive_id (int): The ID of the executive.
+
+    Returns:
+        list[ExecutiveRole]: List of ExecutiveRole objects assigned to the executive.
+                             Returns an empty list if no roles are found.
+    """
+    return (
+        session.query(ExecutiveRole)
+        .join(ExecutiveRoleMap, ExecutiveRole.id == ExecutiveRoleMap.role_id)
+        .filter(ExecutiveRoleMap.executive_id == executive_id)
+        .all()
+    )
+
+
+def get_vendor_roles(
+    session: Session,
+    vendor_id: int,
+) -> list[VendorRole]:
+    """
+    Retrieve all roles assigned to a specific vendor.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        vendor_id (int): The ID of the vendor.
+
+    Returns:
+        list[VendorRole]: List of VendorRole objects assigned to the vendor.
+                          Returns an empty list if no roles are found.
+    """
+    return (
+        session.query(VendorRole)
+        .join(VendorRoleMap, VendorRole.id == VendorRoleMap.role_id)
+        .filter(VendorRoleMap.vendor_id == vendor_id)
+        .all()
+    )
+
+
+def get_operator_roles(
+    session: Session,
+    operator_id: int,
+) -> list[OperatorRole]:
+    """
+    Retrieve all roles assigned to a specific operator.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        operator_id (int): The ID of the operator.
+
+    Returns:
+        list[OperatorRole]: List of OperatorRole objects assigned to the operator.
+                            Returns an empty list if no roles are found.
+    """
+    return (
+        session.query(OperatorRole)
+        .join(OperatorRoleMap, OperatorRole.id == OperatorRoleMap.role_id)
+        .filter(OperatorRoleMap.operator_id == operator_id)
+        .all()
+    )
+
+
+def get_by_path(data: dict, path: str) -> Any:
+    """
+    Retrieve a nested value from a dictionary using a dot-separated key path.
+
+    Args:
+        data (dict): The dictionary to traverse.
+        path (str): Dot-separated string representing the path.
+
+    Returns:
+        Any: The value at the specified path.
+    """
+    for key in path.split("."):
+        data = data[key]
+    return data
