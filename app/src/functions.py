@@ -206,7 +206,7 @@ def get_vendor_roles(
 def get_operator_roles(
     session: Session,
     operator_id: int,
-) -> list[OperatorRole] | None:
+) -> list[OperatorRole]:
     """
     Retrieve all roles assigned to a specific operator.
 
