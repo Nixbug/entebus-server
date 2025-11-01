@@ -338,10 +338,9 @@ async def fetch_token(
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, bearer.credentials)
         query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked == False)
-        roles = get_executive_role(session, token.executive_id)
+        roles = get_executive_roles(session, token.executive_id)
         has_permission = verify_permission(
             roles,
-            PermissionSchema,
             PermissionPath.EXECUTIVE_TOKEN_FETCH,
             False,
         )
