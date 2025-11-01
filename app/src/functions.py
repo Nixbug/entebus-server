@@ -1,12 +1,9 @@
 """
-This module provides helper functions commonly used across FastAPI routes and
-services.
+This module provides helper functions commonly used across FastAPI routes.
 
-It also includes examples for usage, making it easier for developers to integrate
-these utilities into their projects.
+It offers reusable utilities that make it easier for developers to integrate them into their projects.
 """
 
-from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, List, Dict, Type, Union, Tuple
 from fastapi import Request
@@ -14,9 +11,18 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
 
-from app.src import argon2, schemas, exceptions
-from app.src.db import ExecutiveToken, OperatorToken, VendorToken
-from app.src.enums import AccountStatus, GrantType
+from app.src import schemas, exceptions
+from app.src.db import (
+    ExecutiveRole,
+    ExecutiveRoleMap,
+    ExecutiveToken,
+    OperatorRole,
+    OperatorRoleMap,
+    OperatorToken,
+    VendorRole,
+    VendorRoleMap,
+    VendorToken,
+)
 
 
 def get_request_info(request: Request) -> schemas.RequestInfo:
@@ -110,8 +116,8 @@ def cleanup_old_tokens(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The valid ORM model class.
-        filter_condition (Column): SQLAlchemy filter condition (e.g., ExecutiveToken.executive_id == id).
+        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The ORM model class.
+        filter_condition (Column): SQLAlchemy filter condition.
         max_tokens (int): The maximum number of tokens allowed.
 
     Returns:
@@ -128,90 +134,6 @@ def cleanup_old_tokens(
         token_to_delete = tokens.pop(0)
         session.delete(token_to_delete)
         session.flush()
-
-
-def authenticate_user(
-    session: Session,
-    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
-    form_param: Any,
-) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
-    """
-    Generic user authentication function for Executive, Operator, Vendor.
-
-    This generic function handles authentication for different account types.
-    It validates the username, password and ensures the account is active.
-    Authenticate a user using the grant type.
-
-    Args:
-        session (Session): Active SQLAlchemy session.
-        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The valid ORM model class.
-        form_param (Any): Form parameters containing username, password, and grant_type.
-
-    Returns:
-        user: The valid user object from the database.
-
-    Raises:
-        InvalidGrantType: If the grant_type is not PASSWORD.
-        InvalidCredentials: If the username or password is invalid.
-        InactiveAccount: If the user account is not active.
-    """
-    if form_param.grant_type != GrantType.PASSWORD:
-        raise exceptions.InvalidGrantType()
-    user = (
-        session.query(model_cls)
-        .filter(model_cls.username == form_param.username)
-        .first()
-    )
-    if user is None:
-        raise exceptions.InvalidCredentials()
-    if not argon2.check_password(form_param.password, user.password):
-        raise exceptions.InvalidCredentials()
-    if user.status != AccountStatus.ACTIVE:
-        raise exceptions.InactiveAccount()
-    return user
-
-
-def validate_and_revoke_refresh_token(
-    session: Session,
-    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
-    form_param: Any,
-) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
-    """
-    Validates a refresh token and revokes it.
-
-    This function ensures the provided refresh token exists, is valid,
-    not revoked, and not expired. Once validated, the token is revoked
-    to prevent reuse. It can be used across different token models
-    (ExecutiveToken, OperatorToken, VendorToken).
-
-    Args:
-        session (Session): Active SQLAlchemy session.
-        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The valid ORM model class.
-        form_param (Any): Form parameters containing refresh_token and grant_type.
-
-    Returns:
-        token: The valid token object from the database.
-
-    Raises:
-        InvalidGrantType: If the grant_type is not REFRESH_TOKEN.
-        InvalidToken: If the token does not exist, is revoked, or has expired.
-    """
-    if form_param.grant_type != GrantType.REFRESH_TOKEN:
-        raise exceptions.InvalidGrantType()
-    token = (
-        session.query(model_cls)
-        .filter(model_cls.refresh_token == form_param.refresh_token)
-        .first()
-    )
-    if token is None or token.is_revoked:
-        raise exceptions.InvalidToken()
-    # TODO: Optionally suspend account if revoked token reuse detected
-    if token.refresh_before < datetime.now(timezone.utc):
-        raise exceptions.InvalidToken()
-    # Revoke the current token
-    token.is_revoked = True
-    session.flush()
-    return token
 
 
 def token_to_json(
@@ -233,3 +155,88 @@ def token_to_json(
     for sensitive_field in ("access_token", "refresh_token"):
         token_log_data.pop(sensitive_field, None)
     return token_data, token_log_data
+
+
+def get_executive_roles(
+    session: Session,
+    executive_id: int,
+) -> list[ExecutiveRole]:
+    """
+    Retrieve all roles assigned to a specific executive.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        executive_id (int): The ID of the executive.
+
+    Returns:
+        list[ExecutiveRole]: List of ExecutiveRole objects assigned to the executive.
+                             Returns an empty list if no roles are found.
+    """
+    return (
+        session.query(ExecutiveRole)
+        .join(ExecutiveRoleMap, ExecutiveRole.id == ExecutiveRoleMap.role_id)
+        .filter(ExecutiveRoleMap.executive_id == executive_id)
+        .all()
+    )
+
+
+def get_vendor_roles(
+    session: Session,
+    vendor_id: int,
+) -> list[VendorRole]:
+    """
+    Retrieve all roles assigned to a specific vendor.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        vendor_id (int): The ID of the vendor.
+
+    Returns:
+        list[VendorRole]: List of VendorRole objects assigned to the vendor.
+                          Returns an empty list if no roles are found.
+    """
+    return (
+        session.query(VendorRole)
+        .join(VendorRoleMap, VendorRole.id == VendorRoleMap.role_id)
+        .filter(VendorRoleMap.vendor_id == vendor_id)
+        .all()
+    )
+
+
+def get_operator_roles(
+    session: Session,
+    operator_id: int,
+) -> list[OperatorRole]:
+    """
+    Retrieve all roles assigned to a specific operator.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        operator_id (int): The ID of the operator.
+
+    Returns:
+        list[OperatorRole]: List of OperatorRole objects assigned to the operator.
+                            Returns an empty list if no roles are found.
+    """
+    return (
+        session.query(OperatorRole)
+        .join(OperatorRoleMap, OperatorRole.id == OperatorRoleMap.role_id)
+        .filter(OperatorRoleMap.operator_id == operator_id)
+        .all()
+    )
+
+
+def get_by_path(data: dict, path: str) -> Any:
+    """
+    Retrieve a nested value from a dictionary using a dot-separated key path.
+
+    Args:
+        data (dict): The dictionary to traverse.
+        path (str): Dot-separated string representing the path.
+
+    Returns:
+        Any: The value at the specified path.
+    """
+    for key in path.split("."):
+        data = data[key]
+    return data

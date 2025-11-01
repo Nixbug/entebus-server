@@ -8,23 +8,30 @@ input validation and structured output.
 
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, status, Form
+from fastapi import APIRouter, Depends, Response, status, Form
 from pydantic import BaseModel, Field
 
+from app.api.bearer import bearer_executive
 from app.src.db import Executive, ExecutiveToken, SessionLocal
 from app.src import exceptions
 from app.src.enums import PlatformType, GrantType
 from app.src.openobserve import log_event
+from app.src.permissions.executive import PermissionPath
 from app.src.urls import URL_EXECUTIVE_TOKEN
 from app.src.constants import MAX_EXECUTIVE_TOKENS
-from app.src.functions import (
+from app.src.validators import (
+    verify_permission,
+    verify_token,
     authenticate_user,
+    validate_and_revoke_refresh_token,
+)
+from app.src.functions import (
     cleanup_old_tokens,
     enum_str,
     fuse_exception_responses,
     get_request_info,
     token_to_json,
-    validate_and_revoke_refresh_token,
+    get_executive_roles,
 )
 
 route_executive = APIRouter()
@@ -76,6 +83,12 @@ class UpdateForm(BaseModel):
     )
 
 
+class DeleteForm(BaseModel):
+    """Form data for deleting an executive token."""
+
+    id: int | None = Field(Form(default=None))
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -106,7 +119,6 @@ async def create_token(
     """
     try:
         session = SessionLocal()
-
         executive = authenticate_user(session, Executive, form_param)
 
         # Remove excess tokens
@@ -165,7 +177,6 @@ async def refresh_token(
     """
     try:
         session = SessionLocal()
-
         # Validate and revoke the old refresh token
         token = validate_and_revoke_refresh_token(session, ExecutiveToken, form_param)
         # Create new token
@@ -199,9 +210,63 @@ async def refresh_token(
 @route_executive.delete(
     URL_EXECUTIVE_TOKEN,
     tags=["Token"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+        ]
+    ),
 )
-async def delete_token():
-    pass
+async def delete_token(
+    form_param: DeleteForm = Depends(),
+    bearer=Depends(bearer_executive),
+    request_info=Depends(get_request_info),
+):
+    """
+    **Revokes an access token associated with an executive account.**
+
+    - Verify that the provided access token exists and is valid.
+    - If no `id` is provided, the currently used token will be revoked.
+    - If an `id` is provided, the specified token will be revoked after validating user permissions 'executive.token.delete'.
+    - If the token id is invalid or already revoked, the operation is silently ignored.
+    """
+
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, bearer.credentials)
+        if form_param.id is None:
+            token_to_delete = token
+        else:
+            token_to_delete = (
+                session.query(ExecutiveToken)
+                .filter(ExecutiveToken.id == form_param.id)
+                .filter(ExecutiveToken.is_revoked == False)
+                .first()
+            )
+            if token_to_delete is None:
+                return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+            is_self_delete = token_to_delete.id == token.id
+
+            if not is_self_delete:
+                roles = get_executive_roles(session, token.executive_id)
+                verify_permission(
+                    roles,
+                    PermissionPath.DELETE_EXECUTIVE_TOKEN,
+                )
+
+        # Revoke the chosen token
+        token_to_delete.is_revoked = True
+        session.commit()
+
+        _, token_log_data = token_to_json(token_to_delete)
+        log_event(token_to_delete, request_info, token_log_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
 
 
 @route_executive.get(
