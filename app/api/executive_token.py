@@ -7,7 +7,7 @@ input validation and structured output.
 """
 
 from datetime import datetime
-from enum import IntEnum
+from enum import StrEnum
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, Response, status, Form
 from pydantic import BaseModel, Field
@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from app.api.bearer import bearer_executive
 from app.src.db import Executive, ExecutiveToken, SessionLocal
 from app.src import exceptions
-from app.src.enums import PlatformType, GrantType
+from app.src.enums import PlatformType, GrantType, OrderIn
 from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath
 from app.src.urls import URL_EXECUTIVE_TOKEN
@@ -91,19 +91,11 @@ class DeleteForm(BaseModel):
 
 
 ## Query Parameters
-class OrderIn(IntEnum):
+class OrderBy(StrEnum):
     """Enum for ordering results."""
 
-    ASC = 1
-    DESC = 2
-
-
-class OrderBy(IntEnum):
-    """Enum for ordering results."""
-
-    id = 1
-    updated_on = 2
-    created_on = 3
+    ID = "id"
+    CREATED_ON = "created_on"
 
 
 class QueryParams(BaseModel):
@@ -126,9 +118,9 @@ class QueryParams(BaseModel):
     created_on_ge: datetime | None = Field(Query(default=None))
     created_on_le: datetime | None = Field(Query(default=None))
     # Ordering
-    order_by: OrderBy = Field(Query(default=OrderBy.id, description=enum_str(OrderBy)))
+    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
-        Query(default=OrderIn.DESC, description=enum_str(OrderIn))
+        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
     )
     # Pagination
     offset: int = Field(Query(default=0, ge=0))
@@ -384,11 +376,14 @@ async def fetch_token(
                 ExecutiveToken.created_on <= query_params.created_on_le
             )
         # Ordering
-        ordering_attr = getattr(ExecutiveToken, OrderBy(query_params.order_by).name)
-        if query_params.order_in == OrderIn.ASC:
-            query = query.order_by(ordering_attr.asc())
-        else:
-            query = query.order_by(ordering_attr.desc())
+        ordering_attr = getattr(ExecutiveToken, OrderBy(query_params.order_by).value)
+        ordering_func = (
+            ordering_attr.asc
+            if query_params.order_in == OrderIn.ASCENDING
+            else ordering_attr.desc
+        )
+        query = query.order_by(ordering_func())
+
         # Pagination
         query = query.offset(query_params.offset).limit(query_params.limit)
 
