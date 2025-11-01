@@ -160,7 +160,7 @@ def token_to_json(
 def get_executive_roles(
     session: Session,
     executive_id: int,
-) -> list[ExecutiveRole] | None:
+) -> list[ExecutiveRole]:
     """
     Retrieve all roles assigned to a specific executive.
 
