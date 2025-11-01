@@ -14,12 +14,9 @@ from app.src import argon2, exceptions
 from app.src.enums import AccountStatus, GrantType
 from app.src.db import (
     ExecutiveRole,
-    ExecutiveRoleMap,
     ExecutiveToken,
     OperatorToken,
     VendorToken,
-    OperatorRoleMap,
-    VendorRoleMap,
     OperatorRole,
     VendorRole,
 )
@@ -142,75 +139,6 @@ def verify_token(
     if token_expires_on < current_time:
         raise exceptions.InvalidToken()
     return token
-
-
-def get_executive_role(
-    session: Session,
-    executive_id: int,
-) -> list[ExecutiveRole] | None:
-    """
-    Retrieve all roles assigned to a specific executive.
-
-    Args:
-        session (Session): Active SQLAlchemy session.
-        executive_id (int): The ID of the executive.
-
-    Returns:
-        list[ExecutiveRole]: List of ExecutiveRole objects assigned to the executive.
-                             Returns an empty list if no roles are found.
-    """
-    return (
-        session.query(ExecutiveRole)
-        .join(ExecutiveRoleMap, ExecutiveRole.id == ExecutiveRoleMap.role_id)
-        .filter(ExecutiveRoleMap.executive_id == executive_id)
-        .all()
-    )
-
-
-def get_vendor_role(
-    session: Session,
-    vendor_id: int,
-) -> list[VendorRole] | None:
-    """
-    Retrieve all roles assigned to a specific vendor.
-
-    Args:
-        session (Session): Active SQLAlchemy session.
-        vendor_id (int): The ID of the vendor.
-
-    Returns:
-        list[VendorRole]: List of VendorRole objects assigned to the vendor.
-                          Returns an empty list if no roles are found.
-    """
-    return (
-        session.query(VendorRole)
-        .join(VendorRoleMap, VendorRole.id == VendorRoleMap.role_id)
-        .filter(VendorRoleMap.vendor_id == vendor_id)
-        .all()
-    )
-
-
-def get_operator_role(
-    session: Session,
-    operator_id: int,
-) -> list[OperatorRole] | None:
-    """
-    Retrieve all roles assigned to a specific operator.
-
-    Args:
-        session (Session): Active SQLAlchemy session.
-        operator_id (int): The ID of the operator.
-
-    Returns:
-        list[OperatorRole]: List of OperatorRole objects assigned to the operator.
-                            Returns an empty list if no roles are found.
-    """
-    return (
-        session.query(OperatorRole)
-        .join(OperatorRoleMap, OperatorRole.id == OperatorRoleMap.role_id)
-        .filter(OperatorRoleMap.operator_id == operator_id)
-        .all()
-    )
 
 
 def verify_permission(

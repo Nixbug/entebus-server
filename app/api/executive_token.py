@@ -20,7 +20,6 @@ from app.src.permissions.executive import PermissionPath, PermissionSchema
 from app.src.urls import URL_EXECUTIVE_TOKEN
 from app.src.constants import MAX_EXECUTIVE_TOKENS
 from app.src.validators import (
-    get_executive_role,
     verify_permission,
     verify_token,
     authenticate_user,
@@ -32,6 +31,7 @@ from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
     token_to_json,
+    get_executive_roles,
 )
 
 route_executive = APIRouter()
@@ -250,7 +250,7 @@ async def delete_token(
             is_self_delete = token_to_delete.id == token.id
 
             if not is_self_delete:
-                roles = get_executive_role(session, token.executive_id)
+                roles = get_executive_roles(session, token.executive_id)
                 verify_permission(
                     roles,
                     PermissionSchema,
