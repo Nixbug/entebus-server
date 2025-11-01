@@ -260,7 +260,7 @@ async def delete_token(
         token_to_delete.is_revoked = True
         session.commit()
 
-        token_data, token_log_data = token_to_json(token_to_delete)
+        _, token_log_data = token_to_json(token_to_delete)
         log_event(token_to_delete, request_info, token_log_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
