@@ -164,8 +164,11 @@ def verify_permission(
     """
     for role in role_list or []:
         permissions = role.permissions
-        if get_by_path(permissions, permission_path):
-            return True
+        try:
+            if get_by_path(permissions, permission_path):
+                return True
+        except KeyError:
+            continue
 
     if raise_exception:
         raise exceptions.NoPermission()
