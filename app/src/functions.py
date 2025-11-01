@@ -238,5 +238,7 @@ def get_by_path(data: dict, path: str) -> Any:
         Any: The value at the specified path.
     """
     for key in path.split("."):
-        data = data[key]
+        if not isinstance(data, dict) or key not in data:
+            return None
+        data = data.get(key)
     return data
