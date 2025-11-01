@@ -7,7 +7,6 @@ making it easier for developers to integrate them into their projects.
 
 from datetime import datetime, timedelta, timezone
 from typing import Any, Type, Union
-from pydantic import BaseModel
 from sqlalchemy.orm.session import Session
 
 from app.src.functions import get_by_path
@@ -144,7 +143,6 @@ def verify_token(
 
 def verify_permission(
     role_list: list[ExecutiveRole | VendorRole | OperatorRole],
-    permission_schema: BaseModel,
     permission_path: str,
     raise_exception: bool = True,
 ) -> bool:
@@ -153,7 +151,6 @@ def verify_permission(
 
     Args:
         role_list (list[ExecutiveRole | VendorRole | OperatorRole]): List of roles.
-        permission_schema (BaseModel): Pydantic schema representing the permission structure.
         permission_path (str): Permission path.
         raise_exception (bool): Whether to raise `NoPermission` if permission is not found, defaults to True.
 
@@ -166,10 +163,8 @@ def verify_permission(
         NoPermission: If the user lacks the required permission and `raise_exception=True`.
     """
     for role in role_list or []:
-        permissions = permission_schema(**role.permissions)
-        permissions_dict = permissions.model_dump()
-        value = get_by_path(permissions_dict, permission_path)
-        if value:
+        permissions = role.permissions
+        if get_by_path(permissions, permission_path):
             return True
 
     if raise_exception:

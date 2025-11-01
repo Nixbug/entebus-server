@@ -16,7 +16,7 @@ from app.src.db import Executive, ExecutiveToken, SessionLocal
 from app.src import exceptions
 from app.src.enums import PlatformType, GrantType
 from app.src.openobserve import log_event
-from app.src.permissions.executive import PermissionPath, PermissionSchema
+from app.src.permissions.executive import PermissionPath
 from app.src.urls import URL_EXECUTIVE_TOKEN
 from app.src.constants import MAX_EXECUTIVE_TOKENS
 from app.src.validators import (
@@ -253,7 +253,6 @@ async def delete_token(
                 roles = get_executive_roles(session, token.executive_id)
                 verify_permission(
                     roles,
-                    PermissionSchema,
                     PermissionPath.DELETE_EXECUTIVE_TOKEN,
                 )
 
