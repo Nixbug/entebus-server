@@ -183,7 +183,7 @@ def get_executive_roles(
 def get_vendor_roles(
     session: Session,
     vendor_id: int,
-) -> list[VendorRole] | None:
+) -> list[VendorRole]:
     """
     Retrieve all roles assigned to a specific vendor.
 
