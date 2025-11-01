@@ -341,7 +341,7 @@ async def fetch_token(
         roles = get_executive_roles(session, token.executive_id)
         has_permission = verify_permission(
             roles,
-            PermissionPath.EXECUTIVE_TOKEN_FETCH,
+            PermissionPath.FETCH_EXECUTIVE_TOKEN,
             False,
         )
 
