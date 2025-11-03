@@ -244,7 +244,9 @@ def get_by_path(data: dict, path: str) -> Any:
     return data
 
 
-def apply_id_filters(query: Query, model_cls: Type[ORMbase], params: BaseModel) -> Query:
+def apply_id_filters(
+    query: Query, model_cls: Type[ORMbase], params: BaseModel
+) -> Query:
     """
     Apply ID-based filters to a SQLAlchemy query.
 
@@ -276,7 +278,7 @@ def apply_created_on_filters(
     """
     Apply creation date filters to a SQLAlchemy query.
 
-    This function filters records based on their `created_on` timestamp.
+    This function filters records based on their created_on timestamp.
     The filters are applied only if the corresponding parameter values are provided.
 
     Args:
@@ -300,7 +302,7 @@ def apply_updated_on_filters(
     """
     Apply update date filters to a SQLAlchemy query.
 
-    This function filters records based on their `updated_on` timestamp.
+    This function filters records based on their updated_on timestamp.
     The filters are applied only if the corresponding parameter values are provided.
 
     Args:
@@ -321,9 +323,9 @@ def apply_client_data_filters(
     query: Query, model_cls: Type[ORMbase], params: BaseModel
 ) -> Query:
     """
-    Apply update date filters to a SQLAlchemy query.
+    Apply client data filters to a SQLAlchemy query.
 
-    This function filters records based on `platform_type` and `client_details` timestamp.
+    This function filters records based on platform_type, list of platform_type and client_details.
     The filters are applied only if the corresponding parameter values are provided.
 
     Args:
@@ -336,8 +338,10 @@ def apply_client_data_filters(
     """
     if params.platform_type is not None:
         query = query.filter(model_cls.platform_type == params.platform_type)
-    if params.client_details is not None:
-        query = query.filter(model_cls.client_details <= params.client_details)
     if params.platform_type_list is not None:
         query = query.filter(model_cls.platform_type.in_(params.platform_type_list))
+    if params.client_details is not None:
+        query = query.filter(
+            model_cls.client_details.ilike(f"%{params.client_details}%")
+        )
     return query
