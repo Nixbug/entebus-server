@@ -317,7 +317,7 @@ async def fetch_token(
             PermissionPath.FETCH_EXECUTIVE_TOKEN,
             False,
         )
-        
+
         query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked == False)
         if query_params.executive_id is not None:
             query = query.filter(
