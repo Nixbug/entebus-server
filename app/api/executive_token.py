@@ -100,9 +100,7 @@ class OrderBy(StrEnum):
     CREATED_ON = "created_on"
 
 
-class ExecutiveTokenQueryParams(
-    TokenFilter, CreatedOnFilter, IDFilter, PaginationFilter
-):
+class QueryParams(TokenFilter, CreatedOnFilter, IDFilter, PaginationFilter):
     """Query parameters for executive token endpoints."""
 
     executive_id: int | None = Field(Query(default=None))
@@ -300,7 +298,7 @@ async def delete_token(
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
 )
 async def fetch_token(
-    query_params: ExecutiveTokenQueryParams = Depends(),
+    query_params: QueryParams = Depends(),
     bearer=Depends(bearer_executive),
 ):
     """
@@ -319,7 +317,6 @@ async def fetch_token(
             False,
         )
         query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked == False)
-
         if query_params.executive_id is not None:
             query = query.filter(
                 ExecutiveToken.executive_id == query_params.executive_id
