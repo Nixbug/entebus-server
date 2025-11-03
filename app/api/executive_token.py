@@ -16,7 +16,12 @@ from app.api.bearer import bearer_executive
 from app.src.db import Executive, ExecutiveToken, SessionLocal
 from app.src import exceptions
 from app.src.enums import PlatformType, GrantType, OrderIn
-from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, TokenFilter
+from app.src.filters import (
+    CreatedOnFilter,
+    IDFilter,
+    PaginationFilter,
+    ClientDataFilter,
+)
 from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath
 from app.src.urls import URL_EXECUTIVE_TOKEN
@@ -30,7 +35,7 @@ from app.src.validators import (
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
-    apply_token_filters,
+    apply_client_data_filters,
     cleanup_old_tokens,
     enum_str,
     fuse_exception_responses,
@@ -101,7 +106,7 @@ class OrderBy(StrEnum):
     CREATED_ON = "created_on"
 
 
-class QueryParams(TokenFilter, CreatedOnFilter, IDFilter, PaginationFilter):
+class QueryParams(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter):
     """Query parameters for executive token endpoints."""
 
     executive_id: int | None = Field(Query(default=None))
@@ -329,9 +334,9 @@ async def fetch_token(
         # Generalized filters
         query = apply_id_filters(query, ExecutiveToken, query_params)
         query = apply_created_on_filters(query, ExecutiveToken, query_params)
-        query = apply_token_filters(query, ExecutiveToken, query_params)
+        query = apply_client_data_filters(query, ExecutiveToken, query_params)
 
-        # Ordering
+        # Ordering and pagination
         ordering_attr = getattr(ExecutiveToken, OrderBy(query_params.order_by).value)
         ordering_func = (
             ordering_attr.asc
@@ -339,8 +344,6 @@ async def fetch_token(
             else ordering_attr.desc
         )
         query = query.order_by(ordering_func())
-
-        # Pagination
         query = query.offset(query_params.offset).limit(query_params.limit)
 
         tokens = query.all()

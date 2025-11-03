@@ -43,10 +43,13 @@ class PaginationFilter(BaseModel):
     limit: int = Field(Query(default=20, gt=0, le=100))
 
 
-class TokenFilter(BaseModel):
-    """Query parameters for token."""
+class ClientDataFilter(BaseModel):
+    """Query parameters for client data."""
 
     platform_type: PlatformType | None = Field(
+        Query(default=None, description=enum_str(PlatformType))
+    )
+    platform_type_list: List[PlatformType] | None = Field(
         Query(default=None, description=enum_str(PlatformType))
     )
     client_details: str | None = Field(Query(default=None))

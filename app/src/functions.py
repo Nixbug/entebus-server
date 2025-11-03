@@ -312,7 +312,7 @@ def apply_updated_on_filters(query: Query, model: Type[Any], params: Any) -> Que
     return query
 
 
-def apply_token_filters(query: Query, model: Type[Any], params: Any) -> Query:
+def apply_client_data_filters(query: Query, model: Type[Any], params: Any) -> Query:
     """
     Apply update date filters to a SQLAlchemy query.
 
@@ -331,4 +331,6 @@ def apply_token_filters(query: Query, model: Type[Any], params: Any) -> Query:
         query = query.filter(model.platform_type == params.platform_type)
     if params.client_details is not None:
         query = query.filter(model.client_details <= params.client_details)
+    if params.platform_type_list is not None:
+        query = query.filter(model.platform_type.in_(params.platform_type_list))
     return query
