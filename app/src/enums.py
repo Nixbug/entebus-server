@@ -28,6 +28,13 @@ class GrantType(StrEnum):
     REFRESH_TOKEN = "refresh_token"
 
 
+class OrderIn(StrEnum):
+    """Enum for ordering results."""
+
+    ASCENDING = "asc"
+    DESCENDING = "desc"
+
+
 class AccountStatus(IntEnum):
     """Status of an account (executive, operator, vendor, etc.)."""
 

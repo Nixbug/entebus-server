@@ -7,14 +7,21 @@ input validation and structured output.
 """
 
 from datetime import datetime
+from enum import StrEnum
 from typing import Optional
-from fastapi import APIRouter, Depends, Response, status, Form
+from fastapi import APIRouter, Depends, Query, Response, status, Form
 from pydantic import BaseModel, Field
 
 from app.api.bearer import bearer_executive
 from app.src.db import Executive, ExecutiveToken, SessionLocal
 from app.src import exceptions
-from app.src.enums import PlatformType, GrantType
+from app.src.enums import PlatformType, GrantType, OrderIn
+from app.src.filters import (
+    CreatedOnFilter,
+    IDFilter,
+    PaginationFilter,
+    ClientDataFilter,
+)
 from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath
 from app.src.urls import URL_EXECUTIVE_TOKEN
@@ -26,6 +33,9 @@ from app.src.validators import (
     validate_and_revoke_refresh_token,
 )
 from app.src.functions import (
+    apply_created_on_filters,
+    apply_id_filters,
+    apply_client_data_filters,
     cleanup_old_tokens,
     enum_str,
     fuse_exception_responses,
@@ -47,7 +57,6 @@ class MaskedExecutiveTokenSchema(BaseModel):
     refresh_before: datetime
     platform_type: int
     client_details: Optional[str]
-    updated_on: Optional[datetime]
     created_on: datetime
 
 
@@ -87,6 +96,24 @@ class DeleteForm(BaseModel):
     """Form data for deleting an executive token."""
 
     id: int | None = Field(Form(default=None))
+
+
+## Query Parameters
+class OrderBy(StrEnum):
+    """Enum for ordering results."""
+
+    ID = "id"
+    CREATED_ON = "created_on"
+
+
+class QueryParams(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter):
+    """Query parameters for executive token endpoints."""
+
+    executive_id: int | None = Field(Query(default=None))
+    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
+    order_in: OrderIn = Field(
+        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -259,6 +286,7 @@ async def delete_token(
         # Revoke the chosen token
         token_to_delete.is_revoked = True
         session.commit()
+        session.refresh(token_to_delete)
 
         _, token_log_data = token_to_json(token_to_delete)
         log_event(token_to_delete, request_info, token_log_data)
@@ -272,6 +300,55 @@ async def delete_token(
 @route_executive.get(
     URL_EXECUTIVE_TOKEN,
     tags=["Token"],
+    response_model=list[MaskedExecutiveTokenSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
 )
-async def fetch_token():
-    pass
+async def fetch_token(
+    query_params: QueryParams = Depends(),
+    bearer=Depends(bearer_executive),
+):
+    """
+    **Fetch executive tokens with permission-based filtering.**
+
+    - If the logged-in executive has `executive.token.fetch` permission, all masked tokens are returned.
+    - If the logged-in executive does not have permission, only masked tokens for the logged-in executive are returned.
+    """
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, bearer.credentials)
+        roles = get_executive_roles(session, token)
+        has_permission = verify_permission(
+            roles,
+            PermissionPath.FETCH_EXECUTIVE_TOKEN,
+            False,
+        )
+
+        query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked == False)
+        if query_params.executive_id is not None:
+            query = query.filter(
+                ExecutiveToken.executive_id == query_params.executive_id
+            )
+        if has_permission is False:
+            query = query.filter(ExecutiveToken.executive_id == token.executive_id)
+
+        # Generalized filters
+        query = apply_id_filters(query, ExecutiveToken, query_params)
+        query = apply_created_on_filters(query, ExecutiveToken, query_params)
+        query = apply_client_data_filters(query, ExecutiveToken, query_params)
+
+        # Ordering and pagination
+        ordering_attr = getattr(ExecutiveToken, OrderBy(query_params.order_by).value)
+        ordering_func = (
+            ordering_attr.asc
+            if query_params.order_in == OrderIn.ASCENDING
+            else ordering_attr.desc
+        )
+        query = query.order_by(ordering_func())
+        query = query.offset(query_params.offset).limit(query_params.limit)
+
+        tokens = query.all()
+        return tokens
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()

@@ -6,8 +6,9 @@ It offers reusable utilities that make it easier for developers to integrate the
 
 from enum import Enum
 from typing import Any, List, Dict, Type, Union, Tuple
-from fastapi import Request
+from fastapi import Query, Request
 from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel
 from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
 
@@ -16,6 +17,7 @@ from app.src.db import (
     ExecutiveRole,
     ExecutiveRoleMap,
     ExecutiveToken,
+    ORMbase,
     OperatorRole,
     OperatorRoleMap,
     OperatorToken,
@@ -159,14 +161,14 @@ def token_to_json(
 
 def get_executive_roles(
     session: Session,
-    executive_id: int,
+    token: ExecutiveToken,
 ) -> list[ExecutiveRole]:
     """
     Retrieve all roles assigned to a specific executive.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        executive_id (int): The ID of the executive.
+        token (ExecutiveToken): Token model instance.
 
     Returns:
         list[ExecutiveRole]: List of ExecutiveRole objects assigned to the executive.
@@ -175,21 +177,21 @@ def get_executive_roles(
     return (
         session.query(ExecutiveRole)
         .join(ExecutiveRoleMap, ExecutiveRole.id == ExecutiveRoleMap.role_id)
-        .filter(ExecutiveRoleMap.executive_id == executive_id)
+        .filter(ExecutiveRoleMap.executive_id == token.executive_id)
         .all()
     )
 
 
 def get_vendor_roles(
     session: Session,
-    vendor_id: int,
+    token: VendorToken,
 ) -> list[VendorRole]:
     """
     Retrieve all roles assigned to a specific vendor.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        vendor_id (int): The ID of the vendor.
+        token (VendorToken): Token model instance.
 
     Returns:
         list[VendorRole]: List of VendorRole objects assigned to the vendor.
@@ -198,21 +200,21 @@ def get_vendor_roles(
     return (
         session.query(VendorRole)
         .join(VendorRoleMap, VendorRole.id == VendorRoleMap.role_id)
-        .filter(VendorRoleMap.vendor_id == vendor_id)
+        .filter(VendorRoleMap.vendor_id == token.vendor_id)
         .all()
     )
 
 
 def get_operator_roles(
     session: Session,
-    operator_id: int,
+    token: OperatorToken,
 ) -> list[OperatorRole]:
     """
     Retrieve all roles assigned to a specific operator.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        operator_id (int): The ID of the operator.
+        token (OperatorToken): Token model instance.
 
     Returns:
         list[OperatorRole]: List of OperatorRole objects assigned to the operator.
@@ -221,7 +223,7 @@ def get_operator_roles(
     return (
         session.query(OperatorRole)
         .join(OperatorRoleMap, OperatorRole.id == OperatorRoleMap.role_id)
-        .filter(OperatorRoleMap.operator_id == operator_id)
+        .filter(OperatorRoleMap.operator_id == token.operator_id)
         .all()
     )
 
@@ -240,3 +242,106 @@ def get_by_path(data: dict, path: str) -> Any:
     for key in path.split("."):
         data = data[key]
     return data
+
+
+def apply_id_filters(
+    query: Query, model_cls: Type[ORMbase], params: BaseModel
+) -> Query:
+    """
+    Apply ID-based filters to a SQLAlchemy query.
+
+    This function adds filters based on ID equality, range, or a list of IDs.
+    The filters are applied only if the corresponding parameter values are provided.
+
+    Args:
+        query (Query): Active SQLAlchemy query object.
+        model_cls (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        params (BaseModel): Pydantic model instance.
+
+    Returns:
+        Query: Updated SQLAlchemy query with applied filters.
+    """
+    if params.id is not None:
+        query = query.filter(model_cls.id == params.id)
+    if params.id_ge is not None:
+        query = query.filter(model_cls.id >= params.id_ge)
+    if params.id_le is not None:
+        query = query.filter(model_cls.id <= params.id_le)
+    if params.id_list is not None:
+        query = query.filter(model_cls.id.in_(params.id_list))
+    return query
+
+
+def apply_created_on_filters(
+    query: Query, model_cls: Type[ORMbase], params: BaseModel
+) -> Query:
+    """
+    Apply creation date filters to a SQLAlchemy query.
+
+    This function filters records based on their created_on timestamp.
+    The filters are applied only if the corresponding parameter values are provided.
+
+    Args:
+        query (Query): Active SQLAlchemy query object.
+        model_cls (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        params (BaseModel): Pydantic model instance.
+
+    Returns:
+        Query: Updated SQLAlchemy query with applied filters.
+    """
+    if params.created_on_ge is not None:
+        query = query.filter(model_cls.created_on >= params.created_on_ge)
+    if params.created_on_le is not None:
+        query = query.filter(model_cls.created_on <= params.created_on_le)
+    return query
+
+
+def apply_updated_on_filters(
+    query: Query, model_cls: Type[ORMbase], params: BaseModel
+) -> Query:
+    """
+    Apply update date filters to a SQLAlchemy query.
+
+    This function filters records based on their updated_on timestamp.
+    The filters are applied only if the corresponding parameter values are provided.
+
+    Args:
+        query (Query): Active SQLAlchemy query object.
+        model_cls (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        params (BaseModel): Pydantic model instance.
+    Returns:
+        Query: Updated SQLAlchemy query with applied filters.
+    """
+    if params.updated_on_ge is not None:
+        query = query.filter(model_cls.updated_on >= params.updated_on_ge)
+    if params.updated_on_le is not None:
+        query = query.filter(model_cls.updated_on <= params.updated_on_le)
+    return query
+
+
+def apply_client_data_filters(
+    query: Query, model_cls: Type[ORMbase], params: BaseModel
+) -> Query:
+    """
+    Apply client data filters to a SQLAlchemy query.
+
+    This function filters records based on platform_type, list of platform_type and client_details.
+    The filters are applied only if the corresponding parameter values are provided.
+
+    Args:
+        query (Query): Active SQLAlchemy query object.
+        model_cls (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        params (BaseModel): Pydantic model instance.
+
+    Returns:
+        Query: Updated SQLAlchemy query with applied filters.
+    """
+    if params.platform_type is not None:
+        query = query.filter(model_cls.platform_type == params.platform_type)
+    if params.platform_type_list is not None:
+        query = query.filter(model_cls.platform_type.in_(params.platform_type_list))
+    if params.client_details is not None:
+        query = query.filter(
+            model_cls.client_details.ilike(f"%{params.client_details}%")
+        )
+    return query
