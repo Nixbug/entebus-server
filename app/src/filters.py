@@ -9,6 +9,9 @@ from typing import List
 from fastapi import Query
 from pydantic import BaseModel, Field
 
+from app.src.enums import PlatformType
+from app.src.functions import enum_str
+
 
 class IDFilter(BaseModel):
     """Filter by ID."""
@@ -38,3 +41,12 @@ class PaginationFilter(BaseModel):
 
     offset: int = Field(Query(default=0, ge=0))
     limit: int = Field(Query(default=20, gt=0, le=100))
+
+
+class TokenFilter(BaseModel):
+    """Query parameters for token."""
+
+    platform_type: PlatformType | None = Field(
+        Query(default=None, description=enum_str(PlatformType))
+    )
+    client_details: str | None = Field(Query(default=None))

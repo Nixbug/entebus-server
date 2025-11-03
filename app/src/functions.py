@@ -251,11 +251,11 @@ def apply_id_filters(query: Query, model: Type[Any], params: Any) -> Query:
 
     Args:
         query (Query): Active SQLAlchemy query object.
-        model (Type[Any]): SQLAlchemy model class containing the `id` column.
+        model (Type[Any]): SQLAlchemy model class containing the relevant column.
         params (Any): Object (typically a Pydantic model like ExecutiveTokenQueryParams).
 
     Returns:
-        Query: Updated SQLAlchemy query with applied ID-based filters.
+        Query: Updated SQLAlchemy query with applied filters.
     """
     if params.id is not None:
         query = query.filter(model.id == params.id)
@@ -277,11 +277,11 @@ def apply_created_on_filters(query: Query, model: Type[Any], params: Any) -> Que
 
     Args:
         query (Query): Active SQLAlchemy query object.
-        model (Type[Any]): SQLAlchemy model class containing the `created_on` column.
-        params (Any): Object (typically a Pydantic model like ExecutiveTokenQueryParams).
+        model (Type[Any]): SQLAlchemy model class containing the relevant column.
+        params (Any): Object (typically a Pydantic model like QueryParams).
 
     Returns:
-        Query: Updated SQLAlchemy query with applied creation date filters.
+        Query: Updated SQLAlchemy query with applied filters.
     """
     if params.created_on_ge is not None:
         query = query.filter(model.created_on >= params.created_on_ge)
@@ -299,14 +299,36 @@ def apply_updated_on_filters(query: Query, model: Type[Any], params: Any) -> Que
 
     Args:
         query (Query): Active SQLAlchemy query object.
-        model (Type[Any]): SQLAlchemy model class containing the `updated_on` column.
-        params (Any): Object (typically a Pydantic model like ExecutiveTokenQueryParams).
+        model (Type[Any]): SQLAlchemy model class containing the relevant column.
+        params (Any): Object (typically a Pydantic model like QueryParams).
 
     Returns:
-        Query: Updated SQLAlchemy query with applied update date filters.
+        Query: Updated SQLAlchemy query with applied filters.
     """
     if params.updated_on_ge is not None:
         query = query.filter(model.updated_on >= params.updated_on_ge)
     if params.updated_on_le is not None:
         query = query.filter(model.updated_on <= params.updated_on_le)
+    return query
+
+
+def apply_token_filters(query: Query, model: Type[Any], params: Any) -> Query:
+    """
+    Apply update date filters to a SQLAlchemy query.
+
+    This function filters records based on `platform_type` and `client_details` timestamp.
+    The filters are applied only if the corresponding parameter values are provided.
+
+    Args:
+        query (Query): Active SQLAlchemy query object.
+        model (Type[Any]): SQLAlchemy model class containing the relevant column.
+        params (Any): Object (typically a Pydantic model like QueryParams).
+
+    Returns:
+        Query: Updated SQLAlchemy query with applied filters.
+    """
+    if params.platform_type is not None:
+        query = query.filter(model.platform_type == params.platform_type)
+    if params.client_details is not None:
+        query = query.filter(model.client_details <= params.client_details)
     return query

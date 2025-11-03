@@ -16,7 +16,7 @@ from app.api.bearer import bearer_executive
 from app.src.db import Executive, ExecutiveToken, SessionLocal
 from app.src import exceptions
 from app.src.enums import PlatformType, GrantType, OrderIn
-from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter
+from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, TokenFilter
 from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath
 from app.src.urls import URL_EXECUTIVE_TOKEN
@@ -100,14 +100,12 @@ class OrderBy(StrEnum):
     CREATED_ON = "created_on"
 
 
-class ExecutiveTokenQueryParams(CreatedOnFilter, IDFilter, PaginationFilter):
+class ExecutiveTokenQueryParams(
+    TokenFilter, CreatedOnFilter, IDFilter, PaginationFilter
+):
     """Query parameters for executive token endpoints."""
 
     executive_id: int | None = Field(Query(default=None))
-    platform_type: PlatformType | None = Field(
-        Query(default=None, description=enum_str(PlatformType))
-    )
-    client_details: str | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
