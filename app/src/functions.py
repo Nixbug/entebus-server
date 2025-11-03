@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Any, List, Dict, Type, Union, Tuple
 from fastapi import Query, Request
 from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel
 from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
 
@@ -16,6 +17,7 @@ from app.src.db import (
     ExecutiveRole,
     ExecutiveRoleMap,
     ExecutiveToken,
+    ORMbase,
     OperatorRole,
     OperatorRoleMap,
     OperatorToken,
@@ -242,7 +244,7 @@ def get_by_path(data: dict, path: str) -> Any:
     return data
 
 
-def apply_id_filters(query: Query, model: Type[Any], params: Any) -> Query:
+def apply_id_filters(query: Query, model: Type[ORMbase], params: BaseModel) -> Query:
     """
     Apply ID-based filters to a SQLAlchemy query.
 
@@ -251,8 +253,8 @@ def apply_id_filters(query: Query, model: Type[Any], params: Any) -> Query:
 
     Args:
         query (Query): Active SQLAlchemy query object.
-        model (Type[Any]): SQLAlchemy model class containing the relevant column.
-        params (Any): Object (typically a Pydantic model like ExecutiveTokenQueryParams).
+        model (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        params (BaseModel): Pydantic model instance.
 
     Returns:
         Query: Updated SQLAlchemy query with applied filters.
@@ -268,7 +270,9 @@ def apply_id_filters(query: Query, model: Type[Any], params: Any) -> Query:
     return query
 
 
-def apply_created_on_filters(query: Query, model: Type[Any], params: Any) -> Query:
+def apply_created_on_filters(
+    query: Query, model: Type[ORMbase], params: BaseModel
+) -> Query:
     """
     Apply creation date filters to a SQLAlchemy query.
 
@@ -277,8 +281,8 @@ def apply_created_on_filters(query: Query, model: Type[Any], params: Any) -> Que
 
     Args:
         query (Query): Active SQLAlchemy query object.
-        model (Type[Any]): SQLAlchemy model class containing the relevant column.
-        params (Any): Object (typically a Pydantic model like QueryParams).
+        model (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        params (BaseModel): Pydantic model instance.
 
     Returns:
         Query: Updated SQLAlchemy query with applied filters.
@@ -290,7 +294,9 @@ def apply_created_on_filters(query: Query, model: Type[Any], params: Any) -> Que
     return query
 
 
-def apply_updated_on_filters(query: Query, model: Type[Any], params: Any) -> Query:
+def apply_updated_on_filters(
+    query: Query, model: Type[ORMbase], params: BaseModel
+) -> Query:
     """
     Apply update date filters to a SQLAlchemy query.
 
@@ -299,9 +305,8 @@ def apply_updated_on_filters(query: Query, model: Type[Any], params: Any) -> Que
 
     Args:
         query (Query): Active SQLAlchemy query object.
-        model (Type[Any]): SQLAlchemy model class containing the relevant column.
-        params (Any): Object (typically a Pydantic model like QueryParams).
-
+        model (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        params (BaseModel): Pydantic model instance.
     Returns:
         Query: Updated SQLAlchemy query with applied filters.
     """
@@ -312,7 +317,9 @@ def apply_updated_on_filters(query: Query, model: Type[Any], params: Any) -> Que
     return query
 
 
-def apply_client_data_filters(query: Query, model: Type[Any], params: Any) -> Query:
+def apply_client_data_filters(
+    query: Query, model: Type[ORMbase], params: BaseModel
+) -> Query:
     """
     Apply update date filters to a SQLAlchemy query.
 
@@ -321,8 +328,8 @@ def apply_client_data_filters(query: Query, model: Type[Any], params: Any) -> Qu
 
     Args:
         query (Query): Active SQLAlchemy query object.
-        model (Type[Any]): SQLAlchemy model class containing the relevant column.
-        params (Any): Object (typically a Pydantic model like QueryParams).
+        model (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        params (BaseModel): Pydantic model instance.
 
     Returns:
         Query: Updated SQLAlchemy query with applied filters.
