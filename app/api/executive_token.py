@@ -30,6 +30,7 @@ from app.src.validators import (
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
+    apply_token_filters,
     cleanup_old_tokens,
     enum_str,
     fuse_exception_responses,
@@ -323,18 +324,11 @@ async def fetch_token(
             )
         if has_permission is False:
             query = query.filter(ExecutiveToken.executive_id == token.executive_id)
-        if query_params.platform_type is not None:
-            query = query.filter(
-                ExecutiveToken.platform_type == query_params.platform_type
-            )
-        if query_params.client_details is not None:
-            query = query.filter(
-                ExecutiveToken.client_details.ilike(f"%{query_params.client_details}%")
-            )
 
         # Generalized filters
         query = apply_id_filters(query, ExecutiveToken, query_params)
         query = apply_created_on_filters(query, ExecutiveToken, query_params)
+        query = apply_token_filters(query, ExecutiveToken, query_params)
 
         # Ordering
         ordering_attr = getattr(ExecutiveToken, OrderBy(query_params.order_by).value)
