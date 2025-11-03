@@ -316,13 +316,13 @@ async def fetch_token(
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, bearer.credentials)
-        query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked == False)
         roles = get_executive_roles(session, token)
         has_permission = verify_permission(
             roles,
             PermissionPath.FETCH_EXECUTIVE_TOKEN,
             False,
         )
+        query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked == False)
 
         if query_params.executive_id is not None:
             query = query.filter(
