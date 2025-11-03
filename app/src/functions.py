@@ -6,7 +6,7 @@ It offers reusable utilities that make it easier for developers to integrate the
 
 from enum import Enum
 from typing import Any, List, Dict, Type, Union, Tuple
-from fastapi import Request
+from fastapi import Query, Request
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
@@ -240,3 +240,73 @@ def get_by_path(data: dict, path: str) -> Any:
     for key in path.split("."):
         data = data[key]
     return data
+
+
+def apply_id_filters(query: Query, model: Type[Any], params: Any) -> Query:
+    """
+    Apply ID-based filters to a SQLAlchemy query.
+
+    This function adds filters based on ID equality, range, or a list of IDs.
+    The filters are applied only if the corresponding parameter values are provided.
+
+    Args:
+        query (Query): Active SQLAlchemy query object.
+        model (Type[Any]): SQLAlchemy model class containing the `id` column.
+        params (Any): Object (typically a Pydantic model like ExecutiveTokenQueryParams).
+
+    Returns:
+        Query: Updated SQLAlchemy query with applied ID-based filters.
+    """
+    if params.id is not None:
+        query = query.filter(model.id == params.id)
+    if params.id_ge is not None:
+        query = query.filter(model.id >= params.id_ge)
+    if params.id_le is not None:
+        query = query.filter(model.id <= params.id_le)
+    if params.id_list is not None:
+        query = query.filter(model.id.in_(params.id_list))
+    return query
+
+
+def apply_created_on_filters(query: Query, model: Type[Any], params: Any) -> Query:
+    """
+    Apply creation date filters to a SQLAlchemy query.
+
+    This function filters records based on their `created_on` timestamp.
+    The filters are applied only if the corresponding parameter values are provided.
+
+    Args:
+        query (Query): Active SQLAlchemy query object.
+        model (Type[Any]): SQLAlchemy model class containing the `created_on` column.
+        params (Any): Object (typically a Pydantic model like ExecutiveTokenQueryParams).
+
+    Returns:
+        Query: Updated SQLAlchemy query with applied creation date filters.
+    """
+    if params.created_on_ge is not None:
+        query = query.filter(model.created_on >= params.created_on_ge)
+    if params.created_on_le is not None:
+        query = query.filter(model.created_on <= params.created_on_le)
+    return query
+
+
+def apply_updated_on_filters(query: Query, model: Type[Any], params: Any) -> Query:
+    """
+    Apply update date filters to a SQLAlchemy query.
+
+    This function filters records based on their `updated_on` timestamp.
+    The filters are applied only if the corresponding parameter values are provided.
+
+    Args:
+        query (Query): Active SQLAlchemy query object.
+        model (Type[Any]): SQLAlchemy model class containing the `updated_on` column.
+        params (Any): Object (typically a Pydantic model like ExecutiveTokenQueryParams).
+
+    Returns:
+        Query: Updated SQLAlchemy query with applied update date filters.
+    """
+    if params.updated_on_ge is not None:
+        query = query.filter(model.updated_on >= params.updated_on_ge)
+    if params.updated_on_le is not None:
+        query = query.filter(model.updated_on <= params.updated_on_le)
+    return query

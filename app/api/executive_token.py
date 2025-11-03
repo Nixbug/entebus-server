@@ -8,7 +8,7 @@ input validation and structured output.
 
 from datetime import datetime
 from enum import StrEnum
-from typing import List, Optional
+from typing import Optional
 from fastapi import APIRouter, Depends, Query, Response, status, Form
 from pydantic import BaseModel, Field
 
@@ -16,7 +16,7 @@ from app.api.bearer import bearer_executive
 from app.src.db import Executive, ExecutiveToken, SessionLocal
 from app.src import exceptions
 from app.src.enums import PlatformType, GrantType, OrderIn
-from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, UpdatedOnFilter
+from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter
 from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath
 from app.src.urls import URL_EXECUTIVE_TOKEN
@@ -28,6 +28,8 @@ from app.src.validators import (
     validate_and_revoke_refresh_token,
 )
 from app.src.functions import (
+    apply_created_on_filters,
+    apply_id_filters,
     cleanup_old_tokens,
     enum_str,
     fuse_exception_responses,
@@ -98,9 +100,7 @@ class OrderBy(StrEnum):
     CREATED_ON = "created_on"
 
 
-class ExecutiveTokenQueryParams(
-    UpdatedOnFilter, CreatedOnFilter, IDFilter, PaginationFilter
-):
+class ExecutiveTokenQueryParams(CreatedOnFilter, IDFilter, PaginationFilter):
     """Query parameters for executive token endpoints."""
 
     executive_id: int | None = Field(Query(default=None))
@@ -338,30 +338,11 @@ async def fetch_token(
             query = query.filter(
                 ExecutiveToken.client_details.ilike(f"%{query_params.client_details}%")
             )
-        if query_params.id is not None:
-            query = query.filter(ExecutiveToken.id == query_params.id)
-        if query_params.id_ge is not None:
-            query = query.filter(ExecutiveToken.id >= query_params.id_ge)
-        if query_params.id_le is not None:
-            query = query.filter(ExecutiveToken.id <= query_params.id_le)
-        if query_params.id_list is not None:
-            query = query.filter(ExecutiveToken.id.in_(query_params.id_list))
-        if query_params.updated_on_ge is not None:
-            query = query.filter(
-                ExecutiveToken.updated_on >= query_params.updated_on_ge
-            )
-        if query_params.updated_on_le is not None:
-            query = query.filter(
-                ExecutiveToken.updated_on <= query_params.updated_on_le
-            )
-        if query_params.created_on_ge is not None:
-            query = query.filter(
-                ExecutiveToken.created_on >= query_params.created_on_ge
-            )
-        if query_params.created_on_le is not None:
-            query = query.filter(
-                ExecutiveToken.created_on <= query_params.created_on_le
-            )
+
+        # Generalized filters
+        query = apply_id_filters(query, ExecutiveToken, query_params)
+        query = apply_created_on_filters(query, ExecutiveToken, query_params)
+
         # Ordering
         ordering_attr = getattr(ExecutiveToken, OrderBy(query_params.order_by).value)
         ordering_func = (
