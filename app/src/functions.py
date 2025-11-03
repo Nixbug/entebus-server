@@ -159,14 +159,14 @@ def token_to_json(
 
 def get_executive_roles(
     session: Session,
-    executive_id: int,
+    token: ExecutiveToken,
 ) -> list[ExecutiveRole]:
     """
     Retrieve all roles assigned to a specific executive.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        executive_id (int): The ID of the executive.
+        token (ExecutiveToken): Token model instance.
 
     Returns:
         list[ExecutiveRole]: List of ExecutiveRole objects assigned to the executive.
@@ -175,21 +175,21 @@ def get_executive_roles(
     return (
         session.query(ExecutiveRole)
         .join(ExecutiveRoleMap, ExecutiveRole.id == ExecutiveRoleMap.role_id)
-        .filter(ExecutiveRoleMap.executive_id == executive_id)
+        .filter(ExecutiveRoleMap.executive_id == token.executive_id)
         .all()
     )
 
 
 def get_vendor_roles(
     session: Session,
-    vendor_id: int,
+    token: VendorToken,
 ) -> list[VendorRole]:
     """
     Retrieve all roles assigned to a specific vendor.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        vendor_id (int): The ID of the vendor.
+        token (VendorToken): Token model instance.
 
     Returns:
         list[VendorRole]: List of VendorRole objects assigned to the vendor.
@@ -198,21 +198,21 @@ def get_vendor_roles(
     return (
         session.query(VendorRole)
         .join(VendorRoleMap, VendorRole.id == VendorRoleMap.role_id)
-        .filter(VendorRoleMap.vendor_id == vendor_id)
+        .filter(VendorRoleMap.vendor_id == token.vendor_id)
         .all()
     )
 
 
 def get_operator_roles(
     session: Session,
-    operator_id: int,
+    token: OperatorToken,
 ) -> list[OperatorRole]:
     """
     Retrieve all roles assigned to a specific operator.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        operator_id (int): The ID of the operator.
+        token (OperatorToken): Token model instance.
 
     Returns:
         list[OperatorRole]: List of OperatorRole objects assigned to the operator.
@@ -221,7 +221,7 @@ def get_operator_roles(
     return (
         session.query(OperatorRole)
         .join(OperatorRoleMap, OperatorRole.id == OperatorRoleMap.role_id)
-        .filter(OperatorRoleMap.operator_id == operator_id)
+        .filter(OperatorRoleMap.operator_id == token.operator_id)
         .all()
     )
 

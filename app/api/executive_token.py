@@ -312,13 +312,12 @@ async def fetch_token(
     - If the logged-in executive does not have permission, only masked tokens for the logged-in executive are returned.
     - Supports filtering by ID, ID ranges, lists, creation date, and update date.
     - Allows sorting by ID, creation date, or update date in ascending or descending order.
-    - Supports pagination using `offset` and `limit` parameters.
     """
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, bearer.credentials)
         query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked == False)
-        roles = get_executive_roles(session, token.executive_id)
+        roles = get_executive_roles(session, token)
         has_permission = verify_permission(
             roles,
             PermissionPath.FETCH_EXECUTIVE_TOKEN,
