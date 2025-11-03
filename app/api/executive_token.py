@@ -310,8 +310,6 @@ async def fetch_token(
 
     - If the logged-in executive has `executive.token.fetch` permission, all masked tokens are returned.
     - If the logged-in executive does not have permission, only masked tokens for the logged-in executive are returned.
-    - Supports filtering by ID, ID ranges, lists, creation date, and update date.
-    - Allows sorting by ID, creation date, or update date in ascending or descending order.
     """
     try:
         session = SessionLocal()
