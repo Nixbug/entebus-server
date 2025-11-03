@@ -244,7 +244,7 @@ def get_by_path(data: dict, path: str) -> Any:
     return data
 
 
-def apply_id_filters(query: Query, model: Type[ORMbase], params: BaseModel) -> Query:
+def apply_id_filters(query: Query, model_cls: Type[ORMbase], params: BaseModel) -> Query:
     """
     Apply ID-based filters to a SQLAlchemy query.
 
@@ -253,25 +253,25 @@ def apply_id_filters(query: Query, model: Type[ORMbase], params: BaseModel) -> Q
 
     Args:
         query (Query): Active SQLAlchemy query object.
-        model (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        model_cls (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
         params (BaseModel): Pydantic model instance.
 
     Returns:
         Query: Updated SQLAlchemy query with applied filters.
     """
     if params.id is not None:
-        query = query.filter(model.id == params.id)
+        query = query.filter(model_cls.id == params.id)
     if params.id_ge is not None:
-        query = query.filter(model.id >= params.id_ge)
+        query = query.filter(model_cls.id >= params.id_ge)
     if params.id_le is not None:
-        query = query.filter(model.id <= params.id_le)
+        query = query.filter(model_cls.id <= params.id_le)
     if params.id_list is not None:
-        query = query.filter(model.id.in_(params.id_list))
+        query = query.filter(model_cls.id.in_(params.id_list))
     return query
 
 
 def apply_created_on_filters(
-    query: Query, model: Type[ORMbase], params: BaseModel
+    query: Query, model_cls: Type[ORMbase], params: BaseModel
 ) -> Query:
     """
     Apply creation date filters to a SQLAlchemy query.
@@ -281,21 +281,21 @@ def apply_created_on_filters(
 
     Args:
         query (Query): Active SQLAlchemy query object.
-        model (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        model_cls (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
         params (BaseModel): Pydantic model instance.
 
     Returns:
         Query: Updated SQLAlchemy query with applied filters.
     """
     if params.created_on_ge is not None:
-        query = query.filter(model.created_on >= params.created_on_ge)
+        query = query.filter(model_cls.created_on >= params.created_on_ge)
     if params.created_on_le is not None:
-        query = query.filter(model.created_on <= params.created_on_le)
+        query = query.filter(model_cls.created_on <= params.created_on_le)
     return query
 
 
 def apply_updated_on_filters(
-    query: Query, model: Type[ORMbase], params: BaseModel
+    query: Query, model_cls: Type[ORMbase], params: BaseModel
 ) -> Query:
     """
     Apply update date filters to a SQLAlchemy query.
@@ -305,20 +305,20 @@ def apply_updated_on_filters(
 
     Args:
         query (Query): Active SQLAlchemy query object.
-        model (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        model_cls (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
         params (BaseModel): Pydantic model instance.
     Returns:
         Query: Updated SQLAlchemy query with applied filters.
     """
     if params.updated_on_ge is not None:
-        query = query.filter(model.updated_on >= params.updated_on_ge)
+        query = query.filter(model_cls.updated_on >= params.updated_on_ge)
     if params.updated_on_le is not None:
-        query = query.filter(model.updated_on <= params.updated_on_le)
+        query = query.filter(model_cls.updated_on <= params.updated_on_le)
     return query
 
 
 def apply_client_data_filters(
-    query: Query, model: Type[ORMbase], params: BaseModel
+    query: Query, model_cls: Type[ORMbase], params: BaseModel
 ) -> Query:
     """
     Apply update date filters to a SQLAlchemy query.
@@ -328,16 +328,16 @@ def apply_client_data_filters(
 
     Args:
         query (Query): Active SQLAlchemy query object.
-        model (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        model_cls (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
         params (BaseModel): Pydantic model instance.
 
     Returns:
         Query: Updated SQLAlchemy query with applied filters.
     """
     if params.platform_type is not None:
-        query = query.filter(model.platform_type == params.platform_type)
+        query = query.filter(model_cls.platform_type == params.platform_type)
     if params.client_details is not None:
-        query = query.filter(model.client_details <= params.client_details)
+        query = query.filter(model_cls.client_details <= params.client_details)
     if params.platform_type_list is not None:
-        query = query.filter(model.platform_type.in_(params.platform_type_list))
+        query = query.filter(model_cls.platform_type.in_(params.platform_type_list))
     return query
