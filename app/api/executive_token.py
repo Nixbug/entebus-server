@@ -277,7 +277,7 @@ async def delete_token(
             is_self_delete = token_to_delete.id == token.id
 
             if not is_self_delete:
-                roles = get_executive_roles(session, token.executive_id)
+                roles = get_executive_roles(session, token)
                 verify_permission(
                     roles,
                     PermissionPath.DELETE_EXECUTIVE_TOKEN,
