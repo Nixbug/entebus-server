@@ -3,7 +3,7 @@ from http import HTTPStatus
 
 
 # Create header from login
-def makeHeader(response) -> dict:
+def make_header(response) -> dict:
     tokenData = response.json()
     return {
         "Authorization": f"Bearer {tokenData['access_token']}",
