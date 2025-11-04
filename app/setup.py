@@ -14,6 +14,7 @@ from app.src.db import (
     engine,
     SessionLocal,
 )
+from app.tests.main import run_test
 
 
 def _alembic_cfg() -> Config:
@@ -228,6 +229,17 @@ def initialize():
     session.close()
 
 
+def test():
+    """Execute all test cases."""
+
+    print("Starting all test cases.\n")
+
+    # Run the tests
+    run_test()
+
+    print("\nAll test cases finished successfully.")
+
+
 # ---- Argparse setup ----
 def main():
     parser = argparse.ArgumentParser(
@@ -257,6 +269,7 @@ def main():
     subparsers.add_parser("create_buckets", help="Create storage buckets")
     subparsers.add_parser("delete_buckets", help="Delete storage buckets")
     subparsers.add_parser("initialize", help="Initialize the server environment")
+    subparsers.add_parser("test", help="Run all test cases")
     args = parser.parse_args()
 
     if args.command == "downgrade":
@@ -277,6 +290,8 @@ def main():
         delete_buckets()
     if args.command == "initialize":
         initialize()
+    if args.command == "test":
+        test()
 
 
 if __name__ == "__main__":

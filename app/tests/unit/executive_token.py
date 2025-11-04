@@ -14,14 +14,13 @@ Usage:
     python -m app.tests.unit.executive_token -test
 """
 
-import argparse
 from http import HTTPStatus
 
 from app.src import urls
 from app.src.constants import MAX_EXECUTIVE_TOKENS
 from app.src.enums import GrantType
-from app.tests.unit import inputs
-from app.tests.unit import helpers
+from app.tests import inputs
+from app.tests import helpers
 
 
 # Base token URL for executive domain
@@ -115,7 +114,7 @@ def test_case_005():
     """Attempt token renewal using invalid refresh token"""
 
     print("Invalid refresh token test")
-    refresh_data = {"refresh_token": inputs.random_string(64)}
+    refresh_data = {"refresh_token": helpers.random_string(64)}
     helpers.POST(
         TOKEN_URL + "/refresh",
         data=refresh_data,
@@ -396,19 +395,3 @@ def test():
     test_case_015()
     test_case_016()
     test_case_017()
-
-
-# ---------------------------------------------------------------------------
-# CLI Setup
-# ---------------------------------------------------------------------------
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Run test cases for executive token API"
-    )
-    parser.add_argument(
-        "-test", action="store_true", help="Run executive token test cases"
-    )
-    args = parser.parse_args()
-
-    if args.test:
-        test()

@@ -6,8 +6,26 @@ This module provides helper functions to simplify making HTTP requests
 It also includes a utility to create authorization headers.
 """
 
+import random, string
 from requests import get, post, patch, delete
 from http import HTTPStatus
+
+
+# ---------------------------------------------------------------------------
+# Utility Functions
+# ---------------------------------------------------------------------------
+def random_string(length: int) -> str:
+    """
+    Generate a random string of specified length.
+
+    Args:
+        length (int): The desired length of the generated string.
+
+    Returns:
+        str: A randomly generated string containing uppercase and lowercase letters.
+    """
+    characters = string.ascii_letters
+    return "".join(random.choices(characters, k=length))
 
 
 # ---------------------------------------------------------------------------

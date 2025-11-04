@@ -143,8 +143,8 @@ python -m app.setup delete_buckets
 python3 -m app.setup initialize
 
 # Run test cases (defined in app/tests/unit/main.py)
-# Note: This requires server running
-python3 -m app.tests.main -test
+# Note: This requires server running after migration and initialization
+python3 -m app.setup test
 ```
 
 
