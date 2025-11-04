@@ -20,7 +20,8 @@ def POST(URL: str, header: dict = {}, status_code: int = HTTPStatus.CREATED, **k
         print(response.json())
         assert response.status_code == status_code
     else:
-        print("POST request successful\n")
+        print("POST request successful")
+        print(f"{response.json()}\n")
         return response
 
 
@@ -32,7 +33,8 @@ def GET(URL: str, header: dict = {}, status_code: int = HTTPStatus.OK, **kwargs)
         print(response.json())
         assert response.status_code == status_code
     else:
-        print("GET request successful\n")
+        print("GET request successful")
+        print(f"{response.json()}\n")
         return response
 
 
@@ -44,14 +46,14 @@ def PATCH(URL: str, header: dict = {}, status_code: int = HTTPStatus.CREATED, **
         print(response.json())
         assert response.status_code == status_code
     else:
-        print("PATCH request successful\n")
+        print("PATCH request successful")
+        print(f"{response.json()}\n")
         return response
 
 
 def DELETE(
     URL: str, header: dict = {}, status_code: int = HTTPStatus.NO_CONTENT, **kwargs
 ):
-    print("Testing DELETE {}".format(URL))
     response = delete(URL, headers=header, **kwargs)
 
     if response.status_code != status_code:
@@ -59,5 +61,5 @@ def DELETE(
         print(response.json())
         assert response.status_code == status_code
     else:
-        print("DELETE request successful\n")
+        print("DELETE request successful \n")
         return response

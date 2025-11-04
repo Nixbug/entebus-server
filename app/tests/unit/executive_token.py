@@ -1,337 +1,331 @@
 import argparse
 from http import HTTPStatus
-from datetime import datetime, timedelta, timezone
 
 from app.src import urls
-from app.src.constants import MAX_EXECUTIVE_TOKENS, MAX_REFRESH_TOKEN_VALIDITY
+from app.src.constants import MAX_EXECUTIVE_TOKENS
 from app.src.enums import GrantType
-from app.src.db import ExecutiveToken, SessionLocal
 from app.tests.unit import inputs
 from app.tests.unit import helpers
 
+TOKEN_URL = inputs.EXECUTIVE_BASE_URL + urls.URL_EXECUTIVE_TOKEN
+
 
 ## Test Cases
-def test_case_001(BASE_URL: str):
+def test_case_001():
     """Generate access token"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
     print(f" 1  Functionality Testing ")
-
     print("Log in with admin credentials")
     admin_credential = inputs.ExecutiveCredential.admin
     response = helpers.POST(
         TOKEN_URL, data=admin_credential, status_code=HTTPStatus.CREATED
     )
-    TOKEN_DATA = response.json()["refresh_token"]
-    HEADER = helpers.make_header(response)
-    print(response.json())
-
-    print("Fetch token details")
-    response = helpers.GET(TOKEN_URL, HEADER, status_code=HTTPStatus.OK)
-    print(response.json())
 
     print("Refresh token")
-    refresh_token = {"refresh_token": TOKEN_DATA}
+    refresh_data = {"refresh_token": response.json()["refresh_token"]}
     response = helpers.POST(
-        TOKEN_URL + "/refresh", data=refresh_token, status_code=HTTPStatus.CREATED
+        TOKEN_URL + "/refresh", data=refresh_data, status_code=HTTPStatus.CREATED
     )
     NEW_HEADER = helpers.make_header(response)
-    print(response.json())
+
+    print("Fetch token details")
+    helpers.GET(TOKEN_URL, NEW_HEADER, status_code=HTTPStatus.OK)
 
     print("Log out with the refreshed access token")
     helpers.DELETE(TOKEN_URL, NEW_HEADER, status_code=HTTPStatus.NO_CONTENT)
 
 
-def test_case_002(BASE_URL: str):
+def test_case_002():
     """Try to generate access token using invalid username and password"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
     print("2 Try to generate access token using invalid username and password")
+    invalid_credential = {"username": "unknown", "password": "unknown"}
+    helpers.POST(
+        TOKEN_URL, data=invalid_credential, status_code=HTTPStatus.UNAUTHORIZED
+    )
 
-    invalid_cred = {"username": "unknown", "password": "unknown"}
-    helpers.POST(TOKEN_URL, data=invalid_cred, status_code=HTTPStatus.UNAUTHORIZED)
 
-
-def test_case_003(BASE_URL: str):
+def test_case_003():
     """Try to generate access token using invalid grant_type"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
     print("3 Try to generate access token using invalid grant_type")
-
-    invalid_admin_cre = {
-        "username": "admin",
-        "password": "password",
+    admin_credential = inputs.ExecutiveCredential.admin
+    invalid_grant_type = {
+        **admin_credential,
         "grant_type": GrantType.REFRESH_TOKEN,
     }
     helpers.POST(
-        TOKEN_URL, data=invalid_admin_cre, status_code=HTTPStatus.NOT_ACCEPTABLE
+        TOKEN_URL, data=invalid_grant_type, status_code=HTTPStatus.NOT_ACCEPTABLE
     )
 
 
-def test_case_004(BASE_URL: str):
+def test_case_004():
     """Check Access token rotation (MAX_EXECUTIVE_TOKENS)"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
     print("4 Testing Access token rotation")
-
-    admin_cred = inputs.ExecutiveCredential.admin
+    admin_credential = inputs.ExecutiveCredential.admin
     for i in range(MAX_EXECUTIVE_TOKENS + 1):
         print(f"Login attempt #{i+1}")
-        helpers.POST(TOKEN_URL, data=admin_cred, status_code=HTTPStatus.CREATED)
-    print("Fetch tokens after rotation")
-    response = helpers.POST(TOKEN_URL, data=admin_cred, status_code=HTTPStatus.CREATED)
-    header = helpers.make_header(response)
-
-    # Use admin.executive_id as query parameter
-    query_params = {"executive_id": response.json()["executive_id"]}
-    get_response = helpers.GET(
-        TOKEN_URL, header, params=query_params, status_code=HTTPStatus.OK
+        helpers.POST(TOKEN_URL, data=admin_credential, status_code=HTTPStatus.CREATED)
+    response = helpers.POST(
+        TOKEN_URL, data=admin_credential, status_code=HTTPStatus.CREATED
     )
-
-    token_list = get_response.json()
-    token_count = len(token_list)
-
+    HEADER = helpers.make_header(response)
+    executive_id = {"executive_id": response.json()["executive_id"]}
+    response_list = helpers.GET(
+        TOKEN_URL, HEADER, params=executive_id, status_code=HTTPStatus.OK
+    )
+    tokens = response_list.json()
     print(
-        f"Total tokens found for executive_id={response.json()['executive_id']}: {token_count}"
+        f"Total tokens found for executive_id = {response.json()['executive_id']}: {len(tokens)}"
     )
-    assert token_count <= MAX_EXECUTIVE_TOKENS, (
-        f"Token rotation failed: found {token_count} tokens, "
-        f"expected <= {MAX_EXECUTIVE_TOKENS}"
-    )
-
-    print("Token rotation check passed\n")
+    assert (
+        len(tokens) <= MAX_EXECUTIVE_TOKENS
+    ), f"Expected {MAX_EXECUTIVE_TOKENS} tokens, but got {len(tokens)}"
+    print("Token rotation check is successful \n")
 
 
-def test_case_005(BASE_URL: str):
-    """Token renewal using a refresh token"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
-
-    print("5 Token renewal using a refresh token")
-    admin = inputs.ExecutiveCredential.admin
-    resp = helpers.POST(TOKEN_URL, data=admin, status_code=HTTPStatus.CREATED)
-    refresh_payload = {"refresh_token": resp.json()["refresh_token"]}
-
-    print("Renew token using refresh token")
+def test_case_005():
+    """Token renewal using invalid refresh token"""
+    print("5 Token renewal using invalid refresh token")
+    refresh_data = {"refresh_token": inputs.random_string(64)}
     helpers.POST(
         TOKEN_URL + "/refresh",
-        data=refresh_payload,
-        status_code=HTTPStatus.CREATED,
+        data=refresh_data,
+        status_code=HTTPStatus.UNAUTHORIZED,
     )
 
 
-def test_case_006(BASE_URL: str):
-    """Token renewal using refresh token and grant_type=password"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
-    print("6 Token renewal using refresh token and grant_type=password")
-
-    payload = {"refresh_token": inputs.random_string(64), "grant_type": "password"}
+def test_case_006():
+    """Token renewal using a refresh token and grant_type as password"""
+    print("6 Token renewal using a refresh token and grant_type as password")
+    admin_credential = inputs.ExecutiveCredential.admin
+    response = helpers.POST(
+        TOKEN_URL, data=admin_credential, status_code=HTTPStatus.CREATED
+    )
+    invalid_grant_type = {
+        "refresh_token": response.json()["refresh_token"],
+        "grant_type": GrantType.PASSWORD,
+    }
     helpers.POST(
-        TOKEN_URL + "/refresh", data=payload, status_code=HTTPStatus.NOT_ACCEPTABLE
+        TOKEN_URL + "/refresh",
+        data=invalid_grant_type,
+        status_code=HTTPStatus.NOT_ACCEPTABLE,
     )
 
 
-def test_case_007(BASE_URL: str):
+def test_case_007():
     """Token renewal using revoked refresh_token"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
     print("7 Token renewal using revoked refresh_token ")
-
-    resp = helpers.POST(TOKEN_URL, data=inputs.ExecutiveCredential.admin)
-    refresh_token = resp.json()["refresh_token"]
-    header = helpers.make_header(resp)
-
-    helpers.DELETE(f"{TOKEN_URL}", header, status_code=HTTPStatus.NO_CONTENT)
+    admin_credential = inputs.ExecutiveCredential.admin
+    response = helpers.POST(
+        TOKEN_URL, data=admin_credential, status_code=HTTPStatus.CREATED
+    )
+    refresh_data = {"refresh_token": response.json()["refresh_token"]}
+    HEADER = helpers.make_header(response)
+    helpers.DELETE(f"{TOKEN_URL}", HEADER, status_code=HTTPStatus.NO_CONTENT)
     helpers.POST(
         TOKEN_URL + "/refresh",
-        data={"refresh_token": refresh_token},
+        data=refresh_data,
         status_code=HTTPStatus.UNAUTHORIZED,
     )
 
 
-def test_case_008(BASE_URL: str):
-    """Token renewal using invalid refresh_token"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
-    print("8 Token renewal using invalid refresh_token")
-    helpers.POST(
-        TOKEN_URL + "/refresh",
-        data={"refresh_token": "invalid"},
-        status_code=HTTPStatus.UNAUTHORIZED,
-    )
-
-
-def test_case_009(BASE_URL: str):
-    """Token renewal using expired refresh_token"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
-    print("9 Token renewal using expired refresh_token")
-    expired_token = "expired_dummy_token"
-    helpers.POST(
-        TOKEN_URL + "/refresh",
-        data={"refresh_token": expired_token},
-        status_code=HTTPStatus.UNAUTHORIZED,
-    )
-
-
-def test_case_010(BASE_URL: str):
+def test_case_008():
     """Revoke own token with id"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
-    print("10 Revoke own token with id")
-
-    resp = helpers.POST(TOKEN_URL, data=inputs.ExecutiveCredential.admin)
-    header = helpers.make_header(resp)
+    print("8 Revoke own token with id")
+    admin_credential = inputs.ExecutiveCredential.admin
+    response = helpers.POST(
+        TOKEN_URL, data=admin_credential, status_code=HTTPStatus.CREATED
+    )
+    token_id = {"id": response.json()["id"]}
+    HEADER = helpers.make_header(response)
     helpers.DELETE(
         TOKEN_URL,
-        header,
-        data={"id": resp.json()["id"]},
+        HEADER,
+        data=token_id,
         status_code=HTTPStatus.NO_CONTENT,
     )
 
 
-def test_case_011(BASE_URL: str):
+def test_case_009():
     """Revoke other self owned token using another valid access_token"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
-    print("11 Revoke other self owned token using another valid access_token")
-
-    resp1 = helpers.POST(TOKEN_URL, data=inputs.ExecutiveCredential.guest)
-    header1 = helpers.make_header(resp1)
-
-    resp2 = helpers.POST(TOKEN_URL, data=inputs.ExecutiveCredential.guest)
-    token2_id = resp2.json()["id"]
-
+    print("9 Revoke other self owned token using another valid access_token")
+    guest_credential = inputs.ExecutiveCredential.guest
+    response1 = helpers.POST(
+        TOKEN_URL, data=guest_credential, status_code=HTTPStatus.CREATED
+    )
+    HEADER = helpers.make_header(response1)
+    response2 = helpers.POST(
+        TOKEN_URL, data=guest_credential, status_code=HTTPStatus.CREATED
+    )
+    token_data = response2.json()["id"]
     helpers.DELETE(
-        TOKEN_URL, header1, data={"id": token2_id}, status_code=HTTPStatus.FORBIDDEN
+        TOKEN_URL, HEADER, data={"id": token_data}, status_code=HTTPStatus.FORBIDDEN
     )
 
 
-def test_case_012(BASE_URL: str):
-    """Revoke own token without id"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
-    print("12 Revoke own token without id")
-
-    resp = helpers.POST(TOKEN_URL, data=inputs.ExecutiveCredential.admin)
-    header = helpers.make_header(resp)
-    helpers.DELETE(TOKEN_URL, header, status_code=HTTPStatus.NO_CONTENT)
-
-
-def test_case_013(BASE_URL: str):
+def test_case_010():
     """Revoke own token without passing header"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
-    print("13 Revoke own token without passing header")
+    print("10 Revoke own token without passing header")
     helpers.DELETE(TOKEN_URL, {}, status_code=HTTPStatus.FORBIDDEN)
 
 
-def test_case_014(BASE_URL: str):
-    """Try to access GET endpoint with revoked token"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
-    print("14 Try to access GET endpoint with revoked token")
-    resp = helpers.POST(TOKEN_URL, data=inputs.ExecutiveCredential.admin)
-    token_id = resp.json()["id"]
-    header = helpers.make_header(resp)
-    helpers.DELETE(
-        TOKEN_URL, header, data={"id": token_id}, status_code=HTTPStatus.NO_CONTENT
+def test_case_011():
+    """Try to access DELETE endpoint with revoked token"""
+    print("11 Try to access DELETE endpoint with revoked token")
+    admin_credential = inputs.ExecutiveCredential.admin
+    response = helpers.POST(
+        TOKEN_URL, data=admin_credential, status_code=HTTPStatus.CREATED
     )
-    helpers.GET(TOKEN_URL, header, status_code=HTTPStatus.UNAUTHORIZED)
+    token_id = {"id": response.json()["id"]}
+    HEADER = helpers.make_header(response)
+    helpers.DELETE(TOKEN_URL, HEADER, data=token_id, status_code=HTTPStatus.NO_CONTENT)
+    helpers.DELETE(TOKEN_URL, HEADER, status_code=HTTPStatus.UNAUTHORIZED)
 
 
-def test_case_015(BASE_URL: str):
+def test_case_012():
     """Revoking others' tokens with permission"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
-    print("15 Revoking others' tokens with permission")
-    admin_resp = helpers.POST(TOKEN_URL, data=inputs.ExecutiveCredential.admin)
-    admin_header = helpers.make_header(admin_resp)
-
-    guest_resp = helpers.POST(TOKEN_URL, data=inputs.ExecutiveCredential.guest)
-    guest_token_id = guest_resp.json()["id"]
-
+    print("12 Revoking others' tokens with permission")
+    admin_credential = inputs.ExecutiveCredential.admin
+    admin_response = helpers.POST(
+        TOKEN_URL, data=admin_credential, status_code=HTTPStatus.CREATED
+    )
+    HEADER = helpers.make_header(admin_response)
+    guest_credential = inputs.ExecutiveCredential.guest
+    guest_response = helpers.POST(
+        TOKEN_URL, data=guest_credential, status_code=HTTPStatus.CREATED
+    )
+    guest_token_id = {"id": guest_response.json()["id"]}
     helpers.DELETE(
         TOKEN_URL,
-        admin_header,
-        data={"id": guest_token_id},
+        HEADER,
+        data=guest_token_id,
         status_code=HTTPStatus.NO_CONTENT,
     )
 
 
-def test_case_016(BASE_URL: str):
+def test_case_013():
     """Revoking others' tokens without permission"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
-    print("16 Revoking others' tokens without permission")
-    guest_resp = helpers.POST(TOKEN_URL, data=inputs.ExecutiveCredential.guest)
-    guest_header = helpers.make_header(guest_resp)
-
-    admin_resp = helpers.POST(TOKEN_URL, data=inputs.ExecutiveCredential.admin)
-    admin_token_id = admin_resp.json()["id"]
-
+    print("13 Revoking others' tokens without permission")
+    guest_credential = inputs.ExecutiveCredential.guest
+    admin_credential = inputs.ExecutiveCredential.admin
+    guest_response = helpers.POST(
+        TOKEN_URL, data=guest_credential, status_code=HTTPStatus.CREATED
+    )
+    HEADER = helpers.make_header(guest_response)
+    admin_response = helpers.POST(
+        TOKEN_URL, data=admin_credential, status_code=HTTPStatus.CREATED
+    )
+    admin_token_id = {"id": admin_response.json()["id"]}
     helpers.DELETE(
         TOKEN_URL,
-        guest_header,
-        data={"id": admin_token_id},
+        HEADER,
+        data=admin_token_id,
         status_code=HTTPStatus.FORBIDDEN,
     )
 
 
-def test_case_017(BASE_URL: str):
-    """Try to revoke tokens with permission using expired access token"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
-    print("17 Try to revoke tokens with permission using expired access token")
-    expired_header = {"Authorization": "Bearer expired_token"}
-    helpers.DELETE(TOKEN_URL, expired_header, status_code=HTTPStatus.UNAUTHORIZED)
+def test_case_014():
+    """Admin tries to fetch guest token details"""
+    print("14 Admin tries to fetch guest token details")
+    # Login as admin
+    admin_credential = inputs.ExecutiveCredential.admin
+    admin_response = helpers.POST(
+        TOKEN_URL, data=admin_credential, status_code=HTTPStatus.CREATED
+    )
+    ADMIN_HEADER = helpers.make_header(admin_response)
+    # Login as guest and get token details
+    guest_credential = inputs.ExecutiveCredential.guest
+    guest_response = helpers.POST(
+        TOKEN_URL, data=guest_credential, status_code=HTTPStatus.CREATED
+    )
+    guest_token_id = {"id": guest_response.json()["id"]}
+    helpers.GET(
+        TOKEN_URL, ADMIN_HEADER, params=guest_token_id, status_code=HTTPStatus.OK
+    )
 
 
-def test_case_018(BASE_URL: str):
-    """Fetching tokens with permission"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
-    print("18 Fetching tokens with permission")
-    resp = helpers.POST(TOKEN_URL, data=inputs.ExecutiveCredential.admin)
-    header = helpers.make_header(resp)
-    helpers.GET(TOKEN_URL, header)
+def test_case_015():
+    """Admin tries to fetch invalid (id=0) token details"""
+    print("15 Admin tries to fetch invalid (id=0) token details")
+    admin_credential = inputs.ExecutiveCredential.admin
+    response = helpers.POST(
+        TOKEN_URL, data=admin_credential, status_code=HTTPStatus.CREATED
+    )
+    HEADER = helpers.make_header(response)
+    invalid_token_id = {"id": 0}
+    response = helpers.GET(
+        TOKEN_URL,
+        HEADER,
+        params=invalid_token_id,
+        status_code=HTTPStatus.OK,
+    )
+    data = response.json()
+    assert data == [], f"Expected empty list [], but got {data}"
 
 
-def test_case_019(BASE_URL: str):
-    """Fetching tokens with permission and passing valid query"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
-    print("19 Fetching tokens with permission and passing valid query")
-    resp = helpers.POST(TOKEN_URL, data=inputs.ExecutiveCredential.admin)
-    header = helpers.make_header(resp)
-    helpers.GET(TOKEN_URL, header)
+def test_case_016():
+    """Guest tries to fetch admin token details"""
+    print("16 Guest tries to fetch admin token details")
+    # Admin creates a token
+    admin_credential = inputs.ExecutiveCredential.admin
+    admin_response = helpers.POST(
+        TOKEN_URL, data=admin_credential, status_code=HTTPStatus.CREATED
+    )
+    admin_token_id = {"id": admin_response.json()["id"]}
+    # Guest logs in and attempts to fetch admin token details
+    guest_credential = inputs.ExecutiveCredential.guest
+    guest_response = helpers.POST(
+        TOKEN_URL, data=guest_credential, status_code=HTTPStatus.CREATED
+    )
+    GUEST_HEADER = helpers.make_header(guest_response)
+    response = helpers.GET(
+        TOKEN_URL,
+        GUEST_HEADER,
+        params=admin_token_id,
+        status_code=HTTPStatus.OK,
+    )
+    data = response.json()
+    assert data == [], f"Expected empty list [], but got {data}"
 
 
-def test_case_020(BASE_URL: str):
-    """Fetching tokens without permission"""
-    TOKEN_URL = BASE_URL + urls.URL_EXECUTIVE_TOKEN
-    print("20 Fetching tokens without permission")
-    resp = helpers.POST(TOKEN_URL, data=inputs.ExecutiveCredential.guest)
-    header = helpers.make_header(resp)
-    helpers.GET(TOKEN_URL, header, status_code=HTTPStatus.OK)
+def test_case_017():
+    """Guest tries to fetch own token details without header"""
+    print("17 Guest tries to fetch own token details without header")
+    guest_credential = inputs.ExecutiveCredential.guest
+    response = helpers.POST(
+        TOKEN_URL, data=guest_credential, status_code=HTTPStatus.CREATED
+    )
+    token_id = {"id": response.json()["id"]}
+    helpers.GET(TOKEN_URL, {}, params=token_id, status_code=HTTPStatus.FORBIDDEN)
 
 
-def test_executive_token(BASE_URL: str = inputs.EXECUTIVE_BASE_URL):
-    print(f"Starting test on target URL: {BASE_URL}")
+def test():
+    print(f"Starting test on target URL: {TOKEN_URL}")
 
-    test_case_001(BASE_URL)
-    test_case_002(BASE_URL)
-    test_case_003(BASE_URL)
-    test_case_004(BASE_URL)
-    test_case_005(BASE_URL)
-    test_case_006(BASE_URL)
-    test_case_007(BASE_URL)
-    test_case_008(BASE_URL)
-    test_case_009(BASE_URL)
-    test_case_010(BASE_URL)
-    test_case_011(BASE_URL)
-    test_case_012(BASE_URL)
-    test_case_013(BASE_URL)
-    test_case_014(BASE_URL)
-    test_case_015(BASE_URL)
-    test_case_016(BASE_URL)
-    test_case_017(BASE_URL)
-    test_case_018(BASE_URL)
-    test_case_019(BASE_URL)
-    test_case_020(BASE_URL)
-
-    print(f"Finished test on target URL: {BASE_URL}")
+    test_case_001()
+    test_case_002()
+    test_case_003()
+    test_case_004()
+    test_case_005()
+    test_case_006()
+    test_case_007()
+    test_case_008()
+    test_case_009()
+    test_case_010()
+    test_case_011()
+    test_case_012()
+    test_case_013()
+    test_case_014()
+    test_case_015()
+    test_case_016()
+    test_case_017()
 
 
 ## Argparse setup
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run test cases for executive tokens")
+    parser = argparse.ArgumentParser(description="Run test cases of executive token")
     parser.add_argument(
-        "-test_executive_token", action="store_true", help="Run executive tests"
+        "-test", action="store_true", help="Run executive token test cases"
     )
     args = parser.parse_args()
 
-    if args.test_executive_token:
-        test_executive_token()
+    if args.test:
+        test()
