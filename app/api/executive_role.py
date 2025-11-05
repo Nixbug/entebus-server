@@ -16,7 +16,7 @@ from app.api.bearer import bearer_executive
 from app.src.db import ExecutiveRole, ExecutiveToken, SessionLocal
 from app.src.permissions.executive import PermissionSchema, PermissionPath
 from app.src import exceptions
-from app.src.regex import ROLE_NAME_PATTERN
+from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_EXECUTIVE_ROLE
 from app.src.openobserve import log_event
 from app.src.validators import verify_permission, verify_token
@@ -45,7 +45,7 @@ class ExecutiveRoleSchema(BaseModel):
 class CreateForm(BaseModel):
     """Form data for creating a new executive role."""
 
-    name: str = Field(Body(min_length=1, max_length=32, pattern=ROLE_NAME_PATTERN))
+    name: str = Field(Body(min_length=1, max_length=32, pattern=NAME_PATTERN))
     permissions: PermissionSchema
 
 

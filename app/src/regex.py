@@ -21,4 +21,4 @@ PASSWORD_PATTERN = r"^[a-zA-Z0-9-+,.@_$%&*#!^=/?]*$"
 VEHICLE_NUMBER_PATTERN = r"^([A-Z0-9]{1,4}[-. ]?){1,3}[A-Z0-9]{1,4}$"
 
 # Role name must start with a letter and can include letters, numbers, special characters and spaces
-ROLE_NAME_PATTERN = r"^[A-Za-z0-9](?:[A-Za-z0-9 _.-]*[A-Za-z0-9])?$"
+NAME_PATTERN = r"^[A-Za-z0-9](?:[A-Za-z0-9 _.-]*[A-Za-z0-9])?$"
