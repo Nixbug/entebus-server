@@ -95,7 +95,7 @@ class UpdateForm(BaseModel):
 class DeleteForm(BaseModel):
     """Form data for deleting an executive token."""
 
-    id: int
+    id: int | None = Field(Form(default=None))
 
 
 ## Query Parameters
@@ -234,10 +234,10 @@ async def refresh_token(
         session.close()
 
 
-@route_executive.delete(
-    URL_EXECUTIVE_TOKEN + "/{id}",
+@route_executive.post(
+    URL_EXECUTIVE_TOKEN + "/revoke",
     tags=["Token"],
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
         [
             exceptions.InvalidToken(),
@@ -245,7 +245,7 @@ async def refresh_token(
         ]
     ),
 )
-async def delete_token(
+async def revoke_token(
     form_param: DeleteForm = Depends(),
     bearer=Depends(bearer_executive),
     request_info=Depends(get_request_info),
@@ -254,36 +254,40 @@ async def delete_token(
     **Revokes an access token associated with an executive account.**
 
     - Verifies that the provided access token exists and is valid.
-    - If the user lacks permission, only their own current token can be revoked.
-    - If the user has the 'executive.token.delete' permission, the specified token can be deleted.
+    - If no `id` is provided, the currently used token will be revoked.
+    - If an `id` is provided, the specified token will be revoked after validating user permissions 'executive.token.delete'.
     - If the token id is invalid or already revoked, the operation is silently ignored.
     """
 
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, bearer.credentials)
-        token_to_delete = (
-            session.query(ExecutiveToken)
-            .filter(ExecutiveToken.id == form_param.id)
-            .filter(ExecutiveToken.is_revoked == False)
-            .first()
-        )
-        if token_to_delete is None:
-            return Response(status_code=status.HTTP_204_NO_CONTENT)
-        if token_to_delete.id != token.id:
-            roles = get_executive_roles(session, token)
-            verify_permission(
-                roles,
-                PermissionPath.DELETE_EXECUTIVE_TOKEN,
+
+        if form_param.id is None:
+            token_to_revoke = token
+        else:
+            token_to_revoke = (
+                session.query(ExecutiveToken)
+                .filter(ExecutiveToken.id == form_param.id)
+                .filter(ExecutiveToken.is_revoked == False)
+                .first()
             )
+            if token_to_revoke is None:
+                return Response(status_code=status.HTTP_201_CREATED)
+            if token_to_revoke.id != token.id:
+                roles = get_executive_roles(session, token)
+                verify_permission(
+                    roles,
+                    PermissionPath.DELETE_EXECUTIVE_TOKEN,
+                )
 
         # Revoke the chosen token
-        token_to_delete.is_revoked = True
+        token_to_revoke.is_revoked = True
         session.commit()
-        session.refresh(token_to_delete)
+        session.refresh(token_to_revoke)
 
-        _, token_log_data = token_to_json(token_to_delete)
-        log_event(token_to_delete, request_info, token_log_data)
+        _, token_log_data = token_to_json(token_to_revoke)
+        log_event(token_to_revoke, request_info, token_log_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
