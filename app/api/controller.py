@@ -10,6 +10,7 @@ from fastapi import FastAPI
 
 from app.api import (
     executive_token,
+    executive_role,
 )
 from app.src.enums import AppID
 
@@ -33,3 +34,4 @@ app_public.state.id = AppID.PUBLIC
 # Executive routers
 # ------------------------------------------------------
 app_executive.include_router(executive_token.route_executive)
+app_executive.include_router(executive_role.route_executive)
