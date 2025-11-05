@@ -102,5 +102,10 @@ def log_event(
     if request_info.app_id == AppID.VENDOR:
         log_details["_vendor_id"] = token.vendor_id
 
-    log_details.update(data)
+    for key, value in data.items():
+        if isinstance(value, (dict, list)):
+            log_details[key] = json.dumps(value)
+        else:
+            log_details[key] = value
+
     _post_log_event(log_details)
