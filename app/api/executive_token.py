@@ -99,7 +99,7 @@ class DeleteForm(BaseModel):
 
 
 class LogoutForm(BaseModel):
-    """Form data for logging out an executive token."""
+    """Form data for logging out with an executive token."""
 
     token: str = Field(Form())
 
