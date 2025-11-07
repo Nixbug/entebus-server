@@ -101,7 +101,7 @@ class DeleteForm(BaseModel):
 class LogoutForm(BaseModel):
     """Form data for logging out with an executive token."""
 
-    token: str = Field(Form())
+    token: str = Field(Form(description="Access or refresh token"))
 
 
 ## Query Parameters
@@ -252,10 +252,10 @@ async def revoke_token(
     request_info=Depends(get_request_info),
 ):
     """
-    **Revokes an access token associated with the executive.**
+    **Revokes an access token or refresh token associated with the executive.**
 
     - Verifies that the provided access token exists and is valid.
-    - Logs out the executive by revoking the current access token.
+    - Logs out the executive by revoking the associated access token.
     - If the token is invalid or already revoked, the operation is silently ignored.
     """
 
@@ -266,7 +266,10 @@ async def revoke_token(
         token_to_revoke = (
             session.query(ExecutiveToken)
             .filter(ExecutiveToken.id == token.id)
-            .filter(ExecutiveToken.access_token == form_param.token)
+            .filter(
+                (ExecutiveToken.access_token == form_param.token)
+                | (ExecutiveToken.refresh_token == form_param.token)
+            )
             .filter(ExecutiveToken.is_revoked == False)
             .first()
         )
