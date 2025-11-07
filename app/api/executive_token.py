@@ -306,9 +306,9 @@ async def delete_token(
     """
     **Deletes an access token associated with an executive account.**
 
-    - Verifies that the provided access token exists and is valid.
-    - The logged-in executive can delete their own tokens without additional permissions.
-    - The specified token will be revoked after validating user permissions 'executive.token.delete'.
+    - Verifies that the bearer access token is valid.
+    - Executives can delete their own tokens without additional permissions.
+    - To delete another executive's token, the 'executive.token.delete' permission is required.
     - If the token ID is invalid or already revoked, the operation is silently ignored.
     """
 
