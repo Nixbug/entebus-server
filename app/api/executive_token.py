@@ -254,9 +254,9 @@ async def revoke_token(
     """
     **Revokes an access token or refresh token associated with the executive.**
 
-    - Verifies that the provided access token exists and is valid.
-    - Logs out the executive by revoking the associated access token.
-    - If the token is invalid or already revoked, the operation is silently ignored.
+    - Authenticates the executive using the bearer token.
+    - Revokes the token (access or refresh) specified in the request body.
+    - If the token is invalid, doesn't belong to the executive, or is already revoked, the operation is silently ignored.
     """
 
     try:
