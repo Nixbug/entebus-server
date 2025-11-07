@@ -259,7 +259,7 @@ async def revoke_token(
 
         token_to_revoke = (
             session.query(ExecutiveToken)
-            .filter(ExecutiveToken.id == token.id)
+            .filter(ExecutiveToken.executive_id  == token.executive_id )
             .filter(
                 (ExecutiveToken.access_token == form_param.token)
                 | (ExecutiveToken.refresh_token == form_param.token)
