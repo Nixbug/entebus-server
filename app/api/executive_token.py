@@ -270,7 +270,7 @@ async def revoke_token(
                 (ExecutiveToken.access_token == form_param.token)
                 | (ExecutiveToken.refresh_token == form_param.token)
             )
-            .filter(ExecutiveToken.is_revoked == False)
+            .filter(ExecutiveToken.is_revoked.is_(False))
             .first()
         )
         if token_to_revoke:
