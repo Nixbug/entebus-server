@@ -92,12 +92,6 @@ class UpdateForm(BaseModel):
     )
 
 
-class DeleteForm(BaseModel):
-    """Form data for deleting an executive token."""
-
-    id: int
-
-
 class LogoutForm(BaseModel):
     """Form data for logging out with an executive token."""
 
@@ -299,7 +293,7 @@ async def revoke_token(
     ),
 )
 async def delete_token(
-    form_param: DeleteForm = Depends(),
+    id: int,
     bearer=Depends(bearer_executive),
     request_info=Depends(get_request_info),
 ):
@@ -318,8 +312,8 @@ async def delete_token(
 
         token_to_delete = (
             session.query(ExecutiveToken)
-            .filter(ExecutiveToken.id == form_param.id)
-            .filter(ExecutiveToken.is_revoked == False)
+            .filter(ExecutiveToken.id == id)
+            .filter(ExecutiveToken.is_revoked.is_(False))
             .first()
         )
         if token_to_delete is None:
