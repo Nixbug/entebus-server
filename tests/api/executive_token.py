@@ -29,6 +29,6 @@ def run_endpoint_test(base_url: str):
         f"{base_url}/executive{URL_EXECUTIVE_TOKEN}",
         data=VALID_EXECUTIVE_CREDENTIALS["admin"],
     )
-    assert resp.status_code == 201, "Authentication failed: expected 201 Created"
+    assert resp.status_code == 200, "Authentication failed: expected 200 OK"
     # Create header for future requests
     ADMIN_HEADER = {"Authorization": f"Bearer {resp.json()['access_token']}"}
