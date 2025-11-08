@@ -123,7 +123,6 @@ class QueryParams(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter)
     URL_EXECUTIVE_TOKEN,
     tags=["Token"],
     response_model=ExecutiveTokenSchema,
-    status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
         [exceptions.InactiveAccount(), exceptions.InvalidCredentials()]
     ),
