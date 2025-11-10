@@ -11,8 +11,9 @@ from enum import StrEnum
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, Response, status, Form
 from pydantic import BaseModel, Field
+from fastapi.security import OAuth2PasswordRequestForm
 
-from app.api.bearer import bearer_executive
+from app.api.bearer import oauth2_executive
 from app.src.db import Executive, ExecutiveToken, SessionLocal
 from app.src import exceptions
 from app.src.enums import PlatformType, GrantType, OrderIn
@@ -72,15 +73,10 @@ class ExecutiveTokenSchema(MaskedExecutiveTokenSchema):
 class CreateForm(BaseModel):
     """Form data for creating a new executive token."""
 
-    username: str = Field(Form(max_length=32))
-    password: str = Field(Form(max_length=32))
     platform_type: PlatformType = Field(
         Form(description=enum_str(PlatformType), default=PlatformType.OTHER)
     )
     client_details: str | None = Field(Form(max_length=1024, default=None))
-    grant_type: GrantType = Field(
-        Form(description=enum_str(GrantType), default=GrantType.PASSWORD)
-    )
 
 
 class UpdateForm(BaseModel):
@@ -123,13 +119,14 @@ class QueryParams(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter)
     URL_EXECUTIVE_TOKEN,
     tags=["Token"],
     response_model=ExecutiveTokenSchema,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_200_OK,
     responses=fuse_exception_responses(
         [exceptions.InactiveAccount(), exceptions.InvalidCredentials()]
     ),
 )
 async def create_token(
     form_param: CreateForm = Depends(),
+    credentials: OAuth2PasswordRequestForm = Depends(),
     request_info=Depends(get_request_info),
 ):
     """
@@ -146,7 +143,7 @@ async def create_token(
     """
     try:
         session = SessionLocal()
-        executive = authenticate_user(session, Executive, form_param)
+        executive = authenticate_user(session, Executive, credentials)
 
         # Remove excess tokens
         cleanup_old_tokens(
@@ -179,7 +176,7 @@ async def create_token(
     URL_EXECUTIVE_TOKEN + "/refresh",
     tags=["Token"],
     response_model=ExecutiveTokenSchema,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_200_OK,
     responses=fuse_exception_responses(
         [
             exceptions.InvalidToken(),
@@ -226,7 +223,7 @@ async def refresh_token(
         session.refresh(refresh_token)
 
         token_data, token_log_data = token_to_json(refresh_token)
-        log_event(refresh_token, request_info, token_log_data)
+        log_event(token, request_info, token_log_data)
         return token_data
     except Exception as e:
         exceptions.handle(e)
@@ -242,7 +239,7 @@ async def refresh_token(
 )
 async def revoke_token(
     form_param: LogoutForm = Depends(),
-    bearer=Depends(bearer_executive),
+    access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
     """
@@ -255,11 +252,11 @@ async def revoke_token(
 
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, bearer.credentials)
+        token = verify_token(session, ExecutiveToken, access_token)
 
         token_to_revoke = (
             session.query(ExecutiveToken)
-            .filter(ExecutiveToken.executive_id  == token.executive_id )
+            .filter(ExecutiveToken.executive_id == token.executive_id)
             .filter(
                 (ExecutiveToken.access_token == form_param.token)
                 | (ExecutiveToken.refresh_token == form_param.token)
@@ -272,7 +269,7 @@ async def revoke_token(
             session.commit()
             session.refresh(token_to_revoke)
             _, token_log_data = token_to_json(token_to_revoke)
-            log_event(token_to_revoke, request_info, token_log_data)
+            log_event(token, request_info, token_log_data)
 
         return Response(status_code=status.HTTP_200_OK)
     except Exception as e:
@@ -294,7 +291,7 @@ async def revoke_token(
 )
 async def delete_token(
     id: int,
-    bearer=Depends(bearer_executive),
+    access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
     """
@@ -308,7 +305,7 @@ async def delete_token(
 
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, bearer.credentials)
+        token = verify_token(session, ExecutiveToken, access_token)
 
         token_to_delete = (
             session.query(ExecutiveToken)
@@ -328,7 +325,7 @@ async def delete_token(
         session.refresh(token_to_delete)
 
         _, token_log_data = token_to_json(token_to_delete)
-        log_event(token_to_delete, request_info, token_log_data)
+        log_event(token, request_info, token_log_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
@@ -344,7 +341,7 @@ async def delete_token(
 )
 async def fetch_token(
     query_params: QueryParams = Depends(),
-    bearer=Depends(bearer_executive),
+    access_token=Depends(oauth2_executive),
 ):
     """
     **Fetch executive tokens with permission-based filtering.**
@@ -354,7 +351,7 @@ async def fetch_token(
     """
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, bearer.credentials)
+        token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
         has_permission = verify_permission(
             roles,
