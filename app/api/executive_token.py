@@ -226,7 +226,7 @@ async def refresh_token(
         session.refresh(refresh_token)
 
         token_data, token_log_data = token_to_json(refresh_token)
-        log_event(token, request_info, token_log_data)
+        log_event(refresh_token, request_info, token_log_data)
         return token_data
     except Exception as e:
         exceptions.handle(e)
@@ -272,7 +272,7 @@ async def revoke_token(
             session.commit()
             session.refresh(token_to_revoke)
             _, token_log_data = token_to_json(token_to_revoke)
-            log_event(token, request_info, token_log_data)
+            log_event(token_to_revoke, request_info, token_log_data)
 
         return Response(status_code=status.HTTP_200_OK)
     except Exception as e:
@@ -328,7 +328,7 @@ async def delete_token(
         session.refresh(token_to_delete)
 
         _, token_log_data = token_to_json(token_to_delete)
-        log_event(token, request_info, token_log_data)
+        log_event(token_to_delete, request_info, token_log_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
