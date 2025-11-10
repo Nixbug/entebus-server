@@ -23,7 +23,6 @@ from app.src.validators import verify_permission, verify_token
 from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
-    token_to_json,
     get_executive_roles,
 )
 
@@ -115,10 +114,7 @@ async def delete_role(
 
     - Requires a valid access token for authentication.
     - The logged-in executive must have the `executive.role.delete` permission.
-    - Logs the deletion event to the OpenObserve system.
-
     """
-
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, bearer.credentials)
