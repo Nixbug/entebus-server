@@ -49,6 +49,15 @@ class CreateForm(BaseModel):
     permissions: PermissionSchema
 
 
+class UpdateForm(BaseModel):
+    """Form data for updating an executive role."""
+
+    name: str | None = Field(
+        Body(min_length=1, max_length=32, pattern=NAME_PATTERN, default=None)
+    )
+    permissions: PermissionSchema | None = None
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -82,6 +91,117 @@ async def create_token(
         form_param.permissions = form_param.permissions.model_dump()
         role = ExecutiveRole(name=form_param.name, permissions=form_param.permissions)
         session.add(role)
+        session.commit()
+        session.refresh(role)
+
+        role_data = jsonable_encoder(role)
+        log_event(token, request_info, role_data)
+        return role_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.patch(
+    URL_EXECUTIVE_ROLE + "/{id}",
+    tags=["Role"],
+    response_model=ExecutiveRoleSchema,
+    status_code=status.HTTP_200_OK,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InactiveAccount(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(ExecutiveRole.id),
+        ]
+    ),
+)
+async def update_executive_role(
+    id: int,
+    form_param: UpdateForm = Depends(),
+    bearer=Depends(bearer_executive),
+    request_info=Depends(get_request_info),
+):
+    """
+    **Update an existing executive role.**
+
+    - Requires a valid access token.
+    - Logged-in executive must have `executive.role.update` permission.
+    - Role name and permissions can be updated.
+    - Permissions JSON structure will be validated before update.
+    - Logs the update event for auditing.
+    """
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, bearer.credentials)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE_ROLE)
+
+        role = session.query(ExecutiveRole).filter(ExecutiveRole.id == id).first()
+        if not role:
+            raise exceptions.UnknownValue(ExecutiveRole.id)
+        if form_param.name:
+            role.name = form_param.name
+        if form_param.permissions:
+            permissions_data = form_param.permissions.model_dump()
+            role.permissions = permissions_data
+        session.commit()
+        session.refresh(role)
+
+        role_data = jsonable_encoder(role)
+        log_event(token, request_info, role_data)
+        return role_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.patch(
+    URL_EXECUTIVE_ROLE + "/{id}",
+    tags=["Role"],
+    response_model=ExecutiveRoleSchema,
+    status_code=status.HTTP_200_OK,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InactiveAccount(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(ExecutiveRole.id),
+        ]
+    ),
+)
+async def update_executive_role(
+    id: int,
+    form_param: UpdateForm = Body(...),
+    bearer=Depends(bearer_executive),
+    request_info=Depends(get_request_info),
+):
+    """
+    **Update an existing executive role.**
+
+    - Requires a valid access token.
+    - Logged-in executive must have `executive.role.update` permission.
+    - Role name and permissions can be updated.
+    - Explicitly setting a field to `null` in JSON will set DB value to NULL.
+    - Logs the update event for auditing.
+    """
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, bearer.credentials)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE_ROLE)
+
+        role = session.query(ExecutiveRole).filter(ExecutiveRole.id == id).first()
+        if role is None:
+            raise exceptions.UnknownValue(ExecutiveRole.id)
+        update_data = form_param.model_dump(exclude_unset=True)
+        if ExecutiveRole.name.key in update_data:
+            role.name = update_data[ExecutiveRole.name.key]
+        if ExecutiveRole.permissions.key in update_data:
+            if update_data[ExecutiveRole.permissions.key] is not None:
+                role.permissions = update_data[ExecutiveRole.permissions.key]
+            else:
+                role.permissions = None
         session.commit()
         session.refresh(role)
 
