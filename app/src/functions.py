@@ -345,3 +345,27 @@ def apply_client_data_filters(
             model_cls.client_details.ilike(f"%{params.client_details}%")
         )
     return query
+
+
+def update_if_changed(target_obj: Any, source_obj: Any, fields: List[str]) -> None:
+    """
+    Update attributes on a target object based on values from a source object.
+
+    Args:
+        target_obj (Any): The object to be updated (e.g., a SQLAlchemy model instance).
+        source_obj (Any): The object containing new values (e.g., a Pydantic model or dict).
+        fields (List[str]): The list of field names to update.
+
+    Returns:
+        None
+    """
+    is_dict = isinstance(source_obj, dict)
+    for field in fields:
+        has_field = field in source_obj if is_dict else hasattr(source_obj, field)
+        if not has_field:
+            continue
+
+        new_value = source_obj[field] if is_dict else getattr(source_obj, field)
+        old_value = getattr(target_obj, field, None)
+        if new_value != old_value:
+            setattr(target_obj, field, new_value)

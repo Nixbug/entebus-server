@@ -24,6 +24,7 @@ from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
     get_executive_roles,
+    update_if_changed,
 )
 
 route_executive = APIRouter()
@@ -51,10 +52,8 @@ class CreateForm(BaseModel):
 class UpdateForm(BaseModel):
     """Form data for updating an executive role."""
 
-    name: str | None = Field(
-        Body(min_length=1, max_length=32, pattern=NAME_PATTERN, default=None)
-    )
-    permissions: PermissionSchema | None = None
+    name: str | None = Field(Body(min_length=1, max_length=32, pattern=NAME_PATTERN))
+    permissions: PermissionSchema | None
 
 
 # ---------------------------------------------------------------------------
@@ -139,8 +138,8 @@ async def update_executive_role(
         role = session.query(ExecutiveRole).filter(ExecutiveRole.id == id).first()
         if not role:
             raise exceptions.UnknownValue(ExecutiveRole.id)
-        if form_param.name:
-            role.name = form_param.name
+
+        update_if_changed(role, form_param, [ExecutiveRole.name.key])
         if form_param.permissions:
             permissions_data = form_param.permissions.model_dump()
             role.permissions = permissions_data
