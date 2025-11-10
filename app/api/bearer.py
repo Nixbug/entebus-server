@@ -3,7 +3,6 @@ Authentication Schemes for EnteBus API.
 
 This module defines OAuth2 and HTTP Bearer authentication schemes
 for various user roles within the EnteBus system.
-
 Each authentication scheme is designed to enforce role-based access control
 for protected API endpoints.
 """
