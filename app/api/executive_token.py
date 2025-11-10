@@ -245,7 +245,7 @@ async def revoke_token(
     """
     **Revokes an access token or refresh token associated with the executive.**
 
-    - Authenticates the executive using the bearer token.
+    - Executive must have a valid access token.
     - Revokes the token (access or refresh) specified in the request body.
     - If the token is invalid, doesn't belong to the executive, or is already revoked, the operation is silently ignored.
     """
@@ -297,7 +297,7 @@ async def delete_token(
     """
     **Deletes an access token associated with an executive account.**
 
-    - Verifies that the bearer access token is valid.
+    - Executive must have a valid access token.
     - Executives can delete their own tokens without additional permissions.
     - To delete another executive's token, the 'executive.token.delete' permission is required.
     - If the token ID is invalid or already revoked, the operation is silently ignored.
