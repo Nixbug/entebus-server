@@ -52,8 +52,8 @@ class CreateForm(BaseModel):
 class UpdateForm(BaseModel):
     """Form data for updating an executive role."""
 
-    name: str | None = Field(Body(min_length=1, max_length=32, pattern=NAME_PATTERN))
-    permissions: PermissionSchema | None
+    name: str = Field(Body(min_length=1, max_length=32, pattern=NAME_PATTERN))
+    permissions: PermissionSchema
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +114,7 @@ async def create_token(
         ]
     ),
 )
-async def update_executive_role(
+async def update_role(
     id: int,
     form_param: UpdateForm = Depends(),
     bearer=Depends(bearer_executive),
@@ -125,9 +125,7 @@ async def update_executive_role(
 
     - Requires a valid access token.
     - Logged-in executive must have `executive.role.update` permission.
-    - Role name and permissions can be updated.
-    - Permissions JSON structure will be validated before update.
-    - Logs the update event for auditing.
+    - Duplicate names are not allowed.
     """
     try:
         session = SessionLocal()
@@ -140,11 +138,12 @@ async def update_executive_role(
             raise exceptions.UnknownValue(ExecutiveRole.id)
 
         update_if_changed(role, form_param, [ExecutiveRole.name.key])
-        if form_param.permissions:
-            permissions_data = form_param.permissions.model_dump()
-            role.permissions = permissions_data
-        session.commit()
-        session.refresh(role)
+        if form_param.permissions != role.permissions:
+            role.permissions = form_param.permissions.model_dump()
+        have_updates = session.is_modified(role)
+        if have_updates:
+            session.commit()
+            session.refresh(role)
 
         role_data = jsonable_encoder(role)
         log_event(token, request_info, role_data)
