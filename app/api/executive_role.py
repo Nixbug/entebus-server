@@ -114,6 +114,7 @@ async def delete_role(
 
     - Requires a valid access token for authentication.
     - The logged-in executive must have the `executive.role.delete` permission.
+    - Returns `204 No Content` even if the specified role does not exist.
     """
     try:
         session = SessionLocal()
