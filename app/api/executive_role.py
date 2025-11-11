@@ -12,7 +12,7 @@ from fastapi import APIRouter, Body, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
-from app.api.bearer import bearer_executive
+from app.api.bearer import oauth2_executive
 from app.src.db import ExecutiveRole, ExecutiveToken, SessionLocal
 from app.src.permissions.executive import PermissionSchema, PermissionPath
 from app.src import exceptions
@@ -62,7 +62,7 @@ class CreateForm(BaseModel):
 )
 async def create_role(
     form_param: CreateForm = Depends(),
-    bearer=Depends(bearer_executive),
+    access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
     """
@@ -74,7 +74,7 @@ async def create_role(
     """
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, bearer.credentials)
+        token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.CREATE_EXECUTIVE_ROLE)
 
@@ -98,15 +98,12 @@ async def create_role(
     tags=["Role"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-        ]
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
 )
 async def delete_role(
     id: int,
-    bearer=Depends(bearer_executive),
+    access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
     """
@@ -118,7 +115,7 @@ async def delete_role(
     """
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, bearer.credentials)
+        token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.DELETE_EXECUTIVE_ROLE)
 
