@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Body, status, Depends
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints, constr
 
 from app.api.bearer import bearer_executive
 from app.src.db import ExecutiveRole, ExecutiveToken, SessionLocal
@@ -49,12 +49,39 @@ class CreateForm(BaseModel):
     permissions: PermissionSchema
 
 
+# class UpdateForm(BaseModel):
+#     """Form data for updating an executive role."""
+
+#     name: Optional[constr(min_length=1, max_length=32, pattern=NAME_PATTERN)] = Field(
+#         None,
+#         description="Optional new name for the role ",
+#     )
+
+#     permissions: Optional[PermissionSchema] = Field(
+#         None,
+#         description="Optional new permissions for the role"
+#     )
+
+# class UpdateForm(BaseModel):
+#     """Form data for updating an executive role."""
+
+#     name: Optional[
+#         Annotated[str, StringConstraints(min_length=1, max_length=32, pattern=NAME_PATTERN)]
+#     ] = Field(Body(
+#         None,
+#         description="Optional new name for the role",
+#     ))
+
+#     permissions: Optional[PermissionSchema] = Field(
+#         None,
+#         description="Optional new permissions for the role"
+#     )
+
 class UpdateForm(BaseModel):
     """Form data for updating an executive role."""
 
-    name: str = Field(Body(min_length=1, max_length=32, pattern=NAME_PATTERN))
-    permissions: PermissionSchema
-
+    name: str | None = Field(Body(None, min_length=1, max_length=32, pattern=NAME_PATTERN))
+    permissions: PermissionSchema | None = Field(Body(None))
 
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
@@ -65,7 +92,7 @@ class UpdateForm(BaseModel):
     response_model=ExecutiveRoleSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
-        [exceptions.InactiveAccount(), exceptions.NoPermission()]
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
 )
 async def create_token(
@@ -108,7 +135,7 @@ async def create_token(
     status_code=status.HTTP_200_OK,
     responses=fuse_exception_responses(
         [
-            exceptions.InactiveAccount(),
+            exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.UnknownValue(ExecutiveRole.id),
         ]
@@ -136,10 +163,10 @@ async def update_role(
         role = session.query(ExecutiveRole).filter(ExecutiveRole.id == id).first()
         if not role:
             raise exceptions.UnknownValue(ExecutiveRole.id)
+        update_data = form_param.model_dump(exclude_unset=True)
+        print("Incoming update data:", update_data)
+        update_if_changed(role, update_data, list(update_data.keys()))
 
-        update_if_changed(role, form_param, [ExecutiveRole.name.key])
-        if form_param.permissions != role.permissions:
-            role.permissions = form_param.permissions.model_dump()
         have_updates = session.is_modified(role)
         if have_updates:
             session.commit()
