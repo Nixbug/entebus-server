@@ -8,7 +8,7 @@ input validation and structured output.
 
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Body, status, Depends
+from fastapi import APIRouter, Body, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
@@ -57,10 +57,10 @@ class CreateForm(BaseModel):
     response_model=ExecutiveRoleSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
-        [exceptions.InactiveAccount(), exceptions.NoPermission()]
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
 )
-async def create_token(
+async def create_role(
     form_param: CreateForm = Depends(),
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -87,6 +87,45 @@ async def create_token(
         role_data = jsonable_encoder(role)
         log_event(token, request_info, role_data)
         return role_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.delete(
+    URL_EXECUTIVE_ROLE + "/{id}",
+    tags=["Role"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+)
+async def delete_role(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    """
+    **Deletes an existing executive role.**
+
+    - Requires a valid access token for authentication.
+    - The logged-in executive must have the `executive.role.delete` permission.
+    - Returns `204 No Content` even if the specified role does not exist.
+    """
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, PermissionPath.DELETE_EXECUTIVE_ROLE)
+
+        role = session.query(ExecutiveRole).filter(ExecutiveRole.id == id).first()
+        if role is not None:
+            session.delete(role)
+            session.commit()
+            log_event(token, request_info, jsonable_encoder(role))
+
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
