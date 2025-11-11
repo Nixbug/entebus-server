@@ -11,6 +11,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
+from sqlalchemy.inspection import inspect
 
 from app.src import schemas, exceptions
 from app.src.db import (
@@ -346,26 +347,39 @@ def apply_client_data_filters(
         )
     return query
 
-
-def update_if_changed(target_obj: Any, source_obj: Any, fields: List[str]) -> None:
+def update_if_changed(target_obj: Any, source_obj: Any, fields: List[str]) -> list[str]:
     """
     Update attributes on a target object based on values from a source object.
-
-    Args:
-        target_obj (Any): The object to be updated (e.g., a SQLAlchemy model instance).
-        source_obj (Any): The object containing new values (e.g., a Pydantic model or dict).
-        fields (List[str]): The list of field names to update.
+    - If a field is explicitly provided (even None), update it.
+    - Skip updates that would violate NOT NULL database constraints.
 
     Returns:
-        None
+        list[str]: List of fields that were changed.
     """
     is_dict = isinstance(source_obj, dict)
+    mapper = inspect(type(target_obj))
+    changed_fields = []
+
     for field in fields:
-        has_field = field in source_obj if is_dict else hasattr(source_obj, field)
-        if not has_field:
+        # Skip if not present in incoming data
+        if not (field in source_obj if is_dict else hasattr(source_obj, field)):
             continue
 
         new_value = source_obj[field] if is_dict else getattr(source_obj, field)
         old_value = getattr(target_obj, field, None)
+
+        # Find column info (to check if NULL is allowed)
+        column = mapper.columns.get(field)
+        allows_null = column.nullable if column is not None else True
+
+        # If trying to set None on a NOT NULL column → skip
+        if new_value is None and not allows_null:
+            print(f"⚠️ Skipping field '{field}' because DB does not allow NULL values.")
+            continue
+
         if new_value != old_value:
             setattr(target_obj, field, new_value)
+            changed_fields.append(field)
+
+    return changed_fields
+
