@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Body, status, Depends
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, Field, StringConstraints, constr
+from pydantic import BaseModel, Field
 
 from app.api.bearer import bearer_executive
 from app.src.db import ExecutiveRole, ExecutiveToken, SessionLocal
@@ -49,39 +49,14 @@ class CreateForm(BaseModel):
     permissions: PermissionSchema
 
 
-# class UpdateForm(BaseModel):
-#     """Form data for updating an executive role."""
-
-#     name: Optional[constr(min_length=1, max_length=32, pattern=NAME_PATTERN)] = Field(
-#         None,
-#         description="Optional new name for the role ",
-#     )
-
-#     permissions: Optional[PermissionSchema] = Field(
-#         None,
-#         description="Optional new permissions for the role"
-#     )
-
-# class UpdateForm(BaseModel):
-#     """Form data for updating an executive role."""
-
-#     name: Optional[
-#         Annotated[str, StringConstraints(min_length=1, max_length=32, pattern=NAME_PATTERN)]
-#     ] = Field(Body(
-#         None,
-#         description="Optional new name for the role",
-#     ))
-
-#     permissions: Optional[PermissionSchema] = Field(
-#         None,
-#         description="Optional new permissions for the role"
-#     )
-
 class UpdateForm(BaseModel):
     """Form data for updating an executive role."""
 
-    name: str | None = Field(Body(None, min_length=1, max_length=32, pattern=NAME_PATTERN))
+    name: str | None = Field(
+        Body(None, min_length=1, max_length=32, pattern=NAME_PATTERN)
+    )
     permissions: PermissionSchema | None = Field(Body(None))
+
 
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
@@ -143,7 +118,7 @@ async def create_token(
 )
 async def update_role(
     id: int,
-    form_param: UpdateForm = Depends(),
+    form_param: UpdateForm,
     bearer=Depends(bearer_executive),
     request_info=Depends(get_request_info),
 ):
@@ -164,9 +139,7 @@ async def update_role(
         if not role:
             raise exceptions.UnknownValue(ExecutiveRole.id)
         update_data = form_param.model_dump(exclude_unset=True)
-        print("Incoming update data:", update_data)
         update_if_changed(role, update_data, list(update_data.keys()))
-
         have_updates = session.is_modified(role)
         if have_updates:
             session.commit()
