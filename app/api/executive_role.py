@@ -57,7 +57,7 @@ class CreateForm(BaseModel):
     response_model=ExecutiveRoleSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
-        [exceptions.InactiveAccount(), exceptions.NoPermission()]
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
 )
 async def create_role(
