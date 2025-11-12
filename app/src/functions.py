@@ -345,3 +345,80 @@ def apply_client_data_filters(
             model_cls.client_details.ilike(f"%{params.client_details}%")
         )
     return query
+
+
+from sqlalchemy.sql import text
+from sqlalchemy.orm import Query
+
+
+def filter_roles_by_exact_permission(
+    query: Query, model_cls: Type[ORMbase], permission_filter: str
+) -> Query:
+    """
+    Filter roles by an exact permission path and value using the JSONB @> operator.
+    Example: executive.role.create=true
+    """
+    if "=" not in permission_filter:
+        raise ValueError("Invalid permission filter format. Use 'path=value'.")
+
+    key_path, raw_value = [
+        part.strip().lower() for part in permission_filter.split("=", 1)
+    ]
+    # key_path, raw_value = permission_filter.split("=", 1)
+    # key_path = key_path.strip()
+    # raw_value = raw_value.strip().lower()
+
+    # Convert the string value to proper JSON boolean or string
+    if raw_value in ("true", "false"):
+        json_value = raw_value == "true"
+    else:
+        json_value = raw_value
+
+    # Build nested JSON dynamically (e.g., "executive.role.create")
+    keys = key_path.split(".")
+    nested = json_value
+    for key in reversed(keys):
+        nested = {key: nested}
+
+    # Use @> to check containment
+    query = query.filter(model_cls.permissions.op("@>")(nested))
+    return query
+
+
+def apply_permission_filter(
+    query: Query, model_cls: Type[ORMbase], permission_filter: str
+) -> Query:
+    """
+    Apply permission-based filtering to a SQLAlchemy query.
+
+    Example: "executive.role.create=true"
+    Matches nested JSONB key paths like:
+        {
+            "executive": {
+                "role": {
+                    "create": true
+                }
+            }
+        }
+    """
+    if "=" not in permission_filter:
+        raise exceptions.NoPermission()
+
+    key_path, raw_value = [
+        part.strip().lower() for part in permission_filter.split("=", 1)
+    ]
+
+    # Validate value
+    if raw_value not in ("true", "false"):
+        raise exceptions.NoPermission()
+
+    # Navigate JSONB hierarchy
+    keys = key_path.split(".")
+    jsonb_expr = model_cls.permissions
+    for key in keys[:-1]:
+        jsonb_expr = jsonb_expr[key]
+    jsonb_expr = jsonb_expr[keys[-1]].astext
+
+    # Apply filter
+    query = query.filter(jsonb_expr == raw_value)
+    return query
