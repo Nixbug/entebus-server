@@ -194,12 +194,7 @@ async def fetch_role(
         query = apply_id_filters(query, ExecutiveRole, query_params)
         query = apply_created_on_filters(query, ExecutiveRole, query_params)
         query = apply_updated_on_filters(query, ExecutiveRole, query_params)
-
-        # --- Permission-based filtering ---
-        if query_params.permissions is not None:
-            query = apply_permission_filter(
-                query, ExecutiveRole, query_params.permissions
-            )
+        query = apply_permission_filter(query, ExecutiveRole, query_params)
 
         # Ordering and pagination
         ordering_attr = getattr(ExecutiveRole, query_params.order_by.value)
