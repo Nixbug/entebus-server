@@ -362,18 +362,18 @@ def apply_permission_filter(
         Query: Updated SQLAlchemy query with applied filters.
     """
     if params.permissions is not None:
-        permission_filter = params.permissions.strip()
-        if "=" not in permission_filter:
-            return query
-        key_path, raw_value = [
-            part.strip().lower() for part in permission_filter.split("=", 1)
-        ]
-        # Convert "true"/"false" strings to boolean
-        json_value = raw_value == "true" if raw_value in ("true", "false") else raw_value
-        # Build nested JSON dynamically
-        keys = key_path.split(".")
-        nested = json_value
-        for key in reversed(keys):
-            nested = {key: nested}
-        # Apply JSONB @> containment filter
-        return query.filter(model_cls.permissions.op("@>")(nested))
+        try:
+            key_path, value = [
+                part.strip().lower() for part in params.permissions.split("=", 1)
+            ]
+            # Convert "true"/"false" to boolean
+            json_value = value == "true" if value in ("true", "false") else value
+            # Build nested JSON for containment
+            keys = key_path.split(".")
+            nested = json_value
+            for key in reversed(keys):
+                nested = {key: nested}
+            query = query.filter(model_cls.permissions.op("@>")(nested))
+        except ValueError:
+            pass
+    return query
