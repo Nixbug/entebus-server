@@ -52,10 +52,8 @@ class CreateForm(BaseModel):
 class UpdateForm(BaseModel):
     """Form data for updating an executive role."""
 
-    name: str | None = Field(
-        Body(None, min_length=1, max_length=32, pattern=NAME_PATTERN)
-    )
-    permissions: PermissionSchema | None = Field(Body(None))
+    name: str | None = Field(None, min_length=1, max_length=32, pattern=NAME_PATTERN)
+    permissions: PermissionSchema | None = Field(None)
 
 
 # ---------------------------------------------------------------------------
