@@ -369,7 +369,7 @@ def update_if_changed(target_obj: Any, source_obj: dict, fields: List[str]) -> N
         allows_null = column.nullable if column is not None else True
         # Skip invalid None updates
         if new_value is None and not allows_null:
-            continue
+            raise exceptions.InvalidNullValue(column)
         # Update only if value changed
         if new_value != old_value:
             setattr(target_obj, field, new_value)

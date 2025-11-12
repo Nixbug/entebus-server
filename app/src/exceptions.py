@@ -239,3 +239,16 @@ class InvalidGrantType(APIException):
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "Invalid grant type"
     headers = {"X-Error": "InvalidGrantType"}
+
+
+class InvalidNullValue(APIException):
+    """
+    Raised when a null value is provided for a non-nullable field.
+    """
+
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    headers = {"X-Error": "InvalidNullValue"}
+
+    def __init__(self, column: Column):
+        detail = f"The field {column.name} cannot be null."
+        super().__init__(detail=detail)
