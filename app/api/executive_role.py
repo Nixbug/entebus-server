@@ -8,11 +8,11 @@ input validation and structured output.
 
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Body, status, Depends
+from fastapi import APIRouter, Body, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
-from app.api.bearer import bearer_executive
+from app.api.bearer import oauth2_executive
 from app.src.db import ExecutiveRole, ExecutiveToken, SessionLocal
 from app.src.permissions.executive import PermissionSchema, PermissionPath
 from app.src import exceptions
@@ -68,9 +68,9 @@ class UpdateForm(BaseModel):
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
 )
-async def create_token(
+async def create_role(
     form_param: CreateForm = Depends(),
-    bearer=Depends(bearer_executive),
+    access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
     """
@@ -82,7 +82,7 @@ async def create_token(
     """
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, bearer.credentials)
+        token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.CREATE_EXECUTIVE_ROLE)
 
@@ -117,7 +117,7 @@ async def create_token(
 async def update_role(
     id: int,
     form_param: UpdateForm,
-    bearer=Depends(bearer_executive),
+    access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
     """
@@ -129,7 +129,7 @@ async def update_role(
     """
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, bearer.credentials)
+        token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE_ROLE)
 
@@ -146,6 +146,45 @@ async def update_role(
         role_data = jsonable_encoder(role)
         log_event(token, request_info, role_data)
         return role_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.delete(
+    URL_EXECUTIVE_ROLE + "/{id}",
+    tags=["Role"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+)
+async def delete_role(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    """
+    **Deletes an existing executive role.**
+
+    - Requires a valid access token for authentication.
+    - The logged-in executive must have the `executive.role.delete` permission.
+    - Returns `204 No Content` even if the specified role does not exist.
+    """
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, PermissionPath.DELETE_EXECUTIVE_ROLE)
+
+        role = session.query(ExecutiveRole).filter(ExecutiveRole.id == id).first()
+        if role is not None:
+            session.delete(role)
+            session.commit()
+            log_event(token, request_info, jsonable_encoder(role))
+
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
