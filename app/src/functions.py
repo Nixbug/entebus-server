@@ -367,7 +367,6 @@ def update_if_changed(target_obj: Any, source_obj: dict, fields: List[str]) -> N
         # Get column info to check nullability
         column = mapper.columns.get(field)
         allows_null = column.nullable if column is not None else True
-        # Skip invalid None updates
         if new_value is None and not allows_null:
             raise exceptions.InvalidNullValue(column)
         # Update only if value changed
