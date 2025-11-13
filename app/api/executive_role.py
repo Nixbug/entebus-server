@@ -21,6 +21,7 @@ from app.src.filters import (
     IDFilter,
     PaginationFilter,
     UpdatedOnFilter,
+    NameFilter,
 )
 from app.src.permissions.executive import PermissionSchema, PermissionPath
 from app.src import exceptions
@@ -32,6 +33,7 @@ from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
     apply_updated_on_filters,
+    apply_name_filters,
     enum_str,
     fuse_exception_responses,
     get_request_info,
@@ -69,10 +71,11 @@ class OrderBy(StrEnum):
     UPDATED_ON = "updated_on"
 
 
-class QueryParams(UpdatedOnFilter, CreatedOnFilter, IDFilter, PaginationFilter):
+class QueryParams(
+    UpdatedOnFilter, CreatedOnFilter, NameFilter, IDFilter, PaginationFilter
+):
     """Query parameters for fetching executive roles."""
 
-    name: str | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
@@ -190,6 +193,7 @@ async def fetch_role(
         query = apply_id_filters(query, ExecutiveRole, query_params)
         query = apply_created_on_filters(query, ExecutiveRole, query_params)
         query = apply_updated_on_filters(query, ExecutiveRole, query_params)
+        query = apply_name_filters(query, ExecutiveRole, query_params)
 
         # Ordering and pagination
         ordering_attr = getattr(ExecutiveRole, query_params.order_by.value)
