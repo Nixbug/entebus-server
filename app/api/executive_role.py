@@ -176,11 +176,7 @@ async def fetch_role(
     """
     **Fetch executive roles.**
 
-    - Validates the access token before executing.
-    - Returns a list of executive roles with optional filters.
-    - Supports filtering, ordering, and pagination.
-    - **Note:** This endpoint currently does *not* perform permission-based checks.
-      Future versions may add `executive.role.fetch` permission validation.
+    - Requires a valid access token for authentication.
     """
     session = SessionLocal()
     try:
