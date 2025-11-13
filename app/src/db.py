@@ -10,6 +10,7 @@ All ORM models should inherit from `ORMbase`.
 
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import (
+    CheckConstraint,
     create_engine,
     Boolean,
     TEXT,
@@ -214,6 +215,7 @@ class ExecutiveRole(ORMbase):
     """
 
     __tablename__ = "executive_role"
+    __table_args__ = (CheckConstraint("permissions <> 'null'::jsonb", name="executive_permissions_null"),)
 
     id = Column(Integer, primary_key=True)
     name = Column(String(32), nullable=False, unique=True)

@@ -11,7 +11,6 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
-from sqlalchemy.inspection import inspect
 
 from app.src import schemas, exceptions
 from app.src.db import (
@@ -360,15 +359,8 @@ def update_if_changed(target_obj: Any, source_obj: dict, fields: List[str]) -> N
     Returns:
         None
     """
-    mapper = inspect(type(target_obj))
     for field in fields:
         new_value = source_obj[field]
         old_value = getattr(target_obj, field, None)
-        # Get column info to check nullability
-        column = mapper.columns.get(field)
-        allows_null = column.nullable if column is not None else True
-        if new_value is None and not allows_null:
-            raise exceptions.InvalidNullValue(column)
-        # Update only if value changed
         if new_value != old_value:
             setattr(target_obj, field, new_value)
