@@ -359,7 +359,6 @@ def update_if_changed(target_obj: Any, source_obj: dict, fields: List[str]) -> N
     Returns:
         None
     """
-
     for field in fields:
         new_value = source_obj[field]
         old_value = getattr(target_obj, field, None)
