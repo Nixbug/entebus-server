@@ -125,6 +125,7 @@ async def update_role(
     - Requires a valid access token.
     - Logged-in executive must have `executive.role.update` permission.
     - Duplicate names are not allowed.
+    - Empty PATCH requests are allowed and will result in no changes.
     """
     try:
         session = SessionLocal()
