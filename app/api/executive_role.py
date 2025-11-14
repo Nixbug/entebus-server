@@ -110,7 +110,6 @@ async def create_role(
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.UnknownValue(ExecutiveRole.id),
-            exceptions.InvalidNullValue(ExecutiveRole.name),
         ]
     ),
 )
