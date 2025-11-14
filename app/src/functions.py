@@ -347,20 +347,18 @@ def apply_client_data_filters(
     return query
 
 
-def update_if_changed(target_obj: Any, source_obj: dict, fields: List[str]) -> None:
+def update_if_changed(target_obj: Any, source_obj: dict) -> None:
     """
     Update attributes on a target object based on values from a source object.
 
     Args:
         target_obj (Any): The model instance to be updated.
         source_obj (dict): A dictionary containing new values.
-        fields (List[str]): The list of field names to update.
 
     Returns:
         None
     """
-    for field in fields:
-        new_value = source_obj[field]
+    for field, new_value in source_obj.items():
         old_value = getattr(target_obj, field, None)
         if new_value != old_value:
             setattr(target_obj, field, new_value)

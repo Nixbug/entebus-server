@@ -136,7 +136,7 @@ async def update_role(
         if not role:
             raise exceptions.UnknownValue(ExecutiveRole.id)
         update_data = form_param.model_dump(exclude_unset=True)
-        update_if_changed(role, update_data, list(update_data.keys()))
+        update_if_changed(role, update_data)
         have_updates = session.is_modified(role)
         if have_updates:
             session.commit()
