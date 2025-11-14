@@ -14,12 +14,7 @@ from logging import getLogger
 from fastapi import status, HTTPException
 from sqlalchemy import Column
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
-from psycopg2.errorcodes import (
-    UNIQUE_VIOLATION,
-    FOREIGN_KEY_VIOLATION,
-    NOT_NULL_VIOLATION,
-    CHECK_VIOLATION,
-)
+from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
 from pydantic import ValidationError
 from redis.exceptions import RedisError
 from requests.exceptions import ConnectionError, Timeout
@@ -34,20 +29,14 @@ def format_integrity_error(e: Exception) -> str:
     """
     if isinstance(e, IntegrityError) and hasattr(e.orig, "diag") and e.orig.diag:
         message = getattr(e.orig.diag, "message_detail", None)
-        constraint_name = getattr(e.orig.diag, "constraint_name", None)
-        column_name = getattr(e.orig.diag, "column_name", None)
         if not message:
             message = str(e.orig)
     else:
         message = str(getattr(e, "orig", e))
-    field_name = column_name or constraint_name
-    if field_name and ("null" in message or "_null" in (constraint_name or "")):
-        cleaned = f"The field '{field_name}' cannot be null"
-    else:
-        if "\n" in message:
-            message = message.split("\n")[0]
-        cleaned = message.translate({ord(i): None for i in '\\"\\.\\(\\)'})
-        cleaned = cleaned.replace("Key ", "For ").replace("=", " value ")
+    if "\n" in message:
+        message = message.split("\n")[0]
+    cleaned = message.translate({ord(i): None for i in '\\"\\.\\(\\)'})
+    cleaned = cleaned.replace("Key ", "For ").replace("=", " value ")
     return cleaned
 
 
@@ -96,10 +85,6 @@ def handle(e: Exception) -> None:
             raise UniqueViolation(format_integrity_error(e))
         elif sqlstate == FOREIGN_KEY_VIOLATION:
             raise ForeignKeyViolation(format_integrity_error(e))
-        elif sqlstate == NOT_NULL_VIOLATION:
-            raise NotNullViolation(format_integrity_error(e))
-        elif sqlstate == CHECK_VIOLATION:
-            raise CheckViolation(format_integrity_error(e))
         else:
             raise DatabaseError(detail=format_integrity_error(e))
     if isinstance(e, ProgrammingError):
@@ -193,30 +178,6 @@ class DatabaseError(APIException):
         super().__init__(detail=detail)
 
 
-class CheckViolation(APIException):
-    """
-    Raised when a check constraint is violated.
-    """
-
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-    headers = {"X-Error": "CheckViolation"}
-
-    def __init__(self, detail: str):
-        super().__init__(detail=detail)
-
-
-class NotNullViolation(APIException):
-    """
-    Raised when a null value is provided for a non-nullable field.
-    """
-
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-    headers = {"X-Error": "NotNullViolation"}
-
-    def __init__(self, detail: str):
-        super().__init__(detail=detail)
-
-
 class InvalidCredentials(APIException):
     """
     Raised when invalid username or password is provided.
@@ -278,3 +239,16 @@ class InvalidGrantType(APIException):
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "Invalid grant type"
     headers = {"X-Error": "InvalidGrantType"}
+
+
+class InvalidNullValue(APIException):
+    """
+    Raised when a null value is provided for a non-nullable field.
+    """
+
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    headers = {"X-Error": "InvalidNullValue"}
+
+    def __init__(self, column: Column):
+        detail = f"The field {column.name} cannot be null."
+        super().__init__(detail=detail)
