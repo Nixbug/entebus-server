@@ -143,7 +143,8 @@ async def update_role(
             session.refresh(role)
 
         role_data = jsonable_encoder(role)
-        log_event(token, request_info, role_data)
+        if have_updates:
+            log_event(token, request_info, role_data)
         return role_data
     except Exception as e:
         exceptions.handle(e)
