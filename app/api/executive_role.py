@@ -7,8 +7,7 @@ input validation and structured output.
 """
 
 from datetime import datetime
-from typing import Optional
-from fastapi import APIRouter, Body, Response, status, Depends
+from fastapi import APIRouter, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
@@ -38,22 +37,22 @@ class ExecutiveRoleSchema(BaseModel):
     name: str
     permissions: PermissionSchema
     created_on: datetime
-    updated_on: Optional[datetime]
+    updated_on: datetime | None
 
 
 ## Input Forms
 class CreateForm(BaseModel):
     """Form data for creating a new executive role."""
 
-    name: str = Field(Body(min_length=1, max_length=32, pattern=NAME_PATTERN))
+    name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN)
     permissions: PermissionSchema
 
 
 class UpdateForm(BaseModel):
     """Form data for updating an executive role."""
 
-    name: str | None = Field(None, min_length=1, max_length=32, pattern=NAME_PATTERN)
-    permissions: PermissionSchema | None = Field(None)
+    name: str = Field(default=None, min_length=1, max_length=32, pattern=NAME_PATTERN)
+    permissions: PermissionSchema = Field(default=None)
 
 
 # ---------------------------------------------------------------------------
@@ -69,7 +68,7 @@ class UpdateForm(BaseModel):
     ),
 )
 async def create_role(
-    form_param: CreateForm = Depends(),
+    form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
