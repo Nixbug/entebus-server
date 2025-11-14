@@ -186,8 +186,6 @@ async def fetch_role(
         verify_token(session, ExecutiveToken, access_token)
 
         query = session.query(ExecutiveRole)
-        if query_params.name is not None:
-            query = query.filter(ExecutiveRole.name.ilike(f"%{query_params.name}%"))
 
         # Generalized filters
         query = apply_id_filters(query, ExecutiveRole, query_params)
