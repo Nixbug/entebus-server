@@ -345,3 +345,25 @@ def apply_client_data_filters(
             model_cls.client_details.ilike(f"%{params.client_details}%")
         )
     return query
+
+
+def apply_name_filters(
+    query: Query, model_cls: Type[ORMbase], params: BaseModel
+) -> Query:
+    """
+    Apply name filters to a SQLAlchemy query.
+
+    This function filters records based on name.
+    The filters are applied only if the corresponding parameter values are provided.
+
+    Args:
+        query (Query): Active SQLAlchemy query object.
+        model_cls (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        params (BaseModel): Pydantic model instance.
+
+    Returns:
+        Query: Updated SQLAlchemy query with applied filters.
+    """
+    if params.name is not None:
+        query = query.filter(model_cls.name.ilike(f"%{params.name}%"))
+    return query

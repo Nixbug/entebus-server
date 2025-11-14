@@ -7,13 +7,22 @@ input validation and structured output.
 """
 
 from datetime import datetime
+from enum import StrEnum
 from typing import Optional
-from fastapi import APIRouter, Body, Response, status, Depends
+from fastapi import APIRouter, Body, Query, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
 from app.api.bearer import oauth2_executive
 from app.src.db import ExecutiveRole, ExecutiveToken, SessionLocal
+from app.src.enums import OrderIn
+from app.src.filters import (
+    CreatedOnFilter,
+    IDFilter,
+    PaginationFilter,
+    UpdatedOnFilter,
+    NameFilter,
+)
 from app.src.permissions.executive import PermissionSchema, PermissionPath
 from app.src import exceptions
 from app.src.regex import NAME_PATTERN
@@ -21,6 +30,11 @@ from app.src.urls import URL_EXECUTIVE_ROLE
 from app.src.openobserve import log_event
 from app.src.validators import verify_permission, verify_token
 from app.src.functions import (
+    apply_created_on_filters,
+    apply_id_filters,
+    apply_updated_on_filters,
+    apply_name_filters,
+    enum_str,
     fuse_exception_responses,
     get_request_info,
     get_executive_roles,
@@ -46,6 +60,26 @@ class CreateForm(BaseModel):
 
     name: str = Field(Body(min_length=1, max_length=32, pattern=NAME_PATTERN))
     permissions: PermissionSchema
+
+
+## Query Parameters
+class OrderBy(StrEnum):
+    """Enum for ordering results."""
+
+    ID = "id"
+    CREATED_ON = "created_on"
+    UPDATED_ON = "updated_on"
+
+
+class QueryParams(
+    UpdatedOnFilter, CreatedOnFilter, NameFilter, IDFilter, PaginationFilter
+):
+    """Query parameters for fetching executive roles."""
+
+    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
+    order_in: OrderIn = Field(
+        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -126,6 +160,51 @@ async def delete_role(
             log_event(token, request_info, jsonable_encoder(role))
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.get(
+    URL_EXECUTIVE_ROLE,
+    tags=["Role"],
+    response_model=list[ExecutiveRoleSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+)
+async def fetch_role(
+    query_params: QueryParams = Depends(),
+    access_token=Depends(oauth2_executive),
+):
+    """
+    **Fetch executive roles.**
+
+    - Requires a valid access token for authentication.
+    """
+    session = SessionLocal()
+    try:
+        verify_token(session, ExecutiveToken, access_token)
+
+        query = session.query(ExecutiveRole)
+
+        # Generalized filters
+        query = apply_id_filters(query, ExecutiveRole, query_params)
+        query = apply_created_on_filters(query, ExecutiveRole, query_params)
+        query = apply_updated_on_filters(query, ExecutiveRole, query_params)
+        query = apply_name_filters(query, ExecutiveRole, query_params)
+
+        # Ordering and pagination
+        ordering_attr = getattr(ExecutiveRole, query_params.order_by.value)
+        ordering_func = (
+            ordering_attr.asc
+            if query_params.order_in == OrderIn.ASCENDING
+            else ordering_attr.desc
+        )
+        query = query.order_by(ordering_func())
+        query = query.offset(query_params.offset).limit(query_params.limit)
+
+        roles = query.all()
+        return roles
     except Exception as e:
         exceptions.handle(e)
     finally:
