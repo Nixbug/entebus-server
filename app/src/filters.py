@@ -53,3 +53,9 @@ class ClientDataFilter(BaseModel):
         Query(default=None, description=enum_str(PlatformType))
     )
     client_details: str | None = Field(Query(default=None))
+
+
+class NameFilter(BaseModel):
+    """Query parameters for name."""
+
+    name: str | None = Field(Query(default=None))
