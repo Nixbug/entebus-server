@@ -8,8 +8,7 @@ input validation and structured output.
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Optional
-from fastapi import APIRouter, Body, Query, Response, status, Depends
+from fastapi import APIRouter, Query, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
@@ -38,6 +37,7 @@ from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
     get_executive_roles,
+    update_if_changed,
 )
 
 route_executive = APIRouter()
@@ -51,15 +51,22 @@ class ExecutiveRoleSchema(BaseModel):
     name: str
     permissions: PermissionSchema
     created_on: datetime
-    updated_on: Optional[datetime]
+    updated_on: datetime | None
 
 
 ## Input Forms
 class CreateForm(BaseModel):
     """Form data for creating a new executive role."""
 
-    name: str = Field(Body(min_length=1, max_length=32, pattern=NAME_PATTERN))
+    name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN)
     permissions: PermissionSchema
+
+
+class UpdateForm(BaseModel):
+    """Form data for updating an executive role."""
+
+    name: str = Field(default=None, min_length=1, max_length=32, pattern=NAME_PATTERN)
+    permissions: PermissionSchema = Field(default=None)
 
 
 ## Query Parameters
@@ -95,7 +102,7 @@ class QueryParams(
     ),
 )
 async def create_role(
-    form_param: CreateForm = Depends(),
+    form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
@@ -120,6 +127,59 @@ async def create_role(
 
         role_data = jsonable_encoder(role)
         log_event(token, request_info, role_data)
+        return role_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.patch(
+    URL_EXECUTIVE_ROLE + "/{id}",
+    tags=["Role"],
+    response_model=ExecutiveRoleSchema,
+    status_code=status.HTTP_200_OK,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(ExecutiveRole.id),
+        ]
+    ),
+)
+async def update_role(
+    id: int,
+    form_param: UpdateForm,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    """
+    **Update an existing executive role.**
+
+    - Requires a valid access token.
+    - Logged-in executive must have `executive.role.update` permission.
+    - Duplicate names are not allowed.
+    - Empty PATCH requests are allowed and will result in no changes.
+    """
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE_ROLE)
+
+        role = session.query(ExecutiveRole).filter(ExecutiveRole.id == id).first()
+        if not role:
+            raise exceptions.UnknownValue(ExecutiveRole.id)
+        update_data = form_param.model_dump(exclude_unset=True)
+        update_if_changed(role, update_data)
+        have_updates = session.is_modified(role)
+        if have_updates:
+            session.commit()
+            session.refresh(role)
+
+        role_data = jsonable_encoder(role)
+        if have_updates:
+            log_event(token, request_info, role_data)
         return role_data
     except Exception as e:
         exceptions.handle(e)
