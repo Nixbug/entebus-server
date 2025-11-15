@@ -5,12 +5,14 @@ VALID_EXECUTIVE_CREDENTIALS = {
     "admin": {
         "username": "admin",
         "password": "password",
+        "client_details": "client_details",
         "platform_type": PlatformType.WEB,
         "grant_type": GrantType.PASSWORD,
     },
     "guest": {
         "username": "guest",
         "password": "password",
+        "client_details": "client_details",
         "platform_type": PlatformType.WEB,
         "grant_type": GrantType.PASSWORD,
     },
