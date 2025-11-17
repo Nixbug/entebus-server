@@ -367,3 +367,20 @@ def apply_name_filters(
     if params.name is not None:
         query = query.filter(model_cls.name.ilike(f"%{params.name}%"))
     return query
+
+
+def update_if_changed(target_obj: Any, source_obj: dict) -> None:
+    """
+    Update attributes on a target object based on values from a source object.
+
+    Args:
+        target_obj (Any): The model instance to be updated.
+        source_obj (dict): A dictionary containing new values.
+
+    Returns:
+        None
+    """
+    for field, new_value in source_obj.items():
+        old_value = getattr(target_obj, field, None)
+        if new_value != old_value:
+            setattr(target_obj, field, new_value)
