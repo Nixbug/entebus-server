@@ -134,13 +134,13 @@ def run_endpoint_test(base_url: str):
 
     # -------------------------------------------------------------
     print("CASE 15: Guest token rotation (simulate multiple logins)")
-    for i in range(MAX_EXECUTIVE_TOKENS + 1):
+    for _ in range(MAX_EXECUTIVE_TOKENS + 1):
         response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["guest"])
         assert response.status_code == 200
-    GUEST_HEADER = {"Authorization": f"Bearer {response.json()['access_token']}"}
+    GUEST_ACCESS = response.json()["access_token"]
+    GUEST_HEADER = {"Authorization": f"Bearer {GUEST_ACCESS}"}
     GUEST_EX_ID = response.json()["executive_id"]
     GUEST_ID = response.json()["id"]
-    GUEST_ACCESS = response.json()["access_token"]
     GUEST_REFRESH = response.json()["refresh_token"]
     response = requests.get(
         token_url, headers=GUEST_HEADER, params={"executive_id": GUEST_EX_ID}
