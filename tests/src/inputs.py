@@ -1,3 +1,7 @@
+"""
+This module provides input data for tests that are commonly used across FastAPI routes.
+"""
+
 from app.src.enums import GrantType, PlatformType
 
 

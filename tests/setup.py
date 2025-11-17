@@ -1,3 +1,9 @@
+"""
+Testing utilities.
+
+This module provides functions for running tests for the EnteBus API.
+"""
+
 import argparse
 
 from tests.api import executive_token, executive_role
