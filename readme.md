@@ -141,6 +141,9 @@ python -m app.setup delete_buckets
 
 # Initialize the server environment
 python3 -m app.setup initialize
+
+# To run the tests (Make sure the server is running)
+python3 -m tests.setup test_endpoints
 ```
 
 

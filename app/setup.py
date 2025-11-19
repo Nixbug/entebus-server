@@ -228,25 +228,27 @@ def initialize():
     session.close()
 
 
-# ---- Argparse setup ----
+# ---------------------------------------------------------------------------
+## Setup main entry point
+# ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(
         description="Database migration and management tool"
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # downgrade
-    p_downgrade = subparsers.add_parser("downgrade", help="Downgrade the schema")
-    p_downgrade.add_argument(
+    # Downgrade
+    downgrade_sp = subparsers.add_parser("downgrade", help="Downgrade the schema")
+    downgrade_sp.add_argument(
         "steps",
         nargs="?",
         default="-1",
         help="Number of steps to downgrade (default: -1)",
     )
 
-    # revise
-    p_revise = subparsers.add_parser("revise", help="Create a new migration revision")
-    p_revise.add_argument(
+    # Revise
+    revise_sp = subparsers.add_parser("revise", help="Create a new migration revision")
+    revise_sp.add_argument(
         "message", nargs="?", default="auto revise", help="Revision message"
     )
 
