@@ -45,7 +45,7 @@ def main():
     migration_sp.add_argument(
         "--base-url",
         type=str,
-        default="http://localhost:8000/api",
+        default="http://localhost:8000",
         help="Base URL for API endpoints",
     )
     args = parser.parse_args()

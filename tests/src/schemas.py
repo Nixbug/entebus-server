@@ -1,8 +1,7 @@
 """
 Pydantic schemas used across the EnteBus Tests.
 
-These models define the structure of data that would be reused in multiple tests
-that are reused in multiple endpoints.
+These models define the structure of data that is reused across multiple test endpoints.
 """
 
 from app.api.executive_token import ExecutiveTokenSchema
