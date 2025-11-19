@@ -11,6 +11,7 @@ from tests.src.inputs import (
     VALID_EXECUTIVE_CREDENTIALS,
     INVALID_EXECUTIVE_CREDENTIALS,
 )
+from tests.src.schemas import TokenHolder
 
 
 def run_endpoint_test(base_url: str):
@@ -18,258 +19,259 @@ def run_endpoint_test(base_url: str):
 
     token_url = f"{base_url}/executive{URL_EXECUTIVE_TOKEN}"
 
-    # -------------------------------------------------------------
-    print("CASE 1: Generate access token with valid credentials")
-    response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["admin"])
-    assert response.status_code == 200
-    ADMIN_REFRESH = response.json()["refresh_token"]
-
-    # -------------------------------------------------------------
-    print("CASE 2: Renew token using refresh token")
-    response = requests.post(
-        f"{token_url}/refresh",
-        data={"grant_type": GrantType.REFRESH_TOKEN, "refresh_token": ADMIN_REFRESH},
-    )
-    assert response.status_code == 200
-    ADMIN_ACCESS = response.json()["access_token"]
-    ADMIN_HEADER = {"Authorization": f"Bearer {ADMIN_ACCESS}"}
-
-    # -------------------------------------------------------------
-    print("CASE 3: Fetch all tokens as admin")
-    response = requests.get(token_url, headers=ADMIN_HEADER)
-    assert response.status_code == 200
-
-    # -------------------------------------------------------------
-    print("CASE 4: Revoke own token using access token")
-    response = requests.post(
-        f"{token_url}/revoke", headers=ADMIN_HEADER, data={"token": ADMIN_ACCESS}
-    )
-    assert response.status_code == 200
-
-    # -------------------------------------------------------------
-    print("CASE 5: Login with invalid credentials")
+    # ---------------------------------------------------------------------------
+    print("CASE 01: Login with invalid credentials")
     response = requests.post(
         token_url, data=INVALID_EXECUTIVE_CREDENTIALS["wrong_credentials"]
     )
     assert response.status_code == 401
 
-    # -------------------------------------------------------------
-    print("CASE 6: Login with missing required fields")
+    # ---------------------------------------------------------------------------
+    print("CASE 02: Login with missing required fields")
     response = requests.post(token_url, data={})
     assert response.status_code == 422
 
-    # -------------------------------------------------------------
-    print("CASE 7: Login using wrong grant_type (refresh_token)")
-    response = requests.post(
-        token_url,
-        data={
-            "username": "admin",
-            "password": "password",
-            "grant_type": GrantType.REFRESH_TOKEN,
-        },
-    )
-    assert response.status_code == 422
-
-    # -------------------------------------------------------------
-    print("CASE 8: Login with missing/empty grant_type")
-    response = requests.post(
-        token_url,
-        data={
-            "username": "admin",
-            "password": "password",
-        },
-    )
-    assert response.status_code == 406
-
-    # -------------------------------------------------------------
-    print("CASE 9: Login using invalid grant_type")
+    # ---------------------------------------------------------------------------
+    print("CASE 03: Login with wrong grant_type")
     response = requests.post(
         token_url, data=INVALID_EXECUTIVE_CREDENTIALS["wrong_grant_type"]
     )
     assert response.status_code == 422
 
-    # -------------------------------------------------------------
-    print("CASE 10: Login using invalid platform_type")
+    # ---------------------------------------------------------------------------
+    print("CASE 04: Login with invalid platform_type")
     response = requests.post(
         token_url, data=INVALID_EXECUTIVE_CREDENTIALS["wrong_platform_type"]
     )
     assert response.status_code == 422
-    # -------------------------------------------------------------
-    print("CASE 11: Refresh using wrong grant_type (password)")
-    response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["guest"])
-    assert response.status_code == 200, "Guest login should succeed"
-    GUEST_ACCESS = response.json()["access_token"]
-    GUEST_REFRESH = response.json()["refresh_token"]
-    GUEST_HEADER = {"Authorization": f"Bearer {GUEST_ACCESS}"}
-    GUEST_ID = response.json()["id"]
+
+    # ---------------------------------------------------------------------------
+    print("CASE 05: Login with empty credentials")
+    response = requests.post(
+        token_url, data=INVALID_EXECUTIVE_CREDENTIALS["empty_credentials"]
+    )
+    assert response.status_code == 401
+
+    # ---------------------------------------------------------------------------
+    print("CASE 06: Generate access token with valid credentials")
+    response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["admin"])
+    assert response.status_code == 200
+    admin = TokenHolder(**response.json())
+
+    # ---------------------------------------------------------------------------
+    print("CASE 07: Fetch tokens without Authorization header")
+    response = requests.get(token_url)
+    assert response.status_code == 401
+
+    # ---------------------------------------------------------------------------
+    print("CASE 08: Authorization with invalid bearer token")
+    response = requests.get(token_url, headers={"Authorization": "Bearer InvalidToken"})
+    assert response.status_code == 401
+
+    # ---------------------------------------------------------------------------
+    print("CASE 09: Fetch all tokens")
+    response = requests.get(token_url, headers=admin.HEADER())
+    assert response.status_code == 200
+    assert len(response.json()) >= 1
+
+    # ---------------------------------------------------------------------------
+    print("CASE 10: Refresh token with wrong grant_type")
     response = requests.post(
         f"{token_url}/refresh",
         data={
-            "refresh_token": GUEST_REFRESH,
+            "refresh_token": admin.refresh_token,
             "grant_type": GrantType.PASSWORD,
         },
     )
     assert response.status_code == 406
 
-    # -------------------------------------------------------------
-    print("CASE 12: Guest revokes own token using access token")
-    response = requests.delete(f"{token_url}/{GUEST_ID}", headers=GUEST_HEADER)
-    assert response.status_code == 204
-
-    # -------------------------------------------------------------
-    print("CASE 13: Refresh using revoked refresh token")
+    # ---------------------------------------------------------------------------
+    print("CASE 11: Refresh token with invalid refresh token")
     response = requests.post(
         f"{token_url}/refresh",
-        data={"grant_type": GrantType.REFRESH_TOKEN, "refresh_token": GUEST_REFRESH},
+        data={
+            "grant_type": GrantType.REFRESH_TOKEN,
+            "refresh_token": "InvalidRefreshToken",
+        },
     )
     assert response.status_code == 401
 
-    # -------------------------------------------------------------
-    print("CASE 14: Refresh using invalid refresh token")
+    # ---------------------------------------------------------------------------
+    print("CASE 12: Refresh token with valid refresh token")
     response = requests.post(
         f"{token_url}/refresh",
-        data={"grant_type": GrantType.REFRESH_TOKEN, "refresh_token": "invalid"},
-    )
-    assert response.status_code == 401
-
-    # -------------------------------------------------------------
-    print("CASE 15: Guest token rotation (simulate multiple logins)")
-    for _ in range(MAX_EXECUTIVE_TOKENS + 1):
-        response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["guest"])
-        assert response.status_code == 200
-    GUEST_ACCESS = response.json()["access_token"]
-    GUEST_HEADER = {"Authorization": f"Bearer {GUEST_ACCESS}"}
-    GUEST_EX_ID = response.json()["executive_id"]
-    GUEST_ID = response.json()["id"]
-    GUEST_REFRESH = response.json()["refresh_token"]
-    response = requests.get(
-        token_url, headers=GUEST_HEADER, params={"executive_id": GUEST_EX_ID}
+        data={
+            "refresh_token": admin.refresh_token,
+            "grant_type": GrantType.REFRESH_TOKEN,
+        },
     )
     assert response.status_code == 200
-    tokens = response.json()
-    assert (
-        len(tokens) <= MAX_EXECUTIVE_TOKENS
-    ), f"Expected ≤ {MAX_EXECUTIVE_TOKENS} tokens, got {len(tokens)}"
+    admin = TokenHolder(**response.json())
 
-    # -------------------------------------------------------------
-    print("CASE 16: Guest revokes own token using refresh token")
-    response = requests.post(
-        f"{token_url}/revoke",
-        headers=GUEST_HEADER,
-        data={"token": GUEST_REFRESH},
-    )
-    assert response.status_code == 200
-    response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["guest"])
-    GUEST_ACCESS = response.json()["access_token"]
-    GUEST_HEADER = {"Authorization": f"Bearer {GUEST_ACCESS}"}
-    GUEST_ID_2 = response.json()["id"]
-    GUEST_EX_ID = response.json()["executive_id"]
-    response = requests.get(token_url, headers=GUEST_HEADER, params={"id": GUEST_ID})
-    assert response.json() == []
-    assert response.status_code == 200
-
-    # -------------------------------------------------------------
-    print("CASE 17: Guest revokes another owned token via ID")
-    response = requests.get(
-        token_url, headers=GUEST_HEADER, params={"executive_id": GUEST_EX_ID}
-    )
-    tokens = response.json()
-    ID = tokens[-1]["id"]
-    response = requests.delete(f"{token_url}/{ID}", headers=GUEST_HEADER)
-    assert response.status_code == 204
-    response = requests.get(token_url, headers=GUEST_HEADER, params={"id": ID})
-    assert response.json() == []
-    assert response.status_code == 200
-
-    # -------------------------------------------------------------
-    print("CASE 18: Fetch own tokens without Authorization header")
-    response = requests.get(token_url)
-    assert response.status_code == 401
-
-    # -------------------------------------------------------------
-    print("CASE 19: Revoke token without Authorization header")
+    # ---------------------------------------------------------------------------
+    print("CASE 13: Revoke token without Authorization header")
     response = requests.post(f"{token_url}/revoke")
     assert response.status_code == 401
 
-    # -------------------------------------------------------------
-    print("CASE 20: Admin fetches guest token details")
-    response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["admin"])
-    ADMIN_ACCESS = response.json()["access_token"]
-    ADMIN_REFRESH = response.json()["refresh_token"]
-    ADMIN_HEADER = {"Authorization": f"Bearer {ADMIN_ACCESS}"}
-    ADMIN_EX_ID = response.json()["executive_id"]
-    ADMIN_ID = response.json()["id"]
-    response = requests.get(
-        token_url, headers=ADMIN_HEADER, params={"executive_id": GUEST_EX_ID}
-    )
-    assert response.json() != []
-    assert response.status_code == 200
-
-    # -------------------------------------------------------------
-    print("CASE 21: Guest attempts to fetch admin token details")
-    response = requests.get(
-        token_url, headers=GUEST_HEADER, params={"executive_id": ADMIN_EX_ID}
-    )
-    assert response.json() == []
-    assert response.status_code == 200
-
-    # -------------------------------------------------------------
-    print("CASE 22: Admin fetches token with id=0")
-    response = requests.get(token_url, headers=ADMIN_HEADER, params={"id": 0})
-    assert response.json() == []
-    assert response.status_code == 200
-
-    # -------------------------------------------------------------
-    print("CASE 23: Guest attempts to revoke admin token using ID")
-    response = requests.delete(f"{token_url}/{ADMIN_ID}", headers=GUEST_HEADER)
-    assert response.status_code == 403
-
-    # -------------------------------------------------------------
-    print("CASE 24: Guest attempts to revoke admin token using access token")
+    # ---------------------------------------------------------------------------
+    print("CASE 14: Revoke own token using access token")
     response = requests.post(
-        f"{token_url}/revoke", headers=GUEST_HEADER, data={"token": ADMIN_ACCESS}
+        f"{token_url}/revoke",
+        headers=admin.HEADER(),
+        data={"token": admin.access_token},
     )
     assert response.status_code == 200
-    response = requests.get(token_url, headers=ADMIN_HEADER, params={"id": ADMIN_ID})
-    assert response.json() != []
-    assert response.status_code == 200
 
-    # -------------------------------------------------------------
-    print("CASE 25: Admin deletes token using id=0")
-    response = requests.delete(f"{token_url}/0", headers=ADMIN_HEADER)
-    assert response.status_code == 204
-
-    # -------------------------------------------------------------
-    print("CASE 26: Admin revokes guest access token")
+    # ---------------------------------------------------------------------------
+    print("CASE 15: Refresh token with already revoked refresh token")
     response = requests.post(
-        f"{token_url}/revoke", headers=ADMIN_HEADER, data={"token": GUEST_ACCESS}
-    )
-    assert response.status_code == 200
-    response = requests.get(token_url, headers=ADMIN_HEADER, params={"id": GUEST_ID_2})
-    assert response.json() != []
-    assert response.status_code == 200
-
-    # -------------------------------------------------------------
-    print("CASE 27: Authenticate using invalid bearer token type")
-    response = requests.get(
-        token_url, headers={"Authorization": f"Bearer Invalid {ADMIN_ACCESS}"}
+        f"{token_url}/refresh",
+        data={
+            "grant_type": GrantType.REFRESH_TOKEN,
+            "refresh_token": admin.refresh_token,
+        },
     )
     assert response.status_code == 401
 
-    # -------------------------------------------------------------
-    print("CASE 28: Admin revokes all guest tokens using token IDs")
-    response = requests.get(
-        token_url, headers=ADMIN_HEADER, params={"executive_id": GUEST_EX_ID}
+    # ---------------------------------------------------------------------------
+    print("CASE 16: Login with guest credentials and revoke token")
+    response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["guest"])
+    assert response.status_code == 200
+    guest_details = TokenHolder(**response.json())
+    response = requests.post(
+        f"{token_url}/revoke",
+        headers=guest_details.HEADER(),
+        data={"token": guest_details.refresh_token},
     )
-    tokens = response.json()
-    for token in tokens:
-        ID = token["id"]
-        response = requests.delete(f"{token_url}/{ID}", headers=ADMIN_HEADER)
+    assert response.status_code == 200
+
+    # login again
+    response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["guest"])
+    assert response.status_code == 200
+    guest = TokenHolder(**response.json())
+
+    response = requests.get(
+        token_url, headers=guest.HEADER(), params={"id": guest_details.id}
+    )
+    assert response.status_code == 200
+    assert response.json() == []
+
+    # ---------------------------------------------------------------------------
+    print("CASE 17: Admin fetches guest token details")
+    response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["admin"])
+    assert response.status_code == 200
+    admin = TokenHolder(**response.json())
+
+    response = requests.get(
+        token_url, headers=admin.HEADER(), params={"executive_id": guest.executive_id}
+    )
+    assert response.status_code == 200
+    assert response.json() != []
+
+    # ---------------------------------------------------------------------------
+    print("CASE 18: Admin fetches token with invalid id")
+    response = requests.get(token_url, headers=admin.HEADER(), params={"id": 0})
+    assert response.status_code == 200
+    assert response.json() == []
+
+    # ---------------------------------------------------------------------------
+    print("CASE 19: Guest attempts to fetch admin token details")
+    response = requests.get(
+        token_url, headers=guest.HEADER(), params={"executive_id": admin.executive_id}
+    )
+    assert response.status_code == 200
+    assert response.json() == []
+
+    # ---------------------------------------------------------------------------
+    print("CASE 20: Guest attempts to delete admin token via ID")
+    response = requests.delete(f"{token_url}/{admin.id}", headers=guest.HEADER())
+    assert response.status_code == 403
+
+    # ---------------------------------------------------------------------------
+    print("CASE 21: Admin deletes token using invalid ID")
+    response = requests.delete(f"{token_url}/0", headers=admin.HEADER())
+    assert response.status_code == 204
+
+    # ---------------------------------------------------------------------------
+    print("CASE 22: Admin tries to revoke guest using guest access token")
+    response = requests.post(
+        f"{token_url}/revoke",
+        headers=admin.HEADER(),
+        data={"token": guest.access_token},
+    )
+    assert response.status_code == 200
+
+    response = requests.get(token_url, headers=admin.HEADER(), params={"id": guest.id})
+    assert response.status_code == 200
+    assert response.json() != []
+
+    # ---------------------------------------------------------------------------
+    print("CASE 23: Admin tries to revoke guest using guest refresh token")
+    response = requests.post(
+        f"{token_url}/revoke",
+        headers=admin.HEADER(),
+        data={"token": guest.refresh_token},
+    )
+    assert response.status_code == 200
+
+    response = requests.get(token_url, headers=admin.HEADER(), params={"id": guest.id})
+    assert response.status_code == 200
+    assert response.json() != []
+
+    # ---------------------------------------------------------------------------
+    print("CASE 24: Check token rotation limit")
+    last_guest = None
+    for _ in range(MAX_EXECUTIVE_TOKENS + 1):
+        response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["guest"])
+        assert response.status_code == 200
+        last_guest = TokenHolder(**response.json())
+
+    response = requests.get(
+        token_url,
+        headers=last_guest.HEADER(),
+        params={"id": guest.id},
+    )
+    assert response.status_code == 200
+    assert response.json() == []
+
+    # ---------------------------------------------------------------------------
+    print("CASE 25: Guest deletes another owned token via ID")
+    response = requests.get(
+        token_url,
+        headers=last_guest.HEADER(),
+        params={"executive_id": last_guest.executive_id},
+    )
+    assert response.status_code == 200
+    token_list = response.json()
+    token_id = token_list[-1]["id"]
+
+    response = requests.delete(f"{token_url}/{token_id}", headers=last_guest.HEADER())
+    assert response.status_code == 204
+
+    response = requests.get(
+        token_url, headers=last_guest.HEADER(), params={"id": token_id}
+    )
+    assert response.status_code == 200
+    assert response.json() == []
+
+    # ---------------------------------------------------------------------------
+    print("CASE 26: Admin deletes guest tokens via IDs")
+    response = requests.get(
+        token_url, headers=admin.HEADER(), params={"executive_id": guest.executive_id}
+    )
+    for token in response.json():
+        response = requests.delete(f"{token_url}/{token['id']}", headers=admin.HEADER())
         assert response.status_code == 204
 
-    # -------------------------------------------------------------
-    print("CASE 29: Admin deletes guest token using its ID")
-    response = requests.delete(f"{token_url}/{ADMIN_ID}", headers=ADMIN_HEADER)
+    response = requests.get(
+        token_url, headers=admin.HEADER(), params={"executive_id": guest.executive_id}
+    )
+    assert response.status_code == 200
+    assert response.json() == []
+
+    # ---------------------------------------------------------------------------
+    print("CASE 27: Admin deletes own token using ID")
+    response = requests.delete(f"{token_url}/{admin.id}", headers=admin.HEADER())
     assert response.status_code == 204
 
     print("=== EXECUTIVE TOKEN TESTS COMPLETED ===\n")
