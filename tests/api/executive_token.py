@@ -53,14 +53,13 @@ def run_endpoint_test(base_url: str):
     assert response.status_code == 401
 
     # ---------------------------------------------------------------------------
-    print("CASE 06: Generate access token with valid credentials")
-    response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["admin"])
-    assert response.status_code == 200
-    admin = TokenHolder(**response.json())
+    print("CASE 06: Fetch tokens without Authorization header")
+    response = requests.get(token_url)
+    assert response.status_code == 401
 
     # ---------------------------------------------------------------------------
-    print("CASE 07: Fetch tokens without Authorization header")
-    response = requests.get(token_url)
+    print("CASE 07: Revoke token without Authorization header")
+    response = requests.post(f"{token_url}/revoke")
     assert response.status_code == 401
 
     # ---------------------------------------------------------------------------
@@ -69,13 +68,19 @@ def run_endpoint_test(base_url: str):
     assert response.status_code == 401
 
     # ---------------------------------------------------------------------------
-    print("CASE 09: Fetch all tokens")
+    print("CASE 09: Generate access token with valid credentials")
+    response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["admin"])
+    assert response.status_code == 200
+    admin = TokenHolder(**response.json())
+
+    # ---------------------------------------------------------------------------
+    print("CASE 10: Fetch all tokens")
     response = requests.get(token_url, headers=admin.HEADER())
     assert response.status_code == 200
     assert len(response.json()) >= 1
 
     # ---------------------------------------------------------------------------
-    print("CASE 10: Refresh token with wrong grant_type")
+    print("CASE 11: Refresh token with wrong grant_type")
     response = requests.post(
         f"{token_url}/refresh",
         data={
@@ -86,7 +91,7 @@ def run_endpoint_test(base_url: str):
     assert response.status_code == 406
 
     # ---------------------------------------------------------------------------
-    print("CASE 11: Refresh token with invalid refresh token")
+    print("CASE 12: Refresh token with invalid refresh token")
     response = requests.post(
         f"{token_url}/refresh",
         data={
@@ -97,7 +102,7 @@ def run_endpoint_test(base_url: str):
     assert response.status_code == 401
 
     # ---------------------------------------------------------------------------
-    print("CASE 12: Refresh token with valid refresh token")
+    print("CASE 13: Refresh token with valid refresh token")
     response = requests.post(
         f"{token_url}/refresh",
         data={
@@ -109,12 +114,7 @@ def run_endpoint_test(base_url: str):
     admin = TokenHolder(**response.json())
 
     # ---------------------------------------------------------------------------
-    print("CASE 13: Revoke token without Authorization header")
-    response = requests.post(f"{token_url}/revoke")
-    assert response.status_code == 401
-
-    # ---------------------------------------------------------------------------
-    print("CASE 14: Revoke own token using access token")
+    print("CASE 14: Revoke own token with access token")
     response = requests.post(
         f"{token_url}/revoke",
         headers=admin.HEADER(),
@@ -134,30 +134,31 @@ def run_endpoint_test(base_url: str):
     assert response.status_code == 401
 
     # ---------------------------------------------------------------------------
-    print("CASE 16: Login with guest credentials and revoke token")
+    print("CASE 16: Login with guest credentials and revoke token with refresh token")
     response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["guest"])
     assert response.status_code == 200
-    guest_details = TokenHolder(**response.json())
+    guest_token = TokenHolder(**response.json())
     response = requests.post(
         f"{token_url}/revoke",
-        headers=guest_details.HEADER(),
-        data={"token": guest_details.refresh_token},
+        headers=guest_token.HEADER(),
+        data={"token": guest_token.refresh_token},
     )
     assert response.status_code == 200
 
-    # login again
+    # ---------------------------------------------------------------------------
+    print("CASE 17: Login with guest credentials and fetch revoked token details")
     response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["guest"])
     assert response.status_code == 200
     guest = TokenHolder(**response.json())
 
     response = requests.get(
-        token_url, headers=guest.HEADER(), params={"id": guest_details.id}
+        token_url, headers=guest.HEADER(), params={"id": guest_token.id}
     )
     assert response.status_code == 200
     assert response.json() == []
 
     # ---------------------------------------------------------------------------
-    print("CASE 17: Admin fetches guest token details")
+    print("CASE 18: Admin fetches guest token details")
     response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["admin"])
     assert response.status_code == 200
     admin = TokenHolder(**response.json())
@@ -169,13 +170,13 @@ def run_endpoint_test(base_url: str):
     assert response.json() != []
 
     # ---------------------------------------------------------------------------
-    print("CASE 18: Admin fetches token with invalid id")
+    print("CASE 19: Admin fetches token with invalid id")
     response = requests.get(token_url, headers=admin.HEADER(), params={"id": 0})
     assert response.status_code == 200
     assert response.json() == []
 
     # ---------------------------------------------------------------------------
-    print("CASE 19: Guest attempts to fetch admin token details")
+    print("CASE 20: Guest attempts to fetch admin token details")
     response = requests.get(
         token_url, headers=guest.HEADER(), params={"executive_id": admin.executive_id}
     )
@@ -183,17 +184,17 @@ def run_endpoint_test(base_url: str):
     assert response.json() == []
 
     # ---------------------------------------------------------------------------
-    print("CASE 20: Guest attempts to delete admin token via ID")
+    print("CASE 21: Guest attempts to delete admin token via id")
     response = requests.delete(f"{token_url}/{admin.id}", headers=guest.HEADER())
     assert response.status_code == 403
 
     # ---------------------------------------------------------------------------
-    print("CASE 21: Admin deletes token using invalid ID")
+    print("CASE 22: Admin deletes token using invalid id")
     response = requests.delete(f"{token_url}/0", headers=admin.HEADER())
     assert response.status_code == 204
 
     # ---------------------------------------------------------------------------
-    print("CASE 22: Admin tries to revoke guest using guest access token")
+    print("CASE 23: Admin tries to revoke guest using guest access token")
     response = requests.post(
         f"{token_url}/revoke",
         headers=admin.HEADER(),
@@ -206,7 +207,7 @@ def run_endpoint_test(base_url: str):
     assert response.json() != []
 
     # ---------------------------------------------------------------------------
-    print("CASE 23: Admin tries to revoke guest using guest refresh token")
+    print("CASE 24: Admin tries to revoke guest using guest refresh token")
     response = requests.post(
         f"{token_url}/revoke",
         headers=admin.HEADER(),
@@ -219,43 +220,45 @@ def run_endpoint_test(base_url: str):
     assert response.json() != []
 
     # ---------------------------------------------------------------------------
-    print("CASE 24: Check token rotation limit")
-    last_guest = None
+    print("CASE 25: Check token rotation limit")
+    guest_token = None
     for _ in range(MAX_EXECUTIVE_TOKENS + 1):
         response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["guest"])
         assert response.status_code == 200
-        last_guest = TokenHolder(**response.json())
+        guest_token = TokenHolder(**response.json())
 
     response = requests.get(
         token_url,
-        headers=last_guest.HEADER(),
+        headers=guest_token.HEADER(),
         params={"id": guest.id},
     )
     assert response.status_code == 200
     assert response.json() == []
 
     # ---------------------------------------------------------------------------
-    print("CASE 25: Guest deletes another owned token via ID")
+    print("CASE 26: Guest deletes another owned token via id")
     response = requests.get(
         token_url,
-        headers=last_guest.HEADER(),
-        params={"executive_id": last_guest.executive_id},
+        headers=guest_token.HEADER(),
+        params={"executive_id": guest_token.executive_id},
     )
     assert response.status_code == 200
     token_list = response.json()
-    token_id = token_list[-1]["id"]
+    guest_token_id = token_list[-1]["id"]
 
-    response = requests.delete(f"{token_url}/{token_id}", headers=last_guest.HEADER())
+    response = requests.delete(
+        f"{token_url}/{guest_token_id}", headers=guest_token.HEADER()
+    )
     assert response.status_code == 204
 
     response = requests.get(
-        token_url, headers=last_guest.HEADER(), params={"id": token_id}
+        token_url, headers=guest_token.HEADER(), params={"id": guest_token_id}
     )
     assert response.status_code == 200
     assert response.json() == []
 
     # ---------------------------------------------------------------------------
-    print("CASE 26: Admin deletes guest tokens via IDs")
+    print("CASE 27: Admin deletes guest tokens via id")
     response = requests.get(
         token_url, headers=admin.HEADER(), params={"executive_id": guest.executive_id}
     )
@@ -270,7 +273,7 @@ def run_endpoint_test(base_url: str):
     assert response.json() == []
 
     # ---------------------------------------------------------------------------
-    print("CASE 27: Admin deletes own token using ID")
+    print("CASE 28: Admin deletes own token using id")
     response = requests.delete(f"{token_url}/{admin.id}", headers=admin.HEADER())
     assert response.status_code == 204
 
