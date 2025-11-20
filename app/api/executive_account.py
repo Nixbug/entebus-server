@@ -13,7 +13,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from app.api.bearer import oauth2_executive
 from app.src.db import Executive, ExecutiveToken, SessionLocal
-from app.src.enums import GenderType
+from app.src.enums import AccountStatus, GenderType
 from app.src.permissions.executive import PermissionPath
 from app.src import argon2, exceptions
 from app.src.regex import NAME_PATTERN, PASSWORD_PATTERN, USERNAME_PATTERN
@@ -26,6 +26,7 @@ from app.src.functions import (
     get_request_info,
     get_executive_roles,
     account_to_json,
+    update_if_changed,
 )
 
 route_executive = APIRouter()
@@ -66,6 +67,26 @@ class CreateForm(BaseModel):
     email_id: EmailStr | None = Field(
         max_length=256, default=None, description="Email in RFC 5322 format"
     )
+
+
+class UpdateForm(BaseModel):
+    """Form data for updating an executive account."""
+
+    password: str = Field(
+        default=None, min_length=8, max_length=32, pattern=PASSWORD_PATTERN
+    )
+    gender: GenderType = Field(description=enum_str(GenderType), default=None)
+    full_name: str | None = Field(
+        min_length=1, max_length=32, default=None, pattern=NAME_PATTERN
+    )
+    designation: str | None = Field(min_length=1, max_length=32, default=None)
+    phone_number: PhoneNumber | None = Field(
+        max_length=32, default=None, description="Phone number in RFC3966 format"
+    )
+    email_id: EmailStr | None = Field(
+        max_length=256, default=None, description="Email in RFC 5322 format"
+    )
+    status: AccountStatus = Field(description=enum_str(AccountStatus), default=None)
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +133,69 @@ async def create_account(
         session.add(executive)
         session.commit()
         session.refresh(executive)
+
+        executive_data = account_to_json(executive)
+        log_event(token, request_info, executive_data)
+        return executive_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.patch(
+    URL_EXECUTIVE_ACCOUNT + "/{id}",
+    tags=["Account"],
+    response_model=ExecutiveSchema,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(Executive.id),
+        ]
+    ),
+)
+async def update_account(
+    id: int,
+    form_param: UpdateForm,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    """
+    **Update an existing executive account.**
+
+    - Requires a valid access token.
+    - Logged-in executive must have `executive.update` permission to update other executives.
+    - Executive can update their own account except status without permission.
+    - Empty PATCH requests are allowed and will result in no changes.
+    """
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+
+        executive = session.query(Executive).filter(Executive.id == id).first()
+        if executive is None:
+            raise exceptions.UnknownValue(Executive.id)
+        update_data = form_param.model_dump(exclude_unset=True)
+        is_self_update = executive.id == token.executive_id
+        if not is_self_update:
+            roles = get_executive_roles(session, token)
+            verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
+        if is_self_update and Executive.status.key in update_data:
+            raise exceptions.NoPermission()
+        # Remove all the tokens for a suspended executive
+        if form_param.status == AccountStatus.SUSPENDED:
+            session.query(ExecutiveToken).filter(
+                ExecutiveToken.executive_id == id
+            ).delete()
+        if Executive.password.key in update_data:
+            update_data[Executive.password.key] = argon2.make_password(
+                form_param.password
+            )
+        update_if_changed(executive, update_data)
+        if session.is_modified(executive):
+            session.commit()
+            session.refresh(executive)
 
         executive_data = account_to_json(executive)
         log_event(token, request_info, executive_data)
