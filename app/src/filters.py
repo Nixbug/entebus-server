@@ -59,3 +59,28 @@ class NameFilter(BaseModel):
     """Query parameters for name."""
 
     name: str | None = Field(Query(default=None))
+
+
+class AccountDataFilter(BaseModel):
+    """Query parameters for account data."""
+
+    username: str | None = Field(Query(default=None))
+    gender: int | None = Field(Query(default=None))
+    full_name: str | None = Field(Query(default=None))
+    email_id: str | None = Field(Query(default=None))
+    phone_number: str | None = Field(Query(default=None))
+
+
+class StatusFilter(BaseModel):
+    """Query parameters for status."""
+
+    # status_list: List[AccountStatus] | None = Field(
+    #     Query(default=None, description=enum_str(AccountStatus))
+    # )
+    status_list: List[int] | None = Field(Query(default=None))
+
+
+class SearchFilter(BaseModel):
+    """Query parameters for common search."""
+
+    search: str | None = Field(Query(default=None))
