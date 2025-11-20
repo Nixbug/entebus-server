@@ -1,9 +1,6 @@
 """
 Executive Account API Router for EnteBus.
 
-
-
-
 Provides endpoints for managing executive accounts, including creation,
 update, deletion, and retrieval. Uses Pydantic schemas for
 input validation and structured output.
@@ -11,10 +8,8 @@ input validation and structured output.
 
 from datetime import datetime
 from fastapi import APIRouter, status, Depends
-from fastapi.encoders import jsonable_encoder
 from pydantic_extra_types.phone_numbers import PhoneNumber
 from pydantic import BaseModel, EmailStr, Field
-
 
 from app.api.bearer import oauth2_executive
 from app.src.db import Executive, ExecutiveToken, SessionLocal
@@ -32,7 +27,6 @@ from app.src.functions import (
     get_executive_roles,
     account_to_json,
 )
-
 
 route_executive = APIRouter()
 
@@ -67,7 +61,7 @@ class CreateForm(BaseModel):
     )
     designation: str | None = Field(min_length=1, max_length=32, default=None)
     phone_number: PhoneNumber | None = Field(
-        max_length=32, default=None, description="Phone number in RFC3966 format"
+        max_length=32, default=None, description="Phone number in RFC 3966 format"
     )
     email_id: EmailStr | None = Field(
         max_length=256, default=None, description="Email in RFC 5322 format"
