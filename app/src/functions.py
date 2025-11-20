@@ -391,19 +391,14 @@ def update_if_changed(target_obj: Any, source_obj: dict) -> None:
 
 def account_to_json(
     account: Union[Executive, Operator, Vendor],
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
     Convert a model object into two JSON-compatible dicts.
 
     Args:
-        token (Union[Executive, Operator, Vendor]): Token model instance.
+        account (Union[Executive, Operator, Vendor]): Account model instance.
 
     Returns:
-        Tuple[Dict[str, Any], Dict[str, Any]]:
-            - account_log_data: same as account_data but with sensitive fields removed.
+        Dict[str, Any]: JSON-compatible dict representation of the account.
     """
-    account_data = jsonable_encoder(account)
-    account_log_data = account_data.copy()
-    for sensitive_field in "password":
-        account_log_data.pop(sensitive_field, None)
-    return account_log_data
+    return jsonable_encoder(account, exclude={"password"})
