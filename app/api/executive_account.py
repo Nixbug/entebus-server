@@ -97,10 +97,10 @@ async def create_account(
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.CREATE_EXECUTIVE)
 
-        form_param.password = argon2.make_password(form_param.password)
+        hashed_password = argon2.make_password(form_param.password)
         executive = Executive(
             username=form_param.username,
-            password=form_param.password,
+            password=hashed_password,
             gender=form_param.gender,
             full_name=form_param.full_name,
             designation=form_param.designation,
