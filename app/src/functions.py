@@ -374,7 +374,7 @@ def orm_to_json(
 
     Args:
         orm_object(Any): SQLAlchemy model instance
-        exclude(List[str]): list of fields to exclude, defaults to []
+        exclude(List[str]): list of fields to exclude, defaults to None
 
     Returns:
         Tuple[Dict[str, Any], Dict[str, Any]]:
