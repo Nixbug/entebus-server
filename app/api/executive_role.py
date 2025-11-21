@@ -9,7 +9,6 @@ input validation and structured output.
 from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Query, Response, status, Depends
-from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
 from app.api.bearer import oauth2_executive
@@ -37,6 +36,7 @@ from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
     get_executive_roles,
+    orm_to_json,
     update_if_changed,
 )
 
@@ -125,7 +125,7 @@ async def create_role(
         session.commit()
         session.refresh(role)
 
-        role_data = jsonable_encoder(role)
+        _, role_data = orm_to_json(role)
         log_event(token, request_info, role_data)
         return role_data
     except Exception as e:
@@ -177,7 +177,7 @@ async def update_role(
             session.commit()
             session.refresh(role)
 
-        role_data = jsonable_encoder(role)
+        _, role_data = orm_to_json(role)
         if have_updates:
             log_event(token, request_info, role_data)
         return role_data
@@ -217,7 +217,8 @@ async def delete_role(
         if role is not None:
             session.delete(role)
             session.commit()
-            log_event(token, request_info, jsonable_encoder(role))
+            _, role_data = orm_to_json(role)
+            log_event(token, request_info, role_data)
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:

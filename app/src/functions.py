@@ -14,16 +14,13 @@ from sqlalchemy.orm.session import Session
 
 from app.src import schemas, exceptions
 from app.src.db import (
-    Executive,
     ExecutiveRole,
     ExecutiveRoleMap,
     ExecutiveToken,
     ORMbase,
-    Operator,
     OperatorRole,
     OperatorRoleMap,
     OperatorToken,
-    Vendor,
     VendorRole,
     VendorRoleMap,
     VendorToken,
@@ -139,27 +136,6 @@ def cleanup_old_tokens(
         token_to_delete = tokens.pop(0)
         session.delete(token_to_delete)
         session.flush()
-
-
-def token_to_json(
-    token: Union[ExecutiveToken, OperatorToken, VendorToken],
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """
-    Convert a token object into two JSON-compatible dicts.
-
-    Args:
-        token (Union[ExecutiveToken, OperatorToken, VendorToken]): Token model instance.
-
-    Returns:
-        Tuple[Dict[str, Any], Dict[str, Any]]:
-            - token_data: the full JSON-encoded token.
-            - token_log_data: same as token_data but with sensitive fields removed.
-    """
-    token_data = jsonable_encoder(token)
-    token_log_data = token_data.copy()
-    for sensitive_field in ("access_token", "refresh_token"):
-        token_log_data.pop(sensitive_field, None)
-    return token_data, token_log_data
 
 
 def get_executive_roles(
@@ -389,16 +365,26 @@ def update_if_changed(target_obj: Any, source_obj: dict) -> None:
             setattr(target_obj, field, new_value)
 
 
-def account_to_json(
-    account: Union[Executive, Operator, Vendor],
-) -> Dict[str, Any]:
+def orm_to_json(
+    orm_object: Any,
+    exclude: List[str] = None,
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
-    Convert a model object into two JSON-compatible dicts.
+    Convert a SQLAlchemy model object into a JSON-compatible dicts.
 
     Args:
-        account (Union[Executive, Operator, Vendor]): Account model instance.
+        orm_object: SQLAlchemy model instance
+        exclude: list of fields to exclude
 
     Returns:
-        Dict[str, Any]: JSON-compatible dict representation of the account.
+        Tuple[Dict[str, Any], Dict[str, Any]]:
+            - data: the full JSON data.
+            - stripped: same as full data but with sensitive fields removed.
     """
-    return jsonable_encoder(account, exclude={"password"})
+    exclude = set(exclude or [])
+    data = jsonable_encoder(orm_object)
+    stripped = {}
+    for key, value in data.items():
+        if key not in exclude:
+            stripped[key] = value
+    return data, stripped

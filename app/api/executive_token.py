@@ -41,7 +41,7 @@ from app.src.functions import (
     enum_str,
     fuse_exception_responses,
     get_request_info,
-    token_to_json,
+    orm_to_json,
     get_executive_roles,
 )
 
@@ -163,7 +163,9 @@ async def create_token(
         session.commit()
         session.refresh(token)
 
-        token_data, token_log_data = token_to_json(token)
+        token_data, token_log_data = orm_to_json(
+            token, ["access_token", "refresh_token"]
+        )
         log_event(token, request_info, token_log_data)
         return token_data
     except Exception as e:
@@ -222,7 +224,9 @@ async def refresh_token(
         session.commit()
         session.refresh(refresh_token)
 
-        token_data, token_log_data = token_to_json(refresh_token)
+        token_data, token_log_data = orm_to_json(
+            refresh_token, ["access_token", "refresh_token"]
+        )
         log_event(token, request_info, token_log_data)
         return token_data
     except Exception as e:
@@ -268,7 +272,9 @@ async def revoke_token(
             token_to_revoke.is_revoked = True
             session.commit()
             session.refresh(token_to_revoke)
-            _, token_log_data = token_to_json(token_to_revoke)
+            _, token_log_data = orm_to_json(
+                token_to_revoke, ["access_token", "refresh_token"]
+            )
             log_event(token, request_info, token_log_data)
 
         return Response(status_code=status.HTTP_200_OK)
@@ -324,7 +330,9 @@ async def delete_token(
         session.commit()
         session.refresh(token_to_delete)
 
-        _, token_log_data = token_to_json(token_to_delete)
+        _, token_log_data = orm_to_json(
+            token_to_delete, ["access_token", "refresh_token"]
+        )
         log_event(token, request_info, token_log_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:

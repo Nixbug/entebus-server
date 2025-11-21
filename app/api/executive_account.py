@@ -25,7 +25,7 @@ from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
     get_executive_roles,
-    account_to_json,
+    orm_to_json,
 )
 
 route_executive = APIRouter()
@@ -111,7 +111,7 @@ async def create_account(
         session.commit()
         session.refresh(executive)
 
-        executive_data = account_to_json(executive)
+        _, executive_data = orm_to_json(executive, ["password"])
         log_event(token, request_info, executive_data)
         return executive_data
     except Exception as e:
