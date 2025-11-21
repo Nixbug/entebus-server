@@ -367,14 +367,14 @@ def update_if_changed(target_obj: Any, source_obj: dict) -> None:
 
 def orm_to_json(
     orm_object: Any,
-    exclude: List[str] = None,
+    exclude: List[str] = [],
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
     Convert a SQLAlchemy model object into a JSON-compatible dicts.
 
     Args:
-        orm_object: SQLAlchemy model instance
-        exclude: list of fields to exclude
+        orm_object(Any): SQLAlchemy model instance
+        exclude(List[str]): list of fields to exclude, defaults to []
 
     Returns:
         Tuple[Dict[str, Any], Dict[str, Any]]:
