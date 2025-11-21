@@ -16,7 +16,7 @@ from app.src.db import Executive, ExecutiveToken, SessionLocal
 from app.src.enums import GenderType
 from app.src.permissions.executive import PermissionPath
 from app.src import argon2, exceptions
-from app.src.regex import NAME_PATTERN, PASSWORD_PATTERN, USERNAME_PATTERN
+from app.src.regex import PASSWORD_PATTERN, USERNAME_PATTERN
 from app.src.urls import URL_EXECUTIVE_ACCOUNT
 from app.src.openobserve import log_event
 from app.src.validators import verify_permission, verify_token
@@ -56,9 +56,7 @@ class CreateForm(BaseModel):
     gender: GenderType = Field(
         description=enum_str(GenderType), default=GenderType.OTHER
     )
-    full_name: str | None = Field(
-        min_length=1, max_length=32, default=None, pattern=NAME_PATTERN
-    )
+    full_name: str | None = Field(min_length=1, max_length=32, default=None)
     designation: str | None = Field(min_length=1, max_length=32, default=None)
     phone_number: PhoneNumber | None = Field(
         max_length=32, default=None, description="Phone number in RFC 3966 format"
