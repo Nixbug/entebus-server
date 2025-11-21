@@ -9,7 +9,7 @@ from typing import List
 from fastapi import Query
 from pydantic import BaseModel, Field
 
-from app.src.enums import AccountStatus, PlatformType
+from app.src.enums import PlatformType
 from app.src.functions import enum_str
 
 
@@ -69,14 +69,6 @@ class AccountDataFilter(BaseModel):
     full_name: str | None = Field(Query(default=None))
     email_id: str | None = Field(Query(default=None))
     phone_number: str | None = Field(Query(default=None))
-
-
-class StatusFilter(BaseModel):
-    """Query parameters for status."""
-
-    status_list: List[AccountStatus] | None = Field(
-        Query(default=None, description=enum_str(AccountStatus))
-    )
 
 
 class SearchFilter(BaseModel):

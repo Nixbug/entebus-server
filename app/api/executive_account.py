@@ -8,6 +8,7 @@ input validation and structured output.
 
 from datetime import datetime
 from enum import StrEnum
+from typing import List
 from fastapi import APIRouter, Query, status, Depends
 from pydantic_extra_types.phone_numbers import PhoneNumber
 from pydantic import BaseModel, EmailStr, Field
@@ -15,14 +16,13 @@ from sqlalchemy import String, or_
 
 from app.api.bearer import oauth2_executive
 from app.src.db import Executive, ExecutiveToken, SessionLocal
-from app.src.enums import GenderType, OrderIn
+from app.src.enums import AccountStatus, GenderType, OrderIn
 from app.src.filters import (
     AccountDataFilter,
     CreatedOnFilter,
     IDFilter,
     PaginationFilter,
     SearchFilter,
-    StatusFilter,
     UpdatedOnFilter,
 )
 from app.src.permissions.executive import PermissionPath
@@ -95,7 +95,6 @@ class OrderBy(StrEnum):
 
 class QueryParams(
     AccountDataFilter,
-    StatusFilter,
     UpdatedOnFilter,
     CreatedOnFilter,
     IDFilter,
@@ -105,6 +104,9 @@ class QueryParams(
     """Query parameters for fetching executive roles."""
 
     designation: str | None = Field(Query(default=None))
+    status_list: List[AccountStatus] | None = Field(
+        Query(default=None, description=enum_str(AccountStatus))
+    )
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
