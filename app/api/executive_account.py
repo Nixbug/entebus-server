@@ -11,7 +11,7 @@ from enum import StrEnum
 from fastapi import APIRouter, Query, status, Depends
 from pydantic_extra_types.phone_numbers import PhoneNumber
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import or_
+from sqlalchemy import String, or_
 
 from app.api.bearer import oauth2_executive
 from app.src.db import Executive, ExecutiveToken, SessionLocal
@@ -179,6 +179,7 @@ async def fetch_account(
     **Fetch executive account.**
 
     - Requires a valid access token for authentication.
+    - Common search supports searching by id, username, full_name, designation, phone_number, and email_id.
     """
     session = SessionLocal()
     try:
@@ -186,21 +187,22 @@ async def fetch_account(
 
         query = session.query(Executive)
 
-
-        if query_params.search is not None:
+        if query_params.designation is not None:
+            query = query.filter(
+                Executive.designation.ilike(f"%{query_params.designation}%")
+            )
+        # Common search
+        if query_params.search:
             search = f"%{query_params.search}%"
             query = query.filter(
                 or_(
+                    Executive.id.cast(String).ilike(search),
                     Executive.username.ilike(search),
                     Executive.full_name.ilike(search),
                     Executive.designation.ilike(search),
                     Executive.phone_number.ilike(search),
                     Executive.email_id.ilike(search),
                 )
-            )
-        if query_params.designation is not None:
-            query = query.filter(
-                Executive.designation.ilike(f"%{query_params.designation}%")
             )
         # Generalized filters
         query = apply_id_filters(query, Executive, query_params)
