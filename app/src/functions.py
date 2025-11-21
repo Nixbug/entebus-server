@@ -370,7 +370,7 @@ def orm_to_json(
     exclude: List[str] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
-    Convert a SQLAlchemy model object into a JSON-compatible dicts.
+    Convert a SQLAlchemy model object into JSON-compatible dicts.
 
     Args:
         orm_object(Any): SQLAlchemy model instance
