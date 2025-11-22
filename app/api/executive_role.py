@@ -125,7 +125,7 @@ async def create_role(
         session.commit()
         session.refresh(role)
 
-        _, role_data = orm_to_json(role)
+        role_data, _ = orm_to_json(role)
         log_event(token, request_info, role_data)
         return role_data
     except Exception as e:
@@ -177,7 +177,7 @@ async def update_role(
             session.commit()
             session.refresh(role)
 
-        _, role_data = orm_to_json(role)
+        role_data, _ = orm_to_json(role)
         if have_updates:
             log_event(token, request_info, role_data)
         return role_data
@@ -217,7 +217,7 @@ async def delete_role(
         if role is not None:
             session.delete(role)
             session.commit()
-            _, role_data = orm_to_json(role)
+            role_data, _ = orm_to_json(role)
             log_event(token, request_info, role_data)
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)
