@@ -111,7 +111,7 @@ async def create_account(
         session.commit()
         session.refresh(executive)
 
-        _, executive_data = orm_to_json(executive, ["password"])
+        _, executive_data = orm_to_json(executive, [Executive.password.key])
         log_event(token, request_info, executive_data)
         return executive_data
     except Exception as e:

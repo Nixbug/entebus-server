@@ -164,7 +164,7 @@ async def create_token(
         session.refresh(token)
 
         token_data, token_log_data = orm_to_json(
-            token, ["access_token", "refresh_token"]
+            token, [ExecutiveToken.access_token.key, ExecutiveToken.refresh_token.key]
         )
         log_event(token, request_info, token_log_data)
         return token_data
@@ -225,7 +225,8 @@ async def refresh_token(
         session.refresh(refresh_token)
 
         token_data, token_log_data = orm_to_json(
-            refresh_token, ["access_token", "refresh_token"]
+            refresh_token,
+            [ExecutiveToken.access_token.key, ExecutiveToken.refresh_token.key],
         )
         log_event(token, request_info, token_log_data)
         return token_data
@@ -273,7 +274,8 @@ async def revoke_token(
             session.commit()
             session.refresh(token_to_revoke)
             _, token_log_data = orm_to_json(
-                token_to_revoke, ["access_token", "refresh_token"]
+                token_to_revoke,
+                [ExecutiveToken.access_token.key, ExecutiveToken.refresh_token.key],
             )
             log_event(token, request_info, token_log_data)
 
@@ -331,7 +333,8 @@ async def delete_token(
         session.refresh(token_to_delete)
 
         _, token_log_data = orm_to_json(
-            token_to_delete, ["access_token", "refresh_token"]
+            token_to_delete,
+            [ExecutiveToken.access_token.key, ExecutiveToken.refresh_token.key],
         )
         log_event(token, request_info, token_log_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
