@@ -138,27 +138,6 @@ def cleanup_old_tokens(
         session.flush()
 
 
-def token_to_json(
-    token: Union[ExecutiveToken, OperatorToken, VendorToken],
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """
-    Convert a token object into two JSON-compatible dicts.
-
-    Args:
-        token (Union[ExecutiveToken, OperatorToken, VendorToken]): Token model instance.
-
-    Returns:
-        Tuple[Dict[str, Any], Dict[str, Any]]:
-            - token_data: the full JSON-encoded token.
-            - token_log_data: same as token_data but with sensitive fields removed.
-    """
-    token_data = jsonable_encoder(token)
-    token_log_data = token_data.copy()
-    for sensitive_field in ("access_token", "refresh_token"):
-        token_log_data.pop(sensitive_field, None)
-    return token_data, token_log_data
-
-
 def get_executive_roles(
     session: Session,
     token: ExecutiveToken,
@@ -384,3 +363,28 @@ def update_if_changed(target_obj: Any, source_obj: dict) -> None:
         old_value = getattr(target_obj, field, None)
         if new_value != old_value:
             setattr(target_obj, field, new_value)
+
+
+def orm_to_json(
+    orm_object: Any,
+    exclude: List[str] = None,
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """
+    Convert a SQLAlchemy model object into JSON-compatible dicts.
+
+    Args:
+        orm_object (Any): SQLAlchemy model instance
+        exclude (List[str]): list of fields to exclude, defaults to None
+
+    Returns:
+        Tuple[Dict[str, Any], Dict[str, Any]]:
+            - data: the full JSON data.
+            - stripped: same as full data but with sensitive fields removed.
+    """
+    exclude = set(exclude or [])
+    data = jsonable_encoder(orm_object)
+    stripped = {}
+    for key, value in data.items():
+        if key not in exclude:
+            stripped[key] = value
+    return data, stripped
