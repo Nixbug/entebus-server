@@ -60,7 +60,7 @@ class createForm(BaseModel):
     ),
 )
 async def upload_executive_image(
-    fParam: createForm = Depends(),
+    form_param: createForm = Depends(),
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
@@ -76,18 +76,18 @@ async def upload_executive_image(
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
 
-        if fParam.executive_id is None:
-            fParam.executive_id = token.executive_id
-        is_self_update = fParam.executive_id == token.executive_id
+        if form_param.executive_id is None:
+            form_param.executive_id = token.executive_id
+        is_self_update = form_param.executive_id == token.executive_id
         if not is_self_update:
             roles = get_executive_roles(session, token)
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
-        file_bytes = await fParam.file.read()
-        validate_image(file_bytes, fParam.file.content_type)
+        file_bytes = await form_param.file.read()
+        validate_image(file_bytes, form_param.file.content_type)
         executive_image = ExecutiveImage(
-            executive_id=fParam.executive_id,
-            file_name=fParam.file.filename,
-            file_type=fParam.file.content_type,
+            executive_id=form_param.executive_id,
+            file_name=form_param.file.filename,
+            file_type=form_param.file.content_type,
             file_size=len(file_bytes),
         )
         session.add(executive_image)
