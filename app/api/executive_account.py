@@ -162,7 +162,7 @@ async def update_account(
 
     - Requires a valid access token.
     - Logged-in executive must have `executive.update` permission to update other executives.
-    - Executive can update their own account except status without permission.
+    - Executive can update their own account except status.
     - Empty PATCH requests are allowed and will result in no changes.
     """
     try:
