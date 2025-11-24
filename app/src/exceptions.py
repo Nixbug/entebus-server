@@ -239,3 +239,16 @@ class InvalidGrantType(APIException):
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "Invalid grant type"
     headers = {"X-Error": "InvalidGrantType"}
+
+
+class InvalidImage(APIException):
+    """
+    Raised when an invalid image is provided.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    headers = {"X-Error": "InvalidImage"}
+
+    def __init__(self, msg: str):
+        detail = f"{msg}"
+        super().__init__(detail=detail)

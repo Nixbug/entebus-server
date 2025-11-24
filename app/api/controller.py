@@ -10,6 +10,7 @@ from fastapi import FastAPI
 
 from app.api import (
     executive_account,
+    executive_image,
     executive_token,
     executive_role,
 )
@@ -37,3 +38,4 @@ app_public.state.id = AppID.PUBLIC
 app_executive.include_router(executive_token.route_executive)
 app_executive.include_router(executive_role.route_executive)
 app_executive.include_router(executive_account.route_executive)
+app_executive.include_router(executive_image.route_executive)

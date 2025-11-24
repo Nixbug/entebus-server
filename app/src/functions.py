@@ -5,7 +5,7 @@ It offers reusable utilities that make it easier for developers to integrate the
 """
 
 from enum import Enum
-from typing import Any, List, Dict, Type, Union, Tuple
+from typing import Any, List, Dict, Optional, Type, Union, Tuple
 from fastapi import Query, Request
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
@@ -388,3 +388,35 @@ def orm_to_json(
         if key not in exclude:
             stripped[key] = value
     return data, stripped
+
+
+def split_MIME(mime_type: str) -> Dict[str, Optional[str]]:
+    """
+    Safely split a MIME type string into type, subtype, and optional parameters.
+
+    Args:
+        mime_type (str): The MIME type string.
+            Examples:
+                "image/jpeg"
+                "text/html; charset=UTF-8"
+                "video/mp4; bitrate=128k; profile=high"
+    Returns:
+        Dict[str, Optional[str]]: A dictionary with:
+            - "type": The main type (e.g., "image", "text") or None if missing.
+            - "sub_type": The subtype (e.g., "jpeg", "html") or None if missing.
+            - "parameter": The parameters as a single string if present,
+              otherwise None.
+    """
+    if not mime_type or "/" not in mime_type:
+        return {"type": mime_type or None, "sub_type": None, "parameter": None}
+
+    type_part, rest = mime_type.split("/", 1)
+    type_part = type_part.strip() or None
+
+    if ";" in rest:
+        sub_type, *params = [p.strip() for p in rest.split(";")]
+        parameter = "; ".join(params) if params else None
+    else:
+        sub_type, parameter = rest.strip() or None, None
+
+    return {"type": type_part, "sub_type": sub_type, "parameter": parameter}
