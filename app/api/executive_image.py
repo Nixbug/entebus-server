@@ -17,7 +17,6 @@ from app.src.functions import (
     get_request_info,
     get_executive_roles,
     orm_to_json,
-    split_MIME,
     validate_image,
 )
 
@@ -56,24 +55,23 @@ class createForm(BaseModel):
         [
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
-            exceptions.InvalidCredentials(),
             exceptions.InvalidImageFile(),
         ]
     ),
-    description="""
-    **Uploads an executive image**.
-
-    - Executive must have a valid access token.
-    - Logged-in executive must have 'executive.update' permission to upload other executive images.
-    - Executive can update their own image without permission.
-    - The image resolution is based on `MAX_IMAGE_RESOLUTION` and `MIN_IMAGE_RESOLUTION` .
-    """,
 )
 async def upload_executive_image(
     fParam: createForm = Depends(),
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
+    """
+    **Uploads an executive image.**
+
+    - Executive must have a valid access token.
+    - Logged-in executive must have 'executive.update' permission to upload other executive images.
+    - Executive can update their own image without permission.
+    - The image resolution is based on `MAX_IMAGE_RESOLUTION` and `MIN_IMAGE_RESOLUTION`.
+    """
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
@@ -86,23 +84,23 @@ async def upload_executive_image(
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
         file_bytes = await fParam.file.read()
         validate_image(file_bytes, fParam.file.content_type)
-        executiveI_image = ExecutiveImage(
+        executive_image = ExecutiveImage(
             executive_id=fParam.executive_id,
             file_name=fParam.file.filename,
             file_type=fParam.file.content_type,
             file_size=len(file_bytes),
         )
-        session.add(executiveI_image)
+        session.add(executive_image)
         session.commit()
-        session.refresh(executiveI_image)
+        session.refresh(executive_image)
         upload_file(
             EXECUTIVE_IMAGES,
-            str(executiveI_image.id),
+            str(executive_image.id),
             len(file_bytes),
             BytesIO(file_bytes),
         )
 
-        _, executive_image_data = orm_to_json(executiveI_image)
+        _, executive_image_data = orm_to_json(executive_image)
         log_event(token, request_info, executive_image_data)
         return executive_image_data
     except Exception as e:
