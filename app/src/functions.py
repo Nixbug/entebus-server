@@ -348,6 +348,58 @@ def apply_name_filters(
     return query
 
 
+def apply_account_filters(
+    query: Query, model_cls: Type[ORMbase], params: BaseModel
+) -> Query:
+    """
+    Apply account filters to a SQLAlchemy query.
+
+    This function filters records based on username, gender, full_name, email_id, and phone_number.
+    The filters are applied only if the corresponding parameter values are provided.
+
+    Args:
+        query (Query): Active SQLAlchemy query object.
+        model_cls (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        params (BaseModel): Pydantic model instance.
+
+    Returns:
+        Query: Updated SQLAlchemy query with applied filters.
+    """
+    if params.username is not None:
+        query = query.filter(model_cls.username.ilike(f"%{params.username}%"))
+    if params.gender is not None:
+        query = query.filter(model_cls.gender == params.gender)
+    if params.full_name is not None:
+        query = query.filter(model_cls.full_name.ilike(f"%{params.full_name}%"))
+    if params.email_id is not None:
+        query = query.filter(model_cls.email_id.ilike(f"%{params.email_id}%"))
+    if params.phone_number is not None:
+        query = query.filter(model_cls.phone_number.ilike(f"%{params.phone_number}%"))
+    return query
+
+
+def apply_status_filters(
+    query: Query, model_cls: Type[ORMbase], params: BaseModel
+) -> Query:
+    """
+    Apply status-based filters to a SQLAlchemy query.
+
+    This function filters records based on status.
+    The filters are applied only if the corresponding parameter values are provided.
+
+    Args:
+        query (Query): Active SQLAlchemy query object.
+        model_cls (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        params (BaseModel): Pydantic model instance.
+
+    Returns:
+        Query: Updated SQLAlchemy query with applied filters.
+    """
+    if params.status_list is not None:
+        query = query.filter(model_cls.status.in_(params.status_list))
+    return query
+
+
 def update_if_changed(target_obj: Any, source_obj: dict) -> None:
     """
     Update attributes on a target object based on values from a source object.
