@@ -71,9 +71,3 @@ class AccountDataFilter(BaseModel):
     full_name: str | None = Field(Query(default=None))
     email_id: str | None = Field(Query(default=None))
     phone_number: str | None = Field(Query(default=None))
-
-
-class SearchFilter(BaseModel):
-    """Query parameters for common search."""
-
-    search: str | None = Field(Query(default=None))

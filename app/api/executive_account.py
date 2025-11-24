@@ -22,7 +22,6 @@ from app.src.filters import (
     CreatedOnFilter,
     IDFilter,
     PaginationFilter,
-    SearchFilter,
     UpdatedOnFilter,
 )
 from app.src.permissions.executive import PermissionPath
@@ -97,10 +96,10 @@ class QueryParams(
     CreatedOnFilter,
     IDFilter,
     PaginationFilter,
-    SearchFilter,
 ):
     """Query parameters for fetching executive accounts."""
 
+    search: str | None = Field(Query(default=None))
     designation: str | None = Field(Query(default=None))
     status_list: List[AccountStatus] | None = Field(
         Query(default=None, description=enum_str(AccountStatus))
