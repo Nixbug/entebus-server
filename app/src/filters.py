@@ -9,7 +9,7 @@ from typing import List
 from fastapi import Query
 from pydantic import BaseModel, Field
 
-from app.src.enums import PlatformType
+from app.src.enums import GenderType, PlatformType
 from app.src.functions import enum_str
 
 
@@ -65,7 +65,9 @@ class AccountDataFilter(BaseModel):
     """Query parameters for account data."""
 
     username: str | None = Field(Query(default=None))
-    gender: int | None = Field(Query(default=None))
+    gender: GenderType | None = Field(
+        Query(default=None, description=enum_str(GenderType))
+    )
     full_name: str | None = Field(Query(default=None))
     email_id: str | None = Field(Query(default=None))
     phone_number: str | None = Field(Query(default=None))

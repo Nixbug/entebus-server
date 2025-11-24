@@ -99,7 +99,7 @@ class QueryParams(
     PaginationFilter,
     SearchFilter,
 ):
-    """Query parameters for fetching executive roles."""
+    """Query parameters for fetching executive accounts."""
 
     designation: str | None = Field(Query(default=None))
     status_list: List[AccountStatus] | None = Field(

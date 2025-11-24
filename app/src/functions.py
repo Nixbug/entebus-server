@@ -354,7 +354,7 @@ def apply_account_filters(
     """
     Apply account filters to a SQLAlchemy query.
 
-    This function filters records based on username, gender, full_name, email, and phone_number.
+    This function filters records based on username, gender, full_name, email_id, and phone_number.
     The filters are applied only if the corresponding parameter values are provided.
 
     Args:
