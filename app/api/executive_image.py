@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, status, Form, UploadFile, File
 from pydantic import BaseModel, Field
 from io import BytesIO
 from datetime import datetime
-from PIL import Image
 
 from app.src.buckets import EXECUTIVE_IMAGES
 from app.src import exceptions
@@ -19,6 +18,7 @@ from app.src.functions import (
     get_executive_roles,
     orm_to_json,
     split_MIME,
+    validate_image,
 )
 
 route_executive = APIRouter()
@@ -26,6 +26,8 @@ route_executive = APIRouter()
 
 ## Output Schema
 class ExecutiveImageSchema(BaseModel):
+    """Schema for executive image response."""
+
     id: int
     executive_id: int
     file_name: str
@@ -36,6 +38,8 @@ class ExecutiveImageSchema(BaseModel):
 
 ## Input Forms
 class createForm(BaseModel):
+    """Form data for creating a new executive image."""
+
     executive_id: int | None = Field(Form(default=None))
     file: UploadFile = Field(File())
 
@@ -53,10 +57,16 @@ class createForm(BaseModel):
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.InvalidCredentials(),
+            exceptions.InvalidImageFile(),
         ]
     ),
     description="""
-    Uploads an executive image.
+    **Uploads an executive image**.
+
+    - Executive must have a valid access token.
+    - Logged-in executive must have 'executive.update' permission to upload other executive images.
+    - Executive can update their own image without permission.
+    - The image resolution is based on `MAX_IMAGE_RESOLUTION` and `MIN_IMAGE_RESOLUTION` .
     """,
 )
 async def upload_executive_image(
@@ -73,37 +83,9 @@ async def upload_executive_image(
         is_self_update = fParam.executive_id == token.executive_id
         if not is_self_update:
             roles = get_executive_roles(session, token)
-            verify_permission(roles, PermissionPath.CREATE_EXECUTIVE)
+            verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
         file_bytes = await fParam.file.read()
-        mime_info = split_MIME(fParam.file.content_type)
-        mime_type = mime_info["type"]
-        if mime_type != "image":
-            raise exceptions.InvalidImage("File is not an image")
-
-        image = Image.open(BytesIO(file_bytes))
-        width, height = image.size
-        if image:
-            image.verify()
-        else:
-            raise exceptions.InvalidImage("Invalid or corrupted image file.")
-
-        # Allowed extensions/formats
-        ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP"}
-        if image.format not in ALLOWED_FORMATS:
-            raise exceptions.InvalidImage(f"Unsupported image format: {image.format}")
-
-        # Resolution validation
-        MAX_WIDTH = 4000
-        MAX_HEIGHT = 4000
-        MIN_WIDTH = 100
-        MIN_HEIGHT = 100
-
-        if not (MIN_WIDTH <= width <= MAX_WIDTH):
-            raise exceptions.InvalidImage("Invalid image width resolution.")
-
-        if not (MIN_HEIGHT <= height <= MAX_HEIGHT):
-            raise exceptions.InvalidImage("Invalid image height resolution.")
-
+        validate_image(file_bytes, fParam.file.content_type)
         executiveI_image = ExecutiveImage(
             executive_id=fParam.executive_id,
             file_name=fParam.file.filename,

@@ -118,3 +118,9 @@ LOCK_MAX_WAIT_SECONDS = 10
 # Fare constants
 # ---------------------------------------------------------------------------
 DYNAMIC_FARE_VERSION = 1  # Current dynamic fare version
+
+# ---------------------------------------------------------------------------
+# Image constants
+# ---------------------------------------------------------------------------
+MAX_IMAGE_RESOLUTION = 2048  # Maximum allowed width/height in pixels
+MIN_IMAGE_RESOLUTION = 16  # Minimum allowed width/height in pixels
