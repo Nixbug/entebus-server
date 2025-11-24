@@ -412,10 +412,6 @@ class OperatorToken:
     pass
 
 
-class Operator:
-    pass
-
-
 class OperatorRole:
     pass
 
@@ -433,8 +429,4 @@ class VendorRole:
 
 
 class VendorRoleMap:
-    pass
-
-
-class Vendor:
     pass
