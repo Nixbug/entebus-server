@@ -167,7 +167,7 @@ async def create_account(
 
 
 @route_executive.delete(
-    URL_EXECUTIVE_ACCOUNT + "/{id}",
+    f"{URL_EXECUTIVE_ACCOUNT}/{{id}}",
     tags=["Account"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(

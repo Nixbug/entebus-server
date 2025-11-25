@@ -119,7 +119,6 @@ class QueryParams(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter)
     URL_EXECUTIVE_TOKEN,
     tags=["Token"],
     response_model=ExecutiveTokenSchema,
-    status_code=status.HTTP_200_OK,
     responses=fuse_exception_responses(
         [exceptions.InactiveAccount(), exceptions.InvalidCredentials()]
     ),
@@ -175,10 +174,9 @@ async def create_token(
 
 
 @route_executive.post(
-    URL_EXECUTIVE_TOKEN + "/refresh",
+    f"{URL_EXECUTIVE_TOKEN}/refresh",
     tags=["Token"],
     response_model=ExecutiveTokenSchema,
-    status_code=status.HTTP_200_OK,
     responses=fuse_exception_responses(
         [
             exceptions.InvalidToken(),
@@ -237,9 +235,8 @@ async def refresh_token(
 
 
 @route_executive.post(
-    URL_EXECUTIVE_TOKEN + "/revoke",
+    f"{URL_EXECUTIVE_TOKEN}/revoke",
     tags=["Token"],
-    status_code=status.HTTP_200_OK,
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
 )
 async def revoke_token(
@@ -287,7 +284,7 @@ async def revoke_token(
 
 
 @route_executive.delete(
-    URL_EXECUTIVE_TOKEN + "/{id}",
+    f"{URL_EXECUTIVE_TOKEN}/{{id}}",
     tags=["Token"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
