@@ -191,7 +191,7 @@ async def delete_account(
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
-        verify_permission(roles, PermissionPath.DELETE_EXECUTIVE_ROLE)
+        verify_permission(roles, PermissionPath.DELETE_EXECUTIVE)
 
         if token.executive_id == id:
             raise exceptions.NoPermission()
@@ -203,10 +203,10 @@ async def delete_account(
                 .filter(ExecutiveImage.executive_id == id)
                 .first()
             )
-            if executive_image is not None:
-                delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
             session.delete(executive)
             session.commit()
+            if executive_image is not None:
+                delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
 
             _, executive_data = orm_to_json(executive, [Executive.password.key])
             log_event(token, request_info, executive_data)
