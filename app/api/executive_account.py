@@ -9,13 +9,14 @@ input validation and structured output.
 from datetime import datetime
 from enum import StrEnum
 from typing import List
-from fastapi import APIRouter, Query, status, Depends
+from fastapi import APIRouter, Query, Response, status, Depends
 from pydantic_extra_types.phone_numbers import PhoneNumber
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import String, or_
 
 from app.api.bearer import oauth2_executive
-from app.src.db import Executive, ExecutiveToken, SessionLocal
+from app.src.buckets import EXECUTIVE_IMAGES
+from app.src.db import Executive, ExecutiveImage, ExecutiveToken, SessionLocal
 from app.src.enums import AccountStatus, GenderType, OrderIn
 from app.src.filters import (
     AccountDataFilter,
@@ -24,6 +25,7 @@ from app.src.filters import (
     PaginationFilter,
     UpdatedOnFilter,
 )
+from app.src.minio import delete_file
 from app.src.permissions.executive import PermissionPath
 from app.src import argon2, exceptions
 from app.src.regex import PASSWORD_PATTERN, USERNAME_PATTERN
@@ -184,7 +186,7 @@ async def create_account(
 
 
 @route_executive.patch(
-    URL_EXECUTIVE_ACCOUNT + "/{id}",
+    f"{URL_EXECUTIVE_ACCOUNT}/{{id}}",
     tags=["Account"],
     response_model=ExecutiveSchema,
     responses=fuse_exception_responses(
@@ -242,6 +244,57 @@ async def update_account(
         if have_updates:
             log_event(token, request_info, executive_data)
         return executive_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.delete(
+    f"{URL_EXECUTIVE_ACCOUNT}/{{id}}",
+    tags=["Account"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+)
+async def delete_account(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    """
+    **Deletes an existing executive account.**
+
+    - Requires a valid access token for authentication.
+    - The logged-in executive must have the `executive.delete` permission.
+    - Self-deletion is not allowed for safety reasons.
+    - Returns `204 No Content` even if the specified account does not exist.
+    """
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, PermissionPath.DELETE_EXECUTIVE)
+
+        if token.executive_id == id:
+            raise exceptions.NoPermission()
+        executive = session.query(Executive).filter(Executive.id == id).first()
+        if executive is not None:
+            executive_image = (
+                session.query(ExecutiveImage)
+                .filter(ExecutiveImage.executive_id == id)
+                .first()
+            )
+            session.delete(executive)
+            session.commit()
+            # Delete executive image
+            if executive_image is not None:
+                delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
+
+            _, executive_data = orm_to_json(executive, [Executive.password.key])
+            log_event(token, request_info, executive_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
