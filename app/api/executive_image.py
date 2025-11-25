@@ -1,3 +1,11 @@
+"""
+Executive Image API Router for EnteBus.
+
+Provides endpoints for managing executive images, including creation,
+deletion, and retrieval. Uses Pydantic schemas for
+input validation and structured output.
+"""
+
 from fastapi import APIRouter, Depends, status, Form, UploadFile, File
 from pydantic import BaseModel, Field
 from io import BytesIO
