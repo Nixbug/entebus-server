@@ -94,7 +94,7 @@ class UpdateForm(BaseModel):
     full_name: str | None = Field(min_length=1, max_length=32, default=None)
     designation: str | None = Field(min_length=1, max_length=32, default=None)
     phone_number: PhoneNumber | None = Field(
-        max_length=32, default=None, description="Phone number in RFC3966 format"
+        max_length=32, default=None, description="Phone number in RFC 3966 format"
     )
     email_id: EmailStr | None = Field(
         max_length=256, default=None, description="Email in RFC 5322 format"
