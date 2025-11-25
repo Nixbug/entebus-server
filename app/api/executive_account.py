@@ -228,9 +228,15 @@ async def update_account(
         # Revoking all the tokens for a suspended executive
         tokens_revoked = False
         if form_param.status == AccountStatus.SUSPENDED:
-            tokens_revoked = session.query(ExecutiveToken).filter(
-                ExecutiveToken.executive_id == id, ExecutiveToken.is_revoked == False
-            ).update({ExecutiveToken.is_revoked: True}) > 0
+            tokens_revoked = (
+                session.query(ExecutiveToken)
+                .filter(
+                    ExecutiveToken.executive_id == id,
+                    ExecutiveToken.is_revoked.is_(False),
+                )
+                .update({ExecutiveToken.is_revoked: True})
+                > 0
+            )
         if Executive.password.key in update_data:
             update_data[Executive.password.key] = argon2.make_password(
                 form_param.password
