@@ -135,7 +135,7 @@ async def create_role(
 
 
 @route_executive.patch(
-    URL_EXECUTIVE_ROLE + "/{id}",
+    f"{URL_EXECUTIVE_ROLE}/{{id}}",
     tags=["Role"],
     response_model=ExecutiveRoleSchema,
     status_code=status.HTTP_200_OK,
