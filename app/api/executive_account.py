@@ -223,7 +223,7 @@ async def update_account(
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
         if is_self_update and Executive.status.key in update_data:
             raise exceptions.NoPermission()
-        # Remove all the tokens for a suspended executive
+        # Revoking all the tokens for a suspended executive
         if form_param.status == AccountStatus.SUSPENDED:
             session.query(ExecutiveToken).filter(
                 ExecutiveToken.executive_id == id, ExecutiveToken.is_revoked == False
@@ -233,12 +233,14 @@ async def update_account(
                 form_param.password
             )
         update_if_changed(executive, update_data)
-        if session.is_modified(executive):
+        have_updates = session.is_modified(executive)
+        if have_updates:
             session.commit()
             session.refresh(executive)
 
         _, executive_data = orm_to_json(executive, [Executive.password.key])
-        log_event(token, request_info, executive_data)
+        if have_updates:
+            log_event(token, request_info, executive_data)
         return executive_data
     except Exception as e:
         exceptions.handle(e)
