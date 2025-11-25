@@ -83,7 +83,7 @@ async def upload_executive_image(
             roles = get_executive_roles(session, token)
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
         file_bytes = await form_param.file.read()
-        validate_image(file_bytes, form_param.file.content_type)
+        validate_image(file_bytes, form_param.file.filename)
         executive_image = ExecutiveImage(
             executive_id=form_param.executive_id,
             file_name=form_param.file.filename,

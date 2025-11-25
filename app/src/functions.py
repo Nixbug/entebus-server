@@ -4,10 +4,11 @@ This module provides helper functions commonly used across FastAPI routes.
 It offers reusable utilities that make it easier for developers to integrate them into their projects.
 """
 
+import mimetypes
 from enum import Enum
 from io import BytesIO
 from PIL import Image
-from typing import Any, List, Dict, Optional, Type, Union, Tuple
+from typing import Any, List, Dict, Type, Union, Tuple
 from fastapi import Query, Request
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
@@ -445,42 +446,21 @@ def orm_to_json(
     return data, stripped
 
 
-def split_MIME(mime_type: str) -> Dict[str, Optional[str]]:
-    """
-    Split a MIME type into its type, subtype, and parameters.
-
-    Args:
-        mime_type (str): The MIME type to split.
-
-    Returns:
-        Dict[str, Optional[str]]: A dictionary containing the type, subtype, and parameters.
-    """
-    if not mime_type or "/" not in mime_type:
-        return {"type": mime_type or None, "sub_type": None, "parameter": None}
-    type_part, rest = mime_type.split("/", 1)
-    type_part = type_part.strip() or None
-    if ";" in rest:
-        sub_type, *params = [p.strip() for p in rest.split(";")]
-        parameter = "; ".join(params) if params else None
-    else:
-        sub_type, parameter = rest.strip() or None, None
-    return {"type": type_part, "sub_type": sub_type, "parameter": parameter}
-
-
-def validate_image(file_bytes: bytes, content_type: str) -> None:
+def validate_image(file_bytes: bytes, filename: str) -> None:
     """
     Validate an image file based on its content type and size.
 
     Args:
         file_bytes (bytes): The bytes of the image file.
-        content_type (str): The content type of the image file.
+        filename (str): The filename of the image file.
 
     Raises:
         InvalidImageFile: If the image file is invalid.
     """
     try:
-        mime = split_MIME(content_type)
-        if mime["type"] != "image":
+        guessed_mime, _ = mimetypes.guess_type(filename)
+        print(guessed_mime)
+        if not guessed_mime or not guessed_mime.startswith("image/"):
             raise exceptions.InvalidImageFile()
         image = Image.open(BytesIO(file_bytes))
         image.verify()
