@@ -197,7 +197,6 @@ async def delete_account(
             raise exceptions.NoPermission()
         executive = session.query(Executive).filter(Executive.id == id).first()
         if executive is not None:
-            # Delete executive image
             executive_image = (
                 session.query(ExecutiveImage)
                 .filter(ExecutiveImage.executive_id == id)
@@ -205,12 +204,12 @@ async def delete_account(
             )
             session.delete(executive)
             session.commit()
+            # Delete executive image
             if executive_image is not None:
                 delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
 
             _, executive_data = orm_to_json(executive, [Executive.password.key])
             log_event(token, request_info, executive_data)
-
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
