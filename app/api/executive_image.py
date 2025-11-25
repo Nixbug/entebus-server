@@ -136,12 +136,11 @@ async def delete_executive_image(
     - Executive must have a valid access token.
     - Executives can delete their own profile picture without additional permissions.
     - To delete another executive's profile picture, the 'executive.update' permission is required.
+    - Returns `204 No Content` even if the specified image does not exist.
     """
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
 
         executive_image = (
             session.query(ExecutiveImage).filter(ExecutiveImage.id == id).first()
@@ -150,7 +149,7 @@ async def delete_executive_image(
             return Response(status_code=status.HTTP_204_NO_CONTENT)
         if executive_image.executive_id != token.executive_id:
             roles = get_executive_roles(session, token)
-            verify_permission(roles, PermissionPath.DELETE_EXECUTIVE_TOKEN)
+            verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
         session.delete(executive_image)
         session.commit()
         delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
