@@ -47,7 +47,7 @@ class ExecutiveImageSchema(BaseModel):
 class CreateForm(BaseModel):
     """Form data for creating a new executive image."""
 
-    executive_id: int = Field(Form(default=None))
+    executive_id: int | None = Field(Form(default=None))
     file: UploadFile = File()
 
 
