@@ -247,5 +247,5 @@ class InvalidImageFile(APIException):
     """
 
     status_code = status.HTTP_406_NOT_ACCEPTABLE
-    headers = {"X-Error": "InvalidImage"}
+    headers = {"X-Error": "InvalidImageFile"}
     detail = "Invalid image provided"
