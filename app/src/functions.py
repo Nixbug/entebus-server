@@ -459,7 +459,6 @@ def validate_image(file_bytes: bytes, filename: str) -> None:
     """
     try:
         guessed_mime, _ = mimetypes.guess_type(filename)
-        print(guessed_mime)
         if not guessed_mime or not guessed_mime.startswith("image/"):
             raise exceptions.InvalidImageFile()
         image = Image.open(BytesIO(file_bytes))
