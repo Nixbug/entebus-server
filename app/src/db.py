@@ -22,6 +22,7 @@ from sqlalchemy import (
     event,
     Connection,
     func,
+    inspect,
 )
 from sqlalchemy.orm import sessionmaker, DeclarativeBase, Mapper
 from secrets import token_hex
@@ -195,7 +196,8 @@ def preprocess_password(
 ) -> None:
     """Event listener to hash the password before insertion or update."""
 
-    if target.password:
+    history = inspect(target).attrs.password.history
+    if history.has_changes() and target.password:
         target.password = argon2.make_password(target.password)
 
 
