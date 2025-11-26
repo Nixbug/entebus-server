@@ -19,12 +19,14 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    event,
     func,
 )
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from secrets import token_hex
 from sqlalchemy.dialects.postgresql import JSONB
 
+from app.src import argon2
 from app.src.constants import (
     PSQL_DB_DRIVER,
     PSQL_DB_HOST,
@@ -183,6 +185,15 @@ class Executive(ORMbase):
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+@event.listens_for(Executive, "before_insert")
+@event.listens_for(Executive, "before_update")
+def preprocess_password(mapper, connection, target) -> None:
+    """Hash the password before saving, avoiding double hashing."""
+
+    if target.password and not target.password.startswith("$argon2"):
+        target.password = argon2.make_password(target.password)
 
 
 class ExecutiveRole(ORMbase):
