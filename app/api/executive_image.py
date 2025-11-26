@@ -99,14 +99,15 @@ async def upload_executive_image(
             file_size=len(file_bytes),
         )
         session.add(executive_image)
-        session.commit()
-        session.refresh(executive_image)
+        session.flush()
         upload_file(
             EXECUTIVE_IMAGES,
             str(executive_image.id),
             len(file_bytes),
             BytesIO(file_bytes),
         )
+        session.commit()
+        session.refresh(executive_image)
 
         _, executive_image_data = orm_to_json(executive_image)
         log_event(token, request_info, executive_image_data)
