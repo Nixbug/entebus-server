@@ -404,6 +404,34 @@ def apply_status_filters(
     return query
 
 
+def apply_picture_filters(
+    query: Query, model_cls: Type[ORMbase], params: BaseModel
+) -> Query:
+    """
+    Apply creation date filters to a SQLAlchemy query.
+
+    This function filters records based on their created_on timestamp.
+    The filters are applied only if the corresponding parameter values are provided.
+
+    Args:
+        query (Query): Active SQLAlchemy query object.
+        model_cls (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        params (BaseModel): Pydantic model instance.
+
+    Returns:
+        Query: Updated SQLAlchemy query with applied filters.
+    """
+    if params.file_name is not None:
+        query = query.filter(model_cls.file_name.ilike(f"%{params.file_name}%"))
+    if params.file_type is not None:
+        query = query.filter(model_cls.file_type.ilike(f"%{params.file_type}%"))
+    if params.file_size_ge is not None:
+        query = query.filter(model_cls.file_size >= params.file_size_ge)
+    if params.file_size_le is not None:
+        query = query.filter(model_cls.file_size <= params.file_size_le)
+    return query
+
+
 def update_if_changed(target_obj: Any, source_obj: dict) -> None:
     """
     Update attributes on a target object based on values from a source object.

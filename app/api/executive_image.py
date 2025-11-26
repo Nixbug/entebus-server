@@ -6,13 +6,17 @@ deletion, and retrieval. Uses Pydantic schemas for
 input validation and structured output.
 """
 
-from fastapi import APIRouter, Depends, status, Form, UploadFile, File
+from enum import StrEnum
+from fastapi import APIRouter, Depends, Query, status, Form, UploadFile, File
 from pydantic import BaseModel, Field
 from io import BytesIO
 from datetime import datetime
+from sqlalchemy import String, or_
 
 from app.src.buckets import EXECUTIVE_IMAGES
 from app.src import exceptions
+from app.src.enums import OrderIn
+from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, PictureFilter
 from app.src.urls import URL_EXECUTIVE_PICTURE
 from app.src.minio import upload_file
 from app.api.bearer import oauth2_executive
@@ -21,6 +25,10 @@ from app.src.permissions.executive import PermissionPath
 from app.src.openobserve import log_event
 from app.src.validators import verify_permission, verify_token
 from app.src.functions import (
+    apply_created_on_filters,
+    apply_id_filters,
+    apply_picture_filters,
+    enum_str,
     fuse_exception_responses,
     get_request_info,
     get_executive_roles,
@@ -49,6 +57,26 @@ class createForm(BaseModel):
 
     executive_id: int | None = Field(Form(default=None))
     file: UploadFile = Field(File())
+
+
+## Query Parameters
+class OrderBy(StrEnum):
+    """Enum for ordering results."""
+
+    ID = "id"
+    CREATED_ON = "created_on"
+    FILE_SIZE = "file_size"
+
+
+class QueryParams(PictureFilter, CreatedOnFilter, IDFilter, PaginationFilter):
+    """Query parameters for executive image endpoints."""
+
+    executive_id: int | None = Field(Query(default=None))
+    search: str | None = Field(Query(default=None))
+    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
+    order_in: OrderIn = Field(
+        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -111,6 +139,67 @@ async def upload_executive_image(
         _, executive_image_data = orm_to_json(executive_image)
         log_event(token, request_info, executive_image_data)
         return executive_image_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.get(
+    URL_EXECUTIVE_PICTURE,
+    tags=["Account Image"],
+    response_model=list[ExecutiveImageSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+)
+async def fetch_executive_image(
+    query_params: QueryParams = Depends(),
+    access_token=Depends(oauth2_executive),
+):
+    """
+    **Fetch executive images.**
+
+    - Requires a valid access token for authentication.
+    - Common search supports searching by id, executive_id, file_name, file_type, and file_size.
+    """
+    try:
+        session = SessionLocal()
+        verify_token(session, ExecutiveToken, access_token)
+
+        query = session.query(ExecutiveImage)
+
+        if query_params.executive_id is not None:
+            query = query.filter(
+                ExecutiveImage.executive_id == query_params.executive_id
+            )
+        # Common search
+        if query_params.search:
+            search = f"%{query_params.search}%"
+            query = query.filter(
+                or_(
+                    ExecutiveImage.file_name.ilike(search),
+                    ExecutiveImage.file_type.ilike(search),
+                    ExecutiveImage.file_size.cast(String).ilike(search),
+                    ExecutiveImage.id.cast(String).ilike(search),
+                    ExecutiveImage.executive_id.cast(String).ilike(search),
+                )
+            )
+        # Generalized filters
+        query = apply_id_filters(query, ExecutiveImage, query_params)
+        query = apply_created_on_filters(query, ExecutiveImage, query_params)
+        query = apply_picture_filters(query, ExecutiveImage, query_params)
+
+        # Ordering and pagination
+        ordering_attr = getattr(ExecutiveImage, query_params.order_by.value)
+        ordering_func = (
+            ordering_attr.asc
+            if query_params.order_in == OrderIn.ASCENDING
+            else ordering_attr.desc
+        )
+        query = query.order_by(ordering_func())
+        query = query.offset(query_params.offset).limit(query_params.limit)
+
+        executive_images = query.all()
+        return executive_images
     except Exception as e:
         exceptions.handle(e)
     finally:

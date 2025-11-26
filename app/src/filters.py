@@ -71,3 +71,12 @@ class AccountDataFilter(BaseModel):
     full_name: str | None = Field(Query(default=None))
     email_id: str | None = Field(Query(default=None))
     phone_number: str | None = Field(Query(default=None))
+
+
+class PictureFilter(BaseModel):
+    """Query parameters for picture."""
+
+    file_name: str | None = Field(Query(default=None))
+    file_type: str | None = Field(Query(default=None))
+    file_size_ge: int | None = Field(Query(default=None))
+    file_size_le: int | None = Field(Query(default=None))
