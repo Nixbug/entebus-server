@@ -188,7 +188,7 @@ async def update_role(
 
 
 @route_executive.delete(
-    URL_EXECUTIVE_ROLE + "/{id}",
+    f"{URL_EXECUTIVE_ROLE}/{{id}}",
     tags=["Role"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
