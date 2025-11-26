@@ -44,11 +44,11 @@ class ExecutiveImageSchema(BaseModel):
 
 
 ## Input Forms
-class createForm(BaseModel):
+class CreateForm(BaseModel):
     """Form data for creating a new executive image."""
 
-    executive_id: int | None = Field(Form(default=None))
-    file: UploadFile = Field(File())
+    executive_id: int = Field(Form(default=None))
+    file: UploadFile = File()
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +68,7 @@ class createForm(BaseModel):
     ),
 )
 async def upload_executive_image(
-    form_param: createForm = Depends(),
+    form_param: CreateForm = Depends(),
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
