@@ -9,17 +9,14 @@ from typing import Any, List, Dict, Type, Union, Tuple
 from fastapi import Query, Request
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
-from sqlalchemy import Column, asc, desc, event
+from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
-from sqlalchemy.orm.attributes import get_history
 
-from app.src import argon2
 from app.src import schemas, exceptions
 from app.src.db import (
     ExecutiveRole,
     ExecutiveRoleMap,
     ExecutiveToken,
-    Executive,
     ORMbase,
     OperatorRole,
     OperatorRoleMap,
@@ -443,19 +440,3 @@ def orm_to_json(
         if key not in exclude:
             stripped[key] = value
     return data, stripped
-
-
-@event.listens_for(Executive, "before_insert")
-@event.listens_for(Executive, "before_update")
-def preprocess_password(
-    mapper,
-    connection,
-    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
-) -> None:
-    """
-    Hash password before insert or update.
-    """
-    history = get_history(model_cls, "password")
-
-    if history.added:
-        model_cls.password = argon2.make_password(model_cls.password)

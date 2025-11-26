@@ -162,9 +162,10 @@ async def create_account(
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.CREATE_EXECUTIVE)
 
+        hashed_password = argon2.make_password(form_param.password)
         executive = Executive(
             username=form_param.username,
-            password=form_param.password,
+            password=hashed_password,
             gender=form_param.gender,
             full_name=form_param.full_name,
             designation=form_param.designation,
@@ -224,7 +225,6 @@ async def update_account(
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
         if is_self_update and Executive.status.key in update_data:
             raise exceptions.NoPermission()
-
         # Revoking all the tokens for a suspended executive
         tokens_revoked = False
         if form_param.status == AccountStatus.SUSPENDED:
@@ -236,6 +236,10 @@ async def update_account(
                 )
                 .update({ExecutiveToken.is_revoked: True})
                 > 0
+            )
+        if Executive.password.key in update_data:
+            update_data[Executive.password.key] = argon2.make_password(
+                form_param.password
             )
         update_if_changed(executive, update_data)
         have_updates = session.is_modified(executive) or tokens_revoked
