@@ -20,11 +20,13 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     event,
+    Connection,
     func,
 )
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from secrets import token_hex
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapper
 
 from app.src import argon2
 from app.src.constants import (
@@ -189,7 +191,9 @@ class Executive(ORMbase):
 
 @event.listens_for(Executive, "before_insert")
 @event.listens_for(Executive, "before_update")
-def preprocess_password(mapper, connection, target) -> None:
+def preprocess_password(
+    mapper: Mapper, connection: Connection, target: Executive
+) -> None:
     """Hash the password before saving, avoiding double hashing."""
 
     if target.password and not target.password.startswith("$argon2"):
