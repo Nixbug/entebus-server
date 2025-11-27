@@ -79,6 +79,7 @@ async def upload_executive_image(
     - Logged-in executive must have 'executive.update' permission to upload other executive images.
     - Executive can update their own image without permission.
     - The image resolution is based on `MAX_IMAGE_RESOLUTION` and `MIN_IMAGE_RESOLUTION`.
+    - The image size is based on `MAX_IMAGE_FILE_SIZE` and `MIN_IMAGE_FILE_SIZE`.
     """
     try:
         session = SessionLocal()
@@ -90,6 +91,7 @@ async def upload_executive_image(
         if not is_self_update:
             roles = get_executive_roles(session, token)
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
+
         file_bytes = await form_param.file.read()
         validate_image(file_bytes, form_param.file.filename)
         executive_image = ExecutiveImage(
