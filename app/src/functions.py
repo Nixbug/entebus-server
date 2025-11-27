@@ -479,5 +479,5 @@ def validate_image(file_bytes: bytes, filename: str) -> None:
             MIN_IMAGE_RESOLUTION <= height <= MAX_IMAGE_RESOLUTION
         ):
             raise exceptions.InvalidImageFile()
-    except (UnidentifiedImageError, OSError):
+    except UnidentifiedImageError:
         raise exceptions.InvalidImageFile()
