@@ -7,7 +7,7 @@ It offers reusable utilities that make it easier for developers to integrate the
 import mimetypes
 from enum import Enum
 from io import BytesIO
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from typing import Any, List, Dict, Type, Union, Tuple
 from fastapi import Query, Request
 from fastapi.encoders import jsonable_encoder
@@ -469,5 +469,5 @@ def validate_image(file_bytes: bytes, filename: str) -> None:
             MIN_IMAGE_RESOLUTION <= height <= MAX_IMAGE_RESOLUTION
         ):
             raise exceptions.InvalidImageFile()
-    except Exception:
+    except (UnidentifiedImageError, OSError):
         raise exceptions.InvalidImageFile()
