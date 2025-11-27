@@ -466,19 +466,18 @@ def validate_image(file_bytes: bytes, filename: str) -> None:
         guessed_mime, _ = mimetypes.guess_type(filename)
         if not guessed_mime or not guessed_mime.startswith("image/"):
             raise exceptions.InvalidImageFile()
-        image = Image.open(BytesIO(file_bytes))
-        image.verify()
-        # PIL's verify() method exhausts the file-like object, so we need to reopen the image
-        image = Image.open(BytesIO(file_bytes))
-        width, height = image.size
 
         size = len(file_bytes)
         if size > MAX_IMAGE_FILE_SIZE or size < MIN_IMAGE_FILE_SIZE:
             raise exceptions.InvalidImageFile()
 
-        if not (MIN_IMAGE_RESOLUTION <= width <= MAX_IMAGE_RESOLUTION) or not (
-            MIN_IMAGE_RESOLUTION <= height <= MAX_IMAGE_RESOLUTION
-        ):
-            raise exceptions.InvalidImageFile()
+        with Image.open(BytesIO(file_bytes)) as image:
+            image.load()
+            width, height = image.size
+            if not (MIN_IMAGE_RESOLUTION <= width <= MAX_IMAGE_RESOLUTION) or not (
+                MIN_IMAGE_RESOLUTION <= height <= MAX_IMAGE_RESOLUTION
+            ):
+                raise exceptions.InvalidImageFile()
+
     except UnidentifiedImageError:
         raise exceptions.InvalidImageFile()
