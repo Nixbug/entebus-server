@@ -451,6 +451,10 @@ def orm_to_json(
     return data, stripped
 
 
+# Set decompression bomb guard
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_RESOLUTION * MAX_IMAGE_RESOLUTION
+
+
 def validate_image(file_bytes: bytes, filename: str) -> None:
     """
     Validate an image file based on its content type and size.
