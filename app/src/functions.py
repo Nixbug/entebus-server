@@ -500,3 +500,24 @@ def validate_image(file_bytes: bytes, filename: str) -> None:
             raise exceptions.InvalidImageFile()
     except Exception:
         raise exceptions.InvalidImageFile()
+
+
+def resize_image(file_bytes: bytes, width=None, height=None) -> bytes:
+    """
+    Resize an image file to a specified width and height.
+
+    Args:
+        file_bytes (bytes): The bytes of the image file.
+        width (int, optional): The width to resize the image to.
+        height (int, optional): The height to resize the image to.
+
+    Returns:
+        bytes: The resized image file as bytes.
+    """
+    image = Image.open(BytesIO(file_bytes))
+    if width or height:
+        image.thumbnail((width or image.width, height or image.height))
+
+    buffer = BytesIO()
+    image.save(buffer, image.format)
+    return buffer.getvalue()

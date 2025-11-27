@@ -8,6 +8,7 @@ input validation and structured output.
 
 from enum import StrEnum
 from fastapi import APIRouter, Depends, Query, status, Form, UploadFile, File
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from io import BytesIO
 from datetime import datetime
@@ -18,7 +19,7 @@ from app.src import exceptions
 from app.src.enums import OrderIn
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, PictureFilter
 from app.src.urls import URL_EXECUTIVE_PICTURE
-from app.src.minio import upload_file
+from app.src.minio import download_file, upload_file
 from app.api.bearer import oauth2_executive
 from app.src.db import ExecutiveToken, ExecutiveImage, SessionLocal
 from app.src.permissions.executive import PermissionPath
@@ -33,6 +34,7 @@ from app.src.functions import (
     get_request_info,
     get_executive_roles,
     orm_to_json,
+    resize_image,
     validate_image,
 )
 
@@ -77,6 +79,14 @@ class QueryParams(PictureFilter, CreatedOnFilter, IDFilter, PaginationFilter):
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
     )
+
+
+class ImageQueryParams(BaseModel):
+    """Query parameters for retrieving an executive image."""
+
+    id: int
+    width: int | None = Field(Query(default=None, ge=16, le=2048))
+    height: int | None = Field(Query(default=None, ge=16, le=2048))
 
 
 # ---------------------------------------------------------------------------
@@ -200,6 +210,52 @@ async def fetch_executive_image(
 
         executive_images = query.all()
         return executive_images
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.get(
+    f"{URL_EXECUTIVE_PICTURE}/{{id}}",
+    tags=["Account Image"],
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.UnknownValue(ExecutiveImage.id)]
+    ),
+)
+async def download_executive_picture(
+    qParam: ImageQueryParams = Depends(),
+    access_token=Depends(oauth2_executive),
+):
+    """
+    **Download executive profile picture in original or resized resolution.**
+
+    - Requires a valid access token for authentication.
+    """
+    try:
+        session = SessionLocal()
+        verify_token(session, ExecutiveToken, access_token)
+
+        executive_image = (
+            session.query(ExecutiveImage).filter(ExecutiveImage.id == qParam.id).first()
+        )
+        if executive_image is not None:
+            file_bytes = download_file(EXECUTIVE_IMAGES, str(executive_image.id))
+            resized_bytes = resize_image(
+                file_bytes,
+                width=qParam.width,
+                height=qParam.height,
+            )
+
+            return StreamingResponse(
+                BytesIO(resized_bytes),
+                media_type=executive_image.file_type,
+                headers={
+                    "Content-Disposition": f"file_name={executive_image.file_name}",
+                    "Cache-Control": "public, max-age=31536000, immutable",
+                },
+            )
+        raise exceptions.UnknownValue(ExecutiveImage.id)
     except Exception as e:
         exceptions.handle(e)
     finally:
