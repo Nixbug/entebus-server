@@ -468,6 +468,7 @@ def validate_image(file_bytes: bytes, filename: str) -> None:
             raise exceptions.InvalidImageFile()
         image = Image.open(BytesIO(file_bytes))
         image.verify()
+        # PIL's verify() method exhausts the file-like object, so we need to reopen the image
         image = Image.open(BytesIO(file_bytes))
         width, height = image.size
 
