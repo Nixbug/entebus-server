@@ -84,7 +84,6 @@ class QueryParams(PictureFilter, CreatedOnFilter, IDFilter, PaginationFilter):
 class ImageQueryParams(BaseModel):
     """Query parameters for retrieving an executive image."""
 
-    id: int
     width: int | None = Field(Query(default=None, ge=16, le=2048))
     height: int | None = Field(Query(default=None, ge=16, le=2048))
 
@@ -223,7 +222,8 @@ async def fetch_executive_image(
         [exceptions.InvalidToken(), exceptions.UnknownValue(ExecutiveImage.id)]
     ),
 )
-async def download_executive_picture(
+async def download_executive_image(
+    id: int,
     qParam: ImageQueryParams = Depends(),
     access_token=Depends(oauth2_executive),
 ):
@@ -237,7 +237,7 @@ async def download_executive_picture(
         verify_token(session, ExecutiveToken, access_token)
 
         executive_image = (
-            session.query(ExecutiveImage).filter(ExecutiveImage.id == qParam.id).first()
+            session.query(ExecutiveImage).filter(ExecutiveImage.id == id).first()
         )
         if executive_image is not None:
             file_bytes = download_file(EXECUTIVE_IMAGES, str(executive_image.id))

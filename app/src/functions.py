@@ -502,14 +502,14 @@ def validate_image(file_bytes: bytes, filename: str) -> None:
         raise exceptions.InvalidImageFile()
 
 
-def resize_image(file_bytes: bytes, width=None, height=None) -> bytes:
+def resize_image(file_bytes: bytes, width: int = None, height: int = None) -> bytes:
     """
     Resize an image file to a specified width and height.
 
     Args:
         file_bytes (bytes): The bytes of the image file.
-        width (int, optional): The width to resize the image to.
-        height (int, optional): The height to resize the image to.
+        width (int): The width to resize the image with defaults to None.
+        height (int): The height to resize the image with defaults to None.
 
     Returns:
         bytes: The resized image file as bytes.
