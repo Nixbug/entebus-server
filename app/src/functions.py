@@ -16,7 +16,12 @@ from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
 
 from app.src import schemas, exceptions
-from app.src.constants import MAX_IMAGE_RESOLUTION, MIN_IMAGE_RESOLUTION
+from app.src.constants import (
+    MAX_IMAGE_FILE_SIZE,
+    MAX_IMAGE_RESOLUTION,
+    MIN_IMAGE_FILE_SIZE,
+    MIN_IMAGE_RESOLUTION,
+)
 from app.src.db import (
     ExecutiveRole,
     ExecutiveRoleMap,
@@ -465,6 +470,11 @@ def validate_image(file_bytes: bytes, filename: str) -> None:
         image.verify()
         image = Image.open(BytesIO(file_bytes))
         width, height = image.size
+
+        size = len(file_bytes)
+        if size > MAX_IMAGE_FILE_SIZE or size < MIN_IMAGE_FILE_SIZE:
+            raise exceptions.InvalidImageFile()
+
         if not (MIN_IMAGE_RESOLUTION <= width <= MAX_IMAGE_RESOLUTION) or not (
             MIN_IMAGE_RESOLUTION <= height <= MAX_IMAGE_RESOLUTION
         ):
