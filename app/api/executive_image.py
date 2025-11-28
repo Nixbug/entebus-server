@@ -13,6 +13,12 @@ from datetime import datetime
 
 from app.src.buckets import EXECUTIVE_IMAGES
 from app.src import exceptions
+from app.src.constants import (
+    MAX_IMAGE_FILE_SIZE,
+    MAX_IMAGE_RESOLUTION,
+    MIN_IMAGE_FILE_SIZE,
+    MIN_IMAGE_RESOLUTION,
+)
 from app.src.urls import URL_EXECUTIVE_PICTURE
 from app.src.minio import upload_file
 from app.api.bearer import oauth2_executive
@@ -48,7 +54,16 @@ class CreateForm(BaseModel):
     """Form data for creating a new executive image."""
 
     executive_id: int | None = Field(Form(default=None))
-    file: UploadFile = File()
+    file: UploadFile = Field(
+        File(
+            description=(
+                f"Max File Size: {MAX_IMAGE_FILE_SIZE // (1024*1024)} MB, "
+                f"Min File Size: {MIN_IMAGE_FILE_SIZE // 1024} KB , "
+                f"Max Resolution: {MAX_IMAGE_RESOLUTION} x {MAX_IMAGE_RESOLUTION} px, "
+                f"Min Resolution: {MIN_IMAGE_RESOLUTION} x {MIN_IMAGE_RESOLUTION} px"
+            )
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -66,21 +81,20 @@ class CreateForm(BaseModel):
             exceptions.InvalidImageFile(),
         ]
     ),
+    description=(
+        """
+            **Uploads an executive image.**    
+            - Executive must have a valid access token.   
+            - Logged-in executive must have `executive.update` permission to upload other executive images.   
+            - Executive can update their own image without permission.    
+        """
+    ),
 )
 async def upload_executive_image(
     form_param: CreateForm = Depends(),
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
-    """
-    **Uploads an executive image.**
-
-    - Executive must have a valid access token.
-    - Logged-in executive must have 'executive.update' permission to upload other executive images.
-    - Executive can update their own image without permission.
-    - The image resolution is based on `MAX_IMAGE_RESOLUTION` and `MIN_IMAGE_RESOLUTION`.
-    - The image size is based on `MAX_IMAGE_FILE_SIZE` and `MIN_IMAGE_FILE_SIZE`.
-    """
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
