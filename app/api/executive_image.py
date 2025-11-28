@@ -25,6 +25,12 @@ from app.src.db import ExecutiveToken, ExecutiveImage, SessionLocal
 from app.src.permissions.executive import PermissionPath
 from app.src.openobserve import log_event
 from app.src.validators import verify_permission, verify_token
+from app.src.constants import (
+    MAX_IMAGE_FILE_SIZE,
+    MAX_IMAGE_RESOLUTION,
+    MIN_IMAGE_FILE_SIZE,
+    MIN_IMAGE_RESOLUTION,
+)
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
@@ -54,11 +60,20 @@ class ExecutiveImageSchema(BaseModel):
 
 
 ## Input Forms
-class createForm(BaseModel):
+class CreateForm(BaseModel):
     """Form data for creating a new executive image."""
 
     executive_id: int | None = Field(Form(default=None))
-    file: UploadFile = Field(File())
+    file: UploadFile = Field(
+        File(
+            description=(
+                f"Max File Size: {MAX_IMAGE_FILE_SIZE // (1024*1024)} MB, "
+                f"Min File Size: {MIN_IMAGE_FILE_SIZE // 1024} KB, "
+                f"Max Resolution: {MAX_IMAGE_RESOLUTION} x {MAX_IMAGE_RESOLUTION} px, "
+                f"Min Resolution: {MIN_IMAGE_RESOLUTION} x {MIN_IMAGE_RESOLUTION} px"
+            )
+        )
+    )
 
 
 ## Query Parameters
@@ -103,20 +118,20 @@ class ImageQueryParams(BaseModel):
             exceptions.InvalidImageFile(),
         ]
     ),
+    description=(
+        """
+            **Uploads an executive image.**    
+            - Executive must have a valid access token.   
+            - Logged-in executive must have `executive.update` permission to upload other executive images.   
+            - Executive can update their own image without permission.    
+        """
+    ),
 )
 async def upload_executive_image(
-    form_param: createForm = Depends(),
+    form_param: CreateForm = Depends(),
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
-    """
-    **Uploads an executive image.**
-
-    - Executive must have a valid access token.
-    - Logged-in executive must have 'executive.update' permission to upload other executive images.
-    - Executive can update their own image without permission.
-    - The image resolution is based on `MAX_IMAGE_RESOLUTION` and `MIN_IMAGE_RESOLUTION`.
-    """
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
@@ -127,6 +142,7 @@ async def upload_executive_image(
         if not is_self_update:
             roles = get_executive_roles(session, token)
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
+
         file_bytes = await form_param.file.read()
         validate_image(file_bytes, form_param.file.filename)
         executive_image = ExecutiveImage(
@@ -136,14 +152,15 @@ async def upload_executive_image(
             file_size=len(file_bytes),
         )
         session.add(executive_image)
-        session.commit()
-        session.refresh(executive_image)
+        session.flush()
         upload_file(
             EXECUTIVE_IMAGES,
             str(executive_image.id),
             len(file_bytes),
             BytesIO(file_bytes),
         )
+        session.commit()
+        session.refresh(executive_image)
 
         _, executive_image_data = orm_to_json(executive_image)
         log_event(token, request_info, executive_image_data)
@@ -159,17 +176,18 @@ async def upload_executive_image(
     tags=["Account Image"],
     response_model=list[ExecutiveImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches executive images.**    
+            - Requires a valid access token for authentication.    
+            - Common search supports searching by id, executive_id, file_name, file_type, and file_size.    
+        """
+    ),
 )
 async def fetch_executive_image(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
 ):
-    """
-    **Fetch executive images.**
-
-    - Requires a valid access token for authentication.
-    - Common search supports searching by id, executive_id, file_name, file_type, and file_size.
-    """
     try:
         session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
