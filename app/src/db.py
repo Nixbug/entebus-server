@@ -19,12 +19,16 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    event,
+    Connection,
     func,
+    inspect,
 )
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import sessionmaker, DeclarativeBase, Mapper
 from secrets import token_hex
 from sqlalchemy.dialects.postgresql import JSONB
 
+from app.src import argon2
 from app.src.constants import (
     PSQL_DB_DRIVER,
     PSQL_DB_HOST,
@@ -183,6 +187,18 @@ class Executive(ORMbase):
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+@event.listens_for(Executive, "before_insert")
+@event.listens_for(Executive, "before_update")
+def preprocess_password(
+    mapper: Mapper, connection: Connection, target: Executive
+) -> None:
+    """Event listener to hash the password before insertion or update."""
+
+    history = inspect(target).attrs.password.history
+    if history.has_changes() and target.password:
+        target.password = argon2.make_password(target.password)
 
 
 class ExecutiveRole(ORMbase):

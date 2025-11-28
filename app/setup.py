@@ -4,7 +4,7 @@ from alembic.config import Config
 from sqlalchemy import text
 from alembic.script import ScriptDirectory
 
-from app.src import argon2, buckets, minio
+from app.src import buckets, minio
 from app.src.db import (
     ORMbase,
     Executive,
@@ -96,16 +96,15 @@ def initialize():
     """Initialize the database with default users with default permissions."""
     session = SessionLocal()
 
-    password = argon2.make_password("password")
     admin = Executive(
         username="admin",
-        password=password,
+        password="password",
         full_name="Entebus admin",
         designation="Administrator",
     )
     guest = Executive(
         username="guest",
-        password=password,
+        password="password",
         full_name="Entebus guest",
         designation="Guest",
     )

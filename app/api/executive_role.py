@@ -100,19 +100,20 @@ class QueryParams(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
+    description=(
+        """
+            **Creates a new executive role.**    
+            - Executive must have a valid access token.     
+            - Logged-in executive must have `executive.role.create` permission.     
+            - Duplicate names are not allowed.      
+        """
+    ),
 )
 async def create_role(
     form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
-    """
-    **Create a new executive role.**
-
-    - Executive must have a valid access token.
-    - Logged-in executive must have 'executive.role.create' permission.
-    - Duplicate names are not allowed.
-    """
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
@@ -146,6 +147,15 @@ async def create_role(
             exceptions.UnknownValue(ExecutiveRole.id),
         ]
     ),
+    description=(
+        """
+            **Updates an existing executive role.**    
+            - Requires a valid access token.    
+            - Logged-in executive must have `executive.role.update` permission.       
+            - Duplicate names are not allowed.     
+            - Empty PATCH requests are allowed and will result in no changes.   
+        """
+    ),
 )
 async def update_role(
     id: int,
@@ -153,14 +163,6 @@ async def update_role(
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
-    """
-    **Update an existing executive role.**
-
-    - Requires a valid access token.
-    - Logged-in executive must have `executive.role.update` permission.
-    - Duplicate names are not allowed.
-    - Empty PATCH requests are allowed and will result in no changes.
-    """
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
@@ -188,11 +190,19 @@ async def update_role(
 
 
 @route_executive.delete(
-    URL_EXECUTIVE_ROLE + "/{id}",
+    f"{URL_EXECUTIVE_ROLE}/{{id}}",
     tags=["Role"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing executive role.**    
+            - Requires a valid access token for authentication.     
+            - The logged-in executive must have the `executive.role.delete` permission.     
+            - Returns 204 No Content even if the specified role does not exist.     
+        """
     ),
 )
 async def delete_role(
@@ -200,13 +210,6 @@ async def delete_role(
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
-    """
-    **Deletes an existing executive role.**
-
-    - Requires a valid access token for authentication.
-    - The logged-in executive must have the `executive.role.delete` permission.
-    - Returns `204 No Content` even if the specified role does not exist.
-    """
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
@@ -232,16 +235,17 @@ async def delete_role(
     tags=["Role"],
     response_model=list[ExecutiveRoleSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches all executive roles.**    
+            - Requires a valid access token for authentication.     
+        """
+    ),
 )
 async def fetch_role(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
 ):
-    """
-    **Fetch executive roles.**
-
-    - Requires a valid access token for authentication.
-    """
     session = SessionLocal()
     try:
         verify_token(session, ExecutiveToken, access_token)

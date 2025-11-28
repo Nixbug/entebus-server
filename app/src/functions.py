@@ -7,7 +7,7 @@ It offers reusable utilities that make it easier for developers to integrate the
 import mimetypes
 from enum import Enum
 from io import BytesIO
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from typing import Any, List, Dict, Type, Union, Tuple
 from fastapi import Query, Request
 from fastapi.encoders import jsonable_encoder
@@ -16,7 +16,12 @@ from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
 
 from app.src import schemas, exceptions
-from app.src.constants import MAX_IMAGE_RESOLUTION, MIN_IMAGE_RESOLUTION
+from app.src.constants import (
+    MAX_IMAGE_FILE_SIZE,
+    MAX_IMAGE_RESOLUTION,
+    MIN_IMAGE_FILE_SIZE,
+    MIN_IMAGE_RESOLUTION,
+)
 from app.src.db import (
     ExecutiveRole,
     ExecutiveRoleMap,
@@ -446,6 +451,10 @@ def orm_to_json(
     return data, stripped
 
 
+# Set decompression bomb guard
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_RESOLUTION * MAX_IMAGE_RESOLUTION
+
+
 def validate_image(file_bytes: bytes, filename: str) -> None:
     """
     Validate an image file based on its content type and size.
@@ -461,13 +470,18 @@ def validate_image(file_bytes: bytes, filename: str) -> None:
         guessed_mime, _ = mimetypes.guess_type(filename)
         if not guessed_mime or not guessed_mime.startswith("image/"):
             raise exceptions.InvalidImageFile()
-        image = Image.open(BytesIO(file_bytes))
-        image.verify()
-        image = Image.open(BytesIO(file_bytes))
-        width, height = image.size
-        if not (MIN_IMAGE_RESOLUTION <= width <= MAX_IMAGE_RESOLUTION) or not (
-            MIN_IMAGE_RESOLUTION <= height <= MAX_IMAGE_RESOLUTION
-        ):
+
+        size = len(file_bytes)
+        if size > MAX_IMAGE_FILE_SIZE or size < MIN_IMAGE_FILE_SIZE:
             raise exceptions.InvalidImageFile()
-    except Exception:
+
+        with Image.open(BytesIO(file_bytes)) as image:
+            image.load()
+            width, height = image.size
+            if not (MIN_IMAGE_RESOLUTION <= width <= MAX_IMAGE_RESOLUTION) or not (
+                MIN_IMAGE_RESOLUTION <= height <= MAX_IMAGE_RESOLUTION
+            ):
+                raise exceptions.InvalidImageFile()
+
+    except UnidentifiedImageError:
         raise exceptions.InvalidImageFile()
