@@ -125,7 +125,7 @@ async def upload_executive_image(
         session.commit()
         session.refresh(executive_image)
 
-        _, executive_image_data = orm_to_json(executive_image)
+        executive_image_data, _ = orm_to_json(executive_image)
         log_event(token, request_info, executive_image_data)
         return executive_image_data
     except Exception as e:
@@ -146,7 +146,7 @@ async def upload_executive_image(
             **Deletes an executive image.**    
             - Executive must have a valid access token.    
             - Executives can delete their own image without additional permissions.    
-            - To delete another executive's image, the 'executive.update' permission is required.    
+            - To delete another executive's image, the `executive.update` permission is required.    
             - Returns 204 No Content even if the specified image does not exist.    
         """
     ),
@@ -173,7 +173,7 @@ async def delete_executive_image(
         session.commit()
         delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
 
-        _, executive_image_data = orm_to_json(executive_image)
+        executive_image_data, _ = orm_to_json(executive_image)
         log_event(token, request_info, executive_image_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
