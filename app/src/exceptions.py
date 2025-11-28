@@ -239,3 +239,13 @@ class InvalidGrantType(APIException):
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "Invalid grant type"
     headers = {"X-Error": "InvalidGrantType"}
+
+
+class InvalidImageFile(APIException):
+    """
+    Raised when an invalid image file is provided.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    headers = {"X-Error": "InvalidImageFile"}
+    detail = "Invalid image provided"

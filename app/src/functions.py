@@ -4,7 +4,10 @@ This module provides helper functions commonly used across FastAPI routes.
 It offers reusable utilities that make it easier for developers to integrate them into their projects.
 """
 
+import mimetypes
 from enum import Enum
+from io import BytesIO
+from PIL import Image, UnidentifiedImageError
 from typing import Any, List, Dict, Type, Union, Tuple
 from fastapi import Query, Request
 from fastapi.encoders import jsonable_encoder
@@ -13,6 +16,12 @@ from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
 
 from app.src import schemas, exceptions
+from app.src.constants import (
+    MAX_IMAGE_FILE_SIZE,
+    MAX_IMAGE_RESOLUTION,
+    MIN_IMAGE_FILE_SIZE,
+    MIN_IMAGE_RESOLUTION,
+)
 from app.src.db import (
     ExecutiveRole,
     ExecutiveRoleMap,
@@ -440,3 +449,39 @@ def orm_to_json(
         if key not in exclude:
             stripped[key] = value
     return data, stripped
+
+
+# Set decompression bomb guard
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_RESOLUTION * MAX_IMAGE_RESOLUTION
+
+
+def validate_image(file_bytes: bytes, filename: str) -> None:
+    """
+    Validate an image file based on its content type and size.
+
+    Args:
+        file_bytes (bytes): The bytes of the image file.
+        filename (str): The filename of the image file.
+
+    Raises:
+        InvalidImageFile: If the image file is invalid.
+    """
+    try:
+        guessed_mime, _ = mimetypes.guess_type(filename)
+        if not guessed_mime or not guessed_mime.startswith("image/"):
+            raise exceptions.InvalidImageFile()
+
+        size = len(file_bytes)
+        if size > MAX_IMAGE_FILE_SIZE or size < MIN_IMAGE_FILE_SIZE:
+            raise exceptions.InvalidImageFile()
+
+        with Image.open(BytesIO(file_bytes)) as image:
+            image.load()
+            width, height = image.size
+            if not (MIN_IMAGE_RESOLUTION <= width <= MAX_IMAGE_RESOLUTION) or not (
+                MIN_IMAGE_RESOLUTION <= height <= MAX_IMAGE_RESOLUTION
+            ):
+                raise exceptions.InvalidImageFile()
+
+    except UnidentifiedImageError:
+        raise exceptions.InvalidImageFile()
