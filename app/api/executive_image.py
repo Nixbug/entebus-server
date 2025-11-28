@@ -58,7 +58,7 @@ class CreateForm(BaseModel):
         File(
             description=(
                 f"Max File Size: {MAX_IMAGE_FILE_SIZE // (1024*1024)} MB, "
-                f"Min File Size: {MIN_IMAGE_FILE_SIZE // 1024} KB , "
+                f"Min File Size: {MIN_IMAGE_FILE_SIZE // 1024} KB, "
                 f"Max Resolution: {MAX_IMAGE_RESOLUTION} x {MAX_IMAGE_RESOLUTION} px, "
                 f"Min Resolution: {MIN_IMAGE_RESOLUTION} x {MIN_IMAGE_RESOLUTION} px"
             )
