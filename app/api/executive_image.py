@@ -168,6 +168,7 @@ async def delete_executive_image(
         if executive_image.executive_id != token.executive_id:
             roles = get_executive_roles(session, token)
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
+
         session.delete(executive_image)
         session.commit()
         delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
