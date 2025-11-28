@@ -9,7 +9,9 @@ All ORM models should inherit from `ORMbase`.
 """
 
 from datetime import datetime, timedelta, timezone
+from geoalchemy2 import Geometry
 from sqlalchemy import (
+    ARRAY,
     create_engine,
     Boolean,
     TEXT,
@@ -39,7 +41,7 @@ from app.src.constants import (
     MAX_REFRESH_TOKEN_VALIDITY,
     MAX_ACCESS_TOKEN_VALIDITY,
 )
-from app.src.enums import AccountStatus, GenderType, PlatformType
+from app.src.enums import AccountStatus, GenderType, LandmarkType, PlatformType
 
 
 # ---------------------------------------------------------------------------
@@ -446,3 +448,61 @@ class VendorRole:
 
 class VendorRoleMap:
     pass
+
+
+class Landmark(ORMbase):
+    """
+    Represents a geo-spatial landmark used for mapping, zoning, or location-aware operations.
+
+    Landmarks are stored as named polygonal regions with versioning and type categorization,
+    enabling geographic indexing, boundary change tracking, and spatial queries
+    (containment, intersection, overlap) using PostGIS.
+
+    Frontend-Backend Note:
+        Although circular regions are displayed and drawn in the frontend UI, they are
+        **converted to axis-aligned bounding box (AABB) polygons** before being sent to the backend.
+        The AABB polygon is a square geofence tightly enclosing the circle, simplifying
+        spatial indexing and backend spatial operations.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the landmark.
+
+        name (String(32), not null, indexed):
+            Official name of the landmark.
+            It should be 1-32 characters long.
+            May include space ( ), hyphen (-), period (.), and underscore (_).
+
+        version (Integer, not null, default=1):
+            Version number incremented on updates.
+            Useful for tracking changes and synchronizing updated boundaries.
+
+        alias_names (ARRAY(String(32)), nullable):
+            Optional list of alternative or local names for the landmark.
+            Each alias can be up to 32 characters long.
+
+        boundary (Geometry(POLYGON, SRID 4326), not null, unique):
+            Geo-spatial boundary stored as a PostGIS `POLYGON` using SRID 4326 (WGS 84 longitude/latitude).
+            Represents the physical area covered by the landmark.
+            Must be unique — no two landmarks can share the same geometry.
+
+        type (Integer, not null, default=LandmarkType.LOCAL, indexed):
+            Enum value representing the category of the landmark
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the token record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when this token was created.
+    """
+
+    __tablename__ = "landmark"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(32), nullable=False, index=True)
+    version = Column(Integer, nullable=False, default=1)
+    alias_names = Column(ARRAY(String(32)))
+    boundary = Column(Geometry(geometry_type="POLYGON", srid=4326), nullable=False)
+    type = Column(Integer, nullable=False, default=LandmarkType.LOCAL, index=True)
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), default=func.now(), nullable=False)
