@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from pytest import Session
 from shapely.geometry import Polygon
 from sqlalchemy import func
-from shapely import wkt
+from shapely import wkt, wkb
 
 from app.api.bearer import oauth2_executive
 from app.src.constants import MAX_LANDMARK_AREA, MIN_LANDMARK_AREA
@@ -41,6 +41,8 @@ route_executive = APIRouter()
 
 ## Output Schema
 class LandmarkSchema(BaseModel):
+    """Schema for landmark response."""
+
     id: int
     name: str
     version: int
@@ -53,6 +55,8 @@ class LandmarkSchema(BaseModel):
 
 ## Input Forms
 class CreateForm(BaseModel):
+    """Form data for creating a new landmark."""
+
     name: str = Field(max_length=32, pattern=NAME_PATTERN)
     boundary: str = Field(description="Accepts only SRID 4326 (WGS84)")
     type: LandmarkType = Field(
@@ -161,10 +165,12 @@ async def create_landmark(
         )
         session.add(landmark)
         session.commit()
+        session.refresh(landmark)
 
-        _, landmark_data = orm_to_json(landmark)
+        landmark.boundary = wkb.loads(bytes(landmark.boundary.data)).wkt
+        landmark_data, _ = orm_to_json(landmark)
         log_event(token, request_info, landmark_data)
-        return landmark
+        return landmark_data
     except Exception as e:
         exceptions.handle(e)
     finally:
