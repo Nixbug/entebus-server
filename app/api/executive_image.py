@@ -6,7 +6,7 @@ deletion, and retrieval. Uses Pydantic schemas for
 input validation and structured output.
 """
 
-from fastapi import APIRouter, Depends, status, Form, UploadFile, File
+from fastapi import APIRouter, Depends, Response, status, Form, UploadFile, File
 from pydantic import BaseModel, Field
 from io import BytesIO
 from datetime import datetime
@@ -20,7 +20,7 @@ from app.src.constants import (
     MIN_IMAGE_RESOLUTION,
 )
 from app.src.urls import URL_EXECUTIVE_PICTURE
-from app.src.minio import upload_file
+from app.src.minio import delete_file, upload_file
 from app.api.bearer import oauth2_executive
 from app.src.db import ExecutiveToken, ExecutiveImage, SessionLocal
 from app.src.permissions.executive import PermissionPath
@@ -125,9 +125,57 @@ async def upload_executive_image(
         session.commit()
         session.refresh(executive_image)
 
-        _, executive_image_data = orm_to_json(executive_image)
+        executive_image_data, _ = orm_to_json(executive_image)
         log_event(token, request_info, executive_image_data)
         return executive_image_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.delete(
+    f"{URL_EXECUTIVE_PICTURE}/{{id}}",
+    tags=["Account Image"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an executive image.**    
+            - Executive must have a valid access token.    
+            - Executives can delete their own image without additional permissions.    
+            - To delete another executive's image, the `executive.update` permission is required.    
+            - Returns 204 No Content even if the specified image does not exist.    
+        """
+    ),
+)
+async def delete_executive_image(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+
+        executive_image = (
+            session.query(ExecutiveImage).filter(ExecutiveImage.id == id).first()
+        )
+        if executive_image is None:
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+        if executive_image.executive_id != token.executive_id:
+            roles = get_executive_roles(session, token)
+            verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
+
+        session.delete(executive_image)
+        session.commit()
+        delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
+
+        executive_image_data, _ = orm_to_json(executive_image)
+        log_event(token, request_info, executive_image_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
