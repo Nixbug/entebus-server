@@ -510,25 +510,22 @@ def validate_srid_4326(geometry: BaseGeometry) -> bool:
     def check_coords(coords):
         for longitude, latitude in coords:
             if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
-                return False
+                raise exceptions.InvalidSRID4326()
         return True
 
     # Check single geometries
     if hasattr(geometry, "exterior"):
-        valid = check_coords(geometry.exterior.coords)
+        if not check_coords(geometry.exterior.coords):
+            raise exceptions.InvalidSRID4326()
     elif hasattr(geometry, "coords"):
-        valid = check_coords(geometry.coords)
-    else:
-        valid = True  # No direct coords to check here
+        if not check_coords(geometry.coords):
+            raise exceptions.InvalidSRID4326()
 
     # Check Multi* geometries recursively
     if hasattr(geometry, "geoms"):
         for geom in geometry.geoms:
             if not validate_srid_4326(geom):
-                return False
-
-    if not valid:
-        raise exceptions.InvalidSRID4326()
+                raise exceptions.InvalidSRID4326()
 
     return True
 
@@ -551,7 +548,7 @@ def validate_wkt_string(
     """
     try:
         geom = wkt.loads(wkt_string)
-    except errors.WKTReadingError:
+    except errors.ShapelyError:
         raise exceptions.InvalidWKTStringOrType()
 
     if not isinstance(geom, expected_type):
@@ -611,5 +608,5 @@ def get_area(geom: BaseGeometry) -> float:
         "EPSG:4326", "EPSG:6933", always_xy=True
     ).transform
 
-    projectedGeom = transform(projection, geom)
-    return projectedGeom.area
+    projected_geom = transform(projection, geom)
+    return projected_geom.area

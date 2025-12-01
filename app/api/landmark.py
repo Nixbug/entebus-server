@@ -78,14 +78,14 @@ class UpdateForm:
 
 
 ## Function
-def validate_boundary(session: Session, fParam: CreateForm | UpdateForm) -> Polygon:
+def validate_boundary(session: Session, form_param: CreateForm | UpdateForm) -> Polygon:
     """
     Validate and normalize a landmark boundary geometry, this function takes a WKT string representing a polygon and performs
     validation checks on it.
 
     Args:
         session (Session): Active SQLAlchemy database session.
-        fParam (CreateForm | UpdateForm): Form instance containing a `boundary` WKT string.
+        form_param (CreateForm | UpdateForm): Form instance containing a `boundary` WKT string.
 
     Returns:
         Polygon: Validated Shapely `Polygon` geometry.
@@ -95,7 +95,7 @@ def validate_boundary(session: Session, fParam: CreateForm | UpdateForm) -> Poly
         OverlappingLandmarkBoundary: If the boundary intersects with an existing landmark.
     """
     # Validate the WKT polygon input string
-    boundary_geom = validate_wkt_string(fParam.boundary, Polygon)
+    boundary_geom = validate_wkt_string(form_param.boundary, Polygon)
     validate_srid_4326(boundary_geom)
     validate_AABB(boundary_geom)
 
@@ -109,11 +109,11 @@ def validate_boundary(session: Session, fParam: CreateForm | UpdateForm) -> Poly
             Landmark.boundary, func.ST_GeomFromText(boundary_geom.wkt, 4326)
         )
     )
-    if isinstance(fParam, UpdateForm):
-        overlapping = overlapping.filter(Landmark.id != fParam.id)
+    if isinstance(form_param, UpdateForm):
+        overlapping = overlapping.filter(Landmark.id != form_param.id)
     if overlapping.first():
         raise exceptions.OverlappingLandmarkBoundary()
-    fParam.boundary = wkt.dumps(boundary_geom)
+    form_param.boundary = wkt.dumps(boundary_geom)
     return boundary_geom
 
 
