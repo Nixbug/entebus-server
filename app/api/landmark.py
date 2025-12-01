@@ -1,7 +1,8 @@
 """
 Executive Account API Router for EnteBus.
 
-Provides endpoints for managing. Uses Pydantic schemas for
+Provides endpoints for managing landmarks, including creation,
+update, deletion, and retrieval. Uses Pydantic schemas for
 input validation and structured output.
 """
 
@@ -57,8 +58,15 @@ class LandmarkSchema(BaseModel):
 class CreateForm(BaseModel):
     """Form data for creating a new landmark."""
 
-    name: str = Field(max_length=32, pattern=NAME_PATTERN)
-    boundary: str = Field(description="Accepts only SRID 4326 (WGS84)")
+    name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN)
+    boundary: str = Field(
+        description=(
+            f"Accepts only SRID 4326 (WGS84)."
+            f"valid WKT string representing a `POLYGON`."
+            f"Max Area: {MAX_LANDMARK_AREA // 1000000} sq.m, "
+            f"Min Area: {MIN_LANDMARK_AREA} sq.m"
+        )
+    )
     type: LandmarkType = Field(
         description=enum_str(LandmarkType), default=LandmarkType.LOCAL
     )
@@ -74,9 +82,6 @@ def validate_boundary(session: Session, fParam: CreateForm | UpdateForm) -> Poly
     """
     Validate and normalize a landmark boundary geometry, this function takes a WKT string representing a polygon and performs
     validation checks on it.
-
-    On successful validation, the boundary is normalized and re-assigned to
-    `fParam.boundary` in WKT format.
 
     Args:
         session (Session): Active SQLAlchemy database session.
@@ -136,11 +141,10 @@ def validate_boundary(session: Session, fParam: CreateForm | UpdateForm) -> Poly
         **Create a new landmark.**       
         - The executive must provide a valid access token.  
         - The authenticated executive must have `landmark.create` permission.        
-        - The boundary field must be a valid WKT string representing a `POLYGON`.     
+        - The boundary field must be a valid WKT string.     
         - The coordinates must be in `longitude/latitude` format.       
         - Use WGS84 compatible coordinates within `SRID 4326` bounds.     
         - Form a valid Axis-Aligned Bounding Box (AABB).        
-        - The boundary area must be within the maximum limit of `{MAX_LANDMARK_AREA // 1000000}` km², and minimum of `{MIN_LANDMARK_AREA}` m².   
         - The boundary must not intersect or overlap with any existing landmark boundary.     
     """
     ),
