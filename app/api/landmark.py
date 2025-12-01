@@ -1,0 +1,171 @@
+"""
+Executive Account API Router for EnteBus.
+
+Provides endpoints for managing. Uses Pydantic schemas for
+input validation and structured output.
+"""
+
+from datetime import datetime
+from typing import List
+from fastapi import APIRouter, status, Depends
+from pydantic import BaseModel, Field
+from pytest import Session
+from shapely.geometry import Polygon
+from sqlalchemy import func
+from shapely import wkt
+
+from app.api.bearer import oauth2_executive
+from app.src.constants import MAX_LANDMARK_AREA, MIN_LANDMARK_AREA
+from app.src.db import Landmark, ExecutiveToken, SessionLocal
+from app.src.enums import LandmarkType
+from app.src.permissions.executive import PermissionPath
+from app.src import exceptions
+from app.src.regex import NAME_PATTERN
+from app.src.urls import URL_LANDMARK
+from app.src.openobserve import log_event
+from app.src.validators import verify_permission, verify_token
+from app.src.functions import (
+    enum_str,
+    fuse_exception_responses,
+    get_area,
+    get_request_info,
+    get_executive_roles,
+    orm_to_json,
+    validate_wkt_string,
+    validate_AABB,
+    validate_srid_4326,
+)
+
+route_executive = APIRouter()
+
+
+## Output Schema
+class LandmarkSchema(BaseModel):
+    id: int
+    name: str
+    version: int
+    alias_names: List[str] | None
+    boundary: str
+    type: int
+    updated_on: datetime | None
+    created_on: datetime
+
+
+## Input Forms
+class CreateForm(BaseModel):
+    name: str = Field(max_length=32, pattern=NAME_PATTERN)
+    boundary: str = Field(description="Accepts only SRID 4326 (WGS84)")
+    type: LandmarkType = Field(
+        description=enum_str(LandmarkType), default=LandmarkType.LOCAL
+    )
+    alias_names: List[str] | None = Field(max_length=32, default=None)
+
+
+class UpdateForm:
+    pass
+
+
+## Function
+def validate_boundary(session: Session, fParam: CreateForm | UpdateForm) -> Polygon:
+    """
+    Validate and normalize a landmark boundary geometry, this function takes a WKT string representing a polygon and performs
+    validation checks on it.
+
+    On successful validation, the boundary is normalized and re-assigned to
+    `fParam.boundary` in WKT format.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        fParam (CreateForm | UpdateForm): Form instance containing a `boundary` WKT string.
+
+    Returns:
+        Polygon: Validated Shapely `Polygon` geometry.
+
+    Raises:
+        InvalidBoundaryArea: If the computed area is outside allowed limits.
+        OverlappingLandmarkBoundary: If the boundary intersects with an existing landmark.
+    """
+    # Validate the WKT polygon input string
+    boundary_geom = validate_wkt_string(fParam.boundary, Polygon)
+    validate_srid_4326(boundary_geom)
+    validate_AABB(boundary_geom)
+
+    # Validate the boundary area
+    area_in_sq_meters = get_area(boundary_geom)
+    if not (MIN_LANDMARK_AREA < area_in_sq_meters < MAX_LANDMARK_AREA):
+        raise exceptions.InvalidBoundaryArea()
+    # Check for overlapping boundary
+    overlapping = session.query(Landmark).filter(
+        func.ST_Intersects(
+            Landmark.boundary, func.ST_GeomFromText(boundary_geom.wkt, 4326)
+        )
+    )
+    if isinstance(fParam, UpdateForm):
+        overlapping = overlapping.filter(Landmark.id != fParam.id)
+    if overlapping.first():
+        raise exceptions.OverlappingLandmarkBoundary()
+    fParam.boundary = wkt.dumps(boundary_geom)
+    return boundary_geom
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Executive]
+# ---------------------------------------------------------------------------
+@route_executive.post(
+    URL_LANDMARK,
+    tags=["Landmark"],
+    response_model=LandmarkSchema,
+    status_code=status.HTTP_201_CREATED,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.InvalidWKTStringOrType(),
+            exceptions.InvalidSRID4326(),
+            exceptions.InvalidAABB(),
+            exceptions.InvalidBoundaryArea(),
+            exceptions.OverlappingLandmarkBoundary(),
+        ]
+    ),
+    description=(
+        f"""
+        **Create a new landmark.**       
+        - The executive must provide a valid access token.  
+        - The authenticated executive must have `landmark.create` permission.        
+        - The boundary field must be a valid WKT string representing a `POLYGON`.     
+        - The coordinates must be in `longitude/latitude` format.       
+        - Use WGS84 compatible coordinates within `SRID 4326` bounds.     
+        - Form a valid Axis-Aligned Bounding Box (AABB).        
+        - The boundary area must be within the maximum limit of `{MAX_LANDMARK_AREA // 1000000}` km², and minimum of `{MIN_LANDMARK_AREA}` m².   
+        - The boundary must not intersect or overlap with any existing landmark boundary.     
+    """
+    ),
+)
+async def create_landmark(
+    form_param: CreateForm,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, PermissionPath.CREATE_LANDMARK)
+
+        validate_boundary(session, form_param)
+        landmark = Landmark(
+            name=form_param.name,
+            boundary=form_param.boundary,
+            type=form_param.type,
+            alias_names=form_param.alias_names,
+        )
+        session.add(landmark)
+        session.commit()
+
+        _, landmark_data = orm_to_json(landmark)
+        log_event(token, request_info, landmark_data)
+        return landmark
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()

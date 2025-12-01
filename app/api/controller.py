@@ -13,6 +13,7 @@ from app.api import (
     executive_image,
     executive_token,
     executive_role,
+    landmark,
 )
 from app.src.enums import AppID
 
@@ -39,3 +40,4 @@ app_executive.include_router(executive_token.route_executive)
 app_executive.include_router(executive_role.route_executive)
 app_executive.include_router(executive_account.route_executive)
 app_executive.include_router(executive_image.route_executive)
+app_executive.include_router(landmark.route_executive)
