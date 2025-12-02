@@ -296,7 +296,7 @@ async def fetch_executive_image(
 )
 async def download_executive_image(
     id: int,
-    qParam: ImageQueryParams = Depends(),
+    query_params: ImageQueryParams = Depends(),
     access_token=Depends(oauth2_executive),
 ):
     try:
@@ -310,15 +310,15 @@ async def download_executive_image(
             file_bytes = download_file(EXECUTIVE_IMAGES, str(executive_image.id))
             resized_bytes = resize_image(
                 file_bytes,
-                width=qParam.width,
-                height=qParam.height,
+                width=query_params.width,
+                height=query_params.height,
             )
 
             return StreamingResponse(
                 BytesIO(resized_bytes),
                 media_type=executive_image.file_type,
                 headers={
-                    "Content-Disposition": f"file_name={executive_image.file_name}",
+                    "Content-Disposition": f'inline; filename="{executive_image.file_name}"',
                     "Cache-Control": "public, max-age=31536000, immutable",
                 },
             )
