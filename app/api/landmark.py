@@ -114,7 +114,12 @@ class QueryParams(
 
     search: str | None = Field(Query(default=None))
     location: str | None = Field(
-        Query(default=None, description="Accepts only SRID 4326 (WGS84)")
+        Query(
+            default=None,
+            description=(
+                "Accepts only SRID 4326 (WGS84), valid WKT string representing a `POINT`."
+            ),
+        )
     )
     alias_names: str | None = Field(Query(default=None))
     type_list: List[LandmarkType] | None = Field(
@@ -191,7 +196,6 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
                 f"%{query_params.alias_names}%"
             )
         )
-
     # Common search
     if query_params.search:
         search = f"%{query_params.search}%"
@@ -229,9 +233,7 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
 
         landmarks = query.all()
         for landmark in landmarks:
-            if isinstance(landmark.boundary, WKBElement):
-                landmark.boundary = wkb.loads(bytes(landmark.boundary.data)).wkt
-
+            landmark.boundary = wkb.loads(bytes(landmark.boundary.data)).wkt
         return landmarks
 
 
