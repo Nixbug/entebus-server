@@ -309,8 +309,6 @@ async def download_executive_image(
         )
         if executive_image is not None:
             file_bytes = download_file(EXECUTIVE_IMAGES, str(executive_image.id))
-            if file_bytes is None:
-                raise exceptions.UnknownValue(ExecutiveImage.id)
             resized_bytes = resize_image(
                 file_bytes,
                 width=query_params.width,
