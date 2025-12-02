@@ -409,6 +409,33 @@ def apply_status_filters(
     return query
 
 
+def apply_picture_filters(
+    query: Query, model_cls: Type[ORMbase], params: BaseModel
+) -> Query:
+    """
+    Apply file metadata filters to a SQLAlchemy query.
+
+    This function filters records based on file_name, file_type, file_size_ge, and file_size_le.
+
+    Args:
+        query (Query): Active SQLAlchemy query object.
+        model_cls (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        params (BaseModel): Pydantic model instance.
+
+    Returns:
+        Query: Updated SQLAlchemy query with applied filters.
+    """
+    if params.file_name is not None:
+        query = query.filter(model_cls.file_name.ilike(f"%{params.file_name}%"))
+    if params.file_type is not None:
+        query = query.filter(model_cls.file_type.ilike(f"%{params.file_type}%"))
+    if params.file_size_ge is not None:
+        query = query.filter(model_cls.file_size >= params.file_size_ge)
+    if params.file_size_le is not None:
+        query = query.filter(model_cls.file_size <= params.file_size_le)
+    return query
+
+
 def update_if_changed(target_obj: Any, source_obj: dict) -> None:
     """
     Update attributes on a target object based on values from a source object.
@@ -485,3 +512,28 @@ def validate_image(file_bytes: bytes, filename: str) -> None:
 
     except UnidentifiedImageError:
         raise exceptions.InvalidImageFile()
+
+
+def resize_image(file_bytes: bytes, width: int = None, height: int = None) -> bytes:
+    """
+    Resize an image file to fit within the specified width and height while maintaining aspect ratio.
+
+    Uses PIL's thumbnail method, which scales the image to fit within the given dimensions
+    without distorting the aspect ratio. The resulting image may be smaller than the requested
+    width and height in one or both dimensions, depending on the original aspect ratio.
+
+    Args:
+        file_bytes (bytes): The bytes of the image file.
+        width (int): The width for the resized image, defaults to None.
+        height (int): The height for the resized image, defaults to None.
+
+    Returns:
+        bytes: The resized image file as bytes.
+    """
+    image = Image.open(BytesIO(file_bytes))
+    if width or height:
+        image.thumbnail((width or image.width, height or image.height))
+
+    buffer = BytesIO()
+    image.save(buffer, image.format)
+    return buffer.getvalue()
