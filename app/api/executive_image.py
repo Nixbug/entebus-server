@@ -241,11 +241,11 @@ async def fetch_executive_image(
         verify_token(session, ExecutiveToken, access_token)
 
         query = session.query(ExecutiveImage)
-
         if query_params.executive_id is not None:
             query = query.filter(
                 ExecutiveImage.executive_id == query_params.executive_id
             )
+
         # Common search
         if query_params.search:
             search = f"%{query_params.search}%"
@@ -258,6 +258,7 @@ async def fetch_executive_image(
                     ExecutiveImage.executive_id.cast(String).ilike(search),
                 )
             )
+
         # Generalized filters
         query = apply_id_filters(query, ExecutiveImage, query_params)
         query = apply_created_on_filters(query, ExecutiveImage, query_params)
