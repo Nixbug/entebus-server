@@ -89,7 +89,6 @@ class QueryParams(PictureFilter, CreatedOnFilter, IDFilter, PaginationFilter):
     """Query parameters for executive image endpoints."""
 
     executive_id: int | None = Field(Query(default=None))
-    search: str | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
@@ -227,8 +226,7 @@ async def delete_executive_image(
     description=(
         """
             **Fetches executive images.**    
-            - Requires a valid access token for authentication.    
-            - Common search supports searching by id, executive_id, file_name, file_type, and file_size.    
+            - Requires a valid access token for authentication.     
         """
     ),
 )
@@ -244,19 +242,6 @@ async def fetch_executive_image(
         if query_params.executive_id is not None:
             query = query.filter(
                 ExecutiveImage.executive_id == query_params.executive_id
-            )
-
-        # Common search
-        if query_params.search:
-            search = f"%{query_params.search}%"
-            query = query.filter(
-                or_(
-                    ExecutiveImage.file_name.ilike(search),
-                    ExecutiveImage.file_type.ilike(search),
-                    ExecutiveImage.file_size.cast(String).ilike(search),
-                    ExecutiveImage.id.cast(String).ilike(search),
-                    ExecutiveImage.executive_id.cast(String).ilike(search),
-                )
             )
 
         # Generalized filters
