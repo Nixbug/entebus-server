@@ -413,10 +413,9 @@ def apply_picture_filters(
     query: Query, model_cls: Type[ORMbase], params: BaseModel
 ) -> Query:
     """
-    Apply creation date filters to a SQLAlchemy query.
+    Apply file metadata filters to a SQLAlchemy query.
 
-    This function filters records based on their created_on timestamp.
-    The filters are applied only if the corresponding parameter values are provided.
+    This function filters records based on file_name, file_type, file_size_ge, and file_size_le.
 
     Args:
         query (Query): Active SQLAlchemy query object.
@@ -517,12 +516,16 @@ def validate_image(file_bytes: bytes, filename: str) -> None:
 
 def resize_image(file_bytes: bytes, width: int = None, height: int = None) -> bytes:
     """
-    Resize an image file to a specified width and height.
+    Resize an image file to fit within the specified width and height while maintaining aspect ratio.
+
+    Uses PIL's thumbnail method, which scales the image to fit within the given dimensions
+    without distorting the aspect ratio. The resulting image may be smaller than the requested
+    width and height in one or both dimensions, depending on the original aspect ratio.
 
     Args:
         file_bytes (bytes): The bytes of the image file.
-        width (int): The width to resize the image with defaults to None.
-        height (int): The height to resize the image with defaults to None.
+        width (int): The width for the resized image, defaults to None.
+        height (int): The height for the resized image, defaults to None.
 
     Returns:
         bytes: The resized image file as bytes.
