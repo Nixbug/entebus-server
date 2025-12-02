@@ -15,7 +15,7 @@ from pytest import Session
 from shapely.geometry import Polygon, Point
 from sqlalchemy import String, func, or_
 from shapely import wkt, wkb
-from geoalchemy2 import Geography, WKBElement
+from geoalchemy2 import Geography
 
 from app.api.bearer import oauth2_executive
 from app.src.constants import MAX_LANDMARK_AREA, MIN_LANDMARK_AREA
@@ -117,7 +117,7 @@ class QueryParams(
         Query(
             default=None,
             description=(
-                "Accepts only SRID 4326 (WGS84), valid WKT string representing a `POINT`."
+                "Accepts only SRID 4326 (WGS84) and a valid WKT string representing a `POINT`."
             ),
         )
     )
@@ -183,7 +183,6 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
         List[Landmark]: List of landmarks that match the search criteria.
     """
     query = session.query(Landmark)
-
     if query_params.location is not None:
         geometry = validate_wkt_string(query_params.location, Point)
         validate_srid_4326(geometry)
@@ -196,6 +195,7 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
                 f"%{query_params.alias_names}%"
             )
         )
+
     # Common search
     if query_params.search:
         search = f"%{query_params.search}%"
@@ -206,6 +206,7 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
                 func.array_to_string(Landmark.alias_names, ",").ilike(search),
             )
         )
+
     # Generalized filters
     query = apply_id_filters(query, Landmark, query_params)
     query = apply_created_on_filters(query, Landmark, query_params)
