@@ -246,8 +246,8 @@ async def fetch_role(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
 ):
-    session = SessionLocal()
     try:
+        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
 
         query = session.query(ExecutiveRole)

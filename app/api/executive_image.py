@@ -6,31 +6,41 @@ deletion, and retrieval. Uses Pydantic schemas for
 input validation and structured output.
 """
 
-from fastapi import APIRouter, Depends, Response, status, Form, UploadFile, File
+from enum import StrEnum
+from fastapi import APIRouter, Depends, Response, Query, status, Form, UploadFile, File
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from io import BytesIO
 from datetime import datetime
+from sqlalchemy import String, or_
 
 from app.src.buckets import EXECUTIVE_IMAGES
 from app.src import exceptions
+from app.src.enums import OrderIn
+from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, PictureFilter
+from app.src.urls import URL_EXECUTIVE_PICTURE
+from app.src.minio import delete_file, download_file, upload_file
+from app.api.bearer import oauth2_executive
+from app.src.db import ExecutiveToken, ExecutiveImage, SessionLocal
+from app.src.permissions.executive import PermissionPath
+from app.src.openobserve import log_event
+from app.src.validators import verify_permission, verify_token
 from app.src.constants import (
     MAX_IMAGE_FILE_SIZE,
     MAX_IMAGE_RESOLUTION,
     MIN_IMAGE_FILE_SIZE,
     MIN_IMAGE_RESOLUTION,
 )
-from app.src.urls import URL_EXECUTIVE_PICTURE
-from app.src.minio import delete_file, upload_file
-from app.api.bearer import oauth2_executive
-from app.src.db import ExecutiveToken, ExecutiveImage, SessionLocal
-from app.src.permissions.executive import PermissionPath
-from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token
 from app.src.functions import (
+    apply_created_on_filters,
+    apply_id_filters,
+    apply_picture_filters,
+    enum_str,
     fuse_exception_responses,
     get_request_info,
     get_executive_roles,
     orm_to_json,
+    resize_image,
     validate_image,
 )
 
@@ -64,6 +74,32 @@ class CreateForm(BaseModel):
             )
         )
     )
+
+
+## Query Parameters
+class OrderBy(StrEnum):
+    """Enum for ordering results."""
+
+    ID = "id"
+    CREATED_ON = "created_on"
+    FILE_SIZE = "file_size"
+
+
+class QueryParams(PictureFilter, CreatedOnFilter, IDFilter, PaginationFilter):
+    """Query parameters for executive image endpoints."""
+
+    executive_id: int | None = Field(Query(default=None))
+    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
+    order_in: OrderIn = Field(
+        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
+    )
+
+
+class ImageQueryParams(BaseModel):
+    """Query parameters for retrieving an executive image."""
+
+    width: int | None = Field(Query(default=None, ge=16, le=2048))
+    height: int | None = Field(Query(default=None, ge=16, le=2048))
 
 
 # ---------------------------------------------------------------------------
@@ -176,6 +212,103 @@ async def delete_executive_image(
         executive_image_data, _ = orm_to_json(executive_image)
         log_event(token, request_info, executive_image_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.get(
+    URL_EXECUTIVE_PICTURE,
+    tags=["Account Image"],
+    response_model=list[ExecutiveImageSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches executive images.**    
+            - Requires a valid access token for authentication.     
+        """
+    ),
+)
+async def fetch_executive_image(
+    query_params: QueryParams = Depends(),
+    access_token=Depends(oauth2_executive),
+):
+    try:
+        session = SessionLocal()
+        verify_token(session, ExecutiveToken, access_token)
+
+        query = session.query(ExecutiveImage)
+        if query_params.executive_id is not None:
+            query = query.filter(
+                ExecutiveImage.executive_id == query_params.executive_id
+            )
+
+        # Generalized filters
+        query = apply_id_filters(query, ExecutiveImage, query_params)
+        query = apply_created_on_filters(query, ExecutiveImage, query_params)
+        query = apply_picture_filters(query, ExecutiveImage, query_params)
+
+        # Ordering and pagination
+        ordering_attr = getattr(ExecutiveImage, query_params.order_by.value)
+        ordering_func = (
+            ordering_attr.asc
+            if query_params.order_in == OrderIn.ASCENDING
+            else ordering_attr.desc
+        )
+        query = query.order_by(ordering_func())
+        query = query.offset(query_params.offset).limit(query_params.limit)
+
+        executive_images = query.all()
+        return executive_images
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.get(
+    f"{URL_EXECUTIVE_PICTURE}/{{id}}",
+    tags=["Account Image"],
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.UnknownValue(ExecutiveImage.id)]
+    ),
+    description=(
+        """
+            **Download executive profile picture in original or resized resolution.**       
+            - Requires a valid access token for authentication.     
+        """
+    ),
+)
+async def download_executive_image(
+    id: int,
+    query_params: ImageQueryParams = Depends(),
+    access_token=Depends(oauth2_executive),
+):
+    try:
+        session = SessionLocal()
+        verify_token(session, ExecutiveToken, access_token)
+
+        executive_image = (
+            session.query(ExecutiveImage).filter(ExecutiveImage.id == id).first()
+        )
+        if executive_image is not None:
+            file_bytes = download_file(EXECUTIVE_IMAGES, str(executive_image.id))
+            resized_bytes = resize_image(
+                file_bytes,
+                width=query_params.width,
+                height=query_params.height,
+            )
+
+            return StreamingResponse(
+                BytesIO(resized_bytes),
+                media_type=executive_image.file_type,
+                headers={
+                    "Content-Disposition": f'inline; filename="{executive_image.file_name}"',
+                    "Cache-Control": "public, max-age=31536000, immutable",
+                },
+            )
+        raise exceptions.UnknownValue(ExecutiveImage.id)
     except Exception as e:
         exceptions.handle(e)
     finally:

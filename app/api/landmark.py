@@ -110,7 +110,7 @@ def validate_boundary(session: Session, form_param: CreateForm | UpdateForm) -> 
         )
     )
     if isinstance(form_param, UpdateForm):
-        overlapping = overlapping.filter(Landmark.id != form_param.id)
+        overlapping = overlapping.filter(Landmark.id != id)
     if overlapping.first():
         raise exceptions.OverlappingLandmarkBoundary()
     form_param.boundary = wkt.dumps(boundary_geom)

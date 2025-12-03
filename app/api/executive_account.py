@@ -329,11 +329,11 @@ async def fetch_account(
         verify_token(session, ExecutiveToken, access_token)
 
         query = session.query(Executive)
-
         if query_params.designation is not None:
             query = query.filter(
                 Executive.designation.ilike(f"%{query_params.designation}%")
             )
+
         # Common search
         if query_params.search:
             search = f"%{query_params.search}%"
@@ -347,6 +347,7 @@ async def fetch_account(
                     Executive.email_id.ilike(search),
                 )
             )
+
         # Generalized filters
         query = apply_id_filters(query, Executive, query_params)
         query = apply_created_on_filters(query, Executive, query_params)
