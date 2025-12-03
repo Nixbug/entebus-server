@@ -11,7 +11,7 @@ from enum import StrEnum
 from typing import List
 from fastapi import APIRouter, Query, status, Depends
 from pydantic import BaseModel, Field
-from pytest import Session
+from sqlalchemy.orm import Session
 from shapely.geometry import Polygon, Point
 from sqlalchemy import String, func, or_
 from shapely import wkt, wkb
@@ -100,7 +100,7 @@ class OrderBy(StrEnum):
     ID = "id"
     CREATED_ON = "created_on"
     UPDATED_ON = "updated_on"
-    BOUNDARY = "boundary"
+    LOCATION = "location"
 
 
 class QueryParams(
@@ -214,7 +214,7 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
     query = apply_name_filters(query, Landmark, query_params)
 
     # Ordering and pagination
-    if query_params.order_by == OrderBy.BOUNDARY:
+    if query_params.order_by == OrderBy.LOCATION:
         if query_params.location is not None:
             ordering_attr = func.ST_Distance(
                 Landmark.boundary.cast(Geography),
@@ -224,18 +224,18 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
             ordering_attr = Landmark.boundary
     else:
         ordering_attr = getattr(Landmark, query_params.order_by.value)
-        ordering_func = (
-            ordering_attr.asc
-            if query_params.order_in == OrderIn.ASCENDING
-            else ordering_attr.desc
-        )
-        query = query.order_by(ordering_func())
-        query = query.offset(query_params.offset).limit(query_params.limit)
+    ordering_func = (
+        ordering_attr.asc
+        if query_params.order_in == OrderIn.ASCENDING
+        else ordering_attr.desc
+    )
+    query = query.order_by(ordering_func())
+    query = query.offset(query_params.offset).limit(query_params.limit)
 
-        landmarks = query.all()
-        for landmark in landmarks:
-            landmark.boundary = wkb.loads(bytes(landmark.boundary.data)).wkt
-        return landmarks
+    landmarks = query.all()
+    for landmark in landmarks:
+        landmark.boundary = wkb.loads(bytes(landmark.boundary.data)).wkt
+    return landmarks
 
 
 # ---------------------------------------------------------------------------
@@ -353,7 +353,6 @@ async def fetch_landmark(query_Params: QueryParams = Depends()):
         exceptions.handle(e)
     finally:
         session.close()
-    pass
 
 
 # ---------------------------------------------------------------------------
