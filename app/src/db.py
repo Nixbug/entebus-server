@@ -487,13 +487,13 @@ class Landmark(ORMbase):
             Must be unique — no two landmarks can share the same geometry.
 
         type (Integer, not null, default=LandmarkType.LOCAL, indexed):
-            Enum value representing the category of the landmark
+            Represents the type of the landmark. Mapped from the `LandmarkType` enum.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
-            Timestamp automatically updated whenever the token record is modified.
+            Timestamp automatically updated whenever the landmark record is modified.
 
         created_on (DateTime, not null, default=func.now()):
-            Timestamp indicating when this token was created.
+            Timestamp indicating when this landmark was created.
     """
 
     __tablename__ = "landmark"

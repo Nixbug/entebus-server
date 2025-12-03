@@ -1,5 +1,5 @@
 """
-Executive Account API Router for EnteBus.
+Landmark API Router for EnteBus.
 
 Provides endpoints for managing landmarks, including creation,
 update, deletion, and retrieval. Uses Pydantic schemas for
@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import List
 from fastapi import APIRouter, status, Depends
 from pydantic import BaseModel, Field
-from pytest import Session
+from sqlalchemy.orm.session import Session
 from shapely.geometry import Polygon
 from sqlalchemy import func
 from shapely import wkt, wkb
@@ -61,8 +61,8 @@ class CreateForm(BaseModel):
     name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN)
     boundary: str = Field(
         description=(
-            f"Accepts only SRID 4326 (WGS84)."
-            f"valid WKT string representing a `POLYGON`."
+            f"Accepts only SRID 4326 (WGS84), "
+            f"valid WKT string representing a `POLYGON`, "
             f"Max Area: {MAX_LANDMARK_AREA // 1000000} sq.m, "
             f"Min Area: {MIN_LANDMARK_AREA} sq.m"
         )
@@ -80,7 +80,7 @@ class UpdateForm:
 ## Function
 def validate_boundary(session: Session, form_param: CreateForm | UpdateForm) -> Polygon:
     """
-    Validate and normalize a landmark boundary geometry, this function takes a WKT string representing a polygon and performs
+    Validate and normalize a landmark boundary geometry. This function takes a WKT string representing a polygon and performs
     validation checks on it.
 
     Args:
@@ -101,7 +101,7 @@ def validate_boundary(session: Session, form_param: CreateForm | UpdateForm) -> 
 
     # Validate the boundary area
     area_in_sq_meters = get_area(boundary_geom)
-    if not (MIN_LANDMARK_AREA < area_in_sq_meters < MAX_LANDMARK_AREA):
+    if not (MIN_LANDMARK_AREA <= area_in_sq_meters <= MAX_LANDMARK_AREA):
         raise exceptions.InvalidBoundaryArea()
     # Check for overlapping boundary
     overlapping = session.query(Landmark).filter(
