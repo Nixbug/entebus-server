@@ -7,9 +7,9 @@ input validation and structured output.
 """
 
 from datetime import datetime
-from typing import List
+from typing import Annotated, List
 from fastapi import APIRouter, status, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm.session import Session
 from shapely.geometry import Polygon
 from sqlalchemy import func
@@ -55,6 +55,9 @@ class LandmarkSchema(BaseModel):
 
 
 ## Input Forms
+AliasName = Annotated[str, StringConstraints(max_length=32)]
+
+
 class CreateForm(BaseModel):
     """Form data for creating a new landmark."""
 
@@ -70,7 +73,7 @@ class CreateForm(BaseModel):
     type: LandmarkType = Field(
         description=enum_str(LandmarkType), default=LandmarkType.LOCAL
     )
-    alias_names: List[str] | None = Field(max_length=32, default=None)
+    alias_names: List[AliasName] | None = Field(max_items=32, default=None)
 
 
 class UpdateForm:
