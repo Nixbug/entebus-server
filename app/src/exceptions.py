@@ -255,6 +255,7 @@ class InvalidWKTStringOrType(APIException):
     """
     Raised when an invalid WKT string or type is provided.
     """
+
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "Invalid WKT string or type"
     headers = {"X-Error": "InvalidWKTStringOrType"}
@@ -264,6 +265,7 @@ class InvalidSRID4326(APIException):
     """
     Raised when the SRID of a geometry is not 4326.
     """
+
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "The SRID of the geometry is not 4326"
     headers = {"X-Error": "InvalidSRID4326"}
@@ -273,6 +275,7 @@ class InvalidAABB(APIException):
     """
     Raised when the geometry is not a valid Axis-Aligned Bounding Box.
     """
+
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "The geometry is not a valid Axis-Aligned Bounding Box"
     headers = {"X-Error": "InvalidAABB"}
@@ -282,8 +285,9 @@ class OverlappingLandmarkBoundary(APIException):
     """
     Raised when a landmark boundary overlaps with another landmark boundary.
     """
+
     status_code = status.HTTP_406_NOT_ACCEPTABLE
-    detail = "Boundary overlapping with other landmarks boundary"
+    detail = "Boundary overlaps with another landmark's boundary"
     headers = {"X-Error": "OverlappingLandmarkBoundary"}
 
 
@@ -291,6 +295,7 @@ class InvalidBoundaryArea(APIException):
     """
     Raised when the area of a landmark boundary is not within the prescribed limits.
     """
+
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "Boundary area not within the prescribed limits"
     headers = {"X-Error": "InvalidBoundaryArea"}

@@ -481,10 +481,10 @@ class Landmark(ORMbase):
             Optional list of alternative or local names for the landmark.
             Each alias can be up to 32 characters long.
 
-        boundary (Geometry(POLYGON, SRID 4326), not null, unique):
+        boundary (Geometry(POLYGON, SRID 4326), not null):
             Geo-spatial boundary stored as a PostGIS `POLYGON` using SRID 4326 (WGS 84 longitude/latitude).
             Represents the physical area covered by the landmark.
-            Must be unique — no two landmarks can share the same geometry.
+            No two landmarks can share the same geometry.
 
         type (Integer, not null, default=LandmarkType.LOCAL, indexed):
             Represents the type of the landmark. Mapped from the `LandmarkType` enum.

@@ -66,7 +66,7 @@ class CreateForm(BaseModel):
         description=(
             f"Accepts only SRID 4326 (WGS84), "
             f"valid WKT string representing a `POLYGON`, "
-            f"Max Area: {MAX_LANDMARK_AREA // 1000000} sq.m, "
+            f"Max Area: {MAX_LANDMARK_AREA // 1000000} km², "
             f"Min Area: {MIN_LANDMARK_AREA} sq.m"
         )
     )
