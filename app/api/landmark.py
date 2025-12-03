@@ -8,7 +8,7 @@ input validation and structured output.
 
 from datetime import datetime
 from typing import Annotated, List
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, Response, status, Depends
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm.session import Session
 from shapely.geometry import Polygon
@@ -178,6 +178,49 @@ async def create_landmark(
         landmark_data, _ = orm_to_json(landmark)
         log_event(token, request_info, landmark_data)
         return landmark_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.delete(
+    f"{URL_LANDMARK}/{{id}}",
+    tags=["Landmark"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        f"""
+            **Deletes an existing landmark.**   
+            - Requires a valid access token for authentication.         
+            - The logged-in executive must have the `landmark.delete` permission.       
+            - Returns 204 No Content even if the specified landmark does not exist.         
+            - A foreign key constraint error will occur if the landmark is referenced in any other table.    
+        """
+    ),
+)
+async def delete_landmark(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, PermissionPath.DELETE_LANDMARK)
+
+        landmark = session.query(Landmark).filter(Landmark.id == id).first()
+        if landmark is not None:
+            session.delete(landmark)
+            session.commit()
+            landmark.boundary = wkb.loads(bytes(landmark.boundary.data)).wkt
+            landmark_data, _ = orm_to_json(landmark)
+            log_event(token, request_info, landmark_data)
+
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
