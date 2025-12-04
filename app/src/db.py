@@ -481,7 +481,7 @@ class Landmark(ORMbase):
             Optional list of alternative or local names for the landmark.
             Each alias can be up to 32 characters long.
 
-        boundary (Geometry(POLYGON, SRID 4326), not null):
+        boundary (Geometry(POLYGON, SRID 4326), not null, unique):
             Geo-spatial boundary stored as a PostGIS `POLYGON` using SRID 4326 (WGS 84 longitude/latitude).
             Represents the physical area covered by the landmark.
             No two landmarks can share the same geometry.
@@ -502,7 +502,9 @@ class Landmark(ORMbase):
     name = Column(String(32), nullable=False, index=True)
     version = Column(Integer, nullable=False, default=1)
     alias_names = Column(ARRAY(String(32)))
-    boundary = Column(Geometry(geometry_type="POLYGON", srid=4326), nullable=False)
+    boundary = Column(
+        Geometry(geometry_type="POLYGON", srid=4326), nullable=False, unique=True
+    )
     type = Column(Integer, nullable=False, default=LandmarkType.LOCAL, index=True)
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), default=func.now(), nullable=False)
