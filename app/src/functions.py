@@ -653,13 +653,7 @@ def get_area(geom: BaseGeometry) -> float:
 
     Returns:
         float: Area of the geometry in square meters.
-
-    Raises:
-        TypeError: If geometry is not a `Polygon` or `MultiPolygon`.
     """
-    if not isinstance(geom, (Polygon, MultiPolygon)):
-        raise TypeError("get_area() supports only Polygon or MultiPolygon geometries")
-
     projection = pyproj.Transformer.from_crs(
         "EPSG:4326", "EPSG:6933", always_xy=True
     ).transform
