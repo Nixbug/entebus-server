@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from geoalchemy2 import Geometry
 from sqlalchemy import (
     ARRAY,
+    Index,
     create_engine,
     Boolean,
     TEXT,
@@ -464,6 +465,13 @@ class Landmark(ORMbase):
         The AABB polygon is a square geofence tightly enclosing the circle, simplifying
         spatial indexing and backend spatial operations.
 
+    Spatial Constraint:
+        landmark_no_overlap (GiST Index with && operator):
+            A GiST-based spatial index enforcing **no overlapping bounding
+            boxes between landmarks**. This acts as a fast pre-check to prevent
+            storing landmarks whose polygons spatially overlap. It increases
+            performance of exclusion-like behavior using the `&&` operator.
+
     Columns:
         id (Integer, unique, not null):
             Primary identifier for the landmark.
@@ -508,3 +516,12 @@ class Landmark(ORMbase):
     type = Column(Integer, nullable=False, default=LandmarkType.LOCAL, index=True)
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index(
+            "landmark_no_overlap",
+            boundary,
+            postgresql_using="gist",
+            postgresql_ops={"boundary": "WITH &&"},
+        ),
+    )
