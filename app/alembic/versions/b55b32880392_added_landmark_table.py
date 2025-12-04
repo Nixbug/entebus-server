@@ -42,7 +42,11 @@ def upgrade() -> None:
     )
 
     op.create_geospatial_index(
-        "idx_landmark_boundary", "landmark", ["boundary"], postgresql_using="gist"
+        "idx_landmark_boundary",
+        "landmark",
+        ["boundary"],
+        unique=False,
+        postgresql_using="gist",
     )
     op.create_index("ix_landmark_name", "landmark", ["name"])
     op.create_index("ix_landmark_type", "landmark", ["type"])
