@@ -466,11 +466,12 @@ class Landmark(ORMbase):
         spatial indexing and backend spatial operations.
 
     Spatial Constraint:
-        landmark_no_overlap (GiST Index with && operator):
-            A GiST-based spatial index enforcing **no overlapping bounding
-            boxes between landmarks**. This acts as a fast pre-check to prevent
-            storing landmarks whose polygons spatially overlap. It increases
-            performance of exclusion-like behavior using the `&&` operator.
+        - `ix_landmark_alias_names_gin` (GIN index):
+            Speeds up queries on the `alias_names` array.
+        - `ix_landmark_boundary_gist` (GiST index):
+            Supports fast spatial queries (overlaps, intersections, containment) on the `boundary` column.
+        - `ux_landmark_boundary_hash` (unique BTree index on MD5 of geometry):
+            Ensures no two landmarks have identical geometries.
 
     Columns:
         id (Integer, unique, not null):
@@ -489,7 +490,7 @@ class Landmark(ORMbase):
             Optional list of alternative or local names for the landmark.
             Each alias can be up to 32 characters long.
 
-        boundary (Geometry(POLYGON, SRID 4326), not null, unique):
+        boundary (Geometry(POLYGON, SRID 4326), not null):
             Geo-spatial boundary stored as a PostGIS `POLYGON` using SRID 4326 (WGS 84 longitude/latitude).
             Represents the physical area covered by the landmark.
             No two landmarks can share the same geometry.
@@ -510,18 +511,18 @@ class Landmark(ORMbase):
     name = Column(String(32), nullable=False, index=True)
     version = Column(Integer, nullable=False, default=1)
     alias_names = Column(ARRAY(String(32)))
-    boundary = Column(
-        Geometry(geometry_type="POLYGON", srid=4326), nullable=False, unique=True
-    )
+    boundary = Column(Geometry(geometry_type="POLYGON", srid=4326), nullable=False)
     type = Column(Integer, nullable=False, default=LandmarkType.LOCAL, index=True)
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), default=func.now(), nullable=False)
 
     __table_args__ = (
+        Index("ix_landmark_alias_names_gin", alias_names, postgresql_using="gin"),
+        Index("ix_landmark_boundary_gist", boundary, postgresql_using="gist"),
         Index(
-            "landmark_no_overlap",
-            boundary,
-            postgresql_using="gist",
-            postgresql_ops={"boundary": "WITH &&"},
+            "ux_landmark_boundary_hash",
+            func.md5(func.ST_AsEWKB(boundary)),
+            unique=True,
+            postgresql_using="btree",
         ),
     )
