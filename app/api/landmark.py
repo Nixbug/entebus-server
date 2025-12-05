@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm.session import Session
 from shapely.geometry import Polygon
 from sqlalchemy import func
-from shapely import wkt, wkb
+from shapely import wkb
 
 from app.api.bearer import oauth2_executive
 from app.src.constants import MAX_LANDMARK_AREA, MIN_LANDMARK_AREA
@@ -85,7 +85,7 @@ def validate_boundary(
     session: Session, boundary_wkt: str, landmark_id: int | None = None
 ) -> Polygon:
     """
-    Validate and normalize a landmark boundary geometry. This function takes a WKT string representing a polygon and performs
+    Validate a landmark boundary geometry. This function takes a WKT string representing a polygon and performs
     validation checks on it.
 
     Args:

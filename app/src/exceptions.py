@@ -267,7 +267,7 @@ class InvalidSRID4326(APIException):
     """
 
     status_code = status.HTTP_406_NOT_ACCEPTABLE
-    detail = "The SRID of the geometry is not 4326"
+    detail = "Coordinates are outside valid WGS84 (SRID 4326) bounds"
     headers = {"X-Error": "InvalidSRID4326"}
 
 

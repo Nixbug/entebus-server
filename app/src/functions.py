@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
 from shapely.geometry.base import BaseGeometry
-from shapely import MultiPolygon, Polygon, wkt, errors
+from shapely import Polygon, wkt, errors
 from shapely.ops import transform
 
 from app.src import schemas, exceptions
@@ -571,17 +571,14 @@ def validate_srid_4326(geometry: BaseGeometry) -> bool:
 
     # Check single geometries
     if hasattr(geometry, "exterior"):
-        if not check_coords(geometry.exterior.coords):
-            raise exceptions.InvalidSRID4326()
+        check_coords(geometry.exterior.coords)
     elif hasattr(geometry, "coords"):
-        if not check_coords(geometry.coords):
-            raise exceptions.InvalidSRID4326()
+        check_coords(geometry.coords)
 
     # Check Multi* geometries recursively
     if hasattr(geometry, "geoms"):
         for geom in geometry.geoms:
-            if not validate_srid_4326(geom):
-                raise exceptions.InvalidSRID4326()
+            validate_srid_4326(geom)
 
     return True
 
@@ -649,7 +646,7 @@ def get_area(geom: BaseGeometry) -> float:
     Calculate the area of a Shapely geometry in square meters.
 
     Args:
-        geom (BaseGeometry): Shapely `Polygon` or `MultiPolygon` geometry in WGS84.
+        geom (BaseGeometry): Shapely `Polygon` geometry in WGS84.
 
     Returns:
         float: Area of the geometry in square meters.
