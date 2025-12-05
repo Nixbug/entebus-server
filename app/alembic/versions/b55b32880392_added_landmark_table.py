@@ -63,14 +63,6 @@ def upgrade() -> None:
         unique=False,
         postgresql_using="gin",
     )
-    op.create_geospatial_index(
-        "ix_landmark_boundary_gist",
-        "landmark",
-        ["boundary"],
-        unique=False,
-        postgresql_using="gist",
-        postgresql_ops={},
-    )
     op.create_index(op.f("ix_landmark_name"), "landmark", ["name"], unique=False)
     op.create_index(op.f("ix_landmark_type"), "landmark", ["type"], unique=False)
     op.create_index(
@@ -89,12 +81,6 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_landmark_type"), table_name="landmark")
     op.drop_index(op.f("ix_landmark_name"), table_name="landmark")
     op.drop_index("ux_landmark_boundary_hash", table_name="landmark")
-    op.drop_geospatial_index(
-        "ix_landmark_boundary_gist",
-        table_name="landmark",
-        postgresql_using="gist",
-        column_name="boundary",
-    )
     op.drop_index(
         "ix_landmark_alias_names_gin", table_name="landmark", postgresql_using="gin"
     )
