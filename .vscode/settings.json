@@ -1,7 +1,10 @@
 {
     "cSpell.words": [
+        "AABB",
         "Entebus",
         "geoalchemy",
+        "geofence",
+        "geospatial",
         "ilike",
         "jsonable",
         "Nixbug",

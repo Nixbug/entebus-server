@@ -5,6 +5,7 @@ It offers reusable utilities that make it easier for developers to integrate the
 """
 
 import mimetypes
+import pyproj
 from enum import Enum
 from io import BytesIO
 from PIL import Image, UnidentifiedImageError
@@ -14,6 +15,9 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
+from shapely.geometry.base import BaseGeometry
+from shapely import Polygon, wkt, errors
+from shapely.ops import transform
 
 from app.src import schemas, exceptions
 from app.src.constants import (
@@ -537,3 +541,119 @@ def resize_image(file_bytes: bytes, width: int = None, height: int = None) -> by
     buffer = BytesIO()
     image.save(buffer, image.format)
     return buffer.getvalue()
+
+
+def validate_srid_4326(geometry: BaseGeometry) -> bool:
+    """
+    Validate that a Shapely geometry contains WGS84 (SRID 4326) compatible coordinates.
+
+    This function checks if all coordinates within the geometry fall within the
+    valid WGS84 lon/lat ranges. The validation supports both singular and composite geometries and inspects:
+        - Exterior coordinates for polygons
+        - Direct coordinates for simple geometries
+        - Coordinates of each geometry in multi-geometries (recursively)
+
+    Args:
+        geometry (BaseGeometry): Shapely geometry instance.
+
+    Returns:
+        bool: True if all coordinates fall within valid WGS84 lon/lat ranges.
+
+    Raises:
+        InvalidSRID4326: If any coordinate lies outside SRID 4326 bounds.
+    """
+
+    def check_coords(coords):
+        for longitude, latitude in coords:
+            if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+                raise exceptions.InvalidSRID4326()
+        return True
+
+    # Check single geometries
+    if hasattr(geometry, "exterior"):
+        check_coords(geometry.exterior.coords)
+    elif hasattr(geometry, "coords"):
+        check_coords(geometry.coords)
+
+    # Check Multi* geometries recursively
+    if hasattr(geometry, "geoms"):
+        for geom in geometry.geoms:
+            validate_srid_4326(geom)
+
+    return True
+
+
+def validate_wkt_string(
+    wkt_string: str, expected_type: Type[BaseGeometry]
+) -> BaseGeometry:
+    """
+    Validate and parse a WKT string into a Shapely geometry of the expected type.
+
+    Args:
+        wkt_string (str): Well-Known Text (WKT) geometry string.
+        expected_type (Type[BaseGeometry]): Expected Shapely geometry class.
+
+    Returns:
+        BaseGeometry: Parsed Shapely geometry instance.
+
+    Raises:
+        InvalidWKTStringOrType: If WKT parsing fails or type does not match `expected_type`.
+    """
+    try:
+        geom = wkt.loads(wkt_string)
+    except errors.ShapelyError:
+        raise exceptions.InvalidWKTStringOrType()
+
+    if not isinstance(geom, expected_type):
+        raise exceptions.InvalidWKTStringOrType()
+
+    return geom
+
+
+def validate_AABB(geometry: BaseGeometry) -> bool:
+    """
+    Validate that the provided geometry is a valid Axis-Aligned Bounding Box (AABB).
+
+    Args:
+        geometry (BaseGeometry): Shapely geometry instance to validate.
+
+    Returns:
+        bool: True if the geometry is a valid AABB.
+
+    Raises:
+        InvalidAABB: If the geometry violates AABB structural or alignment rules.
+    """
+    if not isinstance(geometry, Polygon):
+        raise exceptions.InvalidAABB()
+
+    coords = list(geometry.exterior.coords)
+    if len(coords) != 5:
+        raise exceptions.InvalidAABB()
+
+    rect = coords[:-1]  # Remove duplicate closing coordinate
+
+    for i in range(4):
+        x1, y1 = rect[i]
+        x2, y2 = rect[(i + 1) % 4]
+        if not (x1 == x2 or y1 == y2):
+            raise exceptions.InvalidAABB()
+
+    return True
+
+
+def get_area(geom: BaseGeometry) -> float:
+    """
+    Calculate the area of a Shapely geometry in square meters.
+
+    Args:
+        geom (BaseGeometry): Shapely `Polygon` geometry in WGS84.
+
+    Returns:
+        float: Area of the geometry in square meters.
+    """
+    projection = pyproj.Transformer.from_crs(
+        "EPSG:4326", "EPSG:6933", always_xy=True
+    ).transform
+
+    projected_geom = transform(projection, geom)
+    return projected_geom.area
