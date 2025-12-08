@@ -4,7 +4,8 @@ This module provides helper functions commonly used across FastAPI routes.
 It offers reusable utilities that make it easier for developers to integrate them into their projects.
 """
 
-import mimetypes, pyproj
+import mimetypes
+import pyproj
 from enum import Enum
 from io import BytesIO
 from PIL import Image, UnidentifiedImageError
@@ -15,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
 from shapely.geometry.base import BaseGeometry
-from shapely import MultiPolygon, Polygon, wkt, errors
+from shapely import Polygon, wkt, errors
 from shapely.ops import transform
 
 from app.src import schemas, exceptions
@@ -547,7 +548,10 @@ def validate_srid_4326(geometry: BaseGeometry) -> bool:
     Validate that a Shapely geometry contains WGS84 (SRID 4326) compatible coordinates.
 
     This function checks if all coordinates within the geometry fall within the
-    valid WGS84 lon/lat ranges, the validation supports both singular and composite geometries and inspects:
+    valid WGS84 lon/lat ranges. The validation supports both singular and composite geometries and inspects:
+        - Exterior coordinates for polygons
+        - Direct coordinates for simple geometries
+        - Coordinates of each geometry in multi-geometries (recursively)
 
     Args:
         geometry (BaseGeometry): Shapely geometry instance.
@@ -567,17 +571,14 @@ def validate_srid_4326(geometry: BaseGeometry) -> bool:
 
     # Check single geometries
     if hasattr(geometry, "exterior"):
-        if not check_coords(geometry.exterior.coords):
-            raise exceptions.InvalidSRID4326()
+        check_coords(geometry.exterior.coords)
     elif hasattr(geometry, "coords"):
-        if not check_coords(geometry.coords):
-            raise exceptions.InvalidSRID4326()
+        check_coords(geometry.coords)
 
     # Check Multi* geometries recursively
     if hasattr(geometry, "geoms"):
         for geom in geometry.geoms:
-            if not validate_srid_4326(geom):
-                raise exceptions.InvalidSRID4326()
+            validate_srid_4326(geom)
 
     return True
 
@@ -645,17 +646,11 @@ def get_area(geom: BaseGeometry) -> float:
     Calculate the area of a Shapely geometry in square meters.
 
     Args:
-        geom (BaseGeometry): Shapely `Polygon` or `MultiPolygon` geometry in WGS84.
+        geom (BaseGeometry): Shapely `Polygon` geometry in WGS84.
 
     Returns:
         float: Area of the geometry in square meters.
-
-    Raises:
-        TypeError: If geometry is not a `Polygon` or `MultiPolygon`.
     """
-    if not isinstance(geom, (Polygon, MultiPolygon)):
-        raise TypeError("getArea() supports only Polygon or MultiPolygon geometries")
-
     projection = pyproj.Transformer.from_crs(
         "EPSG:4326", "EPSG:6933", always_xy=True
     ).transform

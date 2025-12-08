@@ -1,5 +1,5 @@
 """
-Executive Account API Router for EnteBus.
+Landmark API Router for EnteBus.
 
 Provides endpoints for managing landmarks, including creation,
 update, deletion, and retrieval. Uses Pydantic schemas for
@@ -8,14 +8,14 @@ input validation and structured output.
 
 from datetime import datetime
 from enum import StrEnum
-from typing import List
+from typing import Annotated, List
 from fastapi import APIRouter, Query, status, Depends
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from geoalchemy2 import Geography
+from pydantic import BaseModel, Field, StringConstraints
+from sqlalchemy.orm.session import Session
 from shapely.geometry import Polygon, Point
 from sqlalchemy import String, func, or_
-from shapely import wkt, wkb
-from geoalchemy2 import Geography
+from shapely import wkb, wkt
 
 from app.api.bearer import oauth2_executive
 from app.src.constants import MAX_LANDMARK_AREA, MIN_LANDMARK_AREA
@@ -71,22 +71,25 @@ class LandmarkSchema(BaseModel):
 
 
 ## Input Forms
+AliasName = Annotated[str, StringConstraints(max_length=32)]
+
+
 class CreateForm(BaseModel):
     """Form data for creating a new landmark."""
 
     name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN)
     boundary: str = Field(
         description=(
-            f"Accepts only SRID 4326 (WGS84)."
-            f"valid WKT string representing a `POLYGON`."
-            f"Max Area: {MAX_LANDMARK_AREA // 1000000} sq.m, "
+            f"Accepts only SRID 4326 (WGS84), "
+            f"valid WKT string representing a `POLYGON`, "
+            f"Max Area: {MAX_LANDMARK_AREA // 1000000} km², "
             f"Min Area: {MIN_LANDMARK_AREA} sq.m"
         )
     )
     type: LandmarkType = Field(
         description=enum_str(LandmarkType), default=LandmarkType.LOCAL
     )
-    alias_names: List[str] | None = Field(max_length=32, default=None)
+    alias_names: List[AliasName] | None = Field(max_items=32, default=None)
 
 
 class UpdateForm:
@@ -132,42 +135,49 @@ class QueryParams(
 
 
 ## Function
-def validate_boundary(session: Session, form_param: CreateForm | UpdateForm) -> Polygon:
+def validate_boundary(
+    session: Session, boundary_wkt: str, landmark_id: int | None = None
+) -> Polygon:
     """
-    Validate and normalize a landmark boundary geometry, this function takes a WKT string representing a polygon and performs
+    Validate a landmark boundary geometry. This function takes a WKT string representing a polygon and performs
     validation checks on it.
 
     Args:
         session (Session): Active SQLAlchemy database session.
-        form_param (CreateForm | UpdateForm): Form instance containing a `boundary` WKT string.
+        boundary_wkt (str): Boundary in WKT format.
+        landmark_id (int | None):
+            - Pass `None` when creating a landmark.
+            - Pass the existing landmark's ID when updating, so its own boundary is ignored during overlap checks.
 
     Returns:
         Polygon: Validated Shapely `Polygon` geometry.
 
     Raises:
         InvalidBoundaryArea: If the computed area is outside allowed limits.
-        OverlappingLandmarkBoundary: If the boundary intersects with an existing landmark.
     """
-    # Validate the WKT polygon input string
-    boundary_geom = validate_wkt_string(form_param.boundary, Polygon)
+    # Validate WKT and SRID and AABB
+    boundary_geom = validate_wkt_string(boundary_wkt, Polygon)
     validate_srid_4326(boundary_geom)
     validate_AABB(boundary_geom)
 
     # Validate the boundary area
     area_in_sq_meters = get_area(boundary_geom)
-    if not (MIN_LANDMARK_AREA < area_in_sq_meters < MAX_LANDMARK_AREA):
+    if not (MIN_LANDMARK_AREA <= area_in_sq_meters <= MAX_LANDMARK_AREA):
         raise exceptions.InvalidBoundaryArea()
-    # Check for overlapping boundary
+
+    # Check for overlaps with other landmarks
     overlapping = session.query(Landmark).filter(
         func.ST_Intersects(
             Landmark.boundary, func.ST_GeomFromText(boundary_geom.wkt, 4326)
         )
     )
-    if isinstance(form_param, UpdateForm):
-        overlapping = overlapping.filter(Landmark.id != id)
+
+    # If updating, exclude the current landmark from overlap check
+    if landmark_id is not None:
+        overlapping = overlapping.filter(Landmark.id != landmark_id)
     if overlapping.first():
         raise exceptions.OverlappingLandmarkBoundary()
-    form_param.boundary = wkt.dumps(boundary_geom)
+
     return boundary_geom
 
 
@@ -281,7 +291,7 @@ async def create_landmark(
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.CREATE_LANDMARK)
 
-        validate_boundary(session, form_param)
+        validate_boundary(session, form_param.boundary)
         landmark = Landmark(
             name=form_param.name,
             boundary=form_param.boundary,
