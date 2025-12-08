@@ -6,7 +6,6 @@ It offers reusable utilities that make it easier for developers to integrate the
 
 import mimetypes
 import pyproj
-import pyproj
 from enum import Enum
 from io import BytesIO
 from PIL import Image, UnidentifiedImageError
