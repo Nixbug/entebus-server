@@ -221,11 +221,11 @@ async def delete_landmark(
 
         landmark = session.query(Landmark).filter(Landmark.id == id).first()
         if landmark is not None:
-            session.delete(landmark)
-            session.commit()
             landmark.boundary = wkb.loads(bytes(landmark.boundary.data)).wkt
             landmark_data, _ = orm_to_json(landmark)
             log_event(token, request_info, landmark_data)
+            session.delete(landmark)
+            session.commit()
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
