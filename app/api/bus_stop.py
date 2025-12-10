@@ -30,9 +30,6 @@ from app.src.functions import (
 )
 
 route_executive = APIRouter()
-route_vendor = APIRouter()
-route_operator = APIRouter()
-route_public = APIRouter()
 
 
 ## Output Schema
@@ -51,12 +48,12 @@ class BusStopSchema(BaseModel):
 class CreateForm(BaseModel):
     """Form data for creating a new bus stop."""
 
-    name: str = Field(pattern=NAME_PATTERN)
+    name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN)
     landmark_id: int = Field()
     location: str = Field(
         description=(
             f"Accepts only SRID 4326 (WGS84), "
-            f"valid WKT string representing a `POINT`. "
+            f"valid WKT string representing a `POINT`."
         )
     )
 
@@ -92,7 +89,7 @@ class CreateForm(BaseModel):
     ),
 )
 async def create_bus_stop(
-    fParam: CreateForm,
+    form_Param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
@@ -103,11 +100,13 @@ async def create_bus_stop(
         verify_permission(roles, PermissionPath.CREATE_BUS_STOP)
 
         # Validate WKT and SRID
-        location_geom = validate_wkt_string(fParam.location, Point)
+        location_geom = validate_wkt_string(form_Param.location, Point)
         validate_srid_4326(location_geom)
-        fParam.location = wkt.dumps(location_geom)
+        form_Param.location = wkt.dumps(location_geom)
         landmark = (
-            session.query(Landmark).filter(Landmark.id == fParam.landmark_id).first()
+            session.query(Landmark)
+            .filter(Landmark.id == form_Param.landmark_id)
+            .first()
         )
         if landmark is None:
             raise exceptions.UnknownValue(BusStop.landmark_id)
@@ -118,9 +117,9 @@ async def create_bus_stop(
             raise exceptions.BusStopOutsideLandmark()
 
         bus_stop = BusStop(
-            name=fParam.name,
-            landmark_id=fParam.landmark_id,
-            location=fParam.location,
+            name=form_Param.name,
+            landmark_id=form_Param.landmark_id,
+            location=form_Param.location,
         )
         session.add(bus_stop)
         session.commit()
