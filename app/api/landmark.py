@@ -245,9 +245,14 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    landmarks = query.all()
-    for landmark in landmarks:
-        landmark.boundary = wkb.loads(bytes(landmark.boundary.data)).wkt
+    query = query.with_entities(
+        Landmark, func.ST_AsText(Landmark.boundary).label("boundary_wkt")
+    )
+    results = query.all()
+    landmarks = []
+    for landmark_obj, boundary_wkt in results:
+        setattr(landmark_obj, Landmark.boundary.name, boundary_wkt)
+        landmarks.append(landmark_obj)
     return landmarks
 
 
