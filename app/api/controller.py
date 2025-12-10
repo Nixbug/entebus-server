@@ -9,6 +9,7 @@ AppID for contextual request handling.It also includes routers for each app.
 from fastapi import FastAPI
 
 from app.api import (
+    bus_stop,
     executive_account,
     executive_image,
     executive_token,
@@ -41,3 +42,4 @@ app_executive.include_router(executive_role.route_executive)
 app_executive.include_router(executive_account.route_executive)
 app_executive.include_router(executive_image.route_executive)
 app_executive.include_router(landmark.route_executive)
+app_executive.include_router(bus_stop.route_executive)

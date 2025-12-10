@@ -526,3 +526,59 @@ class Landmark(ORMbase):
             postgresql_using="btree",
         ),
     )
+
+
+class BusStop(ORMbase):
+    """
+    Represents a geo-referenced bus stop associated with a specific landmark.
+
+    Bus stops are stored as point-based spatial entities used for mapping,
+    routing, navigation, and proximity-based operations. Each bus stop belongs
+    to a landmark region, enabling localized grouping and spatial queries such as
+    nearest-stop detection, containment checks, or analytics within a landmark area.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the bus stop.
+
+        name (String(32), not null):
+            Official name of the bus stop.
+            It should be 1-32 characters long.
+            May include space ( ), hyphen (-), period (.), and underscore (_).
+
+        landmark_id (Integer, not null):
+            Foreign key referencing `landmark.id`.
+            Indicates the landmark to which this bus stop belongs.
+            Cascades on delete — all bus stops under a landmark are removed
+            automatically if the landmark is deleted.
+
+        location (Geometry(POINT, SRID 4326), not null):
+            Geo-spatial point representing the exact location of the bus stop.
+            Stored as a PostGIS `POINT` geometry using SRID 4326 (WGS 84 longitude/latitude).
+            No two bus stops within the same landmark can share the same location,
+            enforced through a unique constraint on (`location`, `landmark_id`).
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the bus stop record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the bus stop record was created.
+    """
+
+    __tablename__ = "bus_stop"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(32), nullable=False)
+    landmark_id = Column(
+        Integer,
+        ForeignKey(Landmark.id, ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    location = Column(Geometry(geometry_type="POINT", srid=4326), nullable=False)
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (UniqueConstraint(location, landmark_id),)
