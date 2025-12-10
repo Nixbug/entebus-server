@@ -199,7 +199,7 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
     if query_params.location is not None:
         geometry = validate_wkt_string(query_params.location, Point)
         validate_srid_4326(geometry)
-        query_params.location = wkt.dumps(geometry)
+        validated_location = wkt.dumps(geometry)
     if query_params.type_list is not None:
         query = query.filter(Landmark.type.in_(query_params.type_list))
     if query_params.alias_names is not None:
@@ -228,10 +228,10 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
 
     # Ordering and pagination
     if query_params.order_by == OrderBy.LOCATION:
-        if query_params.location is not None:
+        if validated_location is not None:
             ordering_attr = func.ST_Distance(
                 Landmark.boundary.cast(Geography),
-                func.ST_GeogFromText(query_params.location),
+                func.ST_GeogFromText(validated_location),
             )
         else:
             ordering_attr = Landmark.boundary
