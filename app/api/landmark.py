@@ -185,6 +185,9 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
     """
     Search for landmarks based on provided query parameters.
 
+    This function supports multiple filtering, searching, ordering, and
+    pagination capabilities to retrieve landmarks that match various criteria.
+
     Args:
         session (Session): Active SQLAlchemy database session.
         query_params (QueryParams): Query parameters containing search criteria.
@@ -366,17 +369,17 @@ async def delete_landmark(
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
     description=(
-        f"""
+        """
             **Fetches a list of landmarks.**    
             - Common search supports searching by id, name and alias_names.  
         """
     ),
 )
-async def fetch_landmark(query_Params: QueryParams = Depends()):
+async def fetch_landmark(query_params: QueryParams = Depends()):
     try:
         session = SessionLocal()
 
-        return search_landmark(session, query_Params)
+        return search_landmark(session, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -394,17 +397,17 @@ async def fetch_landmark(query_Params: QueryParams = Depends()):
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
     description=(
-        f"""
+        """
             **Fetches a list of landmarks.**    
             - Common search supports searching by id, name and alias_names.  
         """
     ),
 )
-async def fetch_landmark(query_Params: QueryParams = Depends()):
+async def fetch_landmark(query_params: QueryParams = Depends()):
     try:
         session = SessionLocal()
 
-        return search_landmark(session, query_Params)
+        return search_landmark(session, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -422,17 +425,17 @@ async def fetch_landmark(query_Params: QueryParams = Depends()):
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
     description=(
-        f"""
+        """
             **Fetches a list of landmarks.**    
             - Common search supports searching by id, name and alias_names.  
         """
     ),
 )
-async def fetch_landmark(query_Params: QueryParams = Depends()):
+async def fetch_landmark(query_params: QueryParams = Depends()):
     try:
         session = SessionLocal()
 
-        return search_landmark(session, query_Params)
+        return search_landmark(session, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -450,17 +453,17 @@ async def fetch_landmark(query_Params: QueryParams = Depends()):
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
     description=(
-        f"""
+        """
             **Fetches a list of landmarks.**    
             - Common search supports searching by id, name and alias_names.  
         """
     ),
 )
-async def fetch_landmark(query_Params: QueryParams = Depends()):
+async def fetch_landmark(query_params: QueryParams = Depends()):
     try:
         session = SessionLocal()
 
-        return search_landmark(session, query_Params)
+        return search_landmark(session, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:
