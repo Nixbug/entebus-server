@@ -8,11 +8,11 @@ input validation and structured output.
 
 from enum import StrEnum
 from fastapi import APIRouter, Depends, Response, Query, status, Form, UploadFile, File
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from io import BytesIO
 from datetime import datetime
-from sqlalchemy import String, or_
 
 from app.src.buckets import EXECUTIVE_IMAGES
 from app.src import exceptions
@@ -39,7 +39,6 @@ from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
     get_executive_roles,
-    orm_to_json,
     resize_image,
     validate_image,
 )
@@ -161,7 +160,7 @@ async def upload_executive_image(
         session.commit()
         session.refresh(executive_image)
 
-        executive_image_data, _ = orm_to_json(executive_image)
+        executive_image_data = jsonable_encoder(executive_image)
         log_event(token, request_info, executive_image_data)
         return executive_image_data
     except Exception as e:
@@ -205,11 +204,11 @@ async def delete_executive_image(
             roles = get_executive_roles(session, token)
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
 
+        executive_image_data = jsonable_encoder(executive_image)
         session.delete(executive_image)
         session.commit()
         delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
 
-        executive_image_data, _ = orm_to_json(executive_image)
         log_event(token, request_info, executive_image_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:

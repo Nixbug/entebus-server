@@ -10,6 +10,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import List
 from fastapi import APIRouter, Query, Response, status, Depends
+from fastapi.encoders import jsonable_encoder
 from pydantic_extra_types.phone_numbers import PhoneNumber
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import String, or_
@@ -42,7 +43,6 @@ from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
     get_executive_roles,
-    orm_to_json,
     update_if_changed,
 )
 
@@ -176,7 +176,7 @@ async def create_account(
         session.commit()
         session.refresh(executive)
 
-        _, executive_data = orm_to_json(executive, [Executive.password.key])
+        executive_data = jsonable_encoder(executive, exclude={Executive.password.name})
         log_event(token, request_info, executive_data)
         return executive_data
     except Exception as e:
@@ -245,7 +245,7 @@ async def update_account(
             session.commit()
             session.refresh(executive)
 
-        _, executive_data = orm_to_json(executive, [Executive.password.key])
+        executive_data = jsonable_encoder(executive, exclude={Executive.password.name})
         if have_updates:
             log_event(token, request_info, executive_data)
         return executive_data
@@ -292,13 +292,15 @@ async def delete_account(
                 .filter(ExecutiveImage.executive_id == id)
                 .first()
             )
+            executive_data = jsonable_encoder(
+                executive, exclude={Executive.password.name}
+            )
             session.delete(executive)
             session.commit()
             # Delete executive image
             if executive_image is not None:
                 delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
 
-            _, executive_data = orm_to_json(executive, [Executive.password.key])
             log_event(token, request_info, executive_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
