@@ -457,31 +457,6 @@ def update_if_changed(target_obj: Any, source_obj: dict) -> None:
             setattr(target_obj, field, new_value)
 
 
-def orm_to_json(
-    orm_object: Any,
-    exclude: List[str] = None,
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """
-    Convert a SQLAlchemy model object into JSON-compatible dicts.
-
-    Args:
-        orm_object (Any): SQLAlchemy model instance
-        exclude (List[str]): list of fields to exclude, defaults to None
-
-    Returns:
-        Tuple[Dict[str, Any], Dict[str, Any]]:
-            - data: the full JSON data.
-            - stripped: same as full data but with sensitive fields removed.
-    """
-    exclude = set(exclude or [])
-    data = jsonable_encoder(orm_object)
-    stripped = {}
-    for key, value in data.items():
-        if key not in exclude:
-            stripped[key] = value
-    return data, stripped
-
-
 # Set decompression bomb guard
 Image.MAX_IMAGE_PIXELS = MAX_IMAGE_RESOLUTION * MAX_IMAGE_RESOLUTION
 

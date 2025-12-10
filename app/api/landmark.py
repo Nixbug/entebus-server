@@ -9,6 +9,7 @@ input validation and structured output.
 from datetime import datetime
 from typing import Annotated, List
 from fastapi import APIRouter, Response, status, Depends
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm.session import Session
 from shapely.geometry import Polygon
@@ -31,7 +32,6 @@ from app.src.functions import (
     get_area,
     get_request_info,
     get_executive_roles,
-    orm_to_json,
     validate_wkt_string,
     validate_AABB,
     validate_srid_4326,
@@ -181,8 +181,10 @@ async def create_landmark(
         session.commit()
         session.refresh(landmark)
 
-        landmark.boundary = wkb.loads(bytes(landmark.boundary.data)).wkt
-        landmark_data, _ = orm_to_json(landmark)
+        landmark_data = jsonable_encoder(landmark, exclude={Landmark.boundary.name})
+        landmark_data[Landmark.boundary.name] = wkb.loads(
+            bytes(landmark.boundary.data)
+        ).wkt
         log_event(token, request_info, landmark_data)
         return landmark_data
     except Exception as e:
@@ -221,12 +223,13 @@ async def delete_landmark(
 
         landmark = session.query(Landmark).filter(Landmark.id == id).first()
         if landmark is not None:
-            landmark.boundary = wkb.loads(bytes(landmark.boundary.data)).wkt
+            landmark_data = jsonable_encoder(landmark, exclude={Landmark.boundary.name})
+            landmark_data[Landmark.boundary.name] = wkb.loads(
+                bytes(landmark.boundary.data)
+            ).wkt
             session.delete(landmark)
             session.commit()
-            landmark_data, _ = orm_to_json(landmark)
             log_event(token, request_info, landmark_data)
-
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)

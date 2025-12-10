@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, Response, status, Form
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from fastapi.security import OAuth2PasswordRequestForm
 
@@ -45,7 +46,6 @@ from app.src.functions import (
     enum_str,
     fuse_exception_responses,
     get_request_info,
-    orm_to_json,
     get_executive_roles,
 )
 
@@ -166,9 +166,10 @@ async def create_token(
         session.commit()
         session.refresh(token)
 
-        token_data, token_log_data = orm_to_json(
-            token, [ExecutiveToken.access_token.key, ExecutiveToken.refresh_token.key]
-        )
+        token_data = jsonable_encoder(token)
+        token_log_data = token_data.copy()
+        token_log_data.pop(ExecutiveToken.access_token.name)
+        token_log_data.pop(ExecutiveToken.refresh_token.name)
         log_event(token, request_info, token_log_data)
         return token_data
     except Exception as e:
@@ -226,10 +227,10 @@ async def refresh_token(
         session.commit()
         session.refresh(refresh_token)
 
-        token_data, token_log_data = orm_to_json(
-            refresh_token,
-            [ExecutiveToken.access_token.key, ExecutiveToken.refresh_token.key],
-        )
+        token_data = jsonable_encoder(token)
+        token_log_data = token_data.copy()
+        token_log_data.pop(ExecutiveToken.access_token.name)
+        token_log_data.pop(ExecutiveToken.refresh_token.name)
         log_event(token, request_info, token_log_data)
         return token_data
     except Exception as e:
@@ -274,10 +275,9 @@ async def revoke_token(
             token_to_revoke.is_revoked = True
             session.commit()
             session.refresh(token_to_revoke)
-            _, token_log_data = orm_to_json(
-                token_to_revoke,
-                [ExecutiveToken.access_token.key, ExecutiveToken.refresh_token.key],
-            )
+            token_log_data = jsonable_encoder(token)
+            token_log_data.pop(ExecutiveToken.access_token.name)
+            token_log_data.pop(ExecutiveToken.refresh_token.name)
             log_event(token, request_info, token_log_data)
 
         return Response(status_code=status.HTTP_200_OK)
@@ -330,10 +330,9 @@ async def delete_token(
         session.commit()
         session.refresh(token_to_delete)
 
-        _, token_log_data = orm_to_json(
-            token_to_delete,
-            [ExecutiveToken.access_token.key, ExecutiveToken.refresh_token.key],
-        )
+        token_log_data = jsonable_encoder(token)
+        token_log_data.pop(ExecutiveToken.access_token.name)
+        token_log_data.pop(ExecutiveToken.refresh_token.name)
         log_event(token, request_info, token_log_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
