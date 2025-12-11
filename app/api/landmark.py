@@ -196,6 +196,7 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
         List[Landmark]: List of landmarks that match the search criteria.
     """
     query = session.query(Landmark)
+    validated_location = None
     if query_params.location is not None:
         geometry = validate_wkt_string(query_params.location, Point)
         validate_srid_4326(geometry)
@@ -234,7 +235,7 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
                 func.ST_GeogFromText(validated_location),
             )
         else:
-            ordering_attr = Landmark.boundary
+            ordering_attr = Landmark.id
     else:
         ordering_attr = getattr(Landmark, query_params.order_by.value)
     ordering_func = (
@@ -377,6 +378,8 @@ async def delete_landmark(
         """
             **Fetches a list of landmarks.**    
             - Common search supports searching by id, name and alias_names.  
+            - If `order_by=location` is selected, a valid `location` WKT POINT must be provided.    
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
 )
@@ -405,6 +408,8 @@ async def fetch_landmark(query_params: QueryParams = Depends()):
         """
             **Fetches a list of landmarks.**    
             - Common search supports searching by id, name and alias_names.  
+            - If `order_by=location` is selected, a valid `location` WKT POINT must be provided.    
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
 )
@@ -433,6 +438,8 @@ async def fetch_landmark(query_params: QueryParams = Depends()):
         """
             **Fetches a list of landmarks.**    
             - Common search supports searching by id, name and alias_names.  
+            - If `order_by=location` is selected, a valid `location` WKT POINT must be provided.    
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
 )
@@ -461,6 +468,8 @@ async def fetch_landmark(query_params: QueryParams = Depends()):
         """
             **Fetches a list of landmarks.**    
             - Common search supports searching by id, name and alias_names.  
+            - If `order_by=location` is selected, a valid `location` WKT POINT must be provided.    
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
 )
