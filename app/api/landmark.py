@@ -382,7 +382,7 @@ async def delete_landmark(
         """
     ),
 )
-async def fetch_landmark(query_params: QueryParams = Depends()):
+async def fetch_landmark_executive(query_params: QueryParams = Depends()):
     try:
         session = SessionLocal()
 
@@ -411,7 +411,7 @@ async def fetch_landmark(query_params: QueryParams = Depends()):
         """
     ),
 )
-async def fetch_landmark(query_params: QueryParams = Depends()):
+async def fetch_landmark_vendor(query_params: QueryParams = Depends()):
     try:
         session = SessionLocal()
 
@@ -440,7 +440,7 @@ async def fetch_landmark(query_params: QueryParams = Depends()):
         """
     ),
 )
-async def fetch_landmark(query_params: QueryParams = Depends()):
+async def fetch_landmark_operator(query_params: QueryParams = Depends()):
     try:
         session = SessionLocal()
 
@@ -469,7 +469,7 @@ async def fetch_landmark(query_params: QueryParams = Depends()):
         """
     ),
 )
-async def fetch_landmark(query_params: QueryParams = Depends()):
+async def fetch_landmark_public(query_params: QueryParams = Depends()):
     try:
         session = SessionLocal()
 
