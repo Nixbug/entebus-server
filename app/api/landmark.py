@@ -256,32 +256,6 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
     return landmarks
 
 
-def _build_landmark_fetch_handler():
-    """
-    Factory function to create a fetch_landmark endpoint handler.
-
-    This eliminates code duplication across multiple routers (executive, vendor,
-    operator, and public) which all have identical fetch logic.
-
-    Returns:
-        Callable: An async endpoint handler function.
-    """
-
-    async def landmark_fetch_handler(query_params: QueryParams = Depends()):
-        try:
-            session = SessionLocal()
-            return search_landmark(session, query_params)
-        except Exception as e:
-            exceptions.handle(e)
-        finally:
-            session.close()
-
-    return landmark_fetch_handler
-
-
-get_landmarks = _build_landmark_fetch_handler()
-
-
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -407,7 +381,14 @@ async def delete_landmark(
     ),
 )
 async def fetch_landmark(query_params: QueryParams = Depends()):
-    return await get_landmarks(query_params)
+    try:
+        session = SessionLocal()
+
+        return search_landmark(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -428,7 +409,14 @@ async def fetch_landmark(query_params: QueryParams = Depends()):
     ),
 )
 async def fetch_landmark(query_params: QueryParams = Depends()):
-    return await get_landmarks(query_params)
+    try:
+        session = SessionLocal()
+
+        return search_landmark(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -449,7 +437,14 @@ async def fetch_landmark(query_params: QueryParams = Depends()):
     ),
 )
 async def fetch_landmark(query_params: QueryParams = Depends()):
-    return await get_landmarks(query_params)
+    try:
+        session = SessionLocal()
+
+        return search_landmark(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -470,4 +465,11 @@ async def fetch_landmark(query_params: QueryParams = Depends()):
     ),
 )
 async def fetch_landmark(query_params: QueryParams = Depends()):
-    return await get_landmarks(query_params)
+    try:
+        session = SessionLocal()
+
+        return search_landmark(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
