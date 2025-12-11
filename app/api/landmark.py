@@ -7,19 +7,28 @@ input validation and structured output.
 """
 
 from datetime import datetime
+from enum import StrEnum
 from typing import Annotated, List
-from fastapi import APIRouter, Response, status, Depends
+from fastapi import APIRouter, Response, Query, status, Depends
 from fastapi.encoders import jsonable_encoder
+from geoalchemy2 import Geography
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm.session import Session
-from shapely.geometry import Polygon
-from sqlalchemy import func
-from shapely import wkb
+from shapely.geometry import Polygon, Point
+from sqlalchemy import String, func, or_
+from shapely import wkb, wkt
 
 from app.api.bearer import oauth2_executive
 from app.src.constants import MAX_LANDMARK_AREA, MIN_LANDMARK_AREA
 from app.src.db import Landmark, ExecutiveToken, SessionLocal
-from app.src.enums import LandmarkType
+from app.src.enums import LandmarkType, OrderIn
+from app.src.filters import (
+    CreatedOnFilter,
+    IDFilter,
+    NameFilter,
+    PaginationFilter,
+    UpdatedOnFilter,
+)
 from app.src.permissions.executive import PermissionPath
 from app.src import exceptions
 from app.src.regex import NAME_PATTERN
@@ -27,6 +36,10 @@ from app.src.urls import URL_LANDMARK
 from app.src.openobserve import log_event
 from app.src.validators import verify_permission, verify_token
 from app.src.functions import (
+    apply_created_on_filters,
+    apply_id_filters,
+    apply_name_filters,
+    apply_updated_on_filters,
     enum_str,
     fuse_exception_responses,
     get_area,
@@ -38,6 +51,9 @@ from app.src.functions import (
 )
 
 route_executive = APIRouter()
+route_vendor = APIRouter()
+route_operator = APIRouter()
+route_public = APIRouter()
 
 
 ## Output Schema
@@ -78,6 +94,44 @@ class CreateForm(BaseModel):
 
 class UpdateForm:
     pass
+
+
+## Query Parameters
+class OrderBy(StrEnum):
+    """Enum for ordering results."""
+
+    ID = "id"
+    CREATED_ON = "created_on"
+    UPDATED_ON = "updated_on"
+    LOCATION = "location"
+
+
+class QueryParams(
+    UpdatedOnFilter,
+    CreatedOnFilter,
+    NameFilter,
+    IDFilter,
+    PaginationFilter,
+):
+    """Query parameters for fetching landmarks."""
+
+    search: str | None = Field(Query(default=None))
+    location: str | None = Field(
+        Query(
+            default=None,
+            description=(
+                "Accepts only SRID 4326 (WGS84) and a valid WKT string representing a `POINT`."
+            ),
+        )
+    )
+    alias_names: str | None = Field(Query(default=None))
+    type_list: List[LandmarkType] | None = Field(
+        Query(default=None, description=enum_str(LandmarkType))
+    )
+    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
+    order_in: OrderIn = Field(
+        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
+    )
 
 
 ## Function
@@ -125,6 +179,82 @@ def validate_boundary(
         raise exceptions.OverlappingLandmarkBoundary()
 
     return boundary_geom
+
+
+def search_landmark(session: Session, query_params: QueryParams) -> List[Landmark]:
+    """
+    Search for landmarks based on provided query parameters.
+
+    This function supports multiple filtering, searching, ordering, and
+    pagination capabilities to retrieve landmarks that match various criteria.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        query_params (QueryParams): Query parameters containing search criteria.
+
+    Returns:
+        List[Landmark]: List of landmarks that match the search criteria.
+    """
+    query = session.query(Landmark)
+    validated_location = None
+    if query_params.location is not None:
+        geometry = validate_wkt_string(query_params.location, Point)
+        validate_srid_4326(geometry)
+        validated_location = wkt.dumps(geometry)
+    if query_params.type_list is not None:
+        query = query.filter(Landmark.type.in_(query_params.type_list))
+    if query_params.alias_names is not None:
+        query = query.filter(
+            func.array_to_string(Landmark.alias_names, ",").ilike(
+                f"%{query_params.alias_names}%"
+            )
+        )
+
+    # Common search
+    if query_params.search:
+        search = f"%{query_params.search}%"
+        query = query.filter(
+            or_(
+                Landmark.id.cast(String).ilike(search),
+                Landmark.name.ilike(search),
+                func.array_to_string(Landmark.alias_names, ",").ilike(search),
+            )
+        )
+
+    # Generalized filters
+    query = apply_id_filters(query, Landmark, query_params)
+    query = apply_created_on_filters(query, Landmark, query_params)
+    query = apply_updated_on_filters(query, Landmark, query_params)
+    query = apply_name_filters(query, Landmark, query_params)
+
+    # Ordering and pagination
+    if query_params.order_by == OrderBy.LOCATION:
+        if validated_location is not None:
+            ordering_attr = func.ST_Distance(
+                Landmark.boundary.cast(Geography),
+                func.ST_GeogFromText(validated_location),
+            )
+        else:
+            ordering_attr = Landmark.id
+    else:
+        ordering_attr = getattr(Landmark, query_params.order_by.value)
+    ordering_func = (
+        ordering_attr.asc
+        if query_params.order_in == OrderIn.ASCENDING
+        else ordering_attr.desc
+    )
+    query = query.order_by(ordering_func())
+    query = query.offset(query_params.offset).limit(query_params.limit)
+
+    query = query.with_entities(
+        Landmark, func.ST_AsText(Landmark.boundary).label("boundary_wkt")
+    )
+    results = query.all()
+    landmarks = []
+    for landmark_obj, boundary_wkt in results:
+        setattr(landmark_obj, Landmark.boundary.name, boundary_wkt)
+        landmarks.append(landmark_obj)
+    return landmarks
 
 
 # ---------------------------------------------------------------------------
@@ -231,6 +361,119 @@ async def delete_landmark(
             session.commit()
             log_event(token, request_info, landmark_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.get(
+    URL_LANDMARK,
+    tags=["Landmark"],
+    response_model=List[LandmarkSchema],
+    responses=fuse_exception_responses(
+        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+    ),
+    description=(
+        """
+            **Fetches a list of landmarks.**    
+            - Common search supports searching by id, name and alias_names.      
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
+        """
+    ),
+)
+async def fetch_landmark_executive(query_params: QueryParams = Depends()):
+    try:
+        session = SessionLocal()
+
+        return search_landmark(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Vendor]
+# ---------------------------------------------------------------------------
+@route_vendor.get(
+    URL_LANDMARK,
+    tags=["Landmark"],
+    response_model=List[LandmarkSchema],
+    responses=fuse_exception_responses(
+        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+    ),
+    description=(
+        """
+            **Fetches a list of landmarks.**    
+            - Common search supports searching by id, name and alias_names.     
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
+        """
+    ),
+)
+async def fetch_landmark_vendor(query_params: QueryParams = Depends()):
+    try:
+        session = SessionLocal()
+
+        return search_landmark(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Operator]
+# ---------------------------------------------------------------------------
+@route_operator.get(
+    URL_LANDMARK,
+    tags=["Landmark"],
+    response_model=List[LandmarkSchema],
+    responses=fuse_exception_responses(
+        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+    ),
+    description=(
+        """
+            **Fetches a list of landmarks.**    
+            - Common search supports searching by id, name and alias_names.     
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
+        """
+    ),
+)
+async def fetch_landmark_operator(query_params: QueryParams = Depends()):
+    try:
+        session = SessionLocal()
+
+        return search_landmark(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Public]
+# ---------------------------------------------------------------------------
+@route_public.get(
+    URL_LANDMARK,
+    tags=["Landmark"],
+    response_model=List[LandmarkSchema],
+    responses=fuse_exception_responses(
+        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+    ),
+    description=(
+        """
+            **Fetches a list of landmarks.**    
+            - Common search supports searching by id, name and alias_names.    
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
+        """
+    ),
+)
+async def fetch_landmark_public(query_params: QueryParams = Depends()):
+    try:
+        session = SessionLocal()
+
+        return search_landmark(session, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:
