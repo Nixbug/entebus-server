@@ -377,8 +377,7 @@ async def delete_landmark(
     description=(
         """
             **Fetches a list of landmarks.**    
-            - Common search supports searching by id, name and alias_names.  
-            - If `order_by=location` is selected, a valid `location` WKT POINT must be provided.    
+            - Common search supports searching by id, name and alias_names.      
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
@@ -407,8 +406,7 @@ async def fetch_landmark(query_params: QueryParams = Depends()):
     description=(
         """
             **Fetches a list of landmarks.**    
-            - Common search supports searching by id, name and alias_names.  
-            - If `order_by=location` is selected, a valid `location` WKT POINT must be provided.    
+            - Common search supports searching by id, name and alias_names.     
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
@@ -437,8 +435,7 @@ async def fetch_landmark(query_params: QueryParams = Depends()):
     description=(
         """
             **Fetches a list of landmarks.**    
-            - Common search supports searching by id, name and alias_names.  
-            - If `order_by=location` is selected, a valid `location` WKT POINT must be provided.    
+            - Common search supports searching by id, name and alias_names.     
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
@@ -467,8 +464,7 @@ async def fetch_landmark(query_params: QueryParams = Depends()):
     description=(
         """
             **Fetches a list of landmarks.**    
-            - Common search supports searching by id, name and alias_names.  
-            - If `order_by=location` is selected, a valid `location` WKT POINT must be provided.    
+            - Common search supports searching by id, name and alias_names.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
