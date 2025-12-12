@@ -541,9 +541,9 @@ class BusStop(ORMbase):
         id (Integer, unique, not null):
             Primary identifier for the bus stop.
 
-        name (String(32), not null):
+        name (String(128), not null):
             Official name of the bus stop.
-            It should be 1-32 characters long.
+            It should be 1-128 characters long.
             May include space ( ), hyphen (-), period (.), and underscore (_).
 
         landmark_id (Integer, not null):
@@ -568,7 +568,7 @@ class BusStop(ORMbase):
     __tablename__ = "bus_stop"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(32), nullable=False)
+    name = Column(TEXT, nullable=False)
     landmark_id = Column(
         Integer,
         ForeignKey(Landmark.id, ondelete="CASCADE"),

@@ -28,7 +28,7 @@ def upgrade() -> None:
     op.create_geospatial_table(
         "bus_stop",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(length=32), nullable=False),
+        sa.Column("name", sa.TEXT(), nullable=False),
         sa.Column("landmark_id", sa.Integer(), nullable=False),
         sa.Column(
             "location",

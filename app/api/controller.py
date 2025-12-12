@@ -43,3 +43,20 @@ app_executive.include_router(executive_account.route_executive)
 app_executive.include_router(executive_image.route_executive)
 app_executive.include_router(landmark.route_executive)
 app_executive.include_router(bus_stop.route_executive)
+
+# ------------------------------------------------------
+# Vendor routers
+# ------------------------------------------------------
+app_vendor.include_router(landmark.route_vendor)
+
+
+# ------------------------------------------------------
+# Operator routers
+# ------------------------------------------------------
+app_operator.include_router(landmark.route_operator)
+
+
+# ------------------------------------------------------
+# Public routers
+# ------------------------------------------------------
+app_public.include_router(landmark.route_public)
