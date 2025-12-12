@@ -153,7 +153,7 @@ def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusSto
     if query_params.order_by == OrderBy.LOCATION:
         if query_params.location is not None:
             ordering_attr = func.ST_Distance(
-                BusStop.boundary.cast(Geography),
+                BusStop.location.cast(Geography),
                 func.ST_GeogFromText(query_params.location),
             )
         else:
