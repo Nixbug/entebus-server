@@ -1,9 +1,9 @@
 """
 Bus Stop API Router for EnteBus.
 
-Provides endpoints for managing bus stops, including creation,
-update, deletion, and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides an endpoint for creating bus stops.
+Uses Pydantic schemas for input validation and structured output.
+Endpoints for update, deletion, and retrieval are planned for future implementation.
 """
 
 from datetime import datetime
@@ -52,9 +52,8 @@ class CreateForm(BaseModel):
     landmark_id: int = Field()
     location: str = Field(
         description=(
-            f"Accepts only SRID 4326 (WGS84), "
-            f"valid WKT string representing a `POINT`."
-        )
+            "Accepts only SRID 4326 (WGS84) and a valid WKT string representing a `POINT`."
+        ),
     )
 
 
