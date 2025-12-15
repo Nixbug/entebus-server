@@ -299,3 +299,13 @@ class InvalidBoundaryArea(APIException):
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "Boundary area not within the prescribed limits"
     headers = {"X-Error": "InvalidBoundaryArea"}
+
+
+class BusStopOutsideLandmark(APIException):
+    """
+    Raised when the bus stop location is not within the landmark boundary.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    detail = "The bus stop location is not within the landmark boundary"
+    headers = {"X-Error": "BusStopOutsideLandmark"}
