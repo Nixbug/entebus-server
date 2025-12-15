@@ -224,4 +224,3 @@ async def update_bus_stop(
         exceptions.handle(e)
     finally:
         session.close()
-
