@@ -25,6 +25,7 @@ from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
     get_executive_roles,
+    update_if_changed,
     validate_wkt_string,
     validate_srid_4326,
 )
@@ -53,6 +54,18 @@ class CreateForm(BaseModel):
     location: str = Field(
         description=(
             "Accepts only SRID 4326 (WGS84) and a valid WKT string representing a `POINT`."
+        ),
+    )
+
+
+class UpdateForm(BaseModel):
+    """Form data for updating a bus stop."""
+
+    name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN, default=None)
+    location: str = Field(
+        default=None,
+        description=(
+            "Accepts only SRID 4326 (WGS84), and a valid WKT string representing a `POINT`."
         ),
     )
 
@@ -129,6 +142,83 @@ async def create_bus_stop(
             wkb.loads(bytes(bus_stop.location.data))
         ).wkt
         log_event(token, request_info, bus_stop_data)
+        return bus_stop_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.patch(
+    f"{URL_BUS_STOP}/{{id}}",
+    tags=["Bus Stop"],
+    response_model=BusStopSchema,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(BusStop.id),
+            exceptions.InvalidWKTStringOrType(),
+            exceptions.InvalidSRID4326(),
+            exceptions.BusStopOutsideLandmark(),
+        ]
+    ),
+    description=(
+        """
+            **Updates an existing bus stop.**    
+            - Requires a valid access token.    
+            - Logged-in executive must have `landmark.bus_stop.update` permission to update bus stops.      
+            - Empty PATCH requests are allowed and will result in no changes.  
+        """
+    ),
+)
+async def update_bus_stop(
+    id: int,
+    form_param: UpdateForm,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, PermissionPath.UPDATE_BUS_STOP)
+
+        bus_stop = session.query(BusStop).filter(BusStop.id == id).first()
+        if bus_stop is None:
+            raise exceptions.UnknownValue(BusStop.id)
+
+        update_data = form_param.model_dump(exclude_unset=True)
+        if form_param.location is not None:
+            # Validate WKT and SRID
+            location_geom = validate_wkt_string(form_param.location, Point)
+            validate_srid_4326(location_geom)
+            form_param.location = wkt.dumps(location_geom)
+
+            current_location = (wkb.loads(bytes(bus_stop.location.data))).wkt
+            if current_location != form_param.location:
+                landmark = (
+                    session.query(Landmark)
+                    .filter(Landmark.id == bus_stop.landmark_id)
+                    .first()
+                )
+                boundary_geom = wkb.loads(bytes(landmark.boundary.data))
+                if not boundary_geom.contains(location_geom):
+                    raise exceptions.BusStopOutsideLandmark()
+                bus_stop.location = form_param.location
+
+        update_if_changed(bus_stop, update_data)
+        have_updates = session.is_modified(bus_stop)
+        if have_updates:
+            session.commit()
+            session.refresh(bus_stop)
+
+        bus_stop_data = jsonable_encoder(bus_stop, exclude={BusStop.location.name})
+        bus_stop_data[BusStop.location.name] = (
+            wkb.loads(bytes(bus_stop.location.data))
+        ).wkt
+        if have_updates:
+            log_event(token, request_info, bus_stop_data)
         return bus_stop_data
     except Exception as e:
         exceptions.handle(e)
