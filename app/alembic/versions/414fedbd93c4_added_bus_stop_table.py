@@ -85,3 +85,4 @@ def downgrade() -> None:
     )
     op.drop_geospatial_table("bus_stop")
     # ### end Alembic commands ###
+    
