@@ -56,6 +56,8 @@ from app.src.functions import (
     validate_AABB,
     validate_srid_4326,
 )
+from sqlalchemy import func
+from geoalchemy2.functions import ST_Within
 
 route_executive = APIRouter()
 route_vendor = APIRouter()
@@ -100,7 +102,7 @@ class CreateForm(BaseModel):
 
 
 class UpdateForm(BaseModel):
-    name: str = Field(min_length=1, max_length=128, pattern=NAME_PATTERN, default=None)
+    name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN, default=None)
     boundary: str = Field(
         default=None,
         description=(
@@ -387,30 +389,27 @@ async def update_landmark(
 
         update_data = form_param.model_dump(exclude_unset=True)
         if form_param.boundary is not None:
-            boundary_geom = validate_boundary(session, form_param.boundary, id)
-            current_boundary = (wkb.loads(bytes(landmark.boundary.data))).wkt
-            if form_param.boundary is not None:
-                boundary_geom = validate_boundary(session, form_param.boundary, id)
-                old_geom = wkb.loads(bytes(landmark.boundary.data))
-                projection = pyproj.Transformer.from_crs(
-                    "EPSG:4326", "EPSG:3857", always_xy=True
-                ).transform
+            old_geom = wkb.loads(bytes(landmark.boundary.data))
+            projection = pyproj.Transformer.from_crs(
+                "EPSG:4326", "EPSG:3857", always_xy=True
+            ).transform
 
-                old_proj = transform(projection, old_geom)
-                new_proj = transform(projection, boundary_geom)
-                distance_in_meters = old_proj.centroid.distance(new_proj.centroid)
-                if distance_in_meters > MAX_LANDMARK_UPDATE_DISTANCE:
-                    raise exceptions.LandmarkDistanceLimitExceeded()
-                current_boundary = old_geom.wkt
-                if current_boundary != form_param.boundary:
-                    bus_stops = (
-                        session.query(BusStop).filter(BusStop.landmark_id == id).all()
-                    )
-                    for bus_stop in bus_stops:
-                        bus_stop_geom = wkb.loads(bytes(bus_stop.location.data))
-                        if not bus_stop_geom.within(boundary_geom):
-                            raise exceptions.BusStopOutsideLandmark()
-                    landmark.boundary = form_param.boundary
+            old_proj = transform(projection, old_geom)
+            new_proj = transform(projection, form_param.boundary)
+            distance_in_meters = old_proj.centroid.distance(new_proj.centroid)
+            if distance_in_meters > MAX_LANDMARK_UPDATE_DISTANCE:
+                raise exceptions.LandmarkDistanceLimitExceeded()
+            current_boundary = old_geom.wkt
+            if current_boundary != form_param.boundary:
+                bus_stops = (
+                    session.query(BusStop).filter(BusStop.landmark_id == id).all()
+                )
+                for bus_stop in bus_stops:
+                    bus_stop_geom = wkb.loads(bytes(bus_stop.location.data))
+                    if not bus_stop_geom.within(form_param.boundary):
+                        raise exceptions.BusStopOutsideLandmark()
+                if isinstance(update_data, dict):
+                    update_data.pop("boundary", None)
 
         update_if_changed(landmark, update_data)
         have_updates = session.is_modified(landmark)

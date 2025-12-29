@@ -112,7 +112,7 @@ async def create_bus_stop(
 
         # Validate the location is within the landmark boundary
         boundary_geom = wkb.loads(bytes(landmark.boundary.data))
-        if not boundary_geom.contains(location_geom):
+        if not location_geom.within(boundary_geom):
             raise exceptions.BusStopOutsideLandmark()
 
         bus_stop = BusStop(
