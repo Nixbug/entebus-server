@@ -80,6 +80,14 @@ class LandmarkSchema(BaseModel):
 ## Input Forms
 AliasName = Annotated[str, StringConstraints(max_length=32)]
 
+## Shared field description for boundary:
+landmark_boundary_description = (
+    f"Accepts only SRID 4326 (WGS84), "
+    f"valid WKT string representing a `POLYGON`, "
+    f"Max Area: {MAX_LANDMARK_AREA // 1000000} km², "
+    f"Min Area: {MIN_LANDMARK_AREA} sq.m"
+)
+
 
 class CreateForm(BaseModel):
     """Form data for creating a new landmark."""
@@ -87,10 +95,7 @@ class CreateForm(BaseModel):
     name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN)
     boundary: str = Field(
         description=(
-            f"Accepts only SRID 4326 (WGS84), "
-            f"valid WKT string representing a `POLYGON`, "
-            f"Max Area: {MAX_LANDMARK_AREA // 1000000} km², "
-            f"Min Area: {MIN_LANDMARK_AREA} sq.m"
+            landmark_boundary_description
         )
     )
     type: LandmarkType = Field(
@@ -100,15 +105,11 @@ class CreateForm(BaseModel):
 
 
 class UpdateForm(BaseModel):
-    name: str = Field(min_length=1, max_length=128, pattern=NAME_PATTERN, default=None)
+    name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN, default=None)
     boundary: str = Field(
         default=None,
         description=(
-            f"Accepts only SRID 4326 (WGS84), "
-            f"valid WKT string representing a `POLYGON`, "
-            f"Max Distance: {MAX_LANDMARK_UPDATE_DISTANCE // 1000} km, "
-            f"Max Area: {MAX_LANDMARK_AREA // 1000000} km², "
-            f"Min Area: {MIN_LANDMARK_AREA} sq.m"
+            landmark_boundary_description
         ),
     )
     type: LandmarkType = Field(description=enum_str(LandmarkType), default=None)
