@@ -4,7 +4,7 @@ We welcome contributions from the community! 🚀
 Whether it’s fixing a bug, improving documentation, or suggesting new features — all contributions are valuable.  
 
 ### Ways to Contribute
-- 🐛 **Report bugs** by opening an issue.
+- 🐛 **Report bugs** by opening an Issue.
 - 💡 **Suggest features** to improve the project  
 - 📝 **Improve documentation** (README, CONTRIBUTING, tutorials)  
 - 🔧 **Submit code** via Pull Requests (PRs)  
@@ -47,5 +47,5 @@ All branches **must** follow the naming convention:
    git checkout develop
    git checkout -b F002/Add-route-searching
 ```
-2. Commit and push changes to your branch.
-3. Open a Pull Request (PR) into `develop`.
+4. Commit and push changes to your branch.
+5. Open a Pull Request (PR) into `develop`.
