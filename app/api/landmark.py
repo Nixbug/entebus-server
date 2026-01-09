@@ -92,7 +92,7 @@ class CreateForm(BaseModel):
     """Form data for creating a new landmark."""
 
     name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN)
-    boundary: str = Field(description=(landmark_boundary_description))
+    boundary: str = Field(description=landmark_boundary_description)
     type: LandmarkType = Field(
         description=enum_str(LandmarkType), default=LandmarkType.LOCAL
     )
@@ -103,7 +103,7 @@ class UpdateForm(BaseModel):
     name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN, default=None)
     boundary: str = Field(
         default=None,
-        description=(landmark_boundary_description),
+        description=landmark_boundary_description
     )
     type: LandmarkType = Field(description=enum_str(LandmarkType), default=None)
     alias_names: List[AliasName] | None = Field(max_items=32, default=None)
@@ -356,10 +356,10 @@ async def create_landmark(
     ),
     description=(
         """
-            **Updates an existing landmark.**
+            **Updates an existing landmark.**   
             - Requires a valid access token.    
-            - Logged-in executive must have `landmark.update` permission.
-            - Empty PATCH requests are allowed and will result in no changes.
+            - Logged-in executive must have `landmark.update` permission.   
+            - Empty PATCH requests are allowed and will result in no changes.   
         """
     ),
 )
