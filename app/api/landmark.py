@@ -352,11 +352,13 @@ async def create_landmark(
         ]
     ),
     description=(
-        """
+        f"""
             **Updates an existing landmark.**   
             - Requires a valid access token.    
             - Logged-in executive must have `landmark.update` permission.   
             - Empty PATCH requests are allowed and will result in no changes.   
+            - When updating the boundary,the new centroid cannot be more than `{MAX_LANDMARK_UPDATE_DISTANCE / 1000}` km from the original centroid.     
+            - All bus stops associated with the landmark must remain within the updated boundary.   
         """
     ),
 )
