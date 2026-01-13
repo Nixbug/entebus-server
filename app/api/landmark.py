@@ -381,8 +381,8 @@ async def update_landmark(
         update_data = form_param.model_dump(exclude_unset=True)
         if form_param.boundary is not None:
             boundary_geom = validate_boundary(session, form_param.boundary, id)
-            current_boundary = (wkb.loads(bytes(landmark.boundary.data))).wkt
             old_geom = wkb.loads(bytes(landmark.boundary.data))
+            current_boundary = old_geom.wkt
 
             if current_boundary != form_param.boundary:
                 projection = pyproj.Transformer.from_crs(
