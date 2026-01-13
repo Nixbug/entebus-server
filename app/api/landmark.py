@@ -383,16 +383,18 @@ async def update_landmark(
             boundary_geom = validate_boundary(session, form_param.boundary, id)
             current_boundary = (wkb.loads(bytes(landmark.boundary.data))).wkt
             old_geom = wkb.loads(bytes(landmark.boundary.data))
-            projection = pyproj.Transformer.from_crs(
-                "EPSG:4326", "EPSG:3857", always_xy=True
-            ).transform
 
-            old_proj = transform(projection, old_geom)
-            new_proj = transform(projection, boundary_geom)
-            distance_in_meters = old_proj.centroid.distance(new_proj.centroid)
-            if distance_in_meters > MAX_LANDMARK_UPDATE_DISTANCE:
-                raise exceptions.LandmarkDistanceLimitExceeded()
             if current_boundary != form_param.boundary:
+                projection = pyproj.Transformer.from_crs(
+                    "EPSG:4326", "EPSG:3857", always_xy=True
+                ).transform
+
+                old_proj = transform(projection, old_geom)
+                new_proj = transform(projection, boundary_geom)
+                distance_in_meters = old_proj.centroid.distance(new_proj.centroid)
+                if distance_in_meters > MAX_LANDMARK_UPDATE_DISTANCE:
+                    raise exceptions.LandmarkDistanceLimitExceeded()
+
                 bus_stops = (
                     session.query(BusStop).filter(BusStop.landmark_id == id).all()
                 )
