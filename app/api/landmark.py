@@ -402,7 +402,7 @@ async def update_landmark(
                     bus_stop_geom = wkb.loads(bytes(bus_stop.location.data))
                     if not bus_stop_geom.within(boundary_geom):
                         raise exceptions.BusStopOutsideLandmark()
-                landmark.boundary = form_param.boundary
+               
 
         update_if_changed(landmark, update_data)
         have_updates = session.is_modified(landmark)
