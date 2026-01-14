@@ -317,5 +317,5 @@ class LandmarkDistanceLimitExceeded(APIException):
     """
 
     status_code = status.HTTP_406_NOT_ACCEPTABLE
-    detail = "Landmark movement exceeds allowed limit"
+    detail = "Landmark centroid movement exceeds allowed limit"
     headers = {"X-Error": "LandmarkDistanceLimitExceeded"}
