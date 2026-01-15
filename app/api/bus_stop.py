@@ -61,7 +61,7 @@ class CreateForm(BaseModel):
 class UpdateForm(BaseModel):
     """Form data for updating a bus stop."""
 
-    name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN, default=None)
+    name: str = Field(min_length=1, max_length=128, pattern=NAME_PATTERN, default=None)
     location: str = Field(
         default=None,
         description=(
