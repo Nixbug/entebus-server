@@ -75,6 +75,7 @@ MAX_ACCESS_TOKEN_VALIDITY = 1 * 60 * 60  # Access token validity (in seconds, 1 
 # ---------------------------------------------------------------------------
 MAX_LANDMARK_AREA = 5 * 1000 * 1000  # 5 km² in m²
 MIN_LANDMARK_AREA = 2  # 2 m²
+MAX_LANDMARK_UPDATE_DISTANCE = 1000  # 1 km
 
 
 # ---------------------------------------------------------------------------
