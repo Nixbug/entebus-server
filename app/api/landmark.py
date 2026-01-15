@@ -379,6 +379,7 @@ async def update_landmark(
             raise exceptions.UnknownValue(Landmark.id)
 
         update_data = form_param.model_dump(exclude_unset=True)
+        # Validate boundary if changed
         if form_param.boundary is not None:
             new_geom = validate_boundary(session, form_param.boundary, id)
             old_geom = wkb.loads(bytes(landmark.boundary.data))
