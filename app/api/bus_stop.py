@@ -167,8 +167,9 @@ async def create_bus_stop(
         """
             **Updates an existing bus stop.**    
             - Requires a valid access token.    
-            - Logged-in executive must have `landmark.bus_stop.update` permission to update bus stops.      
-            - Empty PATCH requests are allowed and will result in no changes.  
+            - Logged-in executive must have `landmark.bus_stop.update` permission to update bus stops.    
+            - Empty PATCH requests are allowed and will result in no changes.    
+            - When updating the `location`, it must remain within the landmark boundary.    
         """
     ),
 )
