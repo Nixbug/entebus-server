@@ -12,6 +12,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from shapely.geometry import Point
 from shapely import wkb, wkt
+from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive
 from app.src.db import BusStop, ExecutiveToken, Landmark, SessionLocal
@@ -70,6 +71,40 @@ class UpdateForm(BaseModel):
     )
 
 
+# Function
+def validate_location(session: Session, location_wkt: str, landmark_id: int) -> Point:
+    """
+    Validate a bus stop location geometry. This function takes a WKT string representing a point
+    and validates it against the landmark boundary.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        location_wkt (str): Location in WKT format (Point geometry).
+        landmark_id (int): ID of the landmark to validate against.
+
+    Returns:
+        Point: Validated Shapely `Point` geometry.
+
+    Raises:
+        UnknownValue: If the landmark doesn't exist.
+        BusStopOutsideLandmark: If the location is outside the landmark boundary.
+    """
+    # Validate WKT and SRID
+    location_geom = validate_wkt_string(location_wkt, Point)
+    validate_srid_4326(location_geom)
+
+    # Validate location is within landmark boundary
+    landmark = session.query(Landmark).filter(Landmark.id == landmark_id).first()
+    if landmark is None:
+        raise exceptions.UnknownValue(Landmark.id)
+
+    boundary_geom = wkb.loads(bytes(landmark.boundary.data))
+    if not boundary_geom.contains(location_geom):
+        raise exceptions.BusStopOutsideLandmark()
+
+    return location_geom
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -111,22 +146,11 @@ async def create_bus_stop(
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.CREATE_BUS_STOP)
 
-        # Validate WKT and SRID
-        location_geom = validate_wkt_string(form_param.location, Point)
-        validate_srid_4326(location_geom)
-        validated_location = wkt.dumps(location_geom)
-        landmark = (
-            session.query(Landmark)
-            .filter(Landmark.id == form_param.landmark_id)
-            .first()
+        # Validate location (WKT, SRID, and landmark boundary)
+        location_geom = validate_location(
+            session, form_param.location, form_param.landmark_id
         )
-        if landmark is None:
-            raise exceptions.UnknownValue(BusStop.landmark_id)
-
-        # Validate the location is within the landmark boundary
-        boundary_geom = wkb.loads(bytes(landmark.boundary.data))
-        if not boundary_geom.contains(location_geom):
-            raise exceptions.BusStopOutsideLandmark()
+        validated_location = wkt.dumps(location_geom)
 
         bus_stop = BusStop(
             name=form_param.name,
@@ -191,22 +215,14 @@ async def update_bus_stop(
 
         update_data = form_param.model_dump(exclude_unset=True)
         if form_param.location is not None:
-            # Validate WKT and SRID
-            location_geom = validate_wkt_string(form_param.location, Point)
-            validate_srid_4326(location_geom)
-            form_param.location = wkt.dumps(location_geom)
+            # Validate location (WKT, SRID, and landmark boundary)
+            location_geom = validate_location(
+                session, form_param.location, bus_stop.landmark_id
+            )
+            old_geom = wkb.loads(bytes(bus_stop.location.data))
 
-            current_location = (wkb.loads(bytes(bus_stop.location.data))).wkt
-            if current_location != form_param.location:
-                landmark = (
-                    session.query(Landmark)
-                    .filter(Landmark.id == bus_stop.landmark_id)
-                    .first()
-                )
-                boundary_geom = wkb.loads(bytes(landmark.boundary.data))
-                if not boundary_geom.contains(location_geom):
-                    raise exceptions.BusStopOutsideLandmark()
-                bus_stop.location = form_param.location
+            if location_geom.wkt != old_geom.wkt:
+                bus_stop.location = wkt.dumps(location_geom)
 
         update_if_changed(bus_stop, update_data)
         have_updates = session.is_modified(bus_stop)
