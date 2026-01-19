@@ -129,10 +129,11 @@ def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusSto
         List[BusStop]: List of bus stops that match the search criteria.
     """
     query = session.query(BusStop)
+    validated_location = None
     if query_params.location is not None:
         geometry = validate_wkt_string(query_params.location, Point)
         validate_srid_4326(geometry)
-        query_params.location = wkt.dumps(geometry)
+        validated_location = wkt.dumps(geometry)
     if query_params.landmark_id_list is not None:
         query = query.filter(BusStop.landmark_id.in_(query_params.landmark_id_list))
 
@@ -151,10 +152,10 @@ def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusSto
 
     # Ordering and pagination
     if query_params.order_by == OrderBy.LOCATION:
-        if query_params.location is not None:
+        if validated_location is not None:
             ordering_attr = func.ST_Distance(
                 BusStop.location.cast(Geography),
-                func.ST_GeogFromText(query_params.location),
+                func.ST_GeogFromText(validated_location),
             )
         else:
             ordering_attr = BusStop.id
