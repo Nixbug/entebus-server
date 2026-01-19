@@ -326,7 +326,7 @@ async def fetch_bus_stop_vendor(query_params: QueryParams = Depends()):
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
     description=(
-        f"""
+        """
             **Fetches a list of Bus Stops.**    
             - Common search supports searching by id and name.  
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
