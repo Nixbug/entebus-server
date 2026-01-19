@@ -169,9 +169,15 @@ def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusSto
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    bus_stops = query.all()
-    for bus_stop in bus_stops:
-        bus_stop.location = wkb.loads(bytes(bus_stop.location.data)).wkt
+    query = query.with_entities(
+        BusStop, func.ST_AsText(BusStop.location).label("location_wkt")
+    )
+    results = query.all()
+    bus_stops = []
+    for bus_stop_obj, location_wkt in results:
+        bus_stop_obj.location = location_wkt
+        bus_stops.append(bus_stop_obj)
+
     return bus_stops
 
 
