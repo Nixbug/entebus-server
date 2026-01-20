@@ -222,7 +222,7 @@ async def update_bus_stop(
             old_geom = wkb.loads(bytes(bus_stop.location.data))
 
             if location_geom.wkt != old_geom.wkt:
-                bus_stop.location = wkt.dumps(location_geom)
+                update_data["location"] = wkt.dumps(location_geom)
 
         update_if_changed(bus_stop, update_data)
         have_updates = session.is_modified(bus_stop)
