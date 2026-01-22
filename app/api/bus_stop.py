@@ -216,13 +216,14 @@ async def update_bus_stop(
         update_data = form_param.model_dump(exclude_unset=True)
         if form_param.location is not None:
             # Validate location (WKT, SRID, and landmark boundary)
-            location_geom = validate_location(
+            new_geom = validate_location(
                 session, form_param.location, bus_stop.landmark_id
             )
             old_geom = wkb.loads(bytes(bus_stop.location.data))
 
-            if location_geom.wkt != old_geom.wkt:
-                bus_stop.location = wkt.dumps(location_geom)
+            if new_geom.wkt != old_geom.wkt:
+                bus_stop.location = wkt.dumps(new_geom)
+            update_data.pop("location")
 
         update_if_changed(bus_stop, update_data)
         have_updates = session.is_modified(bus_stop)
