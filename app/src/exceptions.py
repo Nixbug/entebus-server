@@ -309,3 +309,13 @@ class BusStopOutsideLandmark(APIException):
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "The bus stop location is not within the landmark boundary"
     headers = {"X-Error": "BusStopOutsideLandmark"}
+
+
+class LandmarkDistanceLimitExceeded(APIException):
+    """
+    Raised when the updated landmark boundary is beyond the allowed distance limit.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    detail = "Landmark centroid movement exceeds allowed limit"
+    headers = {"X-Error": "LandmarkDistanceLimitExceeded"}

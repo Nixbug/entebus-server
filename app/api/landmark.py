@@ -17,10 +17,16 @@ from sqlalchemy.orm.session import Session
 from shapely.geometry import Polygon, Point
 from sqlalchemy import String, func, or_
 from shapely import wkb, wkt
+from shapely.ops import transform
+import pyproj
 
 from app.api.bearer import oauth2_executive
-from app.src.constants import MAX_LANDMARK_AREA, MIN_LANDMARK_AREA
-from app.src.db import Landmark, ExecutiveToken, SessionLocal
+from app.src.constants import (
+    MAX_LANDMARK_AREA,
+    MAX_LANDMARK_UPDATE_DISTANCE,
+    MIN_LANDMARK_AREA,
+)
+from app.src.db import BusStop, Landmark, ExecutiveToken, SessionLocal
 from app.src.enums import LandmarkType, OrderIn
 from app.src.filters import (
     CreatedOnFilter,
@@ -45,6 +51,7 @@ from app.src.functions import (
     get_area,
     get_request_info,
     get_executive_roles,
+    update_if_changed,
     validate_wkt_string,
     validate_AABB,
     validate_srid_4326,
@@ -71,6 +78,13 @@ class LandmarkSchema(BaseModel):
 
 
 ## Input Forms
+landmark_boundary_description = (
+    f"Accepts only SRID 4326 (WGS84), "
+    f"valid WKT string representing a `POLYGON`, "
+    f"Max Area: {MAX_LANDMARK_AREA // 1000000} km², "
+    f"Min Area: {MIN_LANDMARK_AREA} sq.m"
+)
+
 AliasName = Annotated[str, StringConstraints(max_length=32)]
 
 
@@ -78,22 +92,18 @@ class CreateForm(BaseModel):
     """Form data for creating a new landmark."""
 
     name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN)
-    boundary: str = Field(
-        description=(
-            f"Accepts only SRID 4326 (WGS84), "
-            f"valid WKT string representing a `POLYGON`, "
-            f"Max Area: {MAX_LANDMARK_AREA // 1000000} km², "
-            f"Min Area: {MIN_LANDMARK_AREA} sq.m"
-        )
-    )
+    boundary: str = Field(description=landmark_boundary_description)
     type: LandmarkType = Field(
         description=enum_str(LandmarkType), default=LandmarkType.LOCAL
     )
     alias_names: List[AliasName] | None = Field(max_items=32, default=None)
 
 
-class UpdateForm:
-    pass
+class UpdateForm(BaseModel):
+    name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN, default=None)
+    boundary: str = Field(default=None, description=landmark_boundary_description)
+    type: LandmarkType = Field(description=enum_str(LandmarkType), default=None)
+    alias_names: List[AliasName] | None = Field(max_items=32, default=None)
 
 
 ## Query Parameters
@@ -316,6 +326,96 @@ async def create_landmark(
             bytes(landmark.boundary.data)
         ).wkt
         log_event(token, request_info, landmark_data)
+        return landmark_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.patch(
+    f"{URL_LANDMARK}/{{id}}",
+    tags=["Landmark"],
+    response_model=LandmarkSchema,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(Landmark.id),
+            exceptions.InvalidWKTStringOrType(),
+            exceptions.InvalidSRID4326(),
+            exceptions.InvalidAABB(),
+            exceptions.InvalidBoundaryArea(),
+            exceptions.BusStopOutsideLandmark(),
+            exceptions.OverlappingLandmarkBoundary(),
+            exceptions.LandmarkDistanceLimitExceeded(),
+        ]
+    ),
+    description=(
+        f"""
+            **Updates an existing landmark.**   
+            - Requires a valid access token.    
+            - Logged-in executive must have `landmark.update` permission.   
+            - Empty PATCH requests are allowed and will result in no changes.   
+            - When updating the boundary, the new centroid cannot be more than `{MAX_LANDMARK_UPDATE_DISTANCE / 1000}` km from the original centroid.     
+            - All bus stops associated with the landmark must remain within the updated boundary.   
+        """
+    ),
+)
+async def update_landmark(
+    id: int,
+    form_param: UpdateForm,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, PermissionPath.UPDATE_LANDMARK)
+
+        landmark = session.query(Landmark).filter(Landmark.id == id).first()
+        if landmark is None:
+            raise exceptions.UnknownValue(Landmark.id)
+
+        update_data = form_param.model_dump(exclude_unset=True)
+        # Validate boundary if changed
+        if form_param.boundary is not None:
+            new_geom = validate_boundary(session, form_param.boundary, id)
+            old_geom = wkb.loads(bytes(landmark.boundary.data))
+
+            if new_geom.wkt != old_geom.wkt:
+                projection = pyproj.Transformer.from_crs(
+                    "EPSG:4326", "EPSG:3857", always_xy=True
+                ).transform
+
+                old_proj = transform(projection, old_geom)
+                new_proj = transform(projection, new_geom)
+                distance_in_meters = old_proj.centroid.distance(new_proj.centroid)
+                if distance_in_meters > MAX_LANDMARK_UPDATE_DISTANCE:
+                    raise exceptions.LandmarkDistanceLimitExceeded()
+
+                bus_stops = (
+                    session.query(BusStop).filter(BusStop.landmark_id == id).all()
+                )
+                for bus_stop in bus_stops:
+                    bus_stop_geom = wkb.loads(bytes(bus_stop.location.data))
+                    if not bus_stop_geom.within(new_geom):
+                        raise exceptions.BusStopOutsideLandmark()
+
+        update_if_changed(landmark, update_data)
+        have_updates = session.is_modified(landmark)
+        if have_updates:
+            landmark.version += 1
+            session.commit()
+            session.refresh(landmark)
+
+        landmark_data = jsonable_encoder(landmark, exclude={Landmark.boundary.name})
+        landmark_data[Landmark.boundary.name] = wkb.loads(
+            bytes(landmark.boundary.data)
+        ).wkt
+        if have_updates:
+            log_event(token, request_info, landmark_data)
         return landmark_data
     except Exception as e:
         exceptions.handle(e)
