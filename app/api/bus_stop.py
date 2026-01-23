@@ -1,9 +1,9 @@
 """
 Bus Stop API Router for EnteBus.
 
-Provides an endpoint for creating bus stops.
+Provides an endpoint for creating and updating bus stops.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for update, deletion, and retrieval are planned for future implementation.
+Endpoints for deletion and retrieval are planned for future implementation.
 """
 
 from datetime import datetime
@@ -96,7 +96,7 @@ def validate_location(session: Session, location_wkt: str, landmark_id: int) -> 
     # Validate location is within landmark boundary
     landmark = session.query(Landmark).filter(Landmark.id == landmark_id).first()
     if landmark is None:
-        raise exceptions.UnknownValue(Landmark.id)
+        raise exceptions.UnknownValue(BusStop.landmark_id)
 
     boundary_geom = wkb.loads(bytes(landmark.boundary.data))
     if not boundary_geom.contains(location_geom):
