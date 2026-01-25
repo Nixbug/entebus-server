@@ -541,9 +541,8 @@ class BusStop(ORMbase):
         id (Integer, unique, not null):
             Primary identifier for the bus stop.
 
-        name (String(128), not null):
+        name (TEXT, not null):
             Official name of the bus stop.
-            It should be 1-128 characters long.
             May include space ( ), hyphen (-), period (.), and underscore (_).
 
         landmark_id (Integer, not null):
