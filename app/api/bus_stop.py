@@ -17,7 +17,6 @@ from sqlalchemy.orm.session import Session
 from shapely.geometry import Point
 from shapely import wkb, wkt
 from sqlalchemy import String, func, or_
-from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive
 from app.src.db import BusStop, ExecutiveToken, Landmark, SessionLocal
