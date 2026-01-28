@@ -580,4 +580,9 @@ class BusStop(ORMbase):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    __table_args__ = (UniqueConstraint(location, landmark_id),)
+    __table_args__ = (UniqueConstraint(
+        "location", 
+        "landmark_id", 
+        name="ux_bus_stop_location_landmark_id", 
+        ),
+    )
