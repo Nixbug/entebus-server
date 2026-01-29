@@ -537,6 +537,12 @@ class BusStop(ORMbase):
     to a landmark region, enabling localized grouping and spatial queries such as
     nearest-stop detection, containment checks, or analytics within a landmark area.
 
+    Spatial Constraint:
+        - `uq_bus_stop_location_landmark_id` (unique BTree index on ST_AsBinary(location)):
+            Ensures no two bus stops under the same landmark share the exact same
+            spatial point. Using ST_AsBinary avoids floating-point comparison issues
+            with raw geometry objects.
+
     Columns:
         id (Integer, unique, not null):
             Primary identifier for the bus stop.
@@ -583,7 +589,7 @@ class BusStop(ORMbase):
     __table_args__ = (
         Index(
             "uq_bus_stop_location_landmark_id",
-            func.ST_ASBinary(location),
+            func.ST_AsBinary(location),
             landmark_id,
             unique=True,
         ),
