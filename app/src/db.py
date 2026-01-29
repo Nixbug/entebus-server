@@ -549,6 +549,7 @@ class BusStop(ORMbase):
 
         name (TEXT, not null):
             Official name of the bus stop.
+            It should be 1-128 characters long.
             May include space ( ), hyphen (-), period (.), and underscore (_).
 
         landmark_id (Integer, not null):
