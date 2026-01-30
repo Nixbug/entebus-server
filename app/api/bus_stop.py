@@ -397,7 +397,7 @@ async def delete_bus_stop(
         bus_stop = session.query(BusStop).filter(BusStop.id == id).first()
         if bus_stop is not None:
             bus_stop_data = jsonable_encoder(bus_stop, exclude={BusStop.location.name})
-            bus_stop_data[BusStop.location.name] = wkb.loads( 
+            bus_stop_data[BusStop.location.name] = wkb.loads(
                 bytes(bus_stop.location.data)
             ).wkt
             session.delete(bus_stop)
@@ -408,7 +408,7 @@ async def delete_bus_stop(
         exceptions.handle(e)
     finally:
         session.close()
-        
+
 
 @route_executive.get(
     URL_BUS_STOP,
