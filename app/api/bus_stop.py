@@ -1,10 +1,9 @@
 """
 Bus Stop API Router for EnteBus.
 
-Provides an endpoint for managing bus stops, including creation, 
-update, and deletion. Uses Pydantic schemas for input validation 
-and structured output. Endpoints for retrieval are planned for 
-future implementation.
+Provides endpoints for managing bus stops, including creation,
+update, deletion, and retrieval. Uses Pydantic schemas for
+input validation and structured output.
 """
 
 from datetime import datetime
