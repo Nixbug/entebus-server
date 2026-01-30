@@ -48,15 +48,18 @@ app_executive.include_router(bus_stop.route_executive)
 # Vendor routers
 # ------------------------------------------------------
 app_vendor.include_router(landmark.route_vendor)
+app_vendor.include_router(bus_stop.route_vendor)
 
 
 # ------------------------------------------------------
 # Operator routers
 # ------------------------------------------------------
 app_operator.include_router(landmark.route_operator)
+app_operator.include_router(bus_stop.route_operator)
 
 
 # ------------------------------------------------------
 # Public routers
 # ------------------------------------------------------
 app_public.include_router(landmark.route_public)
+app_public.include_router(bus_stop.route_public)

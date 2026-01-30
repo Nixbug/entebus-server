@@ -8,15 +8,27 @@ future implementation.
 """
 
 from datetime import datetime
-from fastapi import APIRouter, Response, status, Depends
+from enum import StrEnum
+from typing import List
+from fastapi import APIRouter, Response, Query, status, Depends
 from fastapi.encoders import jsonable_encoder
+from geoalchemy2 import Geography
 from pydantic import BaseModel, Field
+from sqlalchemy.orm.session import Session
 from shapely.geometry import Point
 from shapely import wkb, wkt
-from sqlalchemy.orm.session import Session
+from sqlalchemy import String, func, or_
 
 from app.api.bearer import oauth2_executive
 from app.src.db import BusStop, ExecutiveToken, Landmark, SessionLocal
+from app.src.enums import OrderIn
+from app.src.filters import (
+    CreatedOnFilter,
+    IDFilter,
+    NameFilter,
+    PaginationFilter,
+    UpdatedOnFilter,
+)
 from app.src.permissions.executive import PermissionPath
 from app.src import exceptions
 from app.src.regex import NAME_PATTERN
@@ -24,6 +36,11 @@ from app.src.urls import URL_BUS_STOP
 from app.src.openobserve import log_event
 from app.src.validators import verify_permission, verify_token
 from app.src.functions import (
+    apply_created_on_filters,
+    apply_id_filters,
+    apply_name_filters,
+    apply_updated_on_filters,
+    enum_str,
     fuse_exception_responses,
     get_request_info,
     get_executive_roles,
@@ -33,6 +50,9 @@ from app.src.functions import (
 )
 
 route_executive = APIRouter()
+route_vendor = APIRouter()
+route_operator = APIRouter()
+route_public = APIRouter()
 
 
 ## Output Schema
@@ -55,8 +75,9 @@ class CreateForm(BaseModel):
     landmark_id: int = Field()
     location: str = Field(
         description=(
-            "Accepts only SRID 4326 (WGS84) and a valid WKT string representing a `POINT`."
-        ),
+            f"Accepts only SRID 4326 (WGS84), "
+            f"valid WKT string representing a `POINT`."
+        )
     )
 
 
@@ -69,6 +90,41 @@ class UpdateForm(BaseModel):
         description=(
             "Accepts only SRID 4326 (WGS84), and a valid WKT string representing a `POINT`."
         ),
+    )
+
+
+## Query Parameters
+class OrderBy(StrEnum):
+    """Enum for ordering results."""
+
+    ID = "id"
+    CREATED_ON = "created_on"
+    UPDATED_ON = "updated_on"
+    LOCATION = "location"
+
+
+class QueryParams(
+    UpdatedOnFilter,
+    CreatedOnFilter,
+    NameFilter,
+    IDFilter,
+    PaginationFilter,
+):
+    """Query parameters for fetching bus stops."""
+
+    search: str | None = Field(Query(default=None))
+    location: str | None = Field(
+        Query(
+            default=None,
+            description=(
+                "Accepts only SRID 4326 (WGS84) and a valid WKT string representing a `POINT`."
+            ),
+        )
+    )
+    landmark_id_list: List[int] | None = Field(Query(default=None))
+    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
+    order_in: OrderIn = Field(
+        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
     )
 
 
@@ -104,6 +160,73 @@ def validate_location(session: Session, location_wkt: str, landmark_id: int) -> 
         raise exceptions.BusStopOutsideLandmark()
 
     return location_geom
+
+
+def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusStop]:
+    """
+    Search for bus stops based on provided query parameters.
+
+    This function supports multiple filtering, searching, ordering, and
+    pagination capabilities to retrieve bus stops that match various criteria.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        query_params (QueryParams): Query parameters containing search criteria.
+
+    Returns:
+        List[BusStop]: List of bus stops that match the search criteria.
+    """
+    query = session.query(BusStop)
+    validated_location = None
+    if query_params.location is not None:
+        geometry = validate_wkt_string(query_params.location, Point)
+        validate_srid_4326(geometry)
+        validated_location = wkt.dumps(geometry)
+    if query_params.landmark_id_list is not None:
+        query = query.filter(BusStop.landmark_id.in_(query_params.landmark_id_list))
+
+    # Common search
+    if query_params.search:
+        search = f"%{query_params.search}%"
+        query = query.filter(
+            or_(BusStop.id.cast(String).ilike(search), BusStop.name.ilike(search))
+        )
+
+    # Generalized filters
+    query = apply_id_filters(query, BusStop, query_params)
+    query = apply_created_on_filters(query, BusStop, query_params)
+    query = apply_updated_on_filters(query, BusStop, query_params)
+    query = apply_name_filters(query, BusStop, query_params)
+
+    # Ordering and pagination
+    if query_params.order_by == OrderBy.LOCATION:
+        if validated_location is not None:
+            ordering_attr = func.ST_Distance(
+                BusStop.location.cast(Geography),
+                func.ST_GeogFromText(validated_location),
+            )
+        else:
+            ordering_attr = BusStop.id
+    else:
+        ordering_attr = getattr(BusStop, query_params.order_by.value)
+    ordering_func = (
+        ordering_attr.asc
+        if query_params.order_in == OrderIn.ASCENDING
+        else ordering_attr.desc
+    )
+    query = query.order_by(ordering_func())
+    query = query.offset(query_params.offset).limit(query_params.limit)
+
+    query = query.with_entities(
+        BusStop, func.ST_AsText(BusStop.location).label("location_wkt")
+    )
+    results = query.all()
+    bus_stops = []
+    for bus_stop_obj, location_wkt in results:
+        bus_stop_obj.location = location_wkt
+        bus_stops.append(bus_stop_obj)
+
+    return bus_stops
 
 
 # ---------------------------------------------------------------------------
@@ -287,3 +410,115 @@ async def delete_bus_stop(
     finally:
         session.close()
         
+
+@route_executive.get(
+    URL_BUS_STOP,
+    tags=["Bus Stop"],
+    response_model=List[BusStopSchema],
+    responses=fuse_exception_responses(
+        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+    ),
+    description=(
+        """
+            **Fetches a list of Bus Stops.**    
+            - Common search supports searching by id and name.  
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
+        """
+    ),
+)
+async def fetch_bus_stop_executive(query_params: QueryParams = Depends()):
+    try:
+        session = SessionLocal()
+
+        return search_bus_stops(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Vendor]
+# ---------------------------------------------------------------------------
+@route_vendor.get(
+    URL_BUS_STOP,
+    tags=["Bus Stop"],
+    response_model=List[BusStopSchema],
+    responses=fuse_exception_responses(
+        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+    ),
+    description=(
+        """
+            **Fetches a list of Bus Stops.**    
+            - Common search supports searching by id and name.  
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
+        """
+    ),
+)
+async def fetch_bus_stop_vendor(query_params: QueryParams = Depends()):
+    try:
+        session = SessionLocal()
+
+        return search_bus_stops(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Operator]
+# ---------------------------------------------------------------------------
+@route_operator.get(
+    URL_BUS_STOP,
+    tags=["Bus Stop"],
+    response_model=List[BusStopSchema],
+    responses=fuse_exception_responses(
+        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+    ),
+    description=(
+        """
+            **Fetches a list of Bus Stops.**    
+            - Common search supports searching by id and name.  
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
+        """
+    ),
+)
+async def fetch_bus_stop_operator(query_params: QueryParams = Depends()):
+    try:
+        session = SessionLocal()
+
+        return search_bus_stops(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Public]
+# ---------------------------------------------------------------------------
+@route_public.get(
+    URL_BUS_STOP,
+    tags=["Bus Stop"],
+    response_model=List[BusStopSchema],
+    responses=fuse_exception_responses(
+        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+    ),
+    description=(
+        """
+            **Fetches a list of Bus Stops.**    
+            - Common search supports searching by id and name.  
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
+        """
+    ),
+)
+async def fetch_bus_stop_public(query_params: QueryParams = Depends()):
+    try:
+        session = SessionLocal()
+
+        return search_bus_stops(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
