@@ -562,7 +562,8 @@ class BusStop(ORMbase):
             Geo-spatial point representing the exact location of the bus stop.
             Stored as a PostGIS `POINT` geometry using SRID 4326 (WGS 84 longitude/latitude).
             No two bus stops within the same landmark can share the same location,
-            enforced through a unique constraint on (`location`, `landmark_id`).
+            with uniqueness enforced via the `uq_bus_stop_location_landmark_id`
+            unique index on `ST_AsBinary(location)` and `landmark_id`.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp automatically updated whenever the bus stop record is modified.
