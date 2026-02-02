@@ -596,3 +596,101 @@ class BusStop(ORMbase):
             unique=True,
         ),
     )
+
+
+class OperatorToken(ORMbase):
+    """
+    Represents an authentication token issued to an operator,
+    enabling secure access to the platform with support for token expiration
+    and client metadata tracking.
+
+    This table stores unique access and refresh tokens mapped to operators,
+    along with details about the device or client used and timestamps for auditing.
+    Useful for session management, device tracking, and implementing token-based authentication.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the operator token.
+
+        operator_id (Integer, not null):
+            Foreign key referencing `operator.id`.
+            Identifies the operator associated with this token.
+            Cascades on delete — if the operator is removed, related tokens are deleted.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id`.
+            Specifies the company context for the token.
+            Cascades on delete — if the company is removed, related tokens are deleted.
+
+        access_token (String, not null, unique, default=lambda: token_hex(32)):
+            Securely generated 64-character hexadecimal access token.
+            Used to authenticate the operator on subsequent requests.
+            In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749).
+
+        refresh_token (String, not null, unique, default=lambda: token_hex(32)):
+            Securely generated 64-character hexadecimal refresh token.
+            Used to refresh the access token when needed.
+            In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749).
+
+        expires_in (Integer, not null, default=MAX_ACCESS_TOKEN_VALIDITY):
+            Access token expiration duration in seconds.
+            Defines the duration after which the token becomes invalid.
+
+        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(timezone.utc) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
+            Defines the UTC timestamp after which the refresh token becomes invalid.
+
+       platform_type (Integer, nullable, default=PlatformType.OTHER):
+            Enum value indicating the client platform type.
+
+        client_details (TEXT, nullable):
+            Description of the client device or environment where the access token was issued or used.
+            May include user agent, app version, IP address, etc.
+            Maximum 1024 characters long.
+
+         is_revoked (Boolean, not null, default=False):
+            Flag indicating whether the token has been revoked.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the token record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when this token was created.
+    """
+
+    __tablename__ = "operator_token"
+
+    id = Column(Integer, primary_key=True)
+    operator_id = Column(
+        Integer,
+        ForeignKey("operator.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Tokens
+    access_token = Column(
+        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+    )
+    refresh_token = Column(
+        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+    )
+    # Expirations
+    expires_in = Column(Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY)
+    refresh_before = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc)
+        + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY),
+    )
+    is_revoked = Column(Boolean, nullable=False, default=False)
+    # Device related details
+    platform_type = Column(Integer, default=PlatformType.OTHER)
+    client_details = Column(TEXT)
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
