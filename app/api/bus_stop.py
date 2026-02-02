@@ -2,14 +2,14 @@
 Bus Stop API Router for EnteBus.
 
 Provides endpoints for managing bus stops, including creation,
-update, and retrieval. Uses Pydantic schemas for
+update, deletion, and retrieval. Uses Pydantic schemas for
 input validation and structured output.
 """
 
 from datetime import datetime
 from enum import StrEnum
 from typing import List
-from fastapi import APIRouter, Query, status, Depends
+from fastapi import APIRouter, Response, Query, status, Depends
 from fastapi.encoders import jsonable_encoder
 from geoalchemy2 import Geography
 from pydantic import BaseModel, Field
@@ -361,6 +361,49 @@ async def update_bus_stop(
         if have_updates:
             log_event(token, request_info, bus_stop_data)
         return bus_stop_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.delete(
+    f"{URL_BUS_STOP}/{{id}}",
+    tags=["Bus Stop"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+        **Deletes an existing bus stop.**  
+        - Requires a valid access token for authentication.  
+        - The logged-in executive must have `landmark.bus_stop.delete` permission.  
+        - Returns 204 No Content even if the specified bus stop does not exist.  
+        """
+    ),
+)
+async def delete_bus_stop(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, PermissionPath.DELETE_BUS_STOP)
+
+        bus_stop = session.query(BusStop).filter(BusStop.id == id).first()
+        if bus_stop is not None:
+            bus_stop_data = jsonable_encoder(bus_stop, exclude={BusStop.location.name})
+            bus_stop_data[BusStop.location.name] = wkb.loads(
+                bytes(bus_stop.location.data)
+            ).wkt
+            session.delete(bus_stop)
+            session.commit()
+            log_event(token, request_info, bus_stop_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
