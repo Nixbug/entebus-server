@@ -142,8 +142,8 @@ class Day(IntEnum):
 class TriggeringMode(IntEnum):
     """Service triggering configuration."""
 
-    AUTO = 2
-    MANUAL = 3
+    AUTO = 1
+    MANUAL = 2
 
 
 class ServiceStatus(IntEnum):
@@ -170,3 +170,12 @@ class RouteStatus(IntEnum):
 
     VALID = 1
     INVALID = 2
+
+
+class OperatorType(IntEnum):
+    """Role type of the operator."""
+    NORMAL = 1
+    OWNER = 2
+    MANAGER = 3
+    HR = 4
+    LEGAL = 5

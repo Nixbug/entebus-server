@@ -42,7 +42,7 @@ from app.src.constants import (
     MAX_REFRESH_TOKEN_VALIDITY,
     MAX_ACCESS_TOKEN_VALIDITY,
 )
-from app.src.enums import AccountStatus, GenderType, LandmarkType, PlatformType, CompanyStatus, CompanyType
+from app.src.enums import AccountStatus, GenderType, LandmarkType, PlatformType, CompanyStatus, CompanyType, OperatorType
 
 
 # ---------------------------------------------------------------------------
@@ -597,6 +597,7 @@ class BusStop(ORMbase):
         ),
     )
 
+
 class Company(ORMbase):
     """
     Represents a company registered in the system, along with its status,
@@ -659,3 +660,106 @@ class Company(ORMbase):
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class Operator(ORMbase):
+    """
+    Represents an operator user within the system, typically someone who manages or operates
+    under a company, such as owners, legal, HR, managers, or normal staff.
+
+    This model stores authentication credentials, profile details, role type, and status metadata
+    necessary to manage operator-level access and communication.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the operator.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id`.
+            Identifies the company to which the operator belongs.
+
+        username (String(32), not null):
+            Username used for login or identification within the company.
+            Ideally, the username shouldn't be changed once set.
+            It should start with an alphabet (uppercase or lowercase).
+            It can contain uppercase and lowercase letters, as well as digits from 0 to 9.
+            It should be 4-32 characters long.
+            May include hyphen (-), period (.), at symbol (@), and underscore (_).
+
+        password (TEXT, not null):
+            Hashed password used for authentication.
+            It should be 8-32 characters long.
+            Passwords can contain uppercase and lowercase letters, as well as digits from 0 to 9.
+            Plaintext should never be stored here. Argon2 is used for secure hashing.
+            May include hyphen (-), plus (+), comma (,), period (.), at symbol (@), underscore (_),
+            dollar sign ($), percent (%), ampersand (&), asterisk (*), hash (#),
+            exclamation mark (!), caret (^), equals (=), forward slash (/), question mark (?).
+
+        gender (Integer, not null, default=GenderType.OTHER):
+            Represents the operator's gender. Mapped from the `GenderType` enum.
+
+        description (TEXT, nullable):
+            Optional description or notes about the operator.
+
+        type (Integer, not null, default=OperatorType.NORMAL):
+            Role type of the operator. Mapped from the `OperatorType` enum.
+
+        full_name (TEXT, nullable):
+            Full name of the operator.
+            Maximum 32 characters long.
+
+        status (Integer, not null, default=AccountStatus.ACTIVE):
+            Indicates the account status. Mapped from the `AccountStatus` enum.
+
+        phone_number (TEXT, nullable):
+            Contact number of the operator.
+            Maximum 32 characters long.
+            Saved and processed in RFC 3966 format (https://datatracker.ietf.org/doc/html/rfc3966).
+            Example: "+1-202-555-0143"
+
+        email_id (TEXT, nullable):
+            Email address of the operator.
+            Maximum 256 characters long.
+            Enforce the format prescribed by RFC 5322 (https://en.wikipedia.org/wiki/Email_address).
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the operator's profile record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp of when the operator account was created.
+    """
+
+    __tablename__ = "operator"
+    __table_args__ = (UniqueConstraint("username", "company_id"),)
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    username = Column(String(32), nullable=False)
+    password = Column(TEXT, nullable=False)
+    gender = Column(Integer, nullable=False, default=GenderType.OTHER)
+    description = Column(TEXT)  
+    type = Column(Integer, nullable=False, default=OperatorType.NORMAL)
+    full_name = Column(TEXT)
+    status = Column(Integer, nullable=False, default=AccountStatus.ACTIVE)
+    phone_number = Column(TEXT)
+    email_id = Column(TEXT)
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+@event.listens_for(Operator, "before_insert")
+@event.listens_for(Operator, "before_update")
+def preprocess_operator_password(
+    mapper: Mapper, connection: Connection, target: Operator
+) -> None:
+    """Event listener to hash the operator password before insertion or update."""
+
+    history = inspect(target).attrs.password.history
+    if history.has_changes() and target.password:
+        target.password = argon2.make_password(target.password)
