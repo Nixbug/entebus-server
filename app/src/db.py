@@ -42,7 +42,7 @@ from app.src.constants import (
     MAX_REFRESH_TOKEN_VALIDITY,
     MAX_ACCESS_TOKEN_VALIDITY,
 )
-from app.src.enums import AccountStatus, GenderType, LandmarkType, PlatformType
+from app.src.enums import AccountStatus, GenderType, LandmarkType, PlatformType, CompanyStatus, CompanyType
 
 
 # ---------------------------------------------------------------------------
@@ -596,3 +596,66 @@ class BusStop(ORMbase):
             unique=True,
         ),
     )
+
+class Company(ORMbase):
+    """
+    Represents a company registered in the system, along with its status,
+    type, contact information, and geographical location.
+
+    This table stores core organizational data and is linked to other entities
+    such as operators, roles, and tokens. It supports categorization, status tracking,
+    and location-based operations.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the company.
+
+        name (String(32), unique, not null):
+            Name of the company.
+            Must be unique and is required.
+            Maximum 32 characters long.
+
+        status (Integer, not null, default=CompanyStatus.UNDER_VERIFICATION):
+            Verification status of the company. Mapped from the `CompanyStatus` enum.
+
+        type (Integer, not null, default=CompanyType.OTHER):
+            Type/category of the company. Mapped from the `CompanyType` enum.
+
+        description (TEXT, nullable):
+            Optional description or notes about the company.
+
+        address (TEXT, not null):
+            Physical or mailing address of the company.
+            Must not be null.
+            Used for communication or locating the company.
+            Maximum 512 characters long.
+
+        location (Geometry(POINT, SRID 4326), not null):
+            Geographical location of the company represented as a POINT geometry with SRID 4326.
+            Required for location-based features.
+
+        settings (JSONB, nullable, default=dict):
+            Flexible JSONB field for storing additional configuration, preferences, or custom data.
+            This field allows future expansion without altering the database schema.
+            Typical uses include feature flags, custom limits, UI preferences, integration keys, etc.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the company record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the company record was created.
+    """
+
+    __tablename__ = "company"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(32), nullable=False, unique=True)
+    status = Column(Integer, nullable=False, default=CompanyStatus.UNDER_VERIFICATION)
+    type = Column(Integer, nullable=False, default=CompanyType.OTHER)
+    description = Column(TEXT)
+    address = Column(TEXT, nullable=False)
+    location = Column(Geometry(geometry_type="POINT", srid=4326), nullable=False)
+    settings = Column(JSONB, default=dict)  # For future expansion
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
