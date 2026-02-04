@@ -174,6 +174,7 @@ class RouteStatus(IntEnum):
 
 class OperatorType(IntEnum):
     """Role type of the operator."""
+    
     NORMAL = 1
     OWNER = 2
     MANAGER = 3
