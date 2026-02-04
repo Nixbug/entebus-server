@@ -3,6 +3,7 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
 from alembic.script import ScriptDirectory
+from app.src.enums import CompanyStatus
 
 from app.src import buckets, minio
 from app.src.db import (
@@ -13,6 +14,8 @@ from app.src.db import (
     get_db_url,
     engine,
     SessionLocal,
+    Company,
+    Operator
 )
 
 
@@ -221,6 +224,30 @@ def initialize():
     admin_role_map = ExecutiveRoleMap(role_id=admin_role.id, executive_id=admin.id)
     guest_role_map = ExecutiveRoleMap(role_id=guest_role.id, executive_id=guest.id)
     session.add_all([admin_role_map, guest_role_map])
+
+    company = Company(
+        name="Nixbug company",
+        status=CompanyStatus.VERIFIED,
+        address="Edava, Thiruvananthapuram, Kerala 695311",
+        location="POINT(76.68899711264336 8.761725176790257)"
+    )
+    session.add(company)
+    session.flush()
+
+    operator = Operator(
+        company_id=company.id,
+        username="operator1",
+        password="password",  # Will be hashed by event listener
+        gender=0,
+        type=0,
+        full_name="Operator One",
+        status=1,
+        phone_number="+1-202-555-0143",
+        email_id="operator1@nixbug.com"
+    )
+    session.add(operator)
+    session.flush()
+
 
     session.commit()
     print("* Initialization completed")
