@@ -3,7 +3,7 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
 from alembic.script import ScriptDirectory
-from app.src.enums import CompanyStatus
+from app.src.enums import CompanyStatus, GenderType, OperatorType, AccountStatus
 
 from app.src import buckets, minio
 from app.src.db import (
@@ -238,10 +238,10 @@ def initialize():
         company_id=company.id,
         username="operator1",
         password="password",  # Will be hashed by event listener
-        gender=0,
-        type=0,
+        gender=GenderType.OTHER,
+        type=OperatorType.NORMAL,
         full_name="Operator One",
-        status=1,
+        status=AccountStatus.ACTIVE,
         phone_number="+1-202-555-0143",
         email_id="operator1@nixbug.com"
     )
