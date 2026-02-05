@@ -226,7 +226,7 @@ def initialize():
     session.add_all([admin_role_map, guest_role_map])
 
     company = Company(
-        name="Nixbug company",
+        name="Nixbug Softwares OPC Pvt Ltd",
         status=CompanyStatus.VERIFIED,
         address="Edava, Thiruvananthapuram, Kerala 695311",
         location="POINT(76.68899711264336 8.761725176790257)"
@@ -236,14 +236,14 @@ def initialize():
 
     operator = Operator(
         company_id=company.id,
-        username="operator1",
-        password="password",  # Will be hashed by event listener
+        username="admin",
+        password="password",
         gender=GenderType.OTHER,
-        type=OperatorType.NORMAL,
-        full_name="Operator One",
+        type=OperatorType.ADMIN,
+        full_name="Admin",
         status=AccountStatus.ACTIVE,
-        phone_number="+1-202-555-0143",
-        email_id="operator1@nixbug.com"
+        phone_number="+91 9496801157",
+        email_id="contact@nixbug.com"
     )
     session.add(operator)
     session.flush()

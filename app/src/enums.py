@@ -180,3 +180,4 @@ class OperatorType(IntEnum):
     MANAGER = 3
     HR = 4
     LEGAL = 5
+    ADMIN = 6
