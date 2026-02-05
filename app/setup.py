@@ -242,7 +242,7 @@ def initialize():
         type=OperatorType.ADMIN,
         full_name="Admin",
         status=AccountStatus.ACTIVE,
-        phone_number="+91 9496801157",
+        phone_number="+91-9496801157",
         email_id="contact@nixbug.com",
     )
     session.add(operator)
