@@ -42,7 +42,15 @@ from app.src.constants import (
     MAX_REFRESH_TOKEN_VALIDITY,
     MAX_ACCESS_TOKEN_VALIDITY,
 )
-from app.src.enums import AccountStatus, GenderType, LandmarkType, PlatformType
+from app.src.enums import (
+    AccountStatus,
+    GenderType,
+    LandmarkType,
+    PlatformType,
+    CompanyStatus,
+    CompanyType,
+    OperatorType,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -427,8 +435,99 @@ class ExecutiveImage(ORMbase):
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
 
 
-class OperatorToken:
-    pass
+class OperatorToken(ORMbase):
+    """
+    Represents an authentication token issued to an operator,
+    enabling secure access to the platform with support for token expiration
+    and client metadata tracking.
+
+    This table stores unique access and refresh tokens mapped to operators,
+    along with details about the device or client used and timestamps for auditing.
+    Useful for session management, device tracking, and implementing token-based authentication.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the operator token.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id`.
+            Identifies the company to which the token belongs.
+            Cascades on delete — if the company is removed, related tokens are deleted.
+
+        operator_id (Integer, not null):
+            Foreign key referencing `operator.id`.
+            Identifies the operator associated with this token.
+            Cascades on delete — if the operator is removed, related tokens are deleted.
+
+        access_token (String(64), not null, unique, default=lambda: token_hex(32)):
+            Securely generated 64-character hexadecimal access token.
+            Used to authenticate the operator on subsequent requests.
+
+        refresh_token (String(64), not null, unique, default=lambda: token_hex(32)):
+            Securely generated 64-character hexadecimal refresh token.
+            Used to refresh the access token when needed.
+
+        expires_in (Integer, not null, default=MAX_ACCESS_TOKEN_VALIDITY):
+            Access token expiration duration in seconds.
+
+        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(timezone.utc) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
+            Defines the UTC timestamp after which the refresh token becomes invalid.
+
+        platform_type (Integer, nullable, default=PlatformType.OTHER):
+            Enum value indicating the client platform type.
+
+        client_details (TEXT, nullable):
+            Description of the client device or environment where the access token was issued or used.
+            May include user agent, app version, IP address, etc.
+            Maximum 1024 characters long.
+
+        is_revoked (Boolean, not null, default=False):
+            Flag indicating whether the token has been revoked.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the token record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when this token was created.
+    """
+
+    __tablename__ = "operator_token"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    operator_id = Column(
+        Integer,
+        ForeignKey("operator.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Tokens
+    access_token = Column(
+        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+    )
+    refresh_token = Column(
+        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+    )
+    # Expirations
+    expires_in = Column(Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY)
+    refresh_before = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc)
+        + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY),
+    )
+    is_revoked = Column(Boolean, nullable=False, default=False)
+    # Device related details
+    platform_type = Column(Integer, default=PlatformType.OTHER)
+    client_details = Column(TEXT)
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
 
 
 class OperatorRole:
@@ -598,99 +697,228 @@ class BusStop(ORMbase):
     )
 
 
-class OperatorToken(ORMbase):
+class Company(ORMbase):
     """
-    Represents an authentication token issued to an operator,
-    enabling secure access to the platform with support for token expiration
-    and client metadata tracking.
+    Represents a company registered in the system, along with its status,
+    type, contact information, and geographical location.
 
-    This table stores unique access and refresh tokens mapped to operators,
-    along with details about the device or client used and timestamps for auditing.
-    Useful for session management, device tracking, and implementing token-based authentication.
+    This table stores core organizational data and is linked to other entities
+    such as operators, roles, and tokens. It supports categorization, status tracking,
+    and location-based operations.
 
     Columns:
         id (Integer, unique, not null):
-            Primary identifier for the operator token.
+            Primary identifier for the company.
 
-        operator_id (Integer, not null):
-            Foreign key referencing `operator.id`.
-            Identifies the operator associated with this token.
-            Cascades on delete — if the operator is removed, related tokens are deleted.
+        name (String(32), unique, not null):
+            Name of the company.
+            Must be unique and is required.
+            Maximum 32 characters long.
+
+        status (Integer, not null, default=CompanyStatus.UNDER_VERIFICATION):
+            Verification status of the company. Mapped from the `CompanyStatus` enum.
+
+        type (Integer, not null, default=CompanyType.OTHER):
+            Type/category of the company. Mapped from the `CompanyType` enum.
+
+        description (TEXT, nullable):
+            Optional description or notes about the company.
+            Maximum 1024 characters long.
+
+        address (TEXT, not null):
+            Physical or mailing address of the company.
+            Must not be null.
+            Used for communication or locating the company.
+            Maximum 512 characters long.
+
+        location (Geometry(POINT, SRID 4326), not null):
+            Geographical location of the company represented as a POINT geometry with SRID 4326.
+            Required for location-based features.
+
+        settings (JSONB, nullable, default=dict):
+            Flexible JSONB field for storing additional configuration, preferences, or custom data.
+            This field allows future expansion without altering the database schema.
+            Typical uses include feature flags, custom limits, UI preferences, integration keys, etc.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the company record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the company record was created.
+    """
+
+    __tablename__ = "company"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(32), nullable=False, unique=True)
+    status = Column(Integer, nullable=False, default=CompanyStatus.UNDER_VERIFICATION)
+    type = Column(Integer, nullable=False, default=CompanyType.OTHER)
+    description = Column(TEXT)
+    address = Column(TEXT, nullable=False)
+    location = Column(Geometry(geometry_type="POINT", srid=4326), nullable=False)
+    settings = Column(JSONB, default=dict)  # For future expansion
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class Operator(ORMbase):
+    """
+    Represents an operator user within the system, typically someone who manages or operates
+    under a company, such as owners, legal, HR, managers, or normal staff.
+
+    This model stores authentication credentials, profile details, role type, and status metadata
+    necessary to manage operator-level access and communication.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the operator.
 
         company_id (Integer, not null):
             Foreign key referencing `company.id`.
-            Specifies the company context for the token.
-            Cascades on delete — if the company is removed, related tokens are deleted.
+            Identifies the company to which the operator belongs.
+            Cascades on delete — if the company is removed, related operators are deleted.
 
-        access_token (String, not null, unique, default=lambda: token_hex(32)):
-            Securely generated 64-character hexadecimal access token.
-            Used to authenticate the operator on subsequent requests.
-            In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749).
+        username (String(32), not null):
+            Username used for login or identification within the company.
+            Ideally, the username shouldn't be changed once set.
+            It should start with an alphabet (uppercase or lowercase).
+            It can contain uppercase and lowercase letters, as well as digits from 0 to 9.
+            It should be 4-32 characters long.
+            May include hyphen (-), period (.), at symbol (@), and underscore (_).
 
-        refresh_token (String, not null, unique, default=lambda: token_hex(32)):
-            Securely generated 64-character hexadecimal refresh token.
-            Used to refresh the access token when needed.
-            In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749).
+        password (TEXT, not null):
+            Hashed password used for authentication.
+            It should be 8-32 characters long.
+            Passwords can contain uppercase and lowercase letters, as well as digits from 0 to 9.
+            Plaintext should never be stored here. Argon2 is used for secure hashing.
+            May include hyphen (-), plus (+), comma (,), period (.), at symbol (@), underscore (_),
+            dollar sign ($), percent (%), ampersand (&), asterisk (*), hash (#),
+            exclamation mark (!), caret (^), equals (=), forward slash (/), question mark (?).
 
-        expires_in (Integer, not null, default=MAX_ACCESS_TOKEN_VALIDITY):
-            Access token expiration duration in seconds.
-            Defines the duration after which the token becomes invalid.
+        gender (Integer, not null, default=GenderType.OTHER):
+            Represents the operator's gender. Mapped from the `GenderType` enum.
 
-        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(timezone.utc) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
-            Defines the UTC timestamp after which the refresh token becomes invalid.
-
-       platform_type (Integer, nullable, default=PlatformType.OTHER):
-            Enum value indicating the client platform type.
-
-        client_details (TEXT, nullable):
-            Description of the client device or environment where the access token was issued or used.
-            May include user agent, app version, IP address, etc.
+        description (TEXT, nullable):
+            Optional description or notes about the operator.
             Maximum 1024 characters long.
 
-         is_revoked (Boolean, not null, default=False):
-            Flag indicating whether the token has been revoked.
+        type (Integer, not null, default=OperatorType.NORMAL):
+            Role type of the operator. Mapped from the `OperatorType` enum.
+
+        full_name (TEXT, nullable):
+            Full name of the operator.
+            Maximum 32 characters long.
+
+        status (Integer, not null, default=AccountStatus.ACTIVE):
+            Indicates the account status. Mapped from the `AccountStatus` enum.
+
+        phone_number (TEXT, nullable):
+            Contact number of the operator.
+            Maximum 32 characters long.
+            Saved and processed in RFC 3966 format (https://datatracker.ietf.org/doc/html/rfc3966).
+            Example: "+1-202-555-0143"
+
+        email_id (TEXT, nullable):
+            Email address of the operator.
+            Maximum 256 characters long.
+            Enforce the format prescribed by RFC 5322 (https://en.wikipedia.org/wiki/Email_address).
 
         updated_on (DateTime, nullable, onupdate=func.now()):
-            Timestamp automatically updated whenever the token record is modified.
+            Timestamp automatically updated whenever the operator's profile record is modified.
 
         created_on (DateTime, not null, default=func.now()):
-            Timestamp indicating when this token was created.
+            Timestamp of when the operator account was created.
     """
 
-    __tablename__ = "operator_token"
+    __tablename__ = "operator"
+    __table_args__ = (UniqueConstraint("username", "company_id"),)
 
     id = Column(Integer, primary_key=True)
-    operator_id = Column(
-        Integer,
-        ForeignKey("operator.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
     company_id = Column(
         Integer,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    # Tokens
-    access_token = Column(
-        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
-    )
-    refresh_token = Column(
-        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
-    )
-    # Expirations
-    expires_in = Column(Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY)
-    refresh_before = Column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=lambda: datetime.now(timezone.utc)
-        + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY),
-    )
-    is_revoked = Column(Boolean, nullable=False, default=False)
-    # Device related details
-    platform_type = Column(Integer, default=PlatformType.OTHER)
-    client_details = Column(TEXT)
+    username = Column(String(32), nullable=False)
+    password = Column(TEXT, nullable=False)
+    gender = Column(Integer, nullable=False, default=GenderType.OTHER)
+    description = Column(TEXT)
+    type = Column(Integer, nullable=False, default=OperatorType.NORMAL)
+    full_name = Column(TEXT)
+    status = Column(Integer, nullable=False, default=AccountStatus.ACTIVE)
+    phone_number = Column(TEXT)
+    email_id = Column(TEXT)
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+@event.listens_for(Operator, "before_insert")
+@event.listens_for(Operator, "before_update")
+def preprocess_operator_password(
+    mapper: Mapper, connection: Connection, target: Operator
+) -> None:
+    """Event listener to hash the operator password before insertion or update."""
+
+    history = inspect(target).attrs.password.history
+    if history.has_changes() and target.password:
+        target.password = argon2.make_password(target.password)
+
+
+class OperatorImage(ORMbase):
+    """
+    Represents an uploaded image associated with a specific operator.
+
+    Each record stores metadata about an image file uploaded for an operator,
+    allowing for management, retrieval, and replacement of profile or related images.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the operator image.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id` to whom this image belongs.
+            Cascades on delete — if the company is removed, related image is deleted.
+
+        operator_id (Integer, not null, unique):
+            Foreign key referencing `operator.id` to whom this image belongs.
+            Cascades on delete — if the operator is removed, related image is deleted.
+
+        file_name (String(128), not null):
+            Original name of the uploaded image file, including extension.
+
+        file_size (Integer, not null):
+            Size of the uploaded file in bytes.
+
+        file_type (String(128), not null):
+            MIME type of the uploaded file (e.g., "image/jpeg", "image/png").
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the image record was initially created.
+    """
+
+    __tablename__ = "operator_image"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    operator_id = Column(
+        Integer,
+        ForeignKey("operator.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    # File metadata
+    file_name = Column(String(128), nullable=False)
+    file_size = Column(Integer, nullable=False)
+    file_type = Column(String(128), nullable=False)
+    # Metadata
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    
