@@ -452,6 +452,7 @@ class OperatorToken(ORMbase):
         company_id (Integer, not null):
             Foreign key referencing `company.id`.
             Identifies the company to which the token belongs.
+            Cascades on delete — if the company is removed, related tokens are deleted.
 
         operator_id (Integer, not null):
             Foreign key referencing `operator.id`.
@@ -478,6 +479,7 @@ class OperatorToken(ORMbase):
         client_details (TEXT, nullable):
             Description of the client device or environment where the access token was issued or used.
             May include user agent, app version, IP address, etc.
+            Maximum 1024 characters long.
 
         is_revoked (Boolean, not null, default=False):
             Flag indicating whether the token has been revoked.
@@ -721,6 +723,7 @@ class Company(ORMbase):
 
         description (TEXT, nullable):
             Optional description or notes about the company.
+            Maximum 1024 characters long.
 
         address (TEXT, not null):
             Physical or mailing address of the company.
@@ -774,6 +777,7 @@ class Operator(ORMbase):
         company_id (Integer, not null):
             Foreign key referencing `company.id`.
             Identifies the company to which the operator belongs.
+            Cascades on delete — if the company is removed, related operators are deleted.
 
         username (String(32), not null):
             Username used for login or identification within the company.
@@ -797,6 +801,7 @@ class Operator(ORMbase):
 
         description (TEXT, nullable):
             Optional description or notes about the operator.
+            Maximum 1024 characters long.
 
         type (Integer, not null, default=OperatorType.NORMAL):
             Role type of the operator. Mapped from the `OperatorType` enum.
@@ -916,4 +921,3 @@ class OperatorImage(ORMbase):
     file_type = Column(String(128), nullable=False)
     # Metadata
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
-

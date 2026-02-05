@@ -15,7 +15,7 @@ from app.src.db import (
     engine,
     SessionLocal,
     Company,
-    Operator
+    Operator,
 )
 
 
@@ -229,7 +229,7 @@ def initialize():
         name="Nixbug Softwares OPC Pvt Ltd",
         status=CompanyStatus.VERIFIED,
         address="Edava, Thiruvananthapuram, Kerala 695311",
-        location="POINT(76.68899711264336 8.761725176790257)"
+        location="POINT(76.68899711264336 8.761725176790257)",
     )
     session.add(company)
     session.flush()
@@ -243,11 +243,10 @@ def initialize():
         full_name="Admin",
         status=AccountStatus.ACTIVE,
         phone_number="+91 9496801157",
-        email_id="contact@nixbug.com"
+        email_id="contact@nixbug.com",
     )
     session.add(operator)
     session.flush()
-
 
     session.commit()
     print("* Initialization completed")
