@@ -8,7 +8,7 @@ Endpoints for refresh, deletion, and retrieval are planned for future implementa
 
 from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, status, Form
+from fastapi import APIRouter, Depends, Form
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from fastapi.security import OAuth2PasswordRequestForm
