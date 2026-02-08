@@ -87,8 +87,8 @@ class CreateForm(BaseModel):
             - Executive must have a valid access token.     
             - Logged-in executive must have `company.create` permission.       
             - Duplicate name are not allowed.   
-            - By default the company is created in under verification status.   
-            - By default the company type is other.     
+            - By default the company is created in `under verification` status.   
+            - By default the company type is `other`.     
         """
     ),
 )
