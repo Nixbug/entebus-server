@@ -69,6 +69,7 @@ class CreateForm(BaseModel):
         )
     )
 
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -101,11 +102,11 @@ async def create_company(
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.CREATE_COMPANY)
-        
+
         # Validate WKT and SRID
         location_geom = validate_wkt_string(form_param.location, Point)
         validate_srid_4326(location_geom)
-        form_param.location = wkt.dumps(location_geom)
+        validated_location = wkt.dumps(location_geom)
 
         company = Company(
             name=form_param.name,
@@ -113,14 +114,16 @@ async def create_company(
             type=form_param.type,
             description=form_param.description,
             address=form_param.address,
-            location=form_param.location,
+            location=validated_location,
         )
         session.add(company)
         session.commit()
         session.refresh(company)
 
-        company_data = jsonable_encoder(company, exclude={Company.location})
-        company_data[Company.location.data] = (wkb.loads(company.location.data)).wkt
+        company_data = jsonable_encoder(company, exclude={Company.location.name})
+        company_data[Company.location.name] = (
+            wkb.loads(bytes(company.location.data))
+        ).wkt
         log_event(token, request_info, company_data)
         return company_data
     except Exception as e:
