@@ -77,7 +77,6 @@ class CreateForm(BaseModel):
     URL_OPERATOR_TOKEN,
     tags=["Token"],
     response_model=OperatorTokenSchema,
-    status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
         [exceptions.InactiveAccount(), exceptions.InvalidCredentials()]
     ),
