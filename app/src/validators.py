@@ -19,7 +19,7 @@ from app.src.db import (
     VendorToken,
     OperatorRole,
     VendorRole,
-    Operator,
+    Company,
 )
 
 
@@ -95,7 +95,7 @@ def authenticate_operator(
     form_param: Any,
 ) -> Any:
     """
-     Authenticate an Operator by username and company_id using form_param.
+    Authenticate an Operator by username and company_id.
 
     Args:
         session (Session): Active SQLAlchemy session.
@@ -112,7 +112,9 @@ def authenticate_operator(
         InactiveAccount: If the operator account is not ACTIVE.
         InvalidCompanyID: If the provided company_id does not exist.
     """
-    company_id(session, form_param.company_id)
+    company = session.query(Company).filter(Company.id == form_param.company_id).first()
+    if company is None:
+        raise exceptions.InvalidCompanyID()
     operator = (
         session.query(model_cls)
         .filter(
@@ -250,23 +252,3 @@ def verify_permission(
     if raise_exception:
         raise exceptions.NoPermission()
     return False
-
-
-def company_id(session: Session, company_id: int):
-    """
-    Verify a company exists by checking for any Operator with the given company_id.
-
-    Args:
-        session (Session): Active SQLAlchemy session.
-        company_id (int): Company id to validate.
-
-    Returns:
-        int: The provided company_id on success.
-
-    Raises:
-        InvalidCompanyID: If no operator is found for the company_id (company not found).
-    """
-    company = session.query(Operator).filter(Operator.company_id == company_id).first()
-    if company is None:
-        raise exceptions.InvalidCompanyID()
-    return company_id
