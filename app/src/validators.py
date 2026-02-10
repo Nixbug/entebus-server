@@ -112,7 +112,7 @@ def authenticate_operator(
         InactiveAccount: If the operator account is not ACTIVE.
         InvalidCompanyID: If the provided company_id does not exist.
     """
-    company(session, form_param.company_id)
+    company_id(session, form_param.company_id)
     operator = (
         session.query(model_cls)
         .filter(
@@ -241,7 +241,7 @@ def verify_permission(
     return False
 
 
-def company(session: Session, company_id: int):
+def company_id(session: Session, company_id: int):
     """
     Verify a company exists by checking for any Operator with the given company_id.
 
