@@ -23,7 +23,7 @@ from app.src.constants import (
     MAX_OPERATOR_TOKENS,
     MAX_REFRESH_TOKEN_VALIDITY,
 )
-from app.src.validators import authenticate_user, authenticate_operator
+from app.src.validators import authenticate_operator
 from app.src.functions import (
     cleanup_old_tokens,
     enum_str,
@@ -97,7 +97,7 @@ async def create_token(
 ):
     try:
         session = SessionLocal()
-        operator =  authenticate_operator(session, Operator, credentials, form_param)
+        operator = authenticate_operator(session, Operator, credentials, form_param)
 
         # Remove excess tokens
         cleanup_old_tokens(
