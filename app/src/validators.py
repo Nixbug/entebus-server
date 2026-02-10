@@ -129,7 +129,18 @@ def authenticate_operator(
 
 
 def authenticate_vendor(session: Session, credentials: Any) -> Any:
-    pass
+    """
+    Vendor authentication helper.
+
+    This function is intentionally not implemented yet. It mirrors the
+    executive and operator authentication helpers but must be implemented
+    with proper vendor-specific logic before use.
+
+    Raises:
+        NotImplementedError: Always, to prevent silent failures if called
+            before vendor authentication is implemented.
+    """
+    raise NotImplementedError("Vendor authentication is not implemented yet.")
 
 
 def validate_and_revoke_refresh_token(
