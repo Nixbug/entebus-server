@@ -30,20 +30,20 @@ def authenticate_user(
     """
     Generic user authentication function for Executive, Operator, Vendor.
 
-    This generic function handles authentication for different account types.
-    It validates the username, password and ensures the account is active.
-    Authenticate a user using the grant type.
+    This function assumes the user has already been fetched from the database.
+    It validates the grant_type, verifies the provided password, and ensures
+    the account is active.
 
     Args:
-        user (Any): The user object to authenticate.
-        credentials (Any): Credentials containing username, password, and grant_type.
+        user (Any): The already fetched user instance.
+        credentials (Any): Credentials containing password, and grant_type.
 
     Returns:
-        user: The valid user object from the database.
+        Any: The authenticated user instance.
 
     Raises:
         InvalidGrantType: If the grant_type is not PASSWORD.
-        InvalidCredentials: If the username or password is invalid.
+        InvalidCredentials: If password is invalid.
         InactiveAccount: If the user account is not active.
     """
     if credentials.grant_type != GrantType.PASSWORD:
