@@ -323,9 +323,9 @@ class LandmarkDistanceLimitExceeded(APIException):
 
 class InvalidCompanyID(APIException):
     """
-    Raised when the provided company_id does not belong to the username.
+    Raised when an invalid company id is provided.
     """
 
-    status_code = status.HTTP_401_UNAUTHORIZED
-    detail = "Invalid company_id"
+    status_code = status.HTTP_404_NOT_FOUND
+    detail = "Invalid company id"
     headers = {"X-Error": "InvalidCompanyID"}
