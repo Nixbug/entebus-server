@@ -19,14 +19,14 @@ from app.src.db import (
     VendorToken,
     OperatorRole,
     VendorRole,
+    Operator,
 )
 
 
 def authenticate_user(
-    session: Session,
-    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
-    form_param: Any,
-) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
+    user: Any,
+    credentials: Any,
+) -> Any:
     """
     Generic user authentication function for Executive, Operator, Vendor.
 
@@ -35,9 +35,8 @@ def authenticate_user(
     Authenticate a user using the grant type.
 
     Args:
-        session (Session): Active SQLAlchemy session.
-        model_cls (Type[Union[ExecutiveToken, OperatorToken, VendorToken]]): The ORM model class.
-        form_param (Any): Form parameters containing username, password, and grant_type.
+        user (Any): The user object to authenticate.
+        credentials (Any): Credentials containing username, password, and grant_type.
 
     Returns:
         user: The valid user object from the database.
@@ -47,20 +46,90 @@ def authenticate_user(
         InvalidCredentials: If the username or password is invalid.
         InactiveAccount: If the user account is not active.
     """
-    if form_param.grant_type != GrantType.PASSWORD:
+    if credentials.grant_type != GrantType.PASSWORD:
         raise exceptions.InvalidGrantType()
-    user = (
-        session.query(model_cls)
-        .filter(model_cls.username == form_param.username)
-        .first()
-    )
-    if user is None:
-        raise exceptions.InvalidCredentials()
-    if not argon2.check_password(form_param.password, user.password):
+    if not argon2.check_password(credentials.password, user.password):
         raise exceptions.InvalidCredentials()
     if user.status != AccountStatus.ACTIVE:
         raise exceptions.InactiveAccount()
     return user
+
+
+def authenticate_executive(
+    session: Session,
+    model_cls: Type[Any],
+    credentials: Any,
+) -> Any:
+    """
+    Authenticate an Executive by username.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        model_cls (Type[Any]): ORM class for the executive.
+        credentials (Any): Credentials containing username, password and grant_type.
+
+    Returns:
+        Any: The authenticated executive instance.
+
+    Raises:
+        InvalidCredentials: If the username is not found or credentials are invalid.
+        InvalidGrantType: If credentials.grant_type is not GrantType.PASSWORD.
+        InactiveAccount: If the executive account is not ACTIVE.
+    """
+    executive = (
+        session.query(model_cls)
+        .filter(model_cls.username == credentials.username)
+        .first()
+    )
+
+    if executive is None:
+        raise exceptions.InvalidCredentials()
+
+    return authenticate_user(executive, credentials)
+
+
+def authenticate_operator(
+    session: Session,
+    model_cls: Type[Any],
+    credentials: Any,
+    form_param: Any,
+) -> Any:
+    """
+     Authenticate an Operator by username and company_id using form_param.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        model_cls: ORM class for the operator.
+        credentials (Any): Credentials containing username, password and grant_type.
+        form_param (Any): Form parameters containing company_id.
+
+    Returns:
+        Any: The authenticated Operator instance.
+
+    Raises:
+        InvalidCredentials: If the username/company lookup or password validation fails.
+        InvalidGrantType: If credentials.grant_type is not GrantType.PASSWORD.
+        InactiveAccount: If the operator account is not ACTIVE.
+        InvalidCompanyID: If the provided company_id does not exist.
+    """
+    company(session, form_param.company_id)
+    operator = (
+        session.query(model_cls)
+        .filter(
+            model_cls.username == credentials.username,
+            model_cls.company_id == form_param.company_id,
+        )
+        .first()
+    )
+
+    if operator is None:
+        raise exceptions.InvalidCredentials()
+
+    return authenticate_user(operator, credentials)
+
+
+def authenticate_vendor(session: Session, credentials: Any) -> Any:
+    pass
 
 
 def validate_and_revoke_refresh_token(
@@ -170,3 +239,23 @@ def verify_permission(
     if raise_exception:
         raise exceptions.NoPermission()
     return False
+
+
+def company(session: Session, company_id: int):
+    """
+    Verify a company exists by checking for any Operator with the given company_id.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        company_id (int): Company id to validate.
+
+    Returns:
+        int: The provided company_id on success.
+
+    Raises:
+        InvalidCompanyID: If no operator is found for the company_id (company not found).
+    """
+    company = session.query(Operator).filter(Operator.company_id == company_id).first()
+    if company is None:
+        raise exceptions.InvalidCompanyID()
+    return company_id
