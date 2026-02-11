@@ -113,11 +113,11 @@ def authenticate_operator(
         InvalidCredentials: If the username/company lookup or password validation fails.
         InvalidGrantType: If credentials.grant_type is not GrantType.PASSWORD.
         InactiveAccount: If the operator account is not ACTIVE.
-        InvalidCompanyID: If the provided company_id does not exist.
+        UnknownValue: If the provided company_id does not exist.
     """
     company = session.query(Company).filter(Company.id == form_param.company_id).first()
     if company is None:
-        raise exceptions.InvalidCompanyID()
+        raise exceptions.UnknownValue(Company.id)
     operator = (
         session.query(model_cls)
         .filter(

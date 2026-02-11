@@ -319,13 +319,3 @@ class LandmarkDistanceLimitExceeded(APIException):
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "Landmark centroid movement exceeds allowed limit"
     headers = {"X-Error": "LandmarkDistanceLimitExceeded"}
-
-
-class InvalidCompanyID(APIException):
-    """
-    Raised when an invalid company id is provided.
-    """
-
-    status_code = status.HTTP_404_NOT_FOUND
-    detail = "Invalid company id"
-    headers = {"X-Error": "InvalidCompanyID"}
