@@ -31,7 +31,7 @@ def user_credentials(
     credentials: OAuth2PasswordRequestForm,
 ) -> Union[Executive, Operator]:
     """
-    Generic user authentication function for Executive, Operator, Vendor.
+    Generic user authentication function for Executive and Operator.
 
     This function assumes the user has already been fetched from the database.
     It validates the grant_type, verifies the provided password, and ensures
