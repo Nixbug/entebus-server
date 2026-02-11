@@ -117,7 +117,7 @@ def authenticate_operator(
     """
     company = session.query(Company).filter(Company.id == form_param.company_id).first()
     if company is None:
-        raise exceptions.UnknownValue(Company.id)
+        raise exceptions.UnknownValue(Operator.company_id)
     operator = (
         session.query(model_cls)
         .filter(
