@@ -35,7 +35,7 @@ from app.src.constants import (
 from app.src.validators import (
     verify_permission,
     verify_token,
-    authenticate_user,
+    authenticate_executive,
     validate_and_revoke_refresh_token,
 )
 from app.src.functions import (
@@ -146,7 +146,7 @@ async def create_token(
 ):
     try:
         session = SessionLocal()
-        executive = authenticate_user(session, Executive, credentials)
+        executive = authenticate_executive(session, Executive, credentials)
 
         # Remove excess tokens
         cleanup_old_tokens(

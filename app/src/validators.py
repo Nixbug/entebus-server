@@ -7,60 +7,147 @@ making it easier for developers to integrate them into their projects.
 
 from datetime import datetime, timedelta, timezone
 from typing import Any, Type, Union
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm.session import Session
 
 from app.src.functions import get_by_path
 from app.src import argon2, exceptions
 from app.src.enums import AccountStatus, GrantType
 from app.src.db import (
+    Executive,
     ExecutiveRole,
     ExecutiveToken,
+    Operator,
     OperatorToken,
     VendorToken,
     OperatorRole,
     VendorRole,
+    Company,
 )
 
 
-def authenticate_user(
-    session: Session,
-    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
-    form_param: Any,
-) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
+def user_credentials(
+    user: Union[Executive, Operator],
+    credentials: OAuth2PasswordRequestForm,
+) -> Union[Executive, Operator]:
     """
-    Generic user authentication function for Executive, Operator, Vendor.
+    Generic user authentication function for Executive and Operator.
 
-    This generic function handles authentication for different account types.
-    It validates the username, password and ensures the account is active.
-    Authenticate a user using the grant type.
+    This function assumes the user has already been fetched from the database.
+    It validates the grant_type, verifies the provided password, and ensures
+    the account is active.
 
     Args:
-        session (Session): Active SQLAlchemy session.
-        model_cls (Type[Union[ExecutiveToken, OperatorToken, VendorToken]]): The ORM model class.
-        form_param (Any): Form parameters containing username, password, and grant_type.
+        user (Union[Executive, Operator]): The already fetched user instance.
+        credentials (OAuth2PasswordRequestForm): Credentials containing password, and grant_type.
 
     Returns:
-        user: The valid user object from the database.
+        Union[Executive, Operator]: The authenticated user instance.
 
     Raises:
         InvalidGrantType: If the grant_type is not PASSWORD.
-        InvalidCredentials: If the username or password is invalid.
+        InvalidCredentials: If password is invalid.
         InactiveAccount: If the user account is not active.
     """
-    if form_param.grant_type != GrantType.PASSWORD:
+    if credentials.grant_type != GrantType.PASSWORD:
         raise exceptions.InvalidGrantType()
-    user = (
-        session.query(model_cls)
-        .filter(model_cls.username == form_param.username)
-        .first()
-    )
-    if user is None:
-        raise exceptions.InvalidCredentials()
-    if not argon2.check_password(form_param.password, user.password):
+    if not argon2.check_password(credentials.password, user.password):
         raise exceptions.InvalidCredentials()
     if user.status != AccountStatus.ACTIVE:
         raise exceptions.InactiveAccount()
     return user
+
+
+def authenticate_executive(
+    session: Session,
+    model_cls: Type[Executive],
+    credentials: OAuth2PasswordRequestForm,
+) -> Executive:
+    """
+    Authenticate an Executive by username.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        model_cls (Type[Executive]): ORM class for the executive.
+        credentials (OAuth2PasswordRequestForm): Credentials containing username, password and grant_type.
+
+    Returns:
+        Executive: The authenticated executive instance.
+
+    Raises:
+        InvalidCredentials: If the username is not found or credentials are invalid.
+        InvalidGrantType: If credentials.grant_type is not GrantType.PASSWORD.
+        InactiveAccount: If the executive account is not ACTIVE.
+    """
+    executive = (
+        session.query(model_cls)
+        .filter(model_cls.username == credentials.username)
+        .first()
+    )
+
+    if executive is None:
+        raise exceptions.InvalidCredentials()
+
+    return user_credentials(executive, credentials)
+
+
+def authenticate_operator(
+    session: Session,
+    model_cls: Type[Operator],
+    credentials: OAuth2PasswordRequestForm,
+    form_param: Any,
+) -> Operator:
+    """
+    Authenticate an Operator by username and company_id.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        model_cls (Type[Operator]): ORM class for the operator.
+        credentials (OAuth2PasswordRequestForm): Credentials containing username, password and grant_type.
+        form_param (Any): Form parameters containing company_id.
+
+    Returns:
+        Operator: The authenticated Operator instance.
+
+    Raises:
+        InvalidCredentials: If the username/company lookup or password validation fails.
+        InvalidGrantType: If credentials.grant_type is not GrantType.PASSWORD.
+        InactiveAccount: If the operator account is not ACTIVE.
+        UnknownValue: If the provided company_id does not exist.
+    """
+    company = session.query(Company).filter(Company.id == form_param.company_id).first()
+    if company is None:
+        raise exceptions.UnknownValue(Operator.company_id)
+    operator = (
+        session.query(model_cls)
+        .filter(
+            model_cls.username == credentials.username,
+            model_cls.company_id == form_param.company_id,
+        )
+        .first()
+    )
+
+    if operator is None:
+        raise exceptions.InvalidCredentials()
+
+    return user_credentials(operator, credentials)
+
+
+def authenticate_vendor(
+    session: Session, credentials: OAuth2PasswordRequestForm
+) -> Any:
+    """
+    Vendor authentication helper.
+
+    This function is intentionally not implemented yet. It mirrors the
+    executive and operator authentication helpers but must be implemented
+    with proper vendor-specific logic before use.
+
+    Raises:
+        NotImplementedError: Always, to prevent silent failures if called
+            before vendor authentication is implemented.
+    """
+    raise NotImplementedError("Vendor authentication is not implemented yet.")
 
 
 def validate_and_revoke_refresh_token(
