@@ -7,14 +7,17 @@ making it easier for developers to integrate them into their projects.
 
 from datetime import datetime, timedelta, timezone
 from typing import Any, Type, Union
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm.session import Session
 
 from app.src.functions import get_by_path
 from app.src import argon2, exceptions
 from app.src.enums import AccountStatus, GrantType
 from app.src.db import (
+    Executive,
     ExecutiveRole,
     ExecutiveToken,
+    Operator,
     OperatorToken,
     VendorToken,
     OperatorRole,
@@ -23,10 +26,10 @@ from app.src.db import (
 )
 
 
-def authenticate_user(
-    user: Any,
-    credentials: Any,
-) -> Any:
+def user_credentials(
+    user: Type[Union[Executive, Operator]],
+    credentials: OAuth2PasswordRequestForm,
+) -> Union[Executive, Operator]:
     """
     Generic user authentication function for Executive, Operator, Vendor.
 
@@ -35,11 +38,11 @@ def authenticate_user(
     the account is active.
 
     Args:
-        user (Any): The already fetched user instance.
-        credentials (Any): Credentials containing password, and grant_type.
+        user (Type[Union[Executive, Operator]]): The already fetched user instance.
+        credentials (OAuth2PasswordRequestForm): Credentials containing password, and grant_type.
 
     Returns:
-        Any: The authenticated user instance.
+        Union[Executive, Operator]: The authenticated user instance.
 
     Raises:
         InvalidGrantType: If the grant_type is not PASSWORD.
@@ -57,19 +60,19 @@ def authenticate_user(
 
 def authenticate_executive(
     session: Session,
-    model_cls: Type[Any],
-    credentials: Any,
-) -> Any:
+    model_cls: Type[Executive],
+    credentials: OAuth2PasswordRequestForm,
+) -> Executive:
     """
     Authenticate an Executive by username.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[Any]): ORM class for the executive.
-        credentials (Any): Credentials containing username, password and grant_type.
+        model_cls (Type[Executive]): ORM class for the executive.
+        credentials (OAuth2PasswordRequestForm): Credentials containing username, password and grant_type.
 
     Returns:
-        Any: The authenticated executive instance.
+        Executive: The authenticated executive instance.
 
     Raises:
         InvalidCredentials: If the username is not found or credentials are invalid.
@@ -85,26 +88,26 @@ def authenticate_executive(
     if executive is None:
         raise exceptions.InvalidCredentials()
 
-    return authenticate_user(executive, credentials)
+    return user_credentials(executive, credentials)
 
 
 def authenticate_operator(
     session: Session,
-    model_cls: Type[Any],
-    credentials: Any,
+    model_cls: Type[Operator],
+    credentials: OAuth2PasswordRequestForm,
     form_param: Any,
-) -> Any:
+) -> Operator:
     """
     Authenticate an Operator by username and company_id.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls: ORM class for the operator.
-        credentials (Any): Credentials containing username, password and grant_type.
+        model_cls (Type[Operator]): ORM class for the operator.
+        credentials (OAuth2PasswordRequestForm): Credentials containing username, password and grant_type.
         form_param (Any): Form parameters containing company_id.
 
     Returns:
-        Any: The authenticated Operator instance.
+        Operator: The authenticated Operator instance.
 
     Raises:
         InvalidCredentials: If the username/company lookup or password validation fails.
@@ -127,10 +130,12 @@ def authenticate_operator(
     if operator is None:
         raise exceptions.InvalidCredentials()
 
-    return authenticate_user(operator, credentials)
+    return user_credentials(operator, credentials)
 
 
-def authenticate_vendor(session: Session, credentials: Any) -> Any:
+def authenticate_vendor(
+    session: Session, credentials: OAuth2PasswordRequestForm
+) -> Any:
     """
     Vendor authentication helper.
 
