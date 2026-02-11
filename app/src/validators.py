@@ -27,7 +27,7 @@ from app.src.db import (
 
 
 def user_credentials(
-    user: Type[Union[Executive, Operator]],
+    user: Union[Executive, Operator],
     credentials: OAuth2PasswordRequestForm,
 ) -> Union[Executive, Operator]:
     """
@@ -38,7 +38,7 @@ def user_credentials(
     the account is active.
 
     Args:
-        user (Type[Union[Executive, Operator]]): The already fetched user instance.
+        user (Union[Executive, Operator]): The already fetched user instance.
         credentials (OAuth2PasswordRequestForm): Credentials containing password, and grant_type.
 
     Returns:
