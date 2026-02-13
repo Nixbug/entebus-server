@@ -1462,11 +1462,9 @@ class Wallet(ORMbase):
     """
     Represents a digital wallet tied to an associated object (e.g: company, business).
 
-      Wallets must be manually removed when the associated object is removed.
-      Wallets cannot be deleted if the balance is not zero, as it could lead to accounting inconsistencies.
-      Deletion is restricted via a database trigger (for non zero balance).
-      Wallet cannot be deleted if the debit_transfer, credit_transfer or wallet_transfer refer to this wallet.
-      Data cleaner should handle dangling wallets.
+    Wallet lifecycle is governed by application logic, foreign-keys, and DB triggers.
+    Deletion is blocked if balance not zero or if transfers reference the wallet.
+    Remove unused wallets explicitly (or via a data-cleaner).
 
     Columns:
         id (Integer, unique, not null):
@@ -1596,9 +1594,10 @@ class BankAccount(ORMbase):
     account number, IFSC code, and bank/branch details. It can be associated with operators,
     companies, or businesses depending on the use case.
 
-    Bank accounts must be manually removed when the associated object is removed.
-    Bank accounts cannot be deleted if debit_transfer refers to this bank account.
-    Data cleaner should handle dangling bank accounts.
+    BankAccount rows are not automatically removed when a company/business is deleted.
+    Association tables (CompanyBankAccount, BusinessBankAccount) use ON DELETE CASCADE
+    on the association row, not on the BankAccount itself.
+    Deletion of a BankAccount may be disallowed if referenced by debit_transfer.
 
     Columns:
         id (Integer, unique, not null):
