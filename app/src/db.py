@@ -542,7 +542,7 @@ class OperatorRole(ORMbase):
      they are permitted to perform within the owning company.
 
      This model stores information about operator roles and their associated permissions,
-      enabling fine-grained control over executive access and functionality within the system.
+      enabling fine-grained control over operator access and functionality within the system.
 
      Columns:
          id (Integer, unique, not null):
@@ -1516,7 +1516,7 @@ class CompanyWallet(ORMbase):
 
         company_id (Integer, not null, unique):
             Foreign key referencing `company.id`.
-            Each company can have only one wallet. Cascades on delete.
+            Each company can have only one wallet.
             Cascades on delete — if the company is removed, related mappings are deleted.
 
         created_on (DateTime, not null, default=func.now()):
@@ -1682,7 +1682,6 @@ class CompanyBankAccount(ORMbase):
     """
 
     __tablename__ = "company_bank_account"
-    __table_args__ = (UniqueConstraint("bank_account_id"),)
 
     id = Column(Integer, primary_key=True)
     bank_account_id = Column(
@@ -1733,7 +1732,6 @@ class BusinessBankAccount(ORMbase):
     """
 
     __tablename__ = "business_bank_account"
-    __table_args__ = (UniqueConstraint("bank_account_id"),)
 
     id = Column(Integer, primary_key=True)
     bank_account_id = Column(
