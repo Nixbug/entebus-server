@@ -548,12 +548,12 @@ class OperatorRole(ORMbase):
          id (Integer, unique, not null):
              Primary identifier for the operator role.
 
-         company_id (Integer, unique, not null):
+         company_id (Integer, not null):
              Foreign key referencing `company.id`.
              Identifies the company that owns the role.
              Cascades on delete — if the company is removed, related roles are deleted.
 
-         name (String(32), unique, not null):
+         name (String(32), not null):
              Name or label for the role.
              It should be 4-32 characters long.
 
@@ -757,12 +757,12 @@ class VendorRole(ORMbase):
         id (Integer, unique, not null):
             Primary identifier for the vendor role.
 
-        business_id (Integer, unique, not null):
+        business_id (Integer, not null):
             Foreign key referencing `business.id`.
             Identifies the business that owns the role.
             Cascades on delete — if the business is removed, related roles are deleted.
 
-        name (String(32), unique, not null):
+        name (String(32), not null):
             Name or label for the role.
             Should be 4-32 characters long.
 
