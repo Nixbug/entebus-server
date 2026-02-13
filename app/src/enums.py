@@ -174,10 +174,23 @@ class RouteStatus(IntEnum):
 
 class OperatorType(IntEnum):
     """Role type of the operator."""
-    
+
     NORMAL = 1
     OWNER = 2
     MANAGER = 3
     HR = 4
     LEGAL = 5
     ADMIN = 6
+    BOT = 7
+
+
+class VendorType(IntEnum):
+    """Role type of the vendor."""
+
+    NORMAL = 1
+    OWNER = 2
+    MANAGER = 3
+    HR = 4
+    LEGAL = 5
+    ADMIN = 6
+    BOT = 7
