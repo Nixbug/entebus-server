@@ -1338,7 +1338,7 @@ class Vendor(ORMbase):
             Maximum 1024 characters long.
 
         type (Integer, not null, default=VendorType.NORMAL):
-            Role/type of the vendor. Mapped from the `VendorType` enum.
+            Role type of the vendor. Mapped from the `VendorType` enum.
 
         full_name (TEXT, nullable):
             Full name of the vendor.
