@@ -1597,10 +1597,9 @@ class BankAccount(ORMbase):
     account number, IFSC code, and bank/branch details. It can be associated with operators,
     companies, or businesses depending on the use case.
 
-    BankAccount rows are not automatically removed when a company/business is deleted.
-    Association tables (CompanyBankAccount, BusinessBankAccount) use ON DELETE CASCADE
-    on the association row, not on the BankAccount itself.
-    Deletion of a BankAccount may be disallowed if referenced by debit_transfer.
+    Deleting a Company or Business removes related association entries via ON DELETE CASCADE,
+    but does not delete the underlying BankAccount record. BankAccount entries must be deleted
+    separately.
 
     Columns:
         id (Integer, unique, not null):
