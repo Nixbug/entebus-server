@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from geoalchemy2 import Geometry
 from sqlalchemy import (
     ARRAY,
+    CheckConstraint,
     Index,
     Numeric,
     create_engine,
@@ -1487,6 +1488,9 @@ class Wallet(ORMbase):
     """
 
     __tablename__ = "wallet"
+    __table_args__ = (
+        CheckConstraint("balance >= 0", name="ck_wallet_balance_non_negative"),
+    )
 
     id = Column(Integer, primary_key=True)
     name = Column(String(32), nullable=False)
