@@ -84,7 +84,12 @@ class UpdateForm(BaseModel):
     tags=["Token"],
     response_model=OperatorTokenSchema,
     responses=fuse_exception_responses(
-        [exceptions.InactiveAccount(), exceptions.InvalidCredentials()]
+        [
+            exceptions.InactiveAccount(),
+            exceptions.InvalidCredentials(),
+            exceptions.UnknownValue(Operator.company_id),
+            exceptions.InvalidGrantType(),
+        ]
     ),
     description=(
         f"""
@@ -147,6 +152,7 @@ async def create_token(
         [
             exceptions.InvalidToken(),
             exceptions.UnknownValue(OperatorToken.refresh_token),
+            exceptions.InvalidGrantType(),
         ]
     ),
     description=(

@@ -124,7 +124,11 @@ class QueryParams(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter)
     tags=["Token"],
     response_model=ExecutiveTokenSchema,
     responses=fuse_exception_responses(
-        [exceptions.InactiveAccount(), exceptions.InvalidCredentials()]
+        [
+            exceptions.InactiveAccount(),
+            exceptions.InvalidCredentials(),
+            exceptions.InvalidGrantType(),
+        ]
     ),
     description=(
         f"""
@@ -186,6 +190,7 @@ async def create_token(
         [
             exceptions.InvalidToken(),
             exceptions.UnknownValue(ExecutiveToken.refresh_token),
+            exceptions.InvalidGrantType(),
         ]
     ),
     description=(
