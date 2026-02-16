@@ -539,34 +539,34 @@ class OperatorToken(ORMbase):
 class OperatorRole(ORMbase):
     """
     Represents a role assigned to operators within a specific company.
-     It is used to define permissions and roles for operators, specifying the actions
-     they are permitted to perform within the owning company.
+    It is used to define permissions and roles for operators, specifying the actions
+    they are permitted to perform within the owning company.
 
-     This model stores information about operator roles and their associated permissions,
-      enabling fine-grained control over operator access and functionality within the system.
+    This model stores information about operator roles and their associated permissions,
+    enabling fine-grained control over operator access and functionality within the system.
 
-     Columns:
-         id (Integer, unique, not null):
-             Primary identifier for the operator role.
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the operator role.
 
-         company_id (Integer, not null):
-             Foreign key referencing `company.id`.
-             Identifies the company that owns the role.
-             Cascades on delete — if the company is removed, related roles are deleted.
+        company_id (Integer, not null):
+            Foreign key referencing `company.id`.
+            Identifies the company that owns the role.
+            Cascades on delete — if the company is removed, related roles are deleted.
 
-         name (String(32), not null):
-             Name or label for the role.
-             It should be 4-32 characters long.
+        name (String(32), not null):
+            Name or label for the role.
+            It should be 4-32 characters long.
 
-         permissions (JSONB, not null):
-             List of permissions associated with the role.
-             These permissions determine which actions the operator can perform within the system.
+        permissions (JSONB, not null):
+            List of permissions associated with the role.
+            These permissions determine which actions the operator can perform within the system.
 
-         updated_on (DateTime, nullable, onupdate=func.now()):
-             Timestamp of the last update to the role's permissions.
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp of the last update to the role's permissions.
 
-         created_on (DateTime, not null, default=func.now()):
-             Timestamp indicating when this role was created.
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when this role was created.
     """
 
     __tablename__ = "operator_role"
@@ -1358,7 +1358,6 @@ class Vendor(ORMbase):
             Email address of the vendor.
             Maximum 256 characters long.
             Enforce the format prescribed by RFC 5322 (https://en.wikipedia.org/wiki/Email_address).
-
 
         updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp automatically updated whenever the vendor's profile record is modified.
