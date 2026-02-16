@@ -250,7 +250,7 @@ class ExecutiveRole(ORMbase):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(32), nullable=False, unique=True)
-    permissions = Column(JSONB, nullable=False, default=list)
+    permissions = Column(JSONB, nullable=False, default=dict)
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -580,7 +580,7 @@ class OperatorRole(ORMbase):
         index=True,
     )
     name = Column(String(32), nullable=False)
-    permissions = Column(JSONB, nullable=False, default=list)
+    permissions = Column(JSONB, nullable=False, default=dict)
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(
