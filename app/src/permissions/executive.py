@@ -55,9 +55,9 @@ class PermissionPath(StrEnum):
     UPDATE_COMPANY = "company.update"
     DELETE_COMPANY = "company.delete"
 
-    CREATE_COMPANY_BUS = "company.bus.create"
-    UPDATE_COMPANY_BUS = "company.bus.update"
-    DELETE_COMPANY_BUS = "company.bus.delete"
+    CREATE_COMPANY_VEHICLE = "company.vehicle.create"
+    UPDATE_COMPANY_VEHICLE = "company.vehicle.update"
+    DELETE_COMPANY_VEHICLE = "company.vehicle.delete"
 
     CREATE_COMPANY_FARE = "company.fare.create"
     UPDATE_COMPANY_FARE = "company.fare.update"
@@ -145,7 +145,7 @@ class ServicePermissions(CRUDPermission):
 class CompanyPermissions(CRUDPermission):
     """Company related permissions."""
 
-    bus: CRUDPermission
+    vehicle: CRUDPermission
     fare: CRUDPermission
     route: CRUDPermission
     operator: OperatorPermissions
