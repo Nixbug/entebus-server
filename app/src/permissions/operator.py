@@ -1,8 +1,8 @@
 """
-Executive Role Permissions.
+Operator Role Permissions.
 
 Provides Pydantic schemas to define the hierarchical structure of permissions
-for executives within the system and permission paths for specific actions.
+for operators within the system and permission paths for specific actions.
 """
 
 from pydantic import BaseModel, Field
@@ -11,49 +11,9 @@ from enum import StrEnum
 
 ## Permission Paths
 class PermissionPath(StrEnum):
-    """Permission paths for executives."""
+    """Permission paths for operators."""
 
-    CREATE_LANDMARK = "landmark.create"
-    UPDATE_LANDMARK = "landmark.update"
-    DELETE_LANDMARK = "landmark.delete"
-
-    CREATE_BUS_STOP = "landmark.bus_stop.create"
-    UPDATE_BUS_STOP = "landmark.bus_stop.update"
-    DELETE_BUS_STOP = "landmark.bus_stop.delete"
-
-    CREATE_FARE = "fare.create"
-    UPDATE_FARE = "fare.update"
-    DELETE_FARE = "fare.delete"
-
-    CREATE_EXECUTIVE = "executive.create"
-    UPDATE_EXECUTIVE = "executive.update"
-    DELETE_EXECUTIVE = "executive.delete"
-
-    CREATE_EXECUTIVE_ROLE = "executive.role.create"
-    UPDATE_EXECUTIVE_ROLE = "executive.role.update"
-    DELETE_EXECUTIVE_ROLE = "executive.role.delete"
-
-    FETCH_EXECUTIVE_TOKEN = "executive.token.fetch"
-    DELETE_EXECUTIVE_TOKEN = "executive.token.delete"
-
-    CREATE_BUSINESS = "business.create"
-    UPDATE_BUSINESS = "business.update"
-    DELETE_BUSINESS = "business.delete"
-
-    CREATE_BUSINESS_VENDOR = "business.vendor.create"
-    UPDATE_BUSINESS_VENDOR = "business.vendor.update"
-    DELETE_BUSINESS_VENDOR = "business.vendor.delete"
-
-    CREATE_BUSINESS_VENDOR_ROLE = "business.vendor.role.create"
-    UPDATE_BUSINESS_VENDOR_ROLE = "business.vendor.role.update"
-    DELETE_BUSINESS_VENDOR_ROLE = "business.vendor.role.delete"
-
-    FETCH_BUSINESS_VENDOR_TOKEN = "business.vendor.token.fetch"
-    DELETE_BUSINESS_VENDOR_TOKEN = "business.vendor.token.delete"
-
-    CREATE_COMPANY = "company.create"
     UPDATE_COMPANY = "company.update"
-    DELETE_COMPANY = "company.delete"
 
     CREATE_COMPANY_VEHICLE = "company.vehicle.create"
     UPDATE_COMPANY_VEHICLE = "company.vehicle.update"
@@ -91,7 +51,6 @@ class PermissionPath(StrEnum):
     DELETE_COMPANY_SCHEDULE = "company.schedule.delete"
 
 
-## Permission Schemas
 class CRUDPermission(BaseModel):
     """Generic CRUD permission set — reused by most entities."""
 
@@ -107,32 +66,6 @@ class TokenPermission(BaseModel):
     delete: bool = Field(description="Allow deleting token")
 
 
-class LandmarkPermissions(CRUDPermission):
-    """Landmark related permissions."""
-
-    bus_stop: CRUDPermission
-
-
-class ExecutivePermissions(CRUDPermission):
-    """Executive related permissions."""
-
-    role: CRUDPermission
-    token: TokenPermission
-
-
-class VendorPermissions(CRUDPermission):
-    """Vendor related permissions."""
-
-    role: CRUDPermission
-    token: TokenPermission
-
-
-class BusinessPermissions(CRUDPermission):
-    """Business related permissions."""
-
-    vendor: VendorPermissions
-
-
 class OperatorPermissions(CRUDPermission):
     """Operator related permissions."""
 
@@ -146,9 +79,10 @@ class ServicePermissions(CRUDPermission):
     duty: CRUDPermission
 
 
-class CompanyPermissions(CRUDPermission):
+class CompanyPermission(BaseModel):
     """Company related permissions."""
 
+    update: bool = Field(description="Allow updating company details")
     vehicle: CRUDPermission
     fare: CRUDPermission
     route: CRUDPermission
@@ -158,10 +92,6 @@ class CompanyPermissions(CRUDPermission):
 
 
 class PermissionSchema(BaseModel):
-    """Top-level hierarchical permission structure for an ExecutiveRole."""
+    """Top-level hierarchical permission structure for an OperatorRole."""
 
-    landmark: LandmarkPermissions
-    fare: CRUDPermission
-    executive: ExecutivePermissions
-    business: BusinessPermissions
-    company: CompanyPermissions
+    company: CompanyPermission
