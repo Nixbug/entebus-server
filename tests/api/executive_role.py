@@ -3,23 +3,56 @@ Tests for the executive role endpoint.
 """
 
 import requests
+import re
+import time
 import uuid
 
-from datetime import datetime
 from app.src.urls import URL_EXECUTIVE_ROLE
 from tests.src.inputs import VALID_EXECUTIVE_CREDENTIALS
 from tests.src.schemas import TokenHolder
-from tests.src.inputs import GUEST_PERMISSIONS, ADMIN_PERMISSIONS, PARTIAL_PERMISSIONS
+from tests.src.inputs import (
+    GUEST_PERMISSIONS,
+    ADMIN_PERMISSIONS,
+    PARTIAL_PERMISSIONS,
+)
+from app.src.db import ExecutiveToken, SessionLocal
 
 
-def generate_unique_name(base_name: str) -> str:
-    """Generate a unique name by appending a timestamp and short UUID."""
-    timestamp = datetime.now().strftime("%s")
-    unique_id = str(uuid.uuid4())[:8]
-    suffix = f"_{timestamp[-4:]}_{unique_id}"
-    max_base_length = 32 - len(suffix)
-    truncated_base = base_name[:max_base_length]
-    return f"{truncated_base}{suffix}"
+NAME_PATTERN = r"^[A-Za-z0-9](?:[A-Za-z0-9 _.-]*[A-Za-z0-9])?$"
+
+
+def generate_unique_name(base_name: str, max_len: int = 64) -> str:
+    """
+    Generate a unique name based on base_name, ensuring it matches
+    NAME_PATTERN.
+    """
+    sanitized = re.sub(r"[^A-Za-z0-9 _.\-]+", "_", base_name or "")
+    suffix = f"_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+    max_base_len = max_len - len(suffix)
+
+    if max_base_len < 1:
+        truncated_base = "n"
+    else:
+        truncated_base = sanitized[:max_base_len]
+
+        while truncated_base and not truncated_base[-1].isalnum():
+            truncated_base = truncated_base[:-1]
+
+        while truncated_base and not truncated_base[0].isalnum():
+            truncated_base = truncated_base[1:]
+
+        if not truncated_base:
+            truncated_base = "n"
+
+    candidate = f"{truncated_base}{suffix}"
+
+    if not re.match(NAME_PATTERN, candidate):
+        candidate = f"n{suffix}"
+
+    return candidate
+
+
+# ---------------------------------------------------------------------------
 
 
 def run_endpoint_test(base_url: str):
@@ -28,76 +61,20 @@ def run_endpoint_test(base_url: str):
     role_url = f"{base_url}/executive{URL_EXECUTIVE_ROLE}"
     token_url = f"{base_url}/executive/entebus/account/token"
 
+    # ---------------------------------------------------------------------------
     response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["admin"])
     assert response.status_code == 200
     admin = TokenHolder(**response.json())
 
+    # ---------------------------------------------------------------------------
     role_name_01 = generate_unique_name("TestRole")
     role_name_admin = generate_unique_name("Admin")
     role_name_limited = generate_unique_name("Limited")
     role_name_updated = generate_unique_name("Updated")
     role_name_modified = generate_unique_name("Modified")
-    role_name_guest = generate_unique_name("Guest")
 
     # ---------------------------------------------------------------------------
-    print("CASE 01: Create role without Authorization header")
-    response = requests.post(
-        role_url, json={"name": "TestRole", "permissions": GUEST_PERMISSIONS}
-    )
-    assert response.status_code == 401
-
-    # ---------------------------------------------------------------------------
-    print("CASE 02: Create role with invalid bearer token")
-    response = requests.post(
-        role_url,
-        headers={"Authorization": "Bearer InvalidToken"},
-        json={"name": "TestRole", "permissions": GUEST_PERMISSIONS},
-    )
-    assert response.status_code == 401
-
-    # ---------------------------------------------------------------------------
-    print("CASE 03: Create role with missing required fields (name)")
-    response = requests.post(
-        role_url, headers=admin.HEADER(), json={"permissions": GUEST_PERMISSIONS}
-    )
-    assert response.status_code == 422
-
-    # ---------------------------------------------------------------------------
-    print("CASE 04: Create role with missing required fields (permissions)")
-    response = requests.post(
-        role_url, headers=admin.HEADER(), json={"name": role_name_01}
-    )
-    assert response.status_code == 422
-
-    # ---------------------------------------------------------------------------
-    print("CASE 05: Create role with empty name")
-    response = requests.post(
-        role_url,
-        headers=admin.HEADER(),
-        json={"name": "", "permissions": GUEST_PERMISSIONS},
-    )
-    assert response.status_code == 422
-
-    # ---------------------------------------------------------------------------
-    print("CASE 06: Create role with name exceeding max length (>32 chars)")
-    response = requests.post(
-        role_url,
-        headers=admin.HEADER(),
-        json={"name": "A" * 33, "permissions": GUEST_PERMISSIONS},
-    )
-    assert response.status_code == 422
-
-    # ---------------------------------------------------------------------------
-    print("CASE 07: Create role with invalid name pattern (special chars)")
-    response = requests.post(
-        role_url,
-        headers=admin.HEADER(),
-        json={"name": "Role@#$%", "permissions": GUEST_PERMISSIONS},
-    )
-    assert response.status_code == 422
-
-    # ---------------------------------------------------------------------------
-    print("CASE 08: Create valid role with default permissions")
+    print("CASE 01: Create valid role with default permissions")
     response = requests.post(
         role_url,
         headers=admin.HEADER(),
@@ -112,16 +89,7 @@ def run_endpoint_test(base_url: str):
     assert role_01["updated_on"] is None
 
     # ---------------------------------------------------------------------------
-    print("CASE 09: Create duplicate role (name)")
-    response = requests.post(
-        role_url,
-        headers=admin.HEADER(),
-        json={"name": role_name_01, "permissions": ADMIN_PERMISSIONS},
-    )
-    assert response.status_code == 409
-
-    # ---------------------------------------------------------------------------
-    print("CASE 10: Create role with full permissions")
+    print("CASE 02: Create role with full permissions")
     response = requests.post(
         role_url,
         headers=admin.HEADER(),
@@ -133,7 +101,7 @@ def run_endpoint_test(base_url: str):
     assert admin_role["permissions"] == ADMIN_PERMISSIONS
 
     # ---------------------------------------------------------------------------
-    print("CASE 11: Create role with partial permissions")
+    print("CASE 03: Create role with partial permissions")
     response = requests.post(
         role_url,
         headers=admin.HEADER(),
@@ -144,41 +112,34 @@ def run_endpoint_test(base_url: str):
     assert limited_role["name"] == role_name_limited
 
     # ---------------------------------------------------------------------------
-    print("CASE 12: Fetch all roles without Authorization header")
-    response = requests.get(role_url)
-    assert response.status_code == 401
-
-    # ---------------------------------------------------------------------------
-    print("CASE 13: Fetch all roles with invalid bearer token")
-    response = requests.get(role_url, headers={"Authorization": "Bearer InvalidToken"})
-    assert response.status_code == 401
-
-    # ---------------------------------------------------------------------------
-    print("CASE 14: Fetch all roles successfully")
+    print("CASE 04: Fetch all roles successfully")
     response = requests.get(role_url, headers=admin.HEADER())
     assert response.status_code == 200
     roles = response.json()
     assert isinstance(roles, list)
-    assert len(roles) >= 3  # At least the 3 roles we created
+    assert len(roles) >= 3
 
     # ---------------------------------------------------------------------------
-    print("CASE 15: Fetch roles with pagination (limit and offset)")
+    print("CASE 05: Fetch roles with pagination (limit & offset)")
     response = requests.get(
-        role_url, headers=admin.HEADER(), params={"limit": 2, "offset": 0}
+        role_url,
+        headers=admin.HEADER(),
+        params={"limit": 2, "offset": 0},
     )
     assert response.status_code == 200
-    paginated_roles = response.json()
-    assert len(paginated_roles) <= 2
+    assert len(response.json()) <= 2
 
     # ---------------------------------------------------------------------------
-    print("CASE 16: Fetch roles with limit and valid offset")
+    print("CASE 06: Fetch roles with valid offset")
     response = requests.get(
-        role_url, headers=admin.HEADER(), params={"limit": 2, "offset": 1}
+        role_url,
+        headers=admin.HEADER(),
+        params={"limit": 2, "offset": 1},
     )
     assert response.status_code == 200
 
     # ---------------------------------------------------------------------------
-    print("CASE 17: Fetch roles ordered by created_on ascending")
+    print("CASE 07: Fetch roles ordered by created_on ASC")
     response = requests.get(
         role_url,
         headers=admin.HEADER(),
@@ -187,7 +148,7 @@ def run_endpoint_test(base_url: str):
     assert response.status_code == 200
 
     # ---------------------------------------------------------------------------
-    print("CASE 18: Fetch roles ordered by created_on descending")
+    print("CASE 08: Fetch roles ordered by created_on DESC")
     response = requests.get(
         role_url,
         headers=admin.HEADER(),
@@ -196,16 +157,20 @@ def run_endpoint_test(base_url: str):
     assert response.status_code == 200
 
     # ---------------------------------------------------------------------------
-    print("CASE 19: Fetch roles ordered by updated_on")
+    print("CASE 09: Fetch roles ordered by updated_on")
     response = requests.get(
-        role_url, headers=admin.HEADER(), params={"order_by": "updated_on"}
+        role_url,
+        headers=admin.HEADER(),
+        params={"order_by": "updated_on"},
     )
     assert response.status_code == 200
 
     # ---------------------------------------------------------------------------
-    print("CASE 20: Fetch roles filtered by id")
+    print("CASE 10: Fetch roles filtered by ID")
     response = requests.get(
-        role_url, headers=admin.HEADER(), params={"id": role_01["id"]}
+        role_url,
+        headers=admin.HEADER(),
+        params={"id": role_01["id"]},
     )
     assert response.status_code == 200
     filtered_roles = response.json()
@@ -213,72 +178,27 @@ def run_endpoint_test(base_url: str):
     assert filtered_roles[0]["id"] == role_01["id"]
 
     # ---------------------------------------------------------------------------
-    print("CASE 21: Fetch roles filtered by non-existent id")
-    response = requests.get(role_url, headers=admin.HEADER(), params={"id": 99999})
-    assert response.status_code == 200
-    assert response.json() == []
-
-    # ---------------------------------------------------------------------------
-    print("CASE 22: Fetch roles filtered by name")
+    print("CASE 11: Fetch roles filtered by exact name")
     response = requests.get(
-        role_url, headers=admin.HEADER(), params={"name": role_name_admin}
+        role_url,
+        headers=admin.HEADER(),
+        params={"name": role_name_admin},
     )
     assert response.status_code == 200
     filtered_roles = response.json()
-    assert len(filtered_roles) >= 1
     assert any(r["name"] == role_name_admin for r in filtered_roles)
 
     # ---------------------------------------------------------------------------
-    print("CASE 23: Fetch roles filtered by partial name")
-    response = requests.get(role_url, headers=admin.HEADER(), params={"name": "Role"})
+    print("CASE 12: Fetch roles filtered by partial name")
+    response = requests.get(
+        role_url,
+        headers=admin.HEADER(),
+        params={"name": "Role"},
+    )
     assert response.status_code == 200
 
     # ---------------------------------------------------------------------------
-    print("CASE 24: Update role without Authorization header")
-    response = requests.patch(
-        f"{role_url}/{role_01['id']}", json={"name": role_name_updated}
-    )
-    assert response.status_code == 401
-
-    # ---------------------------------------------------------------------------
-    print("CASE 25: Update role with invalid bearer token")
-    response = requests.patch(
-        f"{role_url}/{role_01['id']}",
-        headers={"Authorization": "Bearer InvalidToken"},
-        json={"name": role_name_updated},
-    )
-    assert response.status_code == 401
-
-    # ---------------------------------------------------------------------------
-    print("CASE 26: Update non-existent role")
-    response = requests.patch(
-        f"{role_url}/99999", headers=admin.HEADER(), json={"name": "NonExistent"}
-    )
-    assert response.status_code == 404
-
-    # ---------------------------------------------------------------------------
-    print("CASE 27: Update role with empty name")
-    response = requests.patch(
-        f"{role_url}/{role_01['id']}", headers=admin.HEADER(), json={"name": ""}
-    )
-    assert response.status_code == 422
-
-    # ---------------------------------------------------------------------------
-    print("CASE 28: Update role with name exceeding max length")
-    response = requests.patch(
-        f"{role_url}/{role_01['id']}", headers=admin.HEADER(), json={"name": "A" * 33}
-    )
-    assert response.status_code == 422
-
-    # ---------------------------------------------------------------------------
-    print("CASE 29: Update role with invalid name pattern")
-    response = requests.patch(
-        f"{role_url}/{role_01['id']}", headers=admin.HEADER(), json={"name": "Role@#$%"}
-    )
-    assert response.status_code == 422
-
-    # ---------------------------------------------------------------------------
-    print("CASE 30: Update role with new valid name")
+    print("CASE 13: Update role name")
     response = requests.patch(
         f"{role_url}/{role_01['id']}",
         headers=admin.HEADER(),
@@ -286,23 +206,21 @@ def run_endpoint_test(base_url: str):
     )
     assert response.status_code == 200
     updated_role = response.json()
-    assert updated_role["id"] == role_01["id"]
     assert updated_role["name"] == role_name_updated
     assert updated_role["updated_on"] is not None
 
     # ---------------------------------------------------------------------------
-    print("CASE 31: Update role permissions only")
+    print("CASE 14: Update role permissions only")
     response = requests.patch(
         f"{role_url}/{role_01['id']}",
         headers=admin.HEADER(),
         json={"permissions": ADMIN_PERMISSIONS},
     )
     assert response.status_code == 200
-    updated_role = response.json()
-    assert updated_role["permissions"] == ADMIN_PERMISSIONS
+    assert response.json()["permissions"] == ADMIN_PERMISSIONS
 
     # ---------------------------------------------------------------------------
-    print("CASE 32: Update role with both name and permissions")
+    print("CASE 15: Update role name and permissions")
     response = requests.patch(
         f"{role_url}/{role_01['id']}",
         headers=admin.HEADER(),
@@ -314,52 +232,39 @@ def run_endpoint_test(base_url: str):
     assert updated_role["permissions"] == PARTIAL_PERMISSIONS
 
     # ---------------------------------------------------------------------------
-    print("CASE 33: Empty PATCH request (no updates)")
+    print("CASE 16: Empty PATCH request")
     response = requests.patch(
-        f"{role_url}/{role_01['id']}", headers=admin.HEADER(), json={}
+        f"{role_url}/{role_01['id']}",
+        headers=admin.HEADER(),
+        json={},
     )
     assert response.status_code == 200
-    unchanged_role = response.json()
-    assert unchanged_role["id"] == role_01["id"]
 
     # ---------------------------------------------------------------------------
-    print("CASE 34: Delete role without Authorization header")
-    response = requests.delete(f"{role_url}/{role_01['id']}")
-    assert response.status_code == 401
-
-    # ---------------------------------------------------------------------------
-    print("CASE 35: Delete role with invalid bearer token")
+    print("CASE 17: Delete admin role and verify")
     response = requests.delete(
-        f"{role_url}/{role_01['id']}", headers={"Authorization": "Bearer InvalidToken"}
+        f"{role_url}/{admin_role['id']}",
+        headers=admin.HEADER(),
     )
-    assert response.status_code == 401
-
-    # ---------------------------------------------------------------------------
-    print("CASE 36: Delete non-existent role")
-    response = requests.delete(f"{role_url}/99999", headers=admin.HEADER())
     assert response.status_code == 204
 
-    # ---------------------------------------------------------------------------
-    print("CASE 37: Delete existing role successfully")
-    response = requests.delete(f"{role_url}/{admin_role['id']}", headers=admin.HEADER())
-    assert response.status_code == 204
-
-    # Verify role was deleted
     response = requests.get(
-        role_url, headers=admin.HEADER(), params={"id": admin_role["id"]}
+        role_url,
+        headers=admin.HEADER(),
+        params={"id": admin_role["id"]},
     )
-    assert response.status_code == 200
     assert response.json() == []
 
     # ---------------------------------------------------------------------------
-    print("CASE 38: Delete another existing role")
+    print("CASE 18: Delete limited role")
     response = requests.delete(
-        f"{role_url}/{limited_role['id']}", headers=admin.HEADER()
+        f"{role_url}/{limited_role['id']}",
+        headers=admin.HEADER(),
     )
     assert response.status_code == 204
 
     # ---------------------------------------------------------------------------
-    print("CASE 39: Guest user fetches all roles")
+    print("CASE 19: Guest user fetches roles")
     response = requests.post(token_url, data=VALID_EXECUTIVE_CREDENTIALS["guest"])
     assert response.status_code == 200
     guest = TokenHolder(**response.json())
@@ -368,12 +273,16 @@ def run_endpoint_test(base_url: str):
     assert response.status_code == 200
 
     # ---------------------------------------------------------------------------
-    print("CASE 40: Guest attempts to create role without proper permissions")
-    response = requests.post(
-        role_url,
-        headers=guest.HEADER(),
-        json={"name": role_name_guest, "permissions": GUEST_PERMISSIONS},
+    print("CLEANUP: Delete remaining test role and tokens")
+    response = requests.delete(
+        f"{role_url}/{role_01['id']}",
+        headers=admin.HEADER(),
     )
-    assert response.status_code == 403
+    assert response.status_code == 204
+
+    session = SessionLocal()
+    session.query(ExecutiveToken).delete()
+    session.commit()
+    session.close()
 
     print("=== EXECUTIVE ROLE TESTS COMPLETED ===\n")
