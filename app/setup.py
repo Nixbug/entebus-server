@@ -164,6 +164,7 @@ def initialize():
                 "delete": True,
                 "duty": {"create": True, "update": True, "delete": True},
             },
+            "schedule": {"create": True, "update": True, "delete": True},
         },
     }
 

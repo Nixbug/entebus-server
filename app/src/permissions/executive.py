@@ -86,6 +86,10 @@ class PermissionPath(StrEnum):
     UPDATE_COMPANY_SERVICE_DUTY = "company.service.duty.update"
     DELETE_COMPANY_SERVICE_DUTY = "company.service.duty.delete"
 
+    CREATE_COMPANY_SCHEDULE = "company.schedule.create"
+    UPDATE_COMPANY_SCHEDULE = "company.schedule.update"
+    DELETE_COMPANY_SCHEDULE = "company.schedule.delete"
+
 
 ## Permission Schemas
 class CRUDPermission(BaseModel):
@@ -150,6 +154,7 @@ class CompanyPermissions(CRUDPermission):
     route: CRUDPermission
     operator: OperatorPermissions
     service: ServicePermissions
+    schedule: CRUDPermission
 
 
 class PermissionSchema(BaseModel):
