@@ -277,9 +277,7 @@ def initialize():
 
     guest_permissions = {
         "company": {
-            "create": False,
             "update": False,
-            "delete": False,
             "vehicle": {"create": False, "update": False, "delete": False},
             "fare": {"create": False, "update": False, "delete": False},
             "route": {"create": False, "update": False, "delete": False},
