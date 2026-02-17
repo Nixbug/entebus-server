@@ -66,7 +66,7 @@ class TokenPermission(BaseModel):
     delete: bool = Field(description="Allow deleting token")
 
 
-class CompanyOperatorPermissions(CRUDPermission):
+class OperatorPermissions(CRUDPermission):
     """Operator related permissions."""
 
     role: CRUDPermission
@@ -86,7 +86,7 @@ class CompanyPermission(BaseModel):
     vehicle: CRUDPermission
     fare: CRUDPermission
     route: CRUDPermission
-    operator: CompanyOperatorPermissions
+    operator: OperatorPermissions
     service: ServicePermissions
     schedule: CRUDPermission
 
