@@ -79,9 +79,10 @@ class ServicePermissions(CRUDPermission):
     duty: CRUDPermission
 
 
-class CompanyPermission(CRUDPermission):
-    """Company related permissions (includes company-level CRUD)."""
+class CompanyPermission(BaseModel):
+    """Company related permissions."""
 
+    update: bool = Field(description="Allow updating company details")
     vehicle: CRUDPermission
     fare: CRUDPermission
     route: CRUDPermission
