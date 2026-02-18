@@ -32,7 +32,6 @@ from app.src.functions import (
 )
 
 route_executive = APIRouter()
-route_operator = APIRouter()
 
 
 ## Output Schema
