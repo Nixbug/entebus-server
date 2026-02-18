@@ -119,18 +119,19 @@ async def create_company(
         session.add(company)
         session.commit()
         session.refresh(company)
-        
-        #Create Wallet
+
+        # Create Wallet
         walletName = form_param.name + "wallet"
         wallet = Wallet(name=walletName, balance=0)
         session.add(wallet)
         session.flush()
-        
+
+        # Link Company to Wallet
         company_wallet = CompanyWallet(company_id=company.id, wallet_id=wallet.id)
         session.add(company_wallet)
         session.commit()
         session.refresh(company)
-        
+
         company_data = jsonable_encoder(company, exclude={Company.location.name})
         company_data[Company.location.name] = (
             wkb.loads(bytes(company.location.data))
