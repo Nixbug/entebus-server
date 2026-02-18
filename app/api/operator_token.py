@@ -339,13 +339,14 @@ async def fetch_tokens_operator(
     responses=fuse_exception_responses(
         [
             exceptions.InvalidToken(),
+            exceptions.NoPermission(),
         ]
     ),
     description=(
         """
             **Fetch operator tokens with permission-based filtering.**     
             - If the logged-in executive has `company.operator.token.fetch` permission, all masked tokens are returned.    
-            - If the logged-in executive does not have permission, only masked tokens for the logged-in executive's company are returned.    
+            - If the logged-in executive does not have permission, they cannot access this endpoint.
         """
     ),
 )
@@ -362,7 +363,7 @@ async def fetch_tokens_executive(
         )
 
         if has_permission is False:
-            query_params.company_id = token.company_id
+            raise exceptions.NoPermission()
 
         return search_operator_tokens(session, query_params)
     except Exception as e:
