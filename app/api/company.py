@@ -14,7 +14,7 @@ from shapely import wkb, wkt
 from shapely.geometry import Point
 
 from app.api.bearer import oauth2_executive
-from app.src.db import Company, ExecutiveToken, SessionLocal
+from app.src.db import Company, ExecutiveToken, SessionLocal, Wallet, CompanyWallet
 from app.src.permissions.executive import PermissionPath
 from app.src import exceptions
 from app.src.regex import NAME_PATTERN
@@ -122,6 +122,15 @@ async def create_company(
         
         #Create Wallet
         walletName = form_param.name + "wallet"
+        wallet = Wallet(name=walletName, balance=0)
+        session.add(wallet)
+        session.flush()
+        
+        company_wallet = CompanyWallet(company_id=company.id, wallet_id=wallet.id)
+        session.add(company_wallet)
+        session.commit()
+        session.refresh(company)
+        
         company_data = jsonable_encoder(company, exclude={Company.location.name})
         company_data[Company.location.name] = (
             wkb.loads(bytes(company.location.data))
