@@ -61,7 +61,6 @@ app_vendor.include_router(bus_stop.route_vendor)
 app_operator.include_router(landmark.route_operator)
 app_operator.include_router(bus_stop.route_operator)
 app_operator.include_router(operator_token.route_operator)
-app_operator.include_router(company.route_operator)
 
 # ------------------------------------------------------
 # Public routers
