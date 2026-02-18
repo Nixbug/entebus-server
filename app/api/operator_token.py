@@ -122,7 +122,7 @@ def search_operator_tokens(
     session: Session, query_params: QueryParams
 ) -> List[OperatorToken]:
     """
-     Search for operator tokens based on provided query parameters.
+    Search for operator tokens based on provided query parameters.
 
     This function supports multiple filtering, ordering, and
     pagination capabilities to retrieve operator tokens that match various criteria.
