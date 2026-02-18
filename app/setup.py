@@ -16,6 +16,8 @@ from app.src.db import (
     SessionLocal,
     Company,
     Operator,
+    OperatorRole,
+    OperatorRoleMap,
 )
 
 
@@ -146,7 +148,7 @@ def initialize():
             "create": True,
             "update": True,
             "delete": True,
-            "bus": {"create": True, "update": True, "delete": True},
+            "vehicle": {"create": True, "update": True, "delete": True},
             "fare": {"create": True, "update": True, "delete": True},
             "route": {"create": True, "update": True, "delete": True},
             "operator": {
@@ -162,6 +164,7 @@ def initialize():
                 "delete": True,
                 "duty": {"create": True, "update": True, "delete": True},
             },
+            "schedule": {"create": True, "update": True, "delete": True},
         },
     }
 
@@ -196,7 +199,7 @@ def initialize():
             "create": False,
             "update": False,
             "delete": False,
-            "bus": {"create": False, "update": False, "delete": False},
+            "vehicle": {"create": False, "update": False, "delete": False},
             "fare": {"create": False, "update": False, "delete": False},
             "route": {"create": False, "update": False, "delete": False},
             "operator": {
@@ -212,6 +215,7 @@ def initialize():
                 "delete": False,
                 "duty": {"create": False, "update": False, "delete": False},
             },
+            "schedule": {"create": False, "update": False, "delete": False},
         },
     }
 
@@ -247,6 +251,67 @@ def initialize():
     )
     session.add(operator)
     session.flush()
+
+    admin_permissions = {
+        "company": {
+            "update": True,
+            "vehicle": {"create": True, "update": True, "delete": True},
+            "fare": {"create": True, "update": True, "delete": True},
+            "route": {"create": True, "update": True, "delete": True},
+            "operator": {
+                "create": True,
+                "update": True,
+                "delete": True,
+                "role": {"create": True, "update": True, "delete": True},
+                "token": {"fetch": True, "delete": True},
+            },
+            "service": {
+                "create": True,
+                "update": True,
+                "delete": True,
+                "duty": {"create": True, "update": True, "delete": True},
+            },
+            "schedule": {"create": True, "update": True, "delete": True},
+        },
+    }
+
+    guest_permissions = {
+        "company": {
+            "update": False,
+            "vehicle": {"create": False, "update": False, "delete": False},
+            "fare": {"create": False, "update": False, "delete": False},
+            "route": {"create": False, "update": False, "delete": False},
+            "operator": {
+                "create": False,
+                "update": False,
+                "delete": False,
+                "role": {"create": False, "update": False, "delete": False},
+                "token": {"fetch": False, "delete": False},
+            },
+            "service": {
+                "create": False,
+                "update": False,
+                "delete": False,
+                "duty": {"create": False, "update": False, "delete": False},
+            },
+            "schedule": {"create": False, "update": False, "delete": False},
+        },
+    }
+
+    admin_role = OperatorRole(
+        company_id=company.id, name="Admin", permissions=admin_permissions
+    )
+    guest_role = OperatorRole(
+        company_id=company.id, name="Guest", permissions=guest_permissions
+    )
+
+    session.add_all([admin_role, guest_role])
+    session.flush()
+
+    admin_role_map = OperatorRoleMap(
+        company_id=company.id, role_id=admin_role.id, operator_id=operator.id
+    )
+    session.add_all([admin_role_map])
 
     session.commit()
     print("* Initialization completed")
