@@ -45,13 +45,14 @@ app_executive.include_router(executive_account.route_executive)
 app_executive.include_router(executive_image.route_executive)
 app_executive.include_router(landmark.route_executive)
 app_executive.include_router(bus_stop.route_executive)
-app_vendor.include_router(vendor_token.route_vendor)
+
 
 # ------------------------------------------------------
 # Vendor routers
 # ------------------------------------------------------
 app_vendor.include_router(landmark.route_vendor)
 app_vendor.include_router(bus_stop.route_vendor)
+app_vendor.include_router(vendor_token.route_vendor)
 
 
 # ------------------------------------------------------

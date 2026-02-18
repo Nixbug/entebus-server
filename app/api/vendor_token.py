@@ -84,7 +84,7 @@ class CreateForm(BaseModel):
     ),
     description=(
         f"""
-            **Issue a new access token for an vendor after validating credentials.**     
+            **Issue a new access token for a vendor after validating credentials.**     
             - Verify the username and password.     
             - Ensure the vendor account is in `active status` before allowing token creation.        
             - Maintain a limit of `{MAX_VENDOR_TOKENS}` active tokens per vendor to control token rotation.               
@@ -102,7 +102,7 @@ async def create_token(
 ):
     try:
         session = SessionLocal()
-        vendor = authenticate_vendor(session, credentials, form_param)
+        vendor = authenticate_vendor(session, Vendor, credentials, form_param)
 
         # Remove excess tokens
         cleanup_old_tokens(

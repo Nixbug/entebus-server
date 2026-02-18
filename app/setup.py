@@ -332,7 +332,7 @@ def initialize():
     session.add(business)
     session.flush()
 
-    vendor = Vendor(
+    admin_vendor = Vendor(
         business_id=business.id,
         username="admin",
         password="password",
@@ -343,21 +343,21 @@ def initialize():
         phone_number="+91-9496801157",
         email_id="contact@nixbug.com",
     )
-    session.add(vendor)
+    session.add(admin_vendor)
     session.flush()
 
-    vendor = Vendor(
+    guest_vendor = Vendor(
         business_id=business.id,
         username="guest",
         password="password",
         gender=GenderType.OTHER,
-        type=VendorType.ADMIN,
+        type=VendorType.NORMAL,
         full_name="Guest",
         status=AccountStatus.ACTIVE,
         phone_number="+91-9496801111",
         email_id="contacthr@nixbug.com",
     )
-    session.add(vendor)
+    session.add(guest_vendor)
     session.flush()
 
     admin_permissions = {
@@ -415,12 +415,12 @@ def initialize():
     session.flush()
 
     admin_role_map = VendorRoleMap(
-        business_id=business.id, role_id=admin_role.id, vendor_id=vendor.id
+        business_id=business.id, role_id=admin_role.id, vendor_id=admin_vendor.id
     )
     session.add_all([admin_role_map])
 
     guest_role_map = VendorRoleMap(
-        business_id=business.id, role_id=guest_role.id, vendor_id=vendor.id
+        business_id=business.id, role_id=guest_role.id, vendor_id=guest_vendor.id
     )
     session.add_all([guest_role_map])
 

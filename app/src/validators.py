@@ -24,6 +24,7 @@ from app.src.db import (
     OperatorRole,
     VendorRole,
     Company,
+    Business,
 )
 
 
@@ -135,13 +136,17 @@ def authenticate_operator(
 
 
 def authenticate_vendor(
-    session: Session, credentials: OAuth2PasswordRequestForm, form_param: Any
+    session: Session,
+    model_cls: Type[Vendor],
+    credentials: OAuth2PasswordRequestForm,
+    form_param: Any,
 ) -> Vendor:
     """
     Authenticate a Vendor by username and business_id.
 
     Args:
         session (Session): Active SQLAlchemy session.
+        model_cls (Type[Vendor]): ORM class for the vendor.
         credentials (OAuth2PasswordRequestForm): Credentials containing username, password and grant_type.
         form_param (Any): Form parameters containing business_id.
 
@@ -154,18 +159,17 @@ def authenticate_vendor(
         InactiveAccount: If the vendor account is not ACTIVE.
         UnknownValue: If the provided business_id does not exist.
     """
-    from app.src.db import Business
-
     business = (
         session.query(Business).filter(Business.id == form_param.business_id).first()
     )
     if business is None:
         raise exceptions.UnknownValue(Vendor.business_id)
+
     vendor = (
-        session.query(Vendor)
+        session.query(model_cls)
         .filter(
-            Vendor.username == credentials.username,
-            Vendor.business_id == form_param.business_id,
+            model_cls.username == credentials.username,
+            model_cls.business_id == form_param.business_id,
         )
         .first()
     )
