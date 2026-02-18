@@ -19,6 +19,7 @@ from app.src.db import (
     ExecutiveToken,
     Operator,
     OperatorToken,
+    Vendor,
     VendorToken,
     OperatorRole,
     VendorRole,
@@ -27,22 +28,22 @@ from app.src.db import (
 
 
 def user_credentials(
-    user: Union[Executive, Operator],
+    user: Union[Executive, Operator, Vendor],
     credentials: OAuth2PasswordRequestForm,
-) -> Union[Executive, Operator]:
+) -> Union[Executive, Operator, Vendor]:
     """
-    Generic user authentication function for Executive and Operator.
+    Generic user authentication function for Executive, Operator, and Vendor.
 
     This function assumes the user has already been fetched from the database.
     It validates the grant_type, verifies the provided password, and ensures
     the account is active.
 
     Args:
-        user (Union[Executive, Operator]): The already fetched user instance.
+        user (Union[Executive, Operator, Vendor]): The already fetched user instance.
         credentials (OAuth2PasswordRequestForm): Credentials containing password, and grant_type.
 
     Returns:
-        Union[Executive, Operator]: The authenticated user instance.
+        Union[Executive, Operator, Vendor]: The authenticated user instance.
 
     Raises:
         InvalidGrantType: If the grant_type is not PASSWORD.
@@ -134,20 +135,45 @@ def authenticate_operator(
 
 
 def authenticate_vendor(
-    session: Session, credentials: OAuth2PasswordRequestForm
-) -> Any:
+    session: Session, credentials: OAuth2PasswordRequestForm, form_param: Any
+) -> Vendor:
     """
-    Vendor authentication helper.
+    Authenticate a Vendor by username and business_id.
 
-    This function is intentionally not implemented yet. It mirrors the
-    executive and operator authentication helpers but must be implemented
-    with proper vendor-specific logic before use.
+    Args:
+        session (Session): Active SQLAlchemy session.
+        credentials (OAuth2PasswordRequestForm): Credentials containing username, password and grant_type.
+        form_param (Any): Form parameters containing business_id.
+
+    Returns:
+        Vendor: The authenticated Vendor instance.
 
     Raises:
-        NotImplementedError: Always, to prevent silent failures if called
-            before vendor authentication is implemented.
+        InvalidCredentials: If the username/business lookup or password validation fails.
+        InvalidGrantType: If credentials.grant_type is not GrantType.PASSWORD.
+        InactiveAccount: If the vendor account is not ACTIVE.
+        UnknownValue: If the provided business_id does not exist.
     """
-    raise NotImplementedError("Vendor authentication is not implemented yet.")
+    from app.src.db import Business
+
+    business = (
+        session.query(Business).filter(Business.id == form_param.business_id).first()
+    )
+    if business is None:
+        raise exceptions.UnknownValue(Vendor.business_id)
+    vendor = (
+        session.query(Vendor)
+        .filter(
+            Vendor.username == credentials.username,
+            Vendor.business_id == form_param.business_id,
+        )
+        .first()
+    )
+
+    if vendor is None:
+        raise exceptions.InvalidCredentials()
+
+    return user_credentials(vendor, credentials)
 
 
 def validate_and_revoke_refresh_token(

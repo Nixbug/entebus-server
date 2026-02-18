@@ -3,7 +3,13 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
 from alembic.script import ScriptDirectory
-from app.src.enums import CompanyStatus, GenderType, OperatorType, AccountStatus
+from app.src.enums import (
+    CompanyStatus,
+    GenderType,
+    OperatorType,
+    AccountStatus,
+    VendorType,
+)
 
 from app.src import buckets, minio
 from app.src.db import (
@@ -18,6 +24,10 @@ from app.src.db import (
     Operator,
     OperatorRole,
     OperatorRoleMap,
+    Business,
+    Vendor,
+    VendorRole,
+    VendorRoleMap,
 )
 
 
@@ -312,6 +322,107 @@ def initialize():
         company_id=company.id, role_id=admin_role.id, operator_id=operator.id
     )
     session.add_all([admin_role_map])
+
+    business = Business(
+        name="Nixbug Softwares OPC Pvt Ltd",
+        status=CompanyStatus.VERIFIED,
+        address="Varkala, Thiruvananthapuram, Kerala 695311",
+        location="POINT(76.69065175172149 8.761272913919761)",
+    )
+    session.add(business)
+    session.flush()
+
+    vendor = Vendor(
+        business_id=business.id,
+        username="admin",
+        password="password",
+        gender=GenderType.OTHER,
+        type=VendorType.ADMIN,
+        full_name="Admin",
+        status=AccountStatus.ACTIVE,
+        phone_number="+91-9496801157",
+        email_id="contact@nixbug.com",
+    )
+    session.add(vendor)
+    session.flush()
+
+    vendor = Vendor(
+        business_id=business.id,
+        username="guest",
+        password="password",
+        gender=GenderType.OTHER,
+        type=VendorType.ADMIN,
+        full_name="Guest",
+        status=AccountStatus.ACTIVE,
+        phone_number="+91-9496801111",
+        email_id="contacthr@nixbug.com",
+    )
+    session.add(vendor)
+    session.flush()
+
+    admin_permissions = {
+        "business": {
+            "create": True,
+            "update": True,
+            "delete": True,
+            "vendor": {
+                "create": True,
+                "update": True,
+                "delete": True,
+                "role": {
+                    "create": True,
+                    "update": True,
+                    "delete": True,
+                },
+                "token": {
+                    "fetch": True,
+                    "delete": True,
+                },
+            },
+        }
+    }
+
+    guest_permissions = {
+        "business": {
+            "create": False,
+            "update": False,
+            "delete": False,
+            "vendor": {
+                "create": False,
+                "update": False,
+                "delete": False,
+                "role": {
+                    "create": False,
+                    "update": False,
+                    "delete": False,
+                },
+                "token": {
+                    "fetch": True,
+                    "delete": False,
+                },
+            },
+        }
+    }
+
+    admin_role = VendorRole(
+        business_id=business.id, name="Admin", permissions=admin_permissions
+    )
+    guest_role = VendorRole(
+        business_id=business.id, name="Guest", permissions=guest_permissions
+    )
+
+    session.add_all([admin_role, guest_role])
+    session.flush()
+
+    admin_role_map = VendorRoleMap(
+        business_id=business.id, role_id=admin_role.id, vendor_id=vendor.id
+    )
+    session.add_all([admin_role_map])
+
+    guest_role_map = VendorRoleMap(
+        business_id=business.id, role_id=guest_role.id, vendor_id=vendor.id
+    )
+    session.add_all([guest_role_map])
 
     session.commit()
     print("* Initialization completed")
