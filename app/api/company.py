@@ -59,7 +59,7 @@ class CreateForm(BaseModel):
     type: CompanyType = Field(
         description=enum_str(CompanyType), default=CompanyType.OTHER
     )
-    description: str = Field(max_length=1024)
+    description: str | None = Field(default=None, max_length=1024)
     address: str = Field(max_length=512)
     location: str = Field(
         description=(
