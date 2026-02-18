@@ -8,17 +8,16 @@ and structured output. Endpoints for deletion are planned for future implementat
 
 from datetime import datetime, timedelta
 from enum import StrEnum
-from operator import or_
-from tokenize import String
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Form, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from fastapi.security import OAuth2PasswordRequestForm
-from requests import Session
+from sqlalchemy.orm import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
-from app.src.permissions.operator import PermissionPath
+from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
+from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.db import ExecutiveToken, Operator, OperatorToken, SessionLocal
 from app.src import exceptions
 from app.src.enums import GrantType, OrderIn, PlatformType
@@ -303,12 +302,12 @@ async def refresh_token(
     description=(
         """
             **Fetch operator tokens with permission-based filtering.**     
-            - If the logged-in operator has `operator.token.fetch` permission, all masked tokens are returned.    
+            - If the logged-in operator has `company.operator.token.fetch` permission, all masked tokens are returned.    
             - If the logged-in operator does not have permission, only masked tokens for the logged-in operator are returned.    
         """
     ),
 )
-async def fetch_tokens(
+async def fetch_tokens_operator(
     query_params: QueryParams = Depends(),
     access_token=Depends(bearer_operator),
 ):
@@ -317,7 +316,7 @@ async def fetch_tokens(
         token = verify_token(session, OperatorToken, access_token.credentials)
         roles = get_operator_roles(session, token)
         has_permission = verify_permission(
-            roles, PermissionPath.FETCH_COMPANY_OPERATOR_TOKEN, False
+            roles, OperatorPermissionPath.FETCH_COMPANY_OPERATOR_TOKEN, False
         )
         if has_permission is False:
             query_params.operator_id = token.operator_id
@@ -339,18 +338,17 @@ async def fetch_tokens(
     responses=fuse_exception_responses(
         [
             exceptions.InvalidToken(),
-            exceptions.NoPermission(),
         ]
     ),
     description=(
         """
             **Fetch operator tokens with permission-based filtering.**     
-            - If the logged-in executive has `executive.token.fetch` permission, all masked tokens are returned.    
+            - If the logged-in executive has `company.operator.token.fetch` permission, all masked tokens are returned.    
             - If the logged-in executive does not have permission, only masked tokens for the logged-in executive's company are returned.    
         """
     ),
 )
-async def fetch_tokens(
+async def fetch_tokens_executive(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
 ):
@@ -359,7 +357,7 @@ async def fetch_tokens(
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
         has_permission = verify_permission(
-            roles, PermissionPath.FETCH_COMPANY_OPERATOR_TOKEN, False
+            roles, ExecutivePermissionPath.FETCH_COMPANY_OPERATOR_TOKEN, False
         )
 
         if has_permission is False:
