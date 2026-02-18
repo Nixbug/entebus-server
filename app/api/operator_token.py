@@ -318,6 +318,7 @@ async def fetch_tokens_operator(
         has_permission = verify_permission(
             roles, OperatorPermissionPath.FETCH_COMPANY_OPERATOR_TOKEN, False
         )
+        query_params.company_id = token.company_id
         if has_permission is False:
             query_params.operator_id = token.operator_id
 
