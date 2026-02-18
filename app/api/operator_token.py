@@ -135,7 +135,7 @@ def search_operator_tokens(
     Returns:
         List[OperatorToken]: List of operator tokens that match the search criteria.
     """
-    query = session.query(OperatorToken)
+    query = session.query(OperatorToken).filter(OperatorToken.is_revoked == False)
 
     if query_params.operator_id is not None:
         query = query.filter(OperatorToken.operator_id == query_params.operator_id)
@@ -319,11 +319,9 @@ async def fetch_tokens(
         has_permission = verify_permission(
             roles, PermissionPath.FETCH_COMPANY_OPERATOR_TOKEN, False
         )
-        query = session.query(OperatorToken).filter(OperatorToken.is_revoked == False)
-        if query_params.operator_id is not None:
-            query = query.filter(OperatorToken.operator_id == token.operator_id)
         if has_permission is False:
-            query = query.filter(OperatorToken.operator_id == token.operator_id)
+            query_params.operator_id = token.operator_id
+
         return search_operator_tokens(session, query_params)
     except Exception as e:
         exceptions.handle(e)
@@ -365,7 +363,7 @@ async def fetch_tokens(
         )
 
         if has_permission is False:
-            query_params.operator_id = token.operator_id
+            query_params.company_id = token.company_id
 
         return search_operator_tokens(session, query_params)
     except Exception as e:
