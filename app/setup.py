@@ -326,7 +326,7 @@ def initialize():
     business = Business(
         name="Nixbug Softwares OPC Pvt Ltd",
         status=CompanyStatus.VERIFIED,
-        address="Varkala, Thiruvananthapuram, Kerala 695311",
+        address="Edava, Thiruvananthapuram, Kerala 695311",
         location="POINT(76.69065175172149 8.761272913919761)",
     )
     session.add(business)
