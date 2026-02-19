@@ -102,7 +102,7 @@ async def create_token(
 ):
     try:
         session = SessionLocal()
-        vendor = authenticate_vendor(session, Vendor, credentials, form_param)
+        vendor = authenticate_vendor(session, credentials, form_param)
 
         # Remove excess tokens
         cleanup_old_tokens(

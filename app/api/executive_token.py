@@ -150,7 +150,7 @@ async def create_token(
 ):
     try:
         session = SessionLocal()
-        executive = authenticate_executive(session, Executive, credentials)
+        executive = authenticate_executive(session, credentials)
 
         # Remove excess tokens
         cleanup_old_tokens(

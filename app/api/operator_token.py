@@ -194,7 +194,7 @@ async def create_token(
 ):
     try:
         session = SessionLocal()
-        operator = authenticate_operator(session, Operator, credentials, form_param)
+        operator = authenticate_operator(session, credentials, form_param)
 
         # Remove excess tokens
         cleanup_old_tokens(
