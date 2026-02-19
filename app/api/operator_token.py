@@ -318,6 +318,7 @@ async def fetch_tokens_operator(
         has_permission = verify_permission(
             roles, OperatorPermissionPath.FETCH_COMPANY_OPERATOR_TOKEN, False
         )
+
         if (
             query_params.company_id is not None
             and query_params.company_id != token.company_id
