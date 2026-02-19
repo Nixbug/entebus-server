@@ -366,21 +366,16 @@ async def delete_token_operator(
         token_to_delete = (
             session.query(OperatorToken)
             .filter(OperatorToken.id == id)
+            .filter(OperatorToken.company_id == token.company_id)
             .filter(OperatorToken.is_revoked.is_(False))
             .first()
         )
 
         if token_to_delete is None:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
-        if token_to_delete.company_id != token.company_id:
-            raise exceptions.NoPermission()
-
         if token_to_delete.operator_id != token.operator_id:
             roles = get_operator_roles(session, token)
-            verify_permission(
-                roles,
-                OperatorPermissionPath.DELETE_COMPANY_OPERATOR_TOKEN,
-            )
+            verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_OPERATOR_TOKEN)
 
         # Revoke token
         token_to_delete.is_revoked = True
@@ -468,12 +463,8 @@ async def delete_token_executive(
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
-
         roles = get_executive_roles(session, token)
-        verify_permission(
-            roles,
-            ExecutivePermissionPath.DELETE_COMPANY_OPERATOR_TOKEN,
-        )
+        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_OPERATOR_TOKEN)
 
         token_to_delete = (
             session.query(OperatorToken)
