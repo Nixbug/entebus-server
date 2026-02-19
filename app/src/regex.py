@@ -19,3 +19,6 @@ PASSWORD_PATTERN = r"^[a-zA-Z0-9-+,.@_$%&*#!^=/?]*$"
 # - Optional separators (space, dash, dot)
 # - 2 to 10 characters per group, up to 3 groups
 VEHICLE_NUMBER_PATTERN = r"^([A-Z0-9]{1,4}[-. ]?){1,3}[A-Z0-9]{1,4}$"
+
+# Role name must start with a letter and can include letters, numbers, special characters and spaces
+NAME_PATTERN = r"^[A-Za-z0-9](?:[A-Za-z0-9 _.-]*[A-Za-z0-9])?$"

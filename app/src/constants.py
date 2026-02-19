@@ -38,7 +38,7 @@ OPENOBSERVE_PORT = environ.get("OPENOBSERVE_PORT", "5080")
 OPENOBSERVE_USERNAME = environ.get("OPENOBSERVE_USERNAME", "admin@entebus.com")
 OPENOBSERVE_PASSWORD = environ.get("OPENOBSERVE_PASSWORD", "password")
 OPENOBSERVE_ORG = environ.get("OPENOBSERVE_ORG", "nixbug")
-OPENOBSERVE_STREAM = environ.get("OPENOBSERVE_STREAM", "entebus-core-server")
+OPENOBSERVE_STREAM = environ.get("OPENOBSERVE_STREAM", "entebus-server")
 
 
 # ---------------------------------------------------------------------------
@@ -64,7 +64,10 @@ MINIO_PASSWORD = environ.get("MINIO_PASSWORD", "password")
 MAX_EXECUTIVE_TOKENS = 5  # Maximum tokens per executive
 MAX_OPERATOR_TOKENS = 5  # Maximum tokens per operator
 MAX_VENDOR_TOKENS = 1  # Maximum tokens per vendor
-MAX_TOKEN_VALIDITY = 7 * 24 * 60 * 60  # Token validity (in seconds, 7 days)
+MAX_REFRESH_TOKEN_VALIDITY = (
+    7 * 24 * 60 * 60
+)  # Refresh token validity (in seconds, 7 days)
+MAX_ACCESS_TOKEN_VALIDITY = 1 * 60 * 60  # Access token validity (in seconds, 1 hour)
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +75,7 @@ MAX_TOKEN_VALIDITY = 7 * 24 * 60 * 60  # Token validity (in seconds, 7 days)
 # ---------------------------------------------------------------------------
 MAX_LANDMARK_AREA = 5 * 1000 * 1000  # 5 km² in m²
 MIN_LANDMARK_AREA = 2  # 2 m²
+MAX_LANDMARK_UPDATE_DISTANCE = 1000  # 1 km
 
 
 # ---------------------------------------------------------------------------
@@ -115,3 +119,11 @@ LOCK_MAX_WAIT_SECONDS = 10
 # Fare constants
 # ---------------------------------------------------------------------------
 DYNAMIC_FARE_VERSION = 1  # Current dynamic fare version
+
+# ---------------------------------------------------------------------------
+# Image constants
+# ---------------------------------------------------------------------------
+MAX_IMAGE_RESOLUTION = 2048  # Maximum allowed width/height in pixels
+MIN_IMAGE_RESOLUTION = 16  # Minimum allowed width/height in pixels
+MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024  # Maximum allowed file size in bytes (10 MB)
+MIN_IMAGE_FILE_SIZE = 1 * 1024  # Minimum allowed file size in bytes (1 KB)
