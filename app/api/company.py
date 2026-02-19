@@ -2,7 +2,7 @@
 Company API Router for EnteBus.
 
 Provides endpoints for managing companies, including creation.
-input validation and structured output.
+Uses Pydantic schemas for input validation and structured output.
 Endpoints for update, deletion, and retrieval are planned for future implementation.
 """
 
