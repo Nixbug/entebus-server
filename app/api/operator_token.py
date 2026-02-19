@@ -390,7 +390,7 @@ async def delete_token_operator(
         token_log_data = jsonable_encoder(token_to_delete)
         token_log_data.pop(OperatorToken.access_token.name)
         token_log_data.pop(OperatorToken.refresh_token.name)
-        log_event(token_to_delete, request_info, token_log_data)
+        log_event(token, request_info, token_log_data)
 
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
