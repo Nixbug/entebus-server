@@ -9,6 +9,7 @@ from app.src.enums import (
     OperatorType,
     AccountStatus,
     VendorType,
+    BusinessStatus,
 )
 
 from app.src import buckets, minio
@@ -325,7 +326,7 @@ def initialize():
 
     business = Business(
         name="Nixbug Softwares OPC Pvt Ltd",
-        status=CompanyStatus.VERIFIED,
+        status=BusinessStatus.ACTIVE,
         address="Edava, Thiruvananthapuram, Kerala 695311",
         location="POINT(76.69065175172149 8.761272913919761)",
     )

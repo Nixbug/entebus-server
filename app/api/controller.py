@@ -50,9 +50,9 @@ app_executive.include_router(bus_stop.route_executive)
 # ------------------------------------------------------
 # Vendor routers
 # ------------------------------------------------------
+app_vendor.include_router(vendor_token.route_vendor)
 app_vendor.include_router(landmark.route_vendor)
 app_vendor.include_router(bus_stop.route_vendor)
-app_vendor.include_router(vendor_token.route_vendor)
 
 
 # ------------------------------------------------------
