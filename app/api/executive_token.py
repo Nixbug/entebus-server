@@ -236,7 +236,7 @@ async def refresh_token(
         token_log_data = token_data.copy()
         token_log_data.pop(ExecutiveToken.access_token.name)
         token_log_data.pop(ExecutiveToken.refresh_token.name)
-        log_event(refresh_token, request_info, token_log_data)
+        log_event(token, request_info, token_log_data)
         return token_data
     except Exception as e:
         exceptions.handle(e)
@@ -283,7 +283,7 @@ async def revoke_token(
             token_log_data = jsonable_encoder(token_to_revoke)
             token_log_data.pop(ExecutiveToken.access_token.name)
             token_log_data.pop(ExecutiveToken.refresh_token.name)
-            log_event(token_to_revoke, request_info, token_log_data)
+            log_event(token, request_info, token_log_data)
 
         return Response(status_code=status.HTTP_200_OK)
     except Exception as e:

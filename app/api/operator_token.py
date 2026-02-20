@@ -282,7 +282,7 @@ async def refresh_token(
         token_log_data = token_data.copy()
         token_log_data.pop(OperatorToken.access_token.name)
         token_log_data.pop(OperatorToken.refresh_token.name)
-        log_event(refresh_token, request_info, token_log_data)
+        log_event(token, request_info, token_log_data)
         return token_data
     except Exception as e:
         exceptions.handle(e)
@@ -370,12 +370,13 @@ async def delete_token_operator(
             .filter(OperatorToken.is_revoked.is_(False))
             .first()
         )
-
         if token_to_delete is None:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
         if token_to_delete.operator_id != token.operator_id:
             roles = get_operator_roles(session, token)
-            verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_OPERATOR_TOKEN)
+            verify_permission(
+                roles, OperatorPermissionPath.DELETE_COMPANY_OPERATOR_TOKEN
+            )
 
         # Revoke token
         token_to_delete.is_revoked = True
@@ -386,9 +387,7 @@ async def delete_token_operator(
         token_log_data.pop(OperatorToken.access_token.name)
         token_log_data.pop(OperatorToken.refresh_token.name)
         log_event(token, request_info, token_log_data)
-
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -485,9 +484,7 @@ async def delete_token_executive(
         token_log_data.pop(OperatorToken.access_token.name)
         token_log_data.pop(OperatorToken.refresh_token.name)
         log_event(token, request_info, token_log_data)
-
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-
     except Exception as e:
         exceptions.handle(e)
     finally:
