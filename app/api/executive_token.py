@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.bearer import oauth2_executive
-from app.src.db import Executive, ExecutiveToken, SessionLocal
+from app.src.db import ExecutiveToken, SessionLocal
 from app.src import exceptions
 from app.src.enums import PlatformType, GrantType, OrderIn
 from app.src.filters import (
