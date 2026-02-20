@@ -1,37 +1,54 @@
 """
 Vendor Token API Router for EnteBus.
 
-Provides an endpoint for managing vendor access tokens, including creation.
+Provides an endpoint for managing vendor access tokens, including creation, and retrieval.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for refresh, deletion, and retrieval are planned for future implementation.
+Endpoints for deletion and refresh are planned for future implementation.
 """
 
 from datetime import datetime, timedelta
-from typing import Optional
-from fastapi import APIRouter, Depends, Form
+from enum import StrEnum
+from typing import Optional, List
+from fastapi import APIRouter, Depends, Form, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
 
-from app.src.db import Vendor, VendorToken, SessionLocal
+from app.api.bearer import bearer_vendor, oauth2_executive
+from app.src.db import Vendor, VendorToken, ExecutiveToken, SessionLocal
 from app.src import exceptions
-from app.src.enums import PlatformType
+from app.src.enums import PlatformType, OrderIn
+from app.src.filters import (
+    CreatedOnFilter,
+    IDFilter,
+    PaginationFilter,
+    ClientDataFilter,
+)
 from app.src.openobserve import log_event
+from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
+# from app.src.permissions.vendor import PermissionPath as VendorPermissionPath
 from app.src.urls import URL_VENDOR_TOKEN
 from app.src.constants import (
     MAX_ACCESS_TOKEN_VALIDITY,
     MAX_VENDOR_TOKENS,
     MAX_REFRESH_TOKEN_VALIDITY,
 )
-from app.src.validators import authenticate_vendor
+from app.src.validators import authenticate_vendor, verify_token, verify_permission
 from app.src.functions import (
+    apply_created_on_filters,
+    apply_id_filters,
+    apply_client_data_filters,
     cleanup_old_tokens,
     enum_str,
     fuse_exception_responses,
     get_request_info,
+    get_executive_roles,
+    get_vendor_roles,
 )
 
 route_vendor = APIRouter()
+route_executive = APIRouter()
 
 
 # Output Schema
@@ -65,6 +82,68 @@ class CreateForm(BaseModel):
         Form(description=enum_str(PlatformType), default=PlatformType.OTHER)
     )
     client_details: str | None = Field(Form(max_length=1024, default=None))
+
+
+## Query Parameters
+class OrderBy(StrEnum):
+    """Enum for ordering results."""
+
+    ID = "id"
+    CREATED_ON = "created_on"
+
+
+class QueryParams(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter):
+    """Query parameters for vendor token endpoints."""
+
+    vendor_id: int | None = Field(Query(default=None))
+    business_id: int | None = Field(Query(default=None))
+    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
+    order_in: OrderIn = Field(
+        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
+    )
+
+
+## Functions
+def search_vendor_tokens(
+    session: Session, query_params: QueryParams
+) -> List[VendorToken]:
+    """
+    Search for vendor tokens based on provided query parameters.
+
+    This function supports multiple filtering, ordering, and
+    pagination capabilities to retrieve vendor tokens that match various criteria.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        query_params (QueryParams): Query parameters containing search criteria.
+
+    Returns:
+        List[VendorToken]: List of vendor tokens that match the search criteria.
+    """
+    query = session.query(VendorToken).filter(VendorToken.is_revoked == False)
+
+    if query_params.vendor_id is not None:
+        query = query.filter(VendorToken.vendor_id == query_params.vendor_id)
+    if query_params.business_id is not None:
+        query = query.filter(VendorToken.business_id == query_params.business_id)
+
+    # generalized helpers
+    query = apply_id_filters(query, VendorToken, query_params)
+    query = apply_created_on_filters(query, VendorToken, query_params)
+    query = apply_client_data_filters(query, VendorToken, query_params)
+
+    # ordering and pagination
+    ordering_attr = getattr(VendorToken, query_params.order_by.value)
+    ordering_func = (
+        ordering_attr.asc
+        if query_params.order_in == OrderIn.ASCENDING
+        else ordering_attr.desc
+    )
+    query = query.order_by(ordering_func())
+    query = query.offset(query_params.offset).limit(query_params.limit)
+
+    return query.all()
+
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +208,91 @@ async def create_token(
         token_log_data.pop(VendorToken.refresh_token.name)
         log_event(token, request_info, token_log_data)
         return token_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_vendor.get(
+    URL_VENDOR_TOKEN,
+    tags=["Token"],
+    response_model=list[MaskedVendorTokenSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetch vendor tokens with optional filtering.**     
+            - Retrieve masked vendor tokens (without revealing the actual tokens).     
+            - Filter by vendor ID, creation date, or other query parameters.     
+            - Results are paginated and can be ordered by ID or creation date.     
+        """
+    ),
+)
+async def fetch_tokens_vendor(
+    query_params: QueryParams = Depends(),
+    access_token=Depends(bearer_vendor),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, VendorToken, access_token.credentials)
+        roles = get_vendor_roles(session, token)
+        has_permission = verify_permission(
+            roles, VendorPermissionPath.FETCH_BUSINESS_VENDOR_TOKEN, False
+        )
+
+        if (
+            query_params.business_id is not None
+            and query_params.business_id != token.business_id
+        ):
+            return []
+
+        query_params.business_id = token.business_id
+        if has_permission is False:
+            query_params.vendor_id = token.vendor_id
+
+        return search_vendor_tokens(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Executive]
+# ---------------------------------------------------------------------------
+@route_executive.get(
+    URL_VENDOR_TOKEN,
+    tags=["Vendor Token"],
+    response_model=list[MaskedVendorTokenSchema],
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(),
+         exceptions.NoPermission(),
+         ]
+    ),
+    description=(
+        """
+            **Fetch vendor tokens with permission-based filtering.**     
+            - If the logged-in executive has `business.vendor.token.fetch` permission, all masked tokens are returned.    
+            - If the logged-in executive does not have permission, they cannot access this endpoint.     
+        """
+    ),
+)
+async def fetch_tokens_executive(
+    query_params: QueryParams = Depends(),
+    access_token=Depends(oauth2_executive),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        has_permission = verify_permission(
+            roles, ExecutivePermissionPath.FETCH_BUSINESS_VENDOR_TOKEN, False
+        )
+
+        if has_permission is False:
+            raise exceptions.NoPermission()
+        return search_vendor_tokens(session, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:

@@ -46,6 +46,7 @@ app_executive.include_router(executive_image.route_executive)
 app_executive.include_router(landmark.route_executive)
 app_executive.include_router(bus_stop.route_executive)
 app_executive.include_router(operator_token.route_executive)
+app_executive.include_router(vendor_token.route_executive)
 
 
 # ------------------------------------------------------
