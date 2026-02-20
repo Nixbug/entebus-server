@@ -332,6 +332,7 @@ async def revoke_token(
             token_to_revoke.is_revoked = True
             session.commit()
             session.refresh(token_to_revoke)
+            
             token_log_data = jsonable_encoder(token_to_revoke)
             token_log_data.pop(OperatorToken.access_token.name)
             token_log_data.pop(OperatorToken.refresh_token.name)
