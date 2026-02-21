@@ -2,14 +2,14 @@
 Operator Token API Router for EnteBus.
 
 Provides an endpoint for managing operator access tokens, including creation,
-refresh, and retrieval. Uses Pydantic schemas for input validation
-and structured output. Endpoints for deletion are planned for future implementation.
+refresh, deletion, and retrieval. Uses Pydantic schemas for
+input validation and structured output.
 """
 
 from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Form, Query
+from fastapi import APIRouter, Depends, Form, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from fastapi.security import OAuth2PasswordRequestForm
@@ -96,6 +96,12 @@ class UpdateForm(BaseModel):
     grant_type: GrantType = Field(
         Form(description=enum_str(GrantType), default=GrantType.REFRESH_TOKEN)
     )
+
+
+class LogoutForm(BaseModel):
+    """Form data for logging out with an operator token."""
+
+    token: str = Field(Form(description="Access or refresh token"))
 
 
 ## Query Parameters
@@ -194,7 +200,7 @@ async def create_token(
 ):
     try:
         session = SessionLocal()
-        operator = authenticate_operator(session, Operator, credentials, form_param)
+        operator = authenticate_operator(session, credentials, form_param)
 
         # Remove excess tokens
         cleanup_old_tokens(
@@ -282,8 +288,56 @@ async def refresh_token(
         token_log_data = token_data.copy()
         token_log_data.pop(OperatorToken.access_token.name)
         token_log_data.pop(OperatorToken.refresh_token.name)
-        log_event(refresh_token, request_info, token_log_data)
+        log_event(token, request_info, token_log_data)
         return token_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.post(
+    f"{URL_OPERATOR_TOKEN}/revoke",
+    tags=["Token"],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Revokes an access token or refresh token associated with the operator.**     
+            - Operator must have a valid access token.     
+            - Revokes the token (access or refresh) specified in the request body.      
+            - If the token is invalid, doesn't belong to the operator, or is already revoked, the operation is silently ignored.       
+        """
+    ),
+)
+async def revoke_token(
+    form_param: LogoutForm = Depends(),
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+
+        token_to_revoke = (
+            session.query(OperatorToken)
+            .filter(OperatorToken.operator_id == token.operator_id)
+            .filter(
+                (OperatorToken.access_token == form_param.token)
+                | (OperatorToken.refresh_token == form_param.token)
+            )
+            .filter(OperatorToken.is_revoked.is_(False))
+            .first()
+        )
+        if token_to_revoke:
+            token_to_revoke.is_revoked = True
+            session.commit()
+            session.refresh(token_to_revoke)
+            
+            token_log_data = jsonable_encoder(token_to_revoke)
+            token_log_data.pop(OperatorToken.access_token.name)
+            token_log_data.pop(OperatorToken.refresh_token.name)
+            log_event(token, request_info, token_log_data)
+        return Response(status_code=status.HTTP_200_OK)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -336,6 +390,64 @@ async def fetch_tokens_operator(
         session.close()
 
 
+@route_operator.delete(
+    f"{URL_OPERATOR_TOKEN}/{{id}}",
+    tags=["Token"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an operator access token.**    
+            - Operator must have a valid access token.    
+            - Operators can delete their own tokens without additional permissions.    
+            - To delete another operator's token in the same company,  
+              the 'company.operator.token.delete' permission is required.    
+            - If the token ID is invalid or already revoked, the operation is silently ignored.    
+        """
+    ),
+)
+async def delete_token_operator(
+    id: int,
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+
+        token_to_delete = (
+            session.query(OperatorToken)
+            .filter(OperatorToken.id == id)
+            .filter(OperatorToken.company_id == token.company_id)
+            .filter(OperatorToken.is_revoked.is_(False))
+            .first()
+        )
+        if token_to_delete is None:
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+        if token_to_delete.operator_id != token.operator_id:
+            roles = get_operator_roles(session, token)
+            verify_permission(
+                roles, OperatorPermissionPath.DELETE_COMPANY_OPERATOR_TOKEN
+            )
+
+        # Revoke token
+        token_to_delete.is_revoked = True
+        session.commit()
+        session.refresh(token_to_delete)
+
+        token_log_data = jsonable_encoder(token_to_delete)
+        token_log_data.pop(OperatorToken.access_token.name)
+        token_log_data.pop(OperatorToken.refresh_token.name)
+        log_event(token, request_info, token_log_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -373,6 +485,60 @@ async def fetch_tokens_executive(
             raise exceptions.NoPermission()
 
         return search_operator_tokens(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.delete(
+    f"{URL_OPERATOR_TOKEN}/{{id}}",
+    tags=["Operator Token"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an operator access token.**    
+            - Executive must have a valid access token.    
+            - Executive must have 'company.operator.token.delete' permission.    
+            - Executive can delete any operator's token.    
+            - If the token ID is invalid or already revoked, the operation is silently ignored.    
+        """
+    ),
+)
+async def delete_token_executive(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_OPERATOR_TOKEN)
+
+        token_to_delete = (
+            session.query(OperatorToken)
+            .filter(OperatorToken.id == id)
+            .filter(OperatorToken.is_revoked.is_(False))
+            .first()
+        )
+
+        if token_to_delete is None:
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+        # Revoke token
+        token_to_delete.is_revoked = True
+        session.commit()
+        session.refresh(token_to_delete)
+
+        token_log_data = jsonable_encoder(token_to_delete)
+        token_log_data.pop(OperatorToken.access_token.name)
+        token_log_data.pop(OperatorToken.refresh_token.name)
+        log_event(token, request_info, token_log_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:

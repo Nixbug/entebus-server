@@ -17,6 +17,7 @@ from app.api import (
     executive_role,
     landmark,
     operator_token,
+    vendor_token,
 )
 from app.src.enums import AppID
 
@@ -52,6 +53,7 @@ app_executive.include_router(company.route_executive)
 # ------------------------------------------------------
 # Vendor routers
 # ------------------------------------------------------
+app_vendor.include_router(vendor_token.route_vendor)
 app_vendor.include_router(landmark.route_vendor)
 app_vendor.include_router(bus_stop.route_vendor)
 
@@ -59,9 +61,9 @@ app_vendor.include_router(bus_stop.route_vendor)
 # ------------------------------------------------------
 # Operator routers
 # ------------------------------------------------------
+app_operator.include_router(operator_token.route_operator)
 app_operator.include_router(landmark.route_operator)
 app_operator.include_router(bus_stop.route_operator)
-app_operator.include_router(operator_token.route_operator)
 
 
 # ------------------------------------------------------

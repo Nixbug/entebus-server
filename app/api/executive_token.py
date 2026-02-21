@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.bearer import oauth2_executive
-from app.src.db import Executive, ExecutiveToken, SessionLocal
+from app.src.db import ExecutiveToken, SessionLocal
 from app.src import exceptions
 from app.src.enums import PlatformType, GrantType, OrderIn
 from app.src.filters import (
@@ -150,7 +150,7 @@ async def create_token(
 ):
     try:
         session = SessionLocal()
-        executive = authenticate_executive(session, Executive, credentials)
+        executive = authenticate_executive(session, credentials)
 
         # Remove excess tokens
         cleanup_old_tokens(
@@ -236,7 +236,7 @@ async def refresh_token(
         token_log_data = token_data.copy()
         token_log_data.pop(ExecutiveToken.access_token.name)
         token_log_data.pop(ExecutiveToken.refresh_token.name)
-        log_event(refresh_token, request_info, token_log_data)
+        log_event(token, request_info, token_log_data)
         return token_data
     except Exception as e:
         exceptions.handle(e)
@@ -280,10 +280,11 @@ async def revoke_token(
             token_to_revoke.is_revoked = True
             session.commit()
             session.refresh(token_to_revoke)
+            
             token_log_data = jsonable_encoder(token_to_revoke)
             token_log_data.pop(ExecutiveToken.access_token.name)
             token_log_data.pop(ExecutiveToken.refresh_token.name)
-            log_event(token_to_revoke, request_info, token_log_data)
+            log_event(token, request_info, token_log_data)
 
         return Response(status_code=status.HTTP_200_OK)
     except Exception as e:
@@ -338,7 +339,7 @@ async def delete_token(
         token_log_data = jsonable_encoder(token_to_delete)
         token_log_data.pop(ExecutiveToken.access_token.name)
         token_log_data.pop(ExecutiveToken.refresh_token.name)
-        log_event(token_to_delete, request_info, token_log_data)
+        log_event(token, request_info, token_log_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
