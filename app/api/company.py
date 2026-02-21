@@ -1,7 +1,7 @@
 """
 Company API Router for EnteBus.
 
-Provides endpoints for managing companies, including creation.
+Provides endpoints for managing companies, including creation,
 Uses Pydantic schemas for input validation and structured output.
 Endpoints for update, deletion, and retrieval are planned for future implementation.
 """
@@ -59,8 +59,8 @@ class CreateForm(BaseModel):
     type: CompanyType = Field(
         description=enum_str(CompanyType), default=CompanyType.OTHER
     )
-    description: str | None = Field(default=None, max_length=1024)
-    address: str = Field(max_length=512)
+    description: str | None = Field(default=None, min_length=1, max_length=1024)
+    address: str = Field(min_length=1, max_length=512)
     location: str = Field(
         description=(
             f"Accepts only SRID 4326 (WGS84), "
@@ -78,14 +78,19 @@ class CreateForm(BaseModel):
     response_model=CompanySchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.InvalidWKTStringOrType(),
+            exceptions.InvalidSRID4326(),
+        ]
     ),
     description=(
         """
             **Creates a new company.**  
             - Executive must have a valid access token.     
             - Logged-in executive must have `company.create` permission.       
-            - Duplicate name are not allowed.   
+            - Duplicate names are not allowed.   
             - By default the company is created in `under verification` status.   
             - By default the company type is `other`.     
         """
@@ -116,12 +121,12 @@ async def create_company(
             location=validated_location,
         )
         session.add(company)
-        session.commit()
-        session.refresh(company)
 
         # Create Wallet
-        walletName = form_param.name + "wallet"
-        wallet = Wallet(name=walletName, balance=0)
+        wallet_name = f"{form_param.name} wallet"
+        if len(wallet_name) > 32:
+            wallet_name = wallet_name[:32]
+        wallet = Wallet(name=wallet_name, balance=0)
         session.add(wallet)
         session.flush()
 

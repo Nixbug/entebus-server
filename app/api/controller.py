@@ -10,13 +10,13 @@ from fastapi import FastAPI
 
 from app.api import (
     bus_stop,
+    company,
     executive_account,
     executive_image,
     executive_token,
     executive_role,
     landmark,
     operator_token,
-    company,
 )
 from app.src.enums import AppID
 
