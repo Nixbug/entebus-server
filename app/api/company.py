@@ -247,14 +247,13 @@ async def update_company_executive(
                 .filter(CompanyWallet.company_id == company.id)
                 .first()
             )
-            if company_wallet:
-                wallet = (
+            wallet = (
                     session.query(Wallet)
                     .filter(Wallet.id == company_wallet.wallet_id)
                     .first()
                 )
-                if wallet:
-                    wallet.name = company.name
+
+            wallet.name = company.name
         
         have_updates = session.is_modified(company) or session.is_modified(wallet)
         if have_updates:
