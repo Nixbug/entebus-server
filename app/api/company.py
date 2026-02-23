@@ -1,7 +1,7 @@
 """
 Company API Router for EnteBus.
 
-Provides endpoints for managing companies, including creation,update,
+Provides endpoints for managing companies, including creation, update,
 Uses Pydantic schemas for input validation and structured output.
 Endpoints for deletion, and retrieval are planned for future implementation.
 """
@@ -241,6 +241,7 @@ async def update_company_executive(
 
         update_if_changed(company, update_data)
 
+        wallet = None
         if "name" in update_data and company.name != old_name:
             company_wallet = (
                 session.query(CompanyWallet)
@@ -255,13 +256,13 @@ async def update_company_executive(
                 )
                 if wallet:
                     wallet.name = company.name
-
+        
         have_updates = session.is_modified(company) or session.is_modified(wallet)
         if have_updates:
             session.commit()
             session.refresh(company)
 
-        company_data = jsonable_encoder(company,exclude={Company.location.name},)
+        company_data = jsonable_encoder(company, exclude={Company.location.name},)
         company_data[Company.location.name] = (
             wkb.loads(bytes(company.location.data))
         ).wkt
@@ -334,7 +335,7 @@ async def update_company_operator(
             session.commit()
             session.refresh(company)
 
-        company_data = jsonable_encoder(company,exclude={Company.location.name},)
+        company_data = jsonable_encoder(company, exclude={Company.location.name},)
         company_data[Company.location.name] = (
             wkb.loads(bytes(company.location.data))
         ).wkt
