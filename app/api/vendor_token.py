@@ -68,7 +68,7 @@ class CreateForm(BaseModel):
 
 
 class UpdateForm(BaseModel):
-    """Form data for refreshing an vendor token."""
+    """Form data for refreshing a vendor token."""
 
     refresh_token: str = Field(Form())
     grant_type: GrantType = Field(
