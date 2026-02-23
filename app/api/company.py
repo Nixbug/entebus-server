@@ -229,7 +229,7 @@ async def update_company_executive(
         update_data = form_param.model_dump(exclude_unset=True)
         old_name = company.name
 
-        # 📍 Validate location if changed
+        # Validate location if changed
         if form_param.location is not None:
             new_geom = validate_wkt_string(form_param.location, Point)
             validate_srid_4326(new_geom)
@@ -241,7 +241,6 @@ async def update_company_executive(
 
         update_if_changed(company, update_data)
 
-        wallet = None
         if "name" in update_data and company.name != old_name:
             company_wallet = (
                 session.query(CompanyWallet)
@@ -319,7 +318,7 @@ async def update_company_operator(
 
         update_data = form_param.model_dump(exclude_unset=True)
 
-        # 📍 Validate location if changed
+        # Validate location if changed
         if form_param.location is not None:
             new_geom = validate_wkt_string(form_param.location, Point)
             validate_srid_4326(new_geom)
