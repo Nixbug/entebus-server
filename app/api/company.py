@@ -123,8 +123,7 @@ async def create_company(
         session.add(company)
 
         # Create Wallet
-        wallet_name = form_param.name
-        wallet = Wallet(name=wallet_name, balance=0)
+        wallet = Wallet(name=form_param.name, balance=0)
         session.add(wallet)
         session.flush()
 
