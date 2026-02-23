@@ -8,11 +8,12 @@ Endpoints for refresh, deletion, and retrieval are planned for future implementa
 
 from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, Form
+from fastapi import APIRouter, Depends, Form, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from fastapi.security import OAuth2PasswordRequestForm
 
+from app.api.bearer import bearer_vendor
 from app.src.db import Vendor, VendorToken, SessionLocal
 from app.src import exceptions
 from app.src.enums import PlatformType, GrantType
@@ -23,7 +24,11 @@ from app.src.constants import (
     MAX_VENDOR_TOKENS,
     MAX_REFRESH_TOKEN_VALIDITY,
 )
-from app.src.validators import authenticate_vendor, validate_and_revoke_refresh_token
+from app.src.validators import (
+    authenticate_vendor,
+    validate_and_revoke_refresh_token,
+    verify_token,
+)
 from app.src.functions import (
     cleanup_old_tokens,
     enum_str,
@@ -74,6 +79,12 @@ class UpdateForm(BaseModel):
     grant_type: GrantType = Field(
         Form(description=enum_str(GrantType), default=GrantType.REFRESH_TOKEN)
     )
+
+
+class LogoutForm(BaseModel):
+    """Form data for logging out with a vendor token."""
+
+    token: str = Field(Form(description="Access or refresh token"))
 
 
 # ---------------------------------------------------------------------------
@@ -201,6 +212,54 @@ async def refresh_token(
         token_log_data.pop(VendorToken.refresh_token.name)
         log_event(token, request_info, token_log_data)
         return token_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_vendor.post(
+    f"{URL_VENDOR_TOKEN}/revoke",
+    tags=["Token"],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Revokes an access token or refresh token associated with the vendor.**     
+            - Vendor must have a valid access token.     
+            - Revokes the token (access or refresh) specified in the request body.      
+            - If the token is invalid, doesn't belong to the vendor, or is already revoked, the operation is silently ignored.       
+        """
+    ),
+)
+async def revoke_token(
+    form_param: LogoutForm = Depends(),
+    access_token=Depends(bearer_vendor),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, VendorToken, access_token.credentials)
+
+        token_to_revoke = (
+            session.query(VendorToken)
+            .filter(VendorToken.vendor_id == token.vendor_id)
+            .filter(
+                (VendorToken.access_token == form_param.token)
+                | (VendorToken.refresh_token == form_param.token)
+            )
+            .filter(VendorToken.is_revoked.is_(False))
+            .first()
+        )
+        if token_to_revoke:
+            token_to_revoke.is_revoked = True
+            session.commit()
+            session.refresh(token_to_revoke)
+
+            token_log_data = jsonable_encoder(token_to_revoke)
+            token_log_data.pop(VendorToken.access_token.name)
+            token_log_data.pop(VendorToken.refresh_token.name)
+            log_event(token, request_info, token_log_data)
+        return Response(status_code=status.HTTP_200_OK)
     except Exception as e:
         exceptions.handle(e)
     finally:
