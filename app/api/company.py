@@ -294,7 +294,7 @@ async def update_company_executive(
         """
             **Updates an existing company.**
             - Requires a valid access token.
-            - Logged-in executive must have `company.update` permission.
+            - Logged-in operator must have `company.update` permission.
             - Empty PATCH requests are allowed and will result in no changes.
             - When updating `location`, it must be a valid SRID 4326 WKT POINT.
         """
