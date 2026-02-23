@@ -123,9 +123,7 @@ async def create_company(
         session.add(company)
 
         # Create Wallet
-        wallet_name = f"{form_param.name} wallet"
-        if len(wallet_name) > 32:
-            wallet_name = wallet_name[:32]
+        wallet_name = form_param.name
         wallet = Wallet(name=wallet_name, balance=0)
         session.add(wallet)
         session.flush()
