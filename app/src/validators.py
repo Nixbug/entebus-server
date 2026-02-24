@@ -283,9 +283,9 @@ def verify_permission(
     return False
 
 
-def validate_company(session: Session, company_id: int) -> Company:
+def validate_company_id(session: Session, company_id: int) -> Company:
     """
-     Validate the existence of a Company and return the corresponding instance.
+    Validate the existence of a Company by its ID.
 
     Args:
         session (Session): Active SQLAlchemy session.
