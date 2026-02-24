@@ -363,9 +363,7 @@ def initialize():
 
     admin_permissions = {
         "business": {
-            "create": True,
             "update": True,
-            "delete": True,
             "vendor": {
                 "create": True,
                 "update": True,
@@ -385,9 +383,7 @@ def initialize():
 
     guest_permissions = {
         "business": {
-            "create": False,
             "update": False,
-            "delete": False,
             "vendor": {
                 "create": False,
                 "update": False,
@@ -398,7 +394,7 @@ def initialize():
                     "delete": False,
                 },
                 "token": {
-                    "fetch": True,
+                    "fetch": False,
                     "delete": False,
                 },
             },
