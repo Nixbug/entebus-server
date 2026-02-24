@@ -10,7 +10,7 @@ from enum import StrEnum
 
 
 ## Permission Paths
-class VendorPermissionPath(StrEnum):
+class PermissionPath(StrEnum):
     """Permission paths for vendors."""
 
     UPDATE_BUSINESS = "business.update"
@@ -50,13 +50,13 @@ class VendorPermissions(CRUDPermission):
 
 
 class BusinessPermission(BaseModel):
-    """Company related permissions."""
+    """Business related permissions."""
 
-    update: bool = Field(description="Allow updating company details")
+    update: bool = Field(description="Allow updating business details")
     vendor: VendorPermissions
 
 
 class PermissionSchema(BaseModel):
-    """Top-level hierarchical permission structure for an VendorRole."""
+    """Top-level hierarchical permission structure for a VendorRole."""
 
     business: BusinessPermission
