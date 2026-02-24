@@ -281,3 +281,25 @@ def verify_permission(
     if raise_exception:
         raise exceptions.NoPermission()
     return False
+
+
+def validate_company(session: Session, company_id: int) -> Company:
+    """
+     Validate the existence of a Company and return the corresponding instance.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        company_id (int): The ID of the company to fetch.
+
+    Returns:
+        Company: The Company instance matching the given ID.
+
+    Raises:
+        UnknownValue: If no Company with the provided ID exists.
+    """
+    company = session.query(Company).filter(Company.id == company_id).first()
+
+    if company is None:
+        raise exceptions.UnknownValue(Company.id)
+
+    return company
