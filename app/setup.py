@@ -29,6 +29,8 @@ from app.src.db import (
     Vendor,
     VendorRole,
     VendorRoleMap,
+    Wallet,
+    CompanyWallet
 )
 
 
@@ -247,6 +249,14 @@ def initialize():
         location="POINT(76.68899711264336 8.761725176790257)",
     )
     session.add(company)
+    session.flush()
+
+    wallet = Wallet(name=company.name, balance=0)
+    session.add(wallet)
+    session.flush()
+
+    company_wallet = CompanyWallet(company_id=company.id, wallet_id=wallet.id)
+    session.add(company_wallet)
     session.flush()
 
     operator = Operator(

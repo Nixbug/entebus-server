@@ -252,7 +252,7 @@ async def update_company_executive(
             update_data.pop("name")
 
         update_if_changed(company, update_data)
-        have_updates = session.is_modified(company) 
+        have_updates = session.is_modified(company) or session.is_modified(wallet)
         if have_updates:
             session.commit()
             session.refresh(company)
@@ -310,9 +310,10 @@ async def update_company_operator(
         token = verify_token(session, OperatorToken, access_token.credentials)
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY)
-        company = validate_company_id(session, id)
-        update_data = form_param.model_dump(exclude_unset=True)
 
+        company = validate_company_id(session, id)
+
+        update_data = form_param.model_dump(exclude_unset=True)
         # Validate location if changed
         if form_param.location is not None:
             new_geom = validate_wkt_string(form_param.location, Point)
