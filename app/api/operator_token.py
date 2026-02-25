@@ -98,6 +98,12 @@ class UpdateForm(BaseModel):
     )
 
 
+class LogoutForm(BaseModel):
+    """Form data for logging out with an operator token."""
+
+    token: str = Field(Form(description="Access or refresh token"))
+
+
 ## Query Parameters
 class OrderBy(StrEnum):
     """Enum for ordering results."""
@@ -194,7 +200,7 @@ async def create_token(
 ):
     try:
         session = SessionLocal()
-        operator = authenticate_operator(session, Operator, credentials, form_param)
+        operator = authenticate_operator(session, credentials, form_param)
 
         # Remove excess tokens
         cleanup_old_tokens(
@@ -284,6 +290,54 @@ async def refresh_token(
         token_log_data.pop(OperatorToken.refresh_token.name)
         log_event(token, request_info, token_log_data)
         return token_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.post(
+    f"{URL_OPERATOR_TOKEN}/revoke",
+    tags=["Token"],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Revokes an access token or refresh token associated with the operator.**     
+            - Operator must have a valid access token.     
+            - Revokes the token (access or refresh) specified in the request body.      
+            - If the token is invalid, doesn't belong to the operator, or is already revoked, the operation is silently ignored.       
+        """
+    ),
+)
+async def revoke_token(
+    form_param: LogoutForm = Depends(),
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+
+        token_to_revoke = (
+            session.query(OperatorToken)
+            .filter(OperatorToken.operator_id == token.operator_id)
+            .filter(
+                (OperatorToken.access_token == form_param.token)
+                | (OperatorToken.refresh_token == form_param.token)
+            )
+            .filter(OperatorToken.is_revoked.is_(False))
+            .first()
+        )
+        if token_to_revoke:
+            token_to_revoke.is_revoked = True
+            session.commit()
+            session.refresh(token_to_revoke)
+            
+            token_log_data = jsonable_encoder(token_to_revoke)
+            token_log_data.pop(OperatorToken.access_token.name)
+            token_log_data.pop(OperatorToken.refresh_token.name)
+            log_event(token, request_info, token_log_data)
+        return Response(status_code=status.HTTP_200_OK)
     except Exception as e:
         exceptions.handle(e)
     finally:

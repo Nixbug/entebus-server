@@ -62,7 +62,6 @@ def user_credentials(
 
 def authenticate_executive(
     session: Session,
-    model_cls: Type[Executive],
     credentials: OAuth2PasswordRequestForm,
 ) -> Executive:
     """
@@ -70,7 +69,6 @@ def authenticate_executive(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[Executive]): ORM class for the executive.
         credentials (OAuth2PasswordRequestForm): Credentials containing username, password and grant_type.
 
     Returns:
@@ -82,8 +80,8 @@ def authenticate_executive(
         InactiveAccount: If the executive account is not ACTIVE.
     """
     executive = (
-        session.query(model_cls)
-        .filter(model_cls.username == credentials.username)
+        session.query(Executive)
+        .filter(Executive.username == credentials.username)
         .first()
     )
 
@@ -95,7 +93,6 @@ def authenticate_executive(
 
 def authenticate_operator(
     session: Session,
-    model_cls: Type[Operator],
     credentials: OAuth2PasswordRequestForm,
     form_param: Any,
 ) -> Operator:
@@ -104,7 +101,6 @@ def authenticate_operator(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[Operator]): ORM class for the operator.
         credentials (OAuth2PasswordRequestForm): Credentials containing username, password and grant_type.
         form_param (Any): Form parameters containing company_id.
 
@@ -121,10 +117,10 @@ def authenticate_operator(
     if company is None:
         raise exceptions.UnknownValue(Operator.company_id)
     operator = (
-        session.query(model_cls)
+        session.query(Operator)
         .filter(
-            model_cls.username == credentials.username,
-            model_cls.company_id == form_param.company_id,
+            Operator.username == credentials.username,
+            Operator.company_id == form_param.company_id,
         )
         .first()
     )
@@ -137,7 +133,6 @@ def authenticate_operator(
 
 def authenticate_vendor(
     session: Session,
-    model_cls: Type[Vendor],
     credentials: OAuth2PasswordRequestForm,
     form_param: Any,
 ) -> Vendor:
@@ -146,7 +141,6 @@ def authenticate_vendor(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[Vendor]): ORM class for the vendor.
         credentials (OAuth2PasswordRequestForm): Credentials containing username, password and grant_type.
         form_param (Any): Form parameters containing business_id.
 
@@ -166,10 +160,10 @@ def authenticate_vendor(
         raise exceptions.UnknownValue(Vendor.business_id)
 
     vendor = (
-        session.query(model_cls)
+        session.query(Vendor)
         .filter(
-            model_cls.username == credentials.username,
-            model_cls.business_id == form_param.business_id,
+            Vendor.username == credentials.username,
+            Vendor.business_id == form_param.business_id,
         )
         .first()
     )
