@@ -31,7 +31,6 @@ from app.src.db import (
     Vendor,
     VendorRole,
     VendorRoleMap,
-    Wallet
 )
 
 
