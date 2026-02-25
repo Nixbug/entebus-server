@@ -237,6 +237,7 @@ async def update_company_executive(
             update_data.pop("location")
 
         update_if_changed(company, update_data)
+        have_updates = session.is_modified(company)
 
         if "name" in update_data and company.name != old_name:
             company_wallet = (
@@ -251,8 +252,7 @@ async def update_company_executive(
             )
 
             wallet.name = company.name
-
-        have_updates = session.is_modified(company) or session.is_modified(wallet)
+            have_updates = True
         if have_updates:
             session.commit()
             session.refresh(company)
