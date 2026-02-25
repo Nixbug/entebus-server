@@ -221,11 +221,10 @@ async def update_company_executive(
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY)
+
         company = validate_company_id(session, id)
 
         update_data = form_param.model_dump(exclude_unset=True)
-        old_name = company.name
-
         # Validate location if changed
         if form_param.location is not None:
             new_geom = validate_wkt_string(form_param.location, Point)
@@ -236,23 +235,24 @@ async def update_company_executive(
                 company.location = wkt.dumps(new_geom)
             update_data.pop("location")
 
+        if form_param.name is not None:
+            if form_param.name != company.name:
+                company.name = form_param.name
+                company_wallet = (
+                    session.query(CompanyWallet)
+                    .filter(CompanyWallet.company_id == company.id)
+                    .first()
+                )
+                wallet = (
+                    session.query(Wallet)
+                    .filter(Wallet.id == company_wallet.wallet_id)
+                    .first()
+                )
+                wallet.name = form_param.name
+            update_data.pop("name")
+
         update_if_changed(company, update_data)
-        have_updates = session.is_modified(company)
-
-        if "name" in update_data and company.name != old_name:
-            company_wallet = (
-                session.query(CompanyWallet)
-                .filter(CompanyWallet.company_id == company.id)
-                .first()
-            )
-            wallet = (
-                session.query(Wallet)
-                .filter(Wallet.id == company_wallet.wallet_id)
-                .first()
-            )
-
-            wallet.name = company.name
-            have_updates = True
+        have_updates = session.is_modified(company) 
         if have_updates:
             session.commit()
             session.refresh(company)
