@@ -29,7 +29,7 @@ from app.src.regex import NAME_PATTERN
 from app.src.enums import CompanyStatus, CompanyType
 from app.src.urls import URL_COMPANY
 from app.src.openobserve import log_event
-from app.src.validators import validate_company, verify_permission, verify_token
+from app.src.validators import validate_company_id, verify_permission, verify_token
 from app.src.functions import (
     enum_str,
     fuse_exception_responses,
@@ -221,7 +221,7 @@ async def update_company_executive(
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY)
-        company = validate_company(session, id)
+        company = validate_company_id(session, id)
 
         update_data = form_param.model_dump(exclude_unset=True)
         old_name = company.name
@@ -310,7 +310,7 @@ async def update_company_operator(
         token = verify_token(session, OperatorToken, access_token.credentials)
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY)
-        company = validate_company(session, id)
+        company = validate_company_id(session, id)
         update_data = form_param.model_dump(exclude_unset=True)
 
         # Validate location if changed
