@@ -27,8 +27,7 @@ from app.src.filters import (
 )
 from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
-
-# from app.src.permissions.vendor import PermissionPath as VendorPermissionPath
+from app.src.permissions.vendor import PermissionPath as VendorPermissionPath
 from app.src.urls import URL_VENDOR_TOKEN
 from app.src.constants import (
     MAX_ACCESS_TOKEN_VALIDITY,
@@ -38,7 +37,6 @@ from app.src.constants import (
 from app.src.validators import (
     authenticate_vendor,
     validate_and_revoke_refresh_token,
-    verify_token,
     verify_token,
     verify_permission,
 )
