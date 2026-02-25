@@ -8,7 +8,6 @@ Endpoints for deletion, and retrieval are planned for future implementation.
 
 from datetime import datetime
 from fastapi import APIRouter, status, Depends
-from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from shapely import wkb, wkt
 from shapely.geometry import Point
@@ -57,6 +56,20 @@ class CompanySchema(BaseModel):
     location: str
     updated_on: datetime | None
     created_on: datetime
+
+
+def serialize_company(company: Company) -> dict:
+    """Serialize Company ORM object to the API response shape."""
+    return CompanySchema(
+        id=company.id,
+        name=company.name,
+        status=company.status,
+        type=company.type,
+        address=company.address,
+        location=wkb.loads(bytes(company.location.data)).wkt,
+        updated_on=company.updated_on,
+        created_on=company.created_on,
+    ).model_dump(mode="json")
 
 
 ## Input Forms
@@ -174,10 +187,7 @@ async def create_company(
         session.commit()
         session.refresh(company)
 
-        company_data = jsonable_encoder(company, exclude={Company.location.name})
-        company_data[Company.location.name] = (
-            wkb.loads(bytes(company.location.data))
-        ).wkt
+        company_data = serialize_company(company)
         log_event(token, request_info, company_data)
         return company_data
     except Exception as e:
@@ -252,18 +262,12 @@ async def update_company_executive(
             update_data.pop("name")
 
         update_if_changed(company, update_data)
-        have_updates = session.is_modified(company) 
+        have_updates = session.is_modified(company)
         if have_updates:
             session.commit()
             session.refresh(company)
 
-        company_data = jsonable_encoder(
-            company,
-            exclude={Company.location.name},
-        )
-        company_data[Company.location.name] = (
-            wkb.loads(bytes(company.location.data))
-        ).wkt
+        company_data = serialize_company(company)
         if have_updates:
             log_event(token, request_info, company_data)
         return company_data
@@ -329,13 +333,7 @@ async def update_company_operator(
             session.commit()
             session.refresh(company)
 
-        company_data = jsonable_encoder(
-            company,
-            exclude={Company.location.name},
-        )
-        company_data[Company.location.name] = (
-            wkb.loads(bytes(company.location.data))
-        ).wkt
+        company_data = serialize_company(company)
         if have_updates:
             log_event(token, request_info, company_data)
         return company_data
