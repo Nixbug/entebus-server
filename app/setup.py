@@ -31,8 +31,7 @@ from app.src.db import (
     Vendor,
     VendorRole,
     VendorRoleMap,
-    Wallet,
-    CompanyWallet
+    Wallet
 )
 
 
@@ -257,14 +256,6 @@ def initialize():
     session.flush()
     company_wallet_map = CompanyWallet(company_id=company.id, wallet_id=wallet.id)
     session.add(company_wallet_map)
-    session.flush()
-
-    wallet = Wallet(name=company.name, balance=0)
-    session.add(wallet)
-    session.flush()
-
-    company_wallet = CompanyWallet(company_id=company.id, wallet_id=wallet.id)
-    session.add(company_wallet)
     session.flush()
 
     operator = Operator(
