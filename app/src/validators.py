@@ -298,8 +298,6 @@ def validate_company_id(session: Session, company_id: int) -> Company:
         UnknownValue: If no Company with the provided ID exists.
     """
     company = session.query(Company).filter(Company.id == company_id).first()
-
     if company is None:
         raise exceptions.UnknownValue(Company.id)
-
     return company
