@@ -313,11 +313,10 @@ async def update_company_operator(
         token = verify_token(session, OperatorToken, access_token.credentials)
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY)
-
-        company = validate_company_id(session, id)
-
         if token.company_id != company.id:
             raise exceptions.NoPermission()
+
+        company = validate_company_id(session, id)
 
         update_data = form_param.model_dump(exclude_unset=True)
         # Validate location if changed
