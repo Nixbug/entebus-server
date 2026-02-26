@@ -285,7 +285,7 @@ def initialize():
             "schedule": {"create": True, "update": True, "delete": True},
         },
     }
-    
+
     guest = Operator(
         company_id=company.id,
         username="guest",
