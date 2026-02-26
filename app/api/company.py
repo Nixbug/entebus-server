@@ -235,6 +235,7 @@ async def update_company_executive(
                 company.location = wkt.dumps(new_geom)
             update_data.pop("location")
 
+        wallet = None
         if form_param.name is not None:
             if form_param.name != company.name:
                 company.name = form_param.name
@@ -252,7 +253,9 @@ async def update_company_executive(
             update_data.pop("name")
 
         update_if_changed(company, update_data)
-        have_updates = session.is_modified(company) or session.is_modified(wallet)
+        have_updates = session.is_modified(company) or (
+            wallet and session.is_modified(wallet)
+        )
         if have_updates:
             session.commit()
             session.refresh(company)
