@@ -285,6 +285,20 @@ def initialize():
             "schedule": {"create": True, "update": True, "delete": True},
         },
     }
+    
+    guest = Operator(
+        company_id=company.id,
+        username="guest",
+        password="password",
+        gender=GenderType.OTHER,
+        type=OperatorType.NORMAL,
+        full_name="Guest",
+        status=AccountStatus.ACTIVE,
+        phone_number="+91-9496801111",
+        email_id="contact@nixbug.com",
+    )
+    session.add(guest)
+    session.flush()
 
     guest_permissions = {
         "company": {
@@ -323,6 +337,11 @@ def initialize():
         company_id=company.id, role_id=admin_role.id, operator_id=operator.id
     )
     session.add_all([admin_role_map])
+
+    guest_role_map = OperatorRoleMap(
+        company_id=company.id, role_id=guest_role.id, operator_id=guest.id
+    )
+    session.add_all([guest_role_map])
 
     business = Business(
         name="Nixbug Softwares OPC Pvt Ltd",
