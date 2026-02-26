@@ -375,7 +375,6 @@ async def fetch_tokens_vendor(
             and query_params.business_id != token.business_id
         ):
             return []
-
         query_params.business_id = token.business_id
 
         if has_permission is False:

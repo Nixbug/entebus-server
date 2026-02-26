@@ -332,7 +332,7 @@ async def revoke_token(
             token_to_revoke.is_revoked = True
             session.commit()
             session.refresh(token_to_revoke)
-            
+
             token_log_data = jsonable_encoder(token_to_revoke)
             token_log_data.pop(OperatorToken.access_token.name)
             token_log_data.pop(OperatorToken.refresh_token.name)
@@ -379,12 +379,12 @@ async def fetch_tokens_operator(
         ):
             return []
         query_params.company_id = token.company_id
-        
+
         if has_permission is False:
-            if(
-                query_params.operator_id is not None 
-               and query_params.operator_id != token.operator_id
-               ):
+            if (
+                query_params.operator_id is not None
+                and query_params.operator_id != token.operator_id
+            ):
                 return []
             query_params.operator_id = token.operator_id
 
