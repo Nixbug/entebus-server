@@ -313,6 +313,9 @@ async def update_company_operator(
 
         company = validate_company_id(session, id)
 
+        if token.company_id != company.id:
+            raise exceptions.NoPermission()
+
         update_data = form_param.model_dump(exclude_unset=True)
         # Validate location if changed
         if form_param.location is not None:
