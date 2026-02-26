@@ -427,6 +427,7 @@ async def fetch_tokens_executive(
 
         if has_permission is False:
             raise exceptions.NoPermission()
+
         return search_vendor_tokens(session, query_params)
     except Exception as e:
         exceptions.handle(e)
