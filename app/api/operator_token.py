@@ -378,9 +378,14 @@ async def fetch_tokens_operator(
             and query_params.company_id != token.company_id
         ):
             return []
-
         query_params.company_id = token.company_id
+        
         if has_permission is False:
+            if(
+                query_params.operator_id is not None 
+               and query_params.operator_id != token.operator_id
+               ):
+                return []
             query_params.operator_id = token.operator_id
 
         return search_operator_tokens(session, query_params)
