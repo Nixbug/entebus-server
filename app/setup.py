@@ -14,10 +14,12 @@ from app.src.enums import (
 
 from app.src import buckets, minio
 from app.src.db import (
+    CompanyWallet,
     ORMbase,
     Executive,
     ExecutiveRole,
     ExecutiveRoleMap,
+    Wallet,
     get_db_url,
     engine,
     SessionLocal,
@@ -247,6 +249,12 @@ def initialize():
         location="POINT(76.68899711264336 8.761725176790257)",
     )
     session.add(company)
+    session.flush()
+    wallet = Wallet(balance=0.0, name=company.name)
+    session.add(wallet)
+    session.flush()
+    company_wallet_map = CompanyWallet(company_id=company.id, wallet_id=wallet.id)
+    session.add(company_wallet_map)
     session.flush()
 
     operator = Operator(
