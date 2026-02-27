@@ -412,8 +412,8 @@ async def fetch_tokens_operator(
             - Operators can delete their own tokens without additional permissions.    
             - To delete another operator's token in the same company,    
               the 'company.operator.token.delete' permission is required,    
-              otherwise, a `NoPermission` error is returned.    
-            - If the token ID is invalid or already revoked, the operation is silently ignored.    
+            - Without permission, trying to delete another operator's token or an invalid token ID will result in a `NoPermission` error.    
+            - If the operator has permission and the token ID is invalid or already revoked, the operation is silently ignored.    
         """
     ),
 )
@@ -425,6 +425,12 @@ async def delete_token_operator(
     try:
         session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
+        roles = get_operator_roles(session, token)
+        has_permission = verify_permission(
+            roles,
+            OperatorPermissionPath.DELETE_COMPANY_OPERATOR_TOKEN,
+            False,
+        )
 
         token_to_delete = (
             session.query(OperatorToken)
@@ -432,17 +438,18 @@ async def delete_token_operator(
             .filter(OperatorToken.is_revoked.is_(False))
             .first()
         )
+        if not has_permission:
+            if (
+                token_to_delete is None
+                or token_to_delete.company_id != token.company_id
+                or token_to_delete.operator_id != token.operator_id
+            ):
+                raise exceptions.NoPermission()
         if token_to_delete is None:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
         if token_to_delete.company_id != token.company_id:
             raise exceptions.NoPermission()
-        if token_to_delete.operator_id != token.operator_id:
-            roles = get_operator_roles(session, token)
-            verify_permission(
-                roles, OperatorPermissionPath.DELETE_COMPANY_OPERATOR_TOKEN
-            )
 
-        # Revoke token
         token_to_delete.is_revoked = True
         session.commit()
         session.refresh(token_to_delete)

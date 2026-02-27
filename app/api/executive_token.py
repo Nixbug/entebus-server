@@ -306,7 +306,8 @@ async def revoke_token(
             - Executive must have a valid access token.    
             - Executives can delete their own tokens without additional permissions.    
             - To delete another executive's token, the 'executive.token.delete' permission is required.    
-            - If the token ID is invalid or already revoked, the operation is silently ignored.    
+            - without permission, trying to delete another executive's token or an invalid token ID will result in a `NoPermission` error.    
+            - If the executive has permission and the token ID is invalid or already revoked, the operation is silently ignored.    
         """
     ),
 )
@@ -318,6 +319,11 @@ async def delete_token(
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
+        has_permission = verify_permission(
+            get_executive_roles(session, token),
+            PermissionPath.DELETE_EXECUTIVE_TOKEN,
+            False,
+        )
 
         token_to_delete = (
             session.query(ExecutiveToken)
@@ -325,11 +331,14 @@ async def delete_token(
             .filter(ExecutiveToken.is_revoked.is_(False))
             .first()
         )
+        if not has_permission:
+            if (
+                token_to_delete is None
+                or token_to_delete.executive_id != token.executive_id
+            ):
+                raise exceptions.NoPermission()
         if token_to_delete is None:
-            return Response(status_code=status.HTTP_204_NO_CONTENT)
-        if token_to_delete.executive_id != token.executive_id:
-            roles = get_executive_roles(session, token)
-            verify_permission(roles, PermissionPath.DELETE_EXECUTIVE_TOKEN)
+            raise exceptions.InvalidToken()
 
         # Revoke the chosen token
         token_to_delete.is_revoked = True
