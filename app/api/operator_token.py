@@ -383,7 +383,7 @@ async def fetch_tokens_operator(
             raise exceptions.NoPermission()
         query_params.company_id = token.company_id
 
-        if has_permission is False:
+        if not has_permission:
             if (
                 query_params.operator_id is not None
                 and query_params.operator_id != token.operator_id

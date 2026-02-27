@@ -383,7 +383,7 @@ async def fetch_tokens_vendor(
             raise exceptions.NoPermission()
         query_params.business_id = token.business_id
 
-        if has_permission is False:
+        if not has_permission:
             if (
                 query_params.vendor_id is not None
                 and query_params.vendor_id != token.vendor_id

@@ -377,7 +377,7 @@ async def fetch_token(
         )
 
         query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked == False)
-        if has_permission is False:
+        if not :
             if (
                 query_params.executive_id is not None
                 and query_params.executive_id != token.executive_id
