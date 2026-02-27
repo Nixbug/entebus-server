@@ -351,13 +351,16 @@ async def revoke_token(
     responses=fuse_exception_responses(
         [
             exceptions.InvalidToken(),
+            exceptions.NoPermission(),
         ]
     ),
     description=(
         """
-            **Fetch operator tokens with permission-based filtering.**     
+            **Fetch operator tokens with permission-based filtering.**    
             - If the logged-in operator has `company.operator.token.fetch` permission, all masked tokens are returned.    
-            - If the logged-in operator does not have permission, only masked tokens for the logged-in operator are returned.    
+            - If the logged-in operator does not have permission:    
+              - only masked tokens for the logged-in operator are returned.    
+              - Try to access tokens of other operators will result in `NoPermission` error.    
         """
     ),
 )
@@ -377,7 +380,7 @@ async def fetch_tokens_operator(
             query_params.company_id is not None
             and query_params.company_id != token.company_id
         ):
-            return []
+            raise exceptions.NoPermission()
         query_params.company_id = token.company_id
 
         if has_permission is False:
@@ -385,7 +388,7 @@ async def fetch_tokens_operator(
                 query_params.operator_id is not None
                 and query_params.operator_id != token.operator_id
             ):
-                return []
+                raise exceptions.NoPermission()
             query_params.operator_id = token.operator_id
 
         return search_operator_tokens(session, query_params)
@@ -482,12 +485,7 @@ async def fetch_tokens_executive(
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
-        has_permission = verify_permission(
-            roles, ExecutivePermissionPath.FETCH_COMPANY_OPERATOR_TOKEN, False
-        )
-
-        if has_permission is False:
-            raise exceptions.NoPermission()
+        verify_permission(roles, ExecutivePermissionPath.FETCH_COMPANY_OPERATOR_TOKEN)
 
         return search_operator_tokens(session, query_params)
     except Exception as e:
@@ -530,7 +528,6 @@ async def delete_token_executive(
             .filter(OperatorToken.is_revoked.is_(False))
             .first()
         )
-
         if token_to_delete is None:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
 

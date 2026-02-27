@@ -280,7 +280,7 @@ async def revoke_token(
             token_to_revoke.is_revoked = True
             session.commit()
             session.refresh(token_to_revoke)
-            
+
             token_log_data = jsonable_encoder(token_to_revoke)
             token_log_data.pop(ExecutiveToken.access_token.name)
             token_log_data.pop(ExecutiveToken.refresh_token.name)
@@ -380,6 +380,12 @@ async def fetch_token(
                 ExecutiveToken.executive_id == query_params.executive_id
             )
         if has_permission is False:
+            if (
+                query_params.executive_id is None
+                or query_params.executive_id != token.executive_id
+            ):
+                raise exceptions.NoPermission()
+
             query = query.filter(ExecutiveToken.executive_id == token.executive_id)
 
         # Generalized filters

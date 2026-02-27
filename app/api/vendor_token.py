@@ -348,13 +348,16 @@ async def revoke_token(
     URL_VENDOR_TOKEN,
     tags=["Token"],
     response_model=list[MaskedVendorTokenSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
     description=(
         """
-            **Fetch vendor tokens with optional filtering.**     
-            - Retrieve masked vendor tokens (without revealing the actual tokens).     
-            - Filter by vendor ID, creation date, or other query parameters.     
-            - Results are paginated and can be ordered by ID or creation date.     
+            **Fetch vendor tokens with permission-based filtering.**    
+            - If the logged-in vendor has `company.vendor.token.fetch` permission, all masked tokens are returned.    
+            - If the logged-in vendor does not have permission:    
+              - only masked tokens for the logged-in vendor are returned.    
+              - Try to access tokens of other vendors will result in `NoPermission` error.    
         """
     ),
 )
@@ -374,7 +377,7 @@ async def fetch_tokens_vendor(
             query_params.business_id is not None
             and query_params.business_id != token.business_id
         ):
-            return []
+            raise exceptions.NoPermission()
         query_params.business_id = token.business_id
 
         if has_permission is False:
@@ -382,7 +385,7 @@ async def fetch_tokens_vendor(
                 query_params.vendor_id is not None
                 and query_params.vendor_id != token.vendor_id
             ):
-                return []
+                raise exceptions.NoPermission()
             query_params.vendor_id = token.vendor_id
 
         return search_vendor_tokens(session, query_params)
@@ -421,12 +424,7 @@ async def fetch_tokens_executive(
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
-        has_permission = verify_permission(
-            roles, ExecutivePermissionPath.FETCH_BUSINESS_VENDOR_TOKEN, False
-        )
-
-        if has_permission is False:
-            raise exceptions.NoPermission()
+        verify_permission(roles, ExecutivePermissionPath.FETCH_BUSINESS_VENDOR_TOKEN)
 
         return search_vendor_tokens(session, query_params)
     except Exception as e:
