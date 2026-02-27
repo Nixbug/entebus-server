@@ -395,49 +395,6 @@ async def fetch_tokens_vendor(
         session.close()
 
 
-# ---------------------------------------------------------------------------
-## API endpoints [Executive]
-# ---------------------------------------------------------------------------
-@route_executive.get(
-    URL_VENDOR_TOKEN,
-    tags=["Vendor Token"],
-    response_model=list[MaskedVendorTokenSchema],
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-        ]
-    ),
-    description=(
-        """
-            **Fetch vendor tokens with permission-based filtering.**     
-            - If the logged-in executive has `business.vendor.token.fetch` permission, all masked tokens are returned.    
-            - If the logged-in executive does not have permission, they cannot access this endpoint.     
-        """
-    ),
-)
-async def fetch_tokens_executive(
-    query_params: QueryParams = Depends(),
-    access_token=Depends(oauth2_executive),
-):
-    try:
-        session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        has_permission = verify_permission(
-            roles, ExecutivePermissionPath.FETCH_BUSINESS_VENDOR_TOKEN, False
-        )
-
-        if has_permission is False:
-            raise exceptions.NoPermission()
-
-        return search_vendor_tokens(session, query_params)
-    except Exception as e:
-        exceptions.handle(e)
-    finally:
-        session.close()
-
-
 @route_vendor.delete(
     f"{URL_VENDOR_TOKEN}/{{id}}",
     tags=["Token"],
@@ -497,6 +454,46 @@ async def delete_token_vendor(
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
+@route_executive.get(
+    URL_VENDOR_TOKEN,
+    tags=["Vendor Token"],
+    response_model=list[MaskedVendorTokenSchema],
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+        ]
+    ),
+    description=(
+        """
+            **Fetch vendor tokens with permission-based filtering.**     
+            - If the logged-in executive has `business.vendor.token.fetch` permission, all masked tokens are returned.    
+            - If the logged-in executive does not have permission, they cannot access this endpoint.     
+        """
+    ),
+)
+async def fetch_tokens_executive(
+    query_params: QueryParams = Depends(),
+    access_token=Depends(oauth2_executive),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        has_permission = verify_permission(
+            roles, ExecutivePermissionPath.FETCH_BUSINESS_VENDOR_TOKEN, False
+        )
+
+        if has_permission is False:
+            raise exceptions.NoPermission()
+
+        return search_vendor_tokens(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 @route_executive.delete(
     f"{URL_VENDOR_TOKEN}/{{id}}",
     tags=["Vendor Token"],
