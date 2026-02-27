@@ -16,6 +16,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.api.bearer import bearer_vendor, oauth2_executive
+from app.src.permissions.vendor import PermissionPath as VendorPermissionPath
+from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.db import Vendor, VendorToken, ExecutiveToken, SessionLocal
 from app.src import exceptions
 from app.src.enums import PlatformType, GrantType, OrderIn
@@ -39,6 +41,7 @@ from app.src.validators import (
     validate_and_revoke_refresh_token,
     verify_token,
     verify_permission,
+    verify_permission,
 )
 from app.src.functions import (
     apply_created_on_filters,
@@ -48,8 +51,8 @@ from app.src.functions import (
     enum_str,
     fuse_exception_responses,
     get_request_info,
-    get_executive_roles,
     get_vendor_roles,
+    get_executive_roles,
 )
 
 route_vendor = APIRouter()
@@ -392,6 +395,62 @@ async def fetch_tokens_vendor(
         session.close()
 
 
+@route_vendor.delete(
+    f"{URL_VENDOR_TOKEN}/{{id}}",
+    tags=["Token"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes a vendor access token.**    
+            - Vendor must have a valid access token.    
+            - Vendors can delete their own tokens without additional permissions.    
+            - To delete another vendor's token in the same business,  
+              the 'business.vendor.token.delete' permission is required.    
+            - If the token ID is invalid or already revoked, the operation is silently ignored.    
+        """
+    ),
+)
+async def delete_token_vendor(
+    id: int,
+    access_token=Depends(bearer_vendor),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, VendorToken, access_token.credentials)
+
+        token_to_delete = (
+            session.query(VendorToken)
+            .filter(VendorToken.id == id)
+            .filter(VendorToken.business_id == token.business_id)
+            .filter(VendorToken.is_revoked.is_(False))
+            .first()
+        )
+        if token_to_delete is None:
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+        if token_to_delete.vendor_id != token.vendor_id:
+            roles = get_vendor_roles(session, token)
+            verify_permission(roles, VendorPermissionPath.DELETE_BUSINESS_VENDOR_TOKEN)
+
+        # Revoke token
+        token_to_delete.is_revoked = True
+        session.commit()
+        session.refresh(token_to_delete)
+
+        token_log_data = jsonable_encoder(token_to_delete)
+        token_log_data.pop(VendorToken.access_token.name)
+        token_log_data.pop(VendorToken.refresh_token.name)
+        log_event(token, request_info, token_log_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -429,6 +488,59 @@ async def fetch_tokens_executive(
             raise exceptions.NoPermission()
 
         return search_vendor_tokens(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.delete(
+    f"{URL_VENDOR_TOKEN}/{{id}}",
+    tags=["Vendor Token"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes a vendor access token.**    
+            - Executive must have a valid access token.    
+            - Executive must have 'business.vendor.token.delete' permission.    
+            - Executive can delete any vendor's token.    
+            - If the token ID is invalid or already revoked, the operation is silently ignored.    
+        """
+    ),
+)
+async def delete_token_executive(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.DELETE_BUSINESS_VENDOR_TOKEN)
+
+        token_to_delete = (
+            session.query(VendorToken)
+            .filter(VendorToken.id == id)
+            .filter(VendorToken.is_revoked.is_(False))
+            .first()
+        )
+        if token_to_delete is None:
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+        # Revoke token
+        token_to_delete.is_revoked = True
+        session.commit()
+        session.refresh(token_to_delete)
+
+        token_log_data = jsonable_encoder(token_to_delete)
+        token_log_data.pop(VendorToken.access_token.name)
+        token_log_data.pop(VendorToken.refresh_token.name)
+        log_event(token, request_info, token_log_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
