@@ -14,10 +14,12 @@ from app.src.enums import (
 
 from app.src import buckets, minio
 from app.src.db import (
+    CompanyWallet,
     ORMbase,
     Executive,
     ExecutiveRole,
     ExecutiveRoleMap,
+    Wallet,
     get_db_url,
     engine,
     SessionLocal,
@@ -248,6 +250,12 @@ def initialize():
     )
     session.add(company)
     session.flush()
+    wallet = Wallet(balance=0.0, name=company.name)
+    session.add(wallet)
+    session.flush()
+    company_wallet_map = CompanyWallet(company_id=company.id, wallet_id=wallet.id)
+    session.add(company_wallet_map)
+    session.flush()
 
     operator = Operator(
         company_id=company.id,
@@ -286,6 +294,20 @@ def initialize():
         },
     }
 
+    guest = Operator(
+        company_id=company.id,
+        username="guest",
+        password="password",
+        gender=GenderType.OTHER,
+        type=OperatorType.NORMAL,
+        full_name="Guest",
+        status=AccountStatus.ACTIVE,
+        phone_number="+91-9496801111",
+        email_id="contact@nixbug.com",
+    )
+    session.add(guest)
+    session.flush()
+
     guest_permissions = {
         "company": {
             "update": False,
@@ -323,6 +345,11 @@ def initialize():
         company_id=company.id, role_id=admin_role.id, operator_id=operator.id
     )
     session.add_all([admin_role_map])
+
+    guest_role_map = OperatorRoleMap(
+        company_id=company.id, role_id=guest_role.id, operator_id=guest.id
+    )
+    session.add_all([guest_role_map])
 
     business = Business(
         name="Nixbug Softwares OPC Pvt Ltd",
