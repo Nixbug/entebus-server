@@ -351,7 +351,9 @@ async def delete_token(
     URL_EXECUTIVE_TOKEN,
     tags=["Token"],
     response_model=list[MaskedExecutiveTokenSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
     description=(
         """
             **Fetch executive tokens with permission-based filtering.**     
@@ -375,14 +377,10 @@ async def fetch_token(
         )
 
         query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked == False)
-        if query_params.executive_id is not None:
-            query = query.filter(
-                ExecutiveToken.executive_id == query_params.executive_id
-            )
         if has_permission is False:
             if (
-                query_params.executive_id is None
-                or query_params.executive_id != token.executive_id
+                query_params.executive_id is not None
+                and query_params.executive_id != token.executive_id
             ):
                 raise exceptions.NoPermission()
 

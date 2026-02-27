@@ -360,7 +360,7 @@ async def revoke_token(
             - If the logged-in vendor has `company.vendor.token.fetch` permission, all masked tokens are returned.    
             - If the logged-in vendor does not have permission:    
               - only masked tokens for the logged-in vendor are returned.    
-              - Try to access tokens of other vendors will result in `NoPermission` error.    
+              - Trying to access tokens of other vendors will result in `NoPermission` error.    
         """
     ),
 )
