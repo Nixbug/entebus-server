@@ -333,7 +333,7 @@ async def delete_token(
             .first()
         )
         if token_to_delete is None:
-            raise exceptions.InvalidToken()
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
         if not has_permission and token_to_delete.executive_id != token.executive_id:
             raise exceptions.NoPermission()
 
