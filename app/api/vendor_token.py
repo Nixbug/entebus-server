@@ -413,10 +413,9 @@ async def fetch_tokens_vendor(
             **Deletes a vendor access token.**    
             - Vendor must have a valid access token.    
             - Vendors can delete their own tokens without additional permissions.    
-            - To delete another vendor's token in the same business,    
-              the 'business.vendor.token.delete' permission is required,    
-            - without permission, trying to delete another vendor's token or an invalid token ID will result in a `NoPermission` error.    
-            - If the vendor has permission and the token ID is invalid or already revoked, the operation is silently ignored.    
+            - To delete another vendor's token in the same business, the 'business.vendor.token.delete' permission is required,    
+            - Trying to delete another vendor's token without permission will result in a `NoPermission` error.   
+            - If the token ID is invalid or already revoked, the operation is silently ignored.   
         """
     ),
 )
@@ -436,22 +435,15 @@ async def delete_token_vendor(
         token_to_delete = (
             session.query(VendorToken)
             .filter(VendorToken.id == id)
+            .filter(VendorToken.business_id == token.business_id)
             .filter(VendorToken.is_revoked.is_(False))
             .first()
         )
-        if not has_permission:
-            if (
-                token_to_delete is None
-                or token_to_delete.vendor_id != token.vendor_id
-                or token_to_delete.business_id != token.business_id
-            ):
-                raise exceptions.NoPermission()
         if token_to_delete is None:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
-        if token_to_delete.business_id != token.business_id:
+        if not has_permission and token_to_delete.vendor_id != token.vendor_id:
             raise exceptions.NoPermission()
 
-        # Revoke token
         token_to_delete.is_revoked = True
         session.commit()
         session.refresh(token_to_delete)
