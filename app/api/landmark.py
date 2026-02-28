@@ -310,10 +310,13 @@ async def create_landmark(
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.CREATE_LANDMARK)
 
-        validate_boundary(session, form_param.boundary)
+        # Validate boundary (WKT, SRID, AABB, Area, Overlaps)
+        boundary_geom = validate_boundary(session, form_param.boundary)
+        validated_boundary = wkt.dumps(boundary_geom)
+
         landmark = Landmark(
             name=form_param.name,
-            boundary=form_param.boundary,
+            boundary=validated_boundary,
             type=form_param.type,
             alias_names=form_param.alias_names,
         )
