@@ -146,7 +146,7 @@ def search_operator_tokens(
 
     Args:
         session (Session): Active SQLAlchemy database session.
-        query_params (QueryParams): Object containing all possible query parameters for filtering, ordering, and pagination.
+        query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
         List[OperatorToken]: List of operator tokens that match the search criteria.

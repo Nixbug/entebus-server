@@ -115,15 +115,26 @@ class OrderBy(StrEnum):
     CREATED_ON = "created_on"
 
 
-class QueryParams(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter):
-    """Query parameters for vendor token endpoints."""
+class QueryParamsForVE(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter):
+    """Query parameters for vendor token endpoints (for vendor)."""
 
     vendor_id: int | None = Field(Query(default=None))
-    business_id: int | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
     )
+
+
+class QueryParamsForEX(QueryParamsForVE):
+    """Query parameters for vendor token endpoints (for executive)."""
+
+    business_id: int | None = Field(Query(default=None))
+
+
+class QueryParams(QueryParamsForEX):
+    """Query parameters for vendor token endpoints."""
+
+    pass
 
 
 ## Functions
@@ -144,10 +155,10 @@ def search_vendor_tokens(
         List[VendorToken]: List of vendor tokens that match the search criteria.
     """
     query = session.query(VendorToken).filter(VendorToken.is_revoked == False)
-    if query_params.vendor_id is not None:
-        query = query.filter(VendorToken.vendor_id == query_params.vendor_id)
     if query_params.business_id is not None:
         query = query.filter(VendorToken.business_id == query_params.business_id)
+    if query_params.vendor_id is not None:
+        query = query.filter(VendorToken.vendor_id == query_params.vendor_id)
 
     # generalized helpers
     query = apply_id_filters(query, VendorToken, query_params)
@@ -356,15 +367,14 @@ async def revoke_token(
     description=(
         """
             **Fetch vendor tokens with permission-based filtering.**    
-            - If the logged-in vendor has `company.vendor.token.fetch` permission, all masked tokens are returned.    
-            - If the logged-in vendor does not have permission:    
-              - only masked tokens for the logged-in vendor are returned.    
-              - Trying to access tokens of other vendors will result in `NoPermission` error.    
+            - If the logged-in vendor has `business.vendor.token.fetch` permission, all masked tokens are returned.    
+            - If the logged-in vendor does not have permission, only masked tokens for the logged-in vendor are returned.   
+            - Trying to access tokens of other vendors without permission will result in `NoPermission` error.     
         """
     ),
 )
 async def fetch_tokens_vendor(
-    query_params: QueryParams = Depends(),
+    query_params: QueryParamsForVE = Depends(),
     access_token=Depends(bearer_vendor),
 ):
     try:
@@ -375,22 +385,16 @@ async def fetch_tokens_vendor(
             roles, VendorPermissionPath.FETCH_BUSINESS_VENDOR_TOKEN, False
         )
 
-        if (
-            query_params.business_id is not None
-            and query_params.business_id != token.business_id
-        ):
-            raise exceptions.NoPermission()
-        query_params.business_id = token.business_id
-
         if not has_permission:
-            if (
-                query_params.vendor_id is not None
-                and query_params.vendor_id != token.vendor_id
-            ):
+            if query_params.vendor_id not in (None, token.vendor_id):
                 raise exceptions.NoPermission()
+            # Restrict to only the logged-in vendor's tokens
             query_params.vendor_id = token.vendor_id
 
-        return search_vendor_tokens(session, query_params)
+        return search_vendor_tokens(
+            session,
+            QueryParams(**query_params.model_dump(), business_id=token.business_id),
+        )
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -485,7 +489,7 @@ async def delete_token_vendor(
     ),
 )
 async def fetch_tokens_executive(
-    query_params: QueryParams = Depends(),
+    query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
 ):
     try:
