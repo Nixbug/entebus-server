@@ -144,7 +144,6 @@ def search_vendor_tokens(
         List[VendorToken]: List of vendor tokens that match the search criteria.
     """
     query = session.query(VendorToken).filter(VendorToken.is_revoked == False)
-
     if query_params.vendor_id is not None:
         query = query.filter(VendorToken.vendor_id == query_params.vendor_id)
     if query_params.business_id is not None:

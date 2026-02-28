@@ -413,10 +413,9 @@ async def fetch_tokens_operator(
             **Deletes an operator access token.**    
             - Operator must have a valid access token.    
             - Operators can delete their own tokens without additional permissions.    
-            - To delete another operator's token in the same company,    
-              the 'company.operator.token.delete' permission is required,    
-            - Without permission, trying to delete another operator's token or an invalid token ID will result in a `NoPermission` error.    
-            - If the operator has permission and the token ID is invalid or already revoked, the operation is silently ignored.    
+            - To delete another operator's token in the same company, the 'company.operator.token.delete' permission is required.   
+            - Trying to delete another operator's token without permission will result in a `NoPermission` error.   
+            - If the token ID is invalid or already revoked, the operation is silently ignored.    
         """
     ),
 )
