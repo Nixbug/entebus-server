@@ -384,12 +384,9 @@ async def fetch_token(
 
         query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked == False)
         if not has_permission:
-            if (
-                query_params.executive_id is not None
-                and query_params.executive_id != token.executive_id
-            ):
+            if query_params.executive_id not in (None, token.executive_id):
                 raise exceptions.NoPermission()
-
+            # Restrict to only the logged-in executive's tokens
             query = query.filter(ExecutiveToken.executive_id == token.executive_id)
 
         # Generalized filters
