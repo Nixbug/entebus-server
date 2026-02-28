@@ -306,8 +306,8 @@ async def revoke_token(
             - Executive must have a valid access token.    
             - Executives can delete their own tokens without additional permissions.    
             - To delete another executive's token, the 'executive.token.delete' permission is required.    
-            - without permission, trying to delete another executive's token or an invalid token ID will result in a `NoPermission` error.    
-            - If the executive has permission and the token ID is invalid or already revoked, the operation is silently ignored.    
+            - Trying to delete another executive's token without the required permission will result in a `NoPermission` error.    
+            - If the token ID is invalid or already revoked, the operation is silently ignored.    
         """
     ),
 )
