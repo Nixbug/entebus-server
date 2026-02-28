@@ -112,20 +112,25 @@ class OrderBy(StrEnum):
     CREATED_ON = "created_on"
 
 
-class QueryParams(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter):
+class QueryParamsForOP(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter):
     """Query parameters for operator token endpoints."""
 
     operator_id: int | None = Field(Query(default=None))
-    company_id: int | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
     )
 
 
+class QueryParamsForEX(QueryParamsForOP):
+    company_id: int | None = Field(Query(default=None))
+
+
 ## Functions
 def search_operator_tokens(
-    session: Session, query_params: QueryParams
+    session: Session,
+    query_params: QueryParamsForOP | QueryParamsForEX,
+    company_id: int | None = None,
 ) -> List[OperatorToken]:
     """
     Search for operator tokens based on provided query parameters.
@@ -135,17 +140,23 @@ def search_operator_tokens(
 
     Args:
         session (Session): Active SQLAlchemy database session.
-        query_params (QueryParams): Query parameters containing search criteria.
+        query_params (QueryParamsForOP | QueryParamsForEX): Query parameters for filtering, ordering, and pagination.
+        company_id (int | None): Optional company ID for additional filtering (mandatory for QueryParamsForOP).
 
     Returns:
         List[OperatorToken]: List of operator tokens that match the search criteria.
     """
     query = session.query(OperatorToken).filter(OperatorToken.is_revoked == False)
 
+    if (
+        isinstance(query_params, QueryParamsForEX)
+        and query_params.company_id is not None
+    ):
+        query = query.filter(OperatorToken.company_id == query_params.company_id)
+    if isinstance(query_params, QueryParamsForOP):
+        query = query.filter(OperatorToken.company_id == company_id)
     if query_params.operator_id is not None:
         query = query.filter(OperatorToken.operator_id == query_params.operator_id)
-    if query_params.company_id is not None:
-        query = query.filter(OperatorToken.company_id == query_params.company_id)
 
     # generalized helpers
     query = apply_id_filters(query, OperatorToken, query_params)
@@ -364,7 +375,7 @@ async def revoke_token(
     ),
 )
 async def fetch_tokens_operator(
-    query_params: QueryParams = Depends(),
+    query_params: QueryParamsForOP = Depends(),
     access_token=Depends(bearer_operator),
 ):
     try:
@@ -375,22 +386,15 @@ async def fetch_tokens_operator(
             roles, OperatorPermissionPath.FETCH_COMPANY_OPERATOR_TOKEN, False
         )
 
-        if (
-            query_params.company_id is not None
-            and query_params.company_id != token.company_id
-        ):
-            raise exceptions.NoPermission()
-        query_params.company_id = token.company_id
-
         if not has_permission:
-            if (
-                query_params.operator_id is not None
-                and query_params.operator_id != token.operator_id
-            ):
+            if query_params.operator_id not in (None, token.operator_id):
                 raise exceptions.NoPermission()
+            # Restrict to only the logged-in operator's tokens
             query_params.operator_id = token.operator_id
 
-        return search_operator_tokens(session, query_params)
+        return search_operator_tokens(
+            session, query_params, company_id=token.company_id
+        )
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -486,7 +490,7 @@ async def delete_token_operator(
     ),
 )
 async def fetch_tokens_executive(
-    query_params: QueryParams = Depends(),
+    query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
 ):
     try:
