@@ -437,19 +437,13 @@ async def delete_token_operator(
         token_to_delete = (
             session.query(OperatorToken)
             .filter(OperatorToken.id == id)
+            .filter(OperatorToken.company_id == token.company_id)
             .filter(OperatorToken.is_revoked.is_(False))
             .first()
         )
-        if not has_permission:
-            if (
-                token_to_delete is None
-                or token_to_delete.company_id != token.company_id
-                or token_to_delete.operator_id != token.operator_id
-            ):
-                raise exceptions.NoPermission()
         if token_to_delete is None:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
-        if token_to_delete.company_id != token.company_id:
+        if not has_permission and token_to_delete.operator_id != token.operator_id:
             raise exceptions.NoPermission()
 
         token_to_delete.is_revoked = True
