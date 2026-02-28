@@ -142,7 +142,6 @@ def update_company(
 ) -> Tuple[bool, dict]:
 
     update_data = form_param.model_dump(exclude_unset=True)
-    print("Update data:", update_data)
     # Validate location if changed
     if form_param.location is not None:
         new_geom = validate_location(form_param.location)
