@@ -112,15 +112,26 @@ class OrderBy(StrEnum):
     CREATED_ON = "created_on"
 
 
-class QueryParams(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter):
-    """Query parameters for operator token endpoints."""
+class QueryParamsForOP(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter):
+    """Query parameters for operator."""
 
     operator_id: int | None = Field(Query(default=None))
-    company_id: int | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
     )
+
+
+class QueryParamsForEX(QueryParamsForOP):
+    """Query parameters for executive."""
+
+    company_id: int | None = Field(Query(default=None))
+
+
+class QueryParams(QueryParamsForEX):
+    """Query parameters for operator and executive."""
+
+    pass
 
 
 ## Functions
@@ -141,11 +152,10 @@ def search_operator_tokens(
         List[OperatorToken]: List of operator tokens that match the search criteria.
     """
     query = session.query(OperatorToken).filter(OperatorToken.is_revoked == False)
-
-    if query_params.operator_id is not None:
-        query = query.filter(OperatorToken.operator_id == query_params.operator_id)
     if query_params.company_id is not None:
         query = query.filter(OperatorToken.company_id == query_params.company_id)
+    if query_params.operator_id is not None:
+        query = query.filter(OperatorToken.operator_id == query_params.operator_id)
 
     # generalized helpers
     query = apply_id_filters(query, OperatorToken, query_params)
@@ -351,18 +361,20 @@ async def revoke_token(
     responses=fuse_exception_responses(
         [
             exceptions.InvalidToken(),
+            exceptions.NoPermission(),
         ]
     ),
     description=(
         """
-            **Fetch operator tokens with permission-based filtering.**     
-            - If the logged-in operator has `company.operator.token.fetch` permission, all masked tokens are returned.    
+            **Fetch operator tokens with permission-based filtering.**    
+            - If the logged-in operator has `company.operator.token.fetch` permission, all masked tokens within the operator's company are returned.    
             - If the logged-in operator does not have permission, only masked tokens for the logged-in operator are returned.    
+            - Trying to access tokens of other operators within the same company without permission will result in `NoPermission` error.    
         """
     ),
 )
 async def fetch_tokens_operator(
-    query_params: QueryParams = Depends(),
+    query_params: QueryParamsForOP = Depends(),
     access_token=Depends(bearer_operator),
 ):
     try:
@@ -373,22 +385,16 @@ async def fetch_tokens_operator(
             roles, OperatorPermissionPath.FETCH_COMPANY_OPERATOR_TOKEN, False
         )
 
-        if (
-            query_params.company_id is not None
-            and query_params.company_id != token.company_id
-        ):
-            return []
-        query_params.company_id = token.company_id
-
-        if has_permission is False:
-            if (
-                query_params.operator_id is not None
-                and query_params.operator_id != token.operator_id
-            ):
-                return []
+        if not has_permission:
+            if query_params.operator_id not in (None, token.operator_id):
+                raise exceptions.NoPermission()
+            # Restrict to only the logged-in operator's tokens
             query_params.operator_id = token.operator_id
 
-        return search_operator_tokens(session, query_params)
+        return search_operator_tokens(
+            session,
+            QueryParams(**query_params.model_dump(), company_id=token.company_id),
+        )
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -407,8 +413,8 @@ async def fetch_tokens_operator(
             **Deletes an operator access token.**    
             - Operator must have a valid access token.    
             - Operators can delete their own tokens without additional permissions.    
-            - To delete another operator's token in the same company,  
-              the 'company.operator.token.delete' permission is required.    
+            - To delete another operator's token in the same company, the 'company.operator.token.delete' permission is required.   
+            - Trying to delete another operator's token without permission will result in a `NoPermission` error.   
             - If the token ID is invalid or already revoked, the operation is silently ignored.    
         """
     ),
@@ -421,6 +427,12 @@ async def delete_token_operator(
     try:
         session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
+        roles = get_operator_roles(session, token)
+        has_permission = verify_permission(
+            roles,
+            OperatorPermissionPath.DELETE_COMPANY_OPERATOR_TOKEN,
+            False,
+        )
 
         token_to_delete = (
             session.query(OperatorToken)
@@ -431,13 +443,9 @@ async def delete_token_operator(
         )
         if token_to_delete is None:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
-        if token_to_delete.operator_id != token.operator_id:
-            roles = get_operator_roles(session, token)
-            verify_permission(
-                roles, OperatorPermissionPath.DELETE_COMPANY_OPERATOR_TOKEN
-            )
+        if not has_permission and token_to_delete.operator_id != token.operator_id:
+            raise exceptions.NoPermission()
 
-        # Revoke token
         token_to_delete.is_revoked = True
         session.commit()
         session.refresh(token_to_delete)
@@ -475,21 +483,16 @@ async def delete_token_operator(
     ),
 )
 async def fetch_tokens_executive(
-    query_params: QueryParams = Depends(),
+    query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
 ):
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
-        has_permission = verify_permission(
-            roles, ExecutivePermissionPath.FETCH_COMPANY_OPERATOR_TOKEN, False
-        )
+        verify_permission(roles, ExecutivePermissionPath.FETCH_COMPANY_OPERATOR_TOKEN)
 
-        if has_permission is False:
-            raise exceptions.NoPermission()
-
-        return search_operator_tokens(session, query_params)
+        return search_operator_tokens(session, QueryParams(**query_params.model_dump()))
     except Exception as e:
         exceptions.handle(e)
     finally:

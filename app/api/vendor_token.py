@@ -115,15 +115,26 @@ class OrderBy(StrEnum):
     CREATED_ON = "created_on"
 
 
-class QueryParams(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter):
-    """Query parameters for vendor token endpoints."""
+class QueryParamsForVE(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter):
+    """Query parameters for vendor."""
 
     vendor_id: int | None = Field(Query(default=None))
-    business_id: int | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
     )
+
+
+class QueryParamsForEX(QueryParamsForVE):
+    """Query parameters for executive."""
+
+    business_id: int | None = Field(Query(default=None))
+
+
+class QueryParams(QueryParamsForEX):
+    """Query parameters for vendor and executive."""
+
+    pass
 
 
 ## Functions
@@ -144,11 +155,10 @@ def search_vendor_tokens(
         List[VendorToken]: List of vendor tokens that match the search criteria.
     """
     query = session.query(VendorToken).filter(VendorToken.is_revoked == False)
-
-    if query_params.vendor_id is not None:
-        query = query.filter(VendorToken.vendor_id == query_params.vendor_id)
     if query_params.business_id is not None:
         query = query.filter(VendorToken.business_id == query_params.business_id)
+    if query_params.vendor_id is not None:
+        query = query.filter(VendorToken.vendor_id == query_params.vendor_id)
 
     # generalized helpers
     query = apply_id_filters(query, VendorToken, query_params)
@@ -351,18 +361,20 @@ async def revoke_token(
     URL_VENDOR_TOKEN,
     tags=["Token"],
     response_model=list[MaskedVendorTokenSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
     description=(
         """
-            **Fetch vendor tokens with optional filtering.**     
-            - Retrieve masked vendor tokens (without revealing the actual tokens).     
-            - Filter by vendor ID, creation date, or other query parameters.     
-            - Results are paginated and can be ordered by ID or creation date.     
+            **Fetch vendor tokens with permission-based filtering.**    
+            - If the logged-in vendor has `business.vendor.token.fetch` permission, all masked tokens within the vendor's business are returned.    
+            - If the logged-in vendor does not have permission, only masked tokens for the logged-in vendor are returned.   
+            - Trying to access tokens of other vendors within the same business without permission will result in `NoPermission` error.     
         """
     ),
 )
 async def fetch_tokens_vendor(
-    query_params: QueryParams = Depends(),
+    query_params: QueryParamsForVE = Depends(),
     access_token=Depends(bearer_vendor),
 ):
     try:
@@ -373,22 +385,16 @@ async def fetch_tokens_vendor(
             roles, VendorPermissionPath.FETCH_BUSINESS_VENDOR_TOKEN, False
         )
 
-        if (
-            query_params.business_id is not None
-            and query_params.business_id != token.business_id
-        ):
-            return []
-        query_params.business_id = token.business_id
-
-        if has_permission is False:
-            if (
-                query_params.vendor_id is not None
-                and query_params.vendor_id != token.vendor_id
-            ):
-                return []
+        if not has_permission:
+            if query_params.vendor_id not in (None, token.vendor_id):
+                raise exceptions.NoPermission()
+            # Restrict to only the logged-in vendor's tokens
             query_params.vendor_id = token.vendor_id
 
-        return search_vendor_tokens(session, query_params)
+        return search_vendor_tokens(
+            session,
+            QueryParams(**query_params.model_dump(), business_id=token.business_id),
+        )
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -407,9 +413,9 @@ async def fetch_tokens_vendor(
             **Deletes a vendor access token.**    
             - Vendor must have a valid access token.    
             - Vendors can delete their own tokens without additional permissions.    
-            - To delete another vendor's token in the same business,  
-              the 'business.vendor.token.delete' permission is required.    
-            - If the token ID is invalid or already revoked, the operation is silently ignored.    
+            - To delete another vendor's token in the same business, the 'business.vendor.token.delete' permission is required.    
+            - Trying to delete another vendor's token without permission will result in a `NoPermission` error.   
+            - If the token ID is invalid or already revoked, the operation is silently ignored.   
         """
     ),
 )
@@ -421,6 +427,10 @@ async def delete_token_vendor(
     try:
         session = SessionLocal()
         token = verify_token(session, VendorToken, access_token.credentials)
+        roles = get_vendor_roles(session, token)
+        has_permission = verify_permission(
+            roles, VendorPermissionPath.DELETE_BUSINESS_VENDOR_TOKEN, False
+        )
 
         token_to_delete = (
             session.query(VendorToken)
@@ -431,11 +441,9 @@ async def delete_token_vendor(
         )
         if token_to_delete is None:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
-        if token_to_delete.vendor_id != token.vendor_id:
-            roles = get_vendor_roles(session, token)
-            verify_permission(roles, VendorPermissionPath.DELETE_BUSINESS_VENDOR_TOKEN)
+        if not has_permission and token_to_delete.vendor_id != token.vendor_id:
+            raise exceptions.NoPermission()
 
-        # Revoke token
         token_to_delete.is_revoked = True
         session.commit()
         session.refresh(token_to_delete)
@@ -473,19 +481,14 @@ async def delete_token_vendor(
     ),
 )
 async def fetch_tokens_executive(
-    query_params: QueryParams = Depends(),
+    query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
 ):
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
-        has_permission = verify_permission(
-            roles, ExecutivePermissionPath.FETCH_BUSINESS_VENDOR_TOKEN, False
-        )
-
-        if has_permission is False:
-            raise exceptions.NoPermission()
+        verify_permission(roles, ExecutivePermissionPath.FETCH_BUSINESS_VENDOR_TOKEN)
 
         return search_vendor_tokens(session, query_params)
     except Exception as e:

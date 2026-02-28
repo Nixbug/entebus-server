@@ -7,11 +7,13 @@ Endpoints for deletion, and retrieval are planned for future implementation.
 """
 
 from datetime import datetime
+from typing import Tuple
 from fastapi import APIRouter, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from shapely import wkb, wkt
 from shapely.geometry import Point
+from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive, bearer_operator
 from app.src.db import (
@@ -53,6 +55,7 @@ class CompanySchema(BaseModel):
     name: str
     status: int
     type: int
+    description: str | None
     address: str
     location: str
     updated_on: datetime | None
@@ -84,8 +87,8 @@ class UpdateFormForOP(BaseModel):
     """Form for updating a company by operator."""
 
     description: str | None = Field(default=None, min_length=1, max_length=1024)
-    address: str | None = Field(default=None, min_length=1, max_length=512)
-    location: str | None = Field(
+    address: str = Field(default=None, min_length=1, max_length=512)
+    location: str = Field(
         default=None,
         description=(
             f"Accepts only SRID 4326 (WGS84), "
@@ -97,17 +100,88 @@ class UpdateFormForOP(BaseModel):
 class UpdateFormForEX(UpdateFormForOP):
     """Form for updating a company by executive."""
 
-    name: str | None = Field(
+    name: str = Field(
         min_length=1, max_length=32, pattern=NAME_PATTERN, default=None
     )
-    status: CompanyStatus | None = Field(
+    status: CompanyStatus = Field(
         description=enum_str(CompanyStatus),
         default=None,
     )
-    type: CompanyType | None = Field(
+    type: CompanyType = Field(
         description=enum_str(CompanyType),
         default=None,
     )
+
+
+class UpdateForm(UpdateFormForEX):
+    """Form for updating a company by executive or operator."""
+
+    pass
+
+
+# Function
+def validate_location(location_wkt: str) -> Point:
+    """
+    Validate a WKT string as a Point geometry with SRID 4326.
+
+    Args:
+        location_wkt (str): Location in WKT format (Point geometry).
+
+    Returns:
+        Point: Validated Shapely `Point` geometry.
+    """
+    # Validate WKT and SRID
+    location_geom = validate_wkt_string(location_wkt, Point)
+    validate_srid_4326(location_geom)
+
+    return location_geom
+
+
+def update_company(
+    session: Session, company: Company, form_param: UpdateForm
+) -> Tuple[bool, dict]:
+
+    update_data = form_param.model_dump(exclude_unset=True)
+    # Validate location if changed
+    if form_param.location is not None:
+        new_geom = validate_location(form_param.location)
+        old_geom = wkb.loads(bytes(company.location.data))
+
+        if new_geom.wkt != old_geom.wkt:
+            company.location = wkt.dumps(new_geom)
+        update_data.pop("location")
+
+    wallet = None
+    if form_param.name is not None:
+        if form_param.name != company.name:
+            company.name = form_param.name
+            company_wallet = (
+                session.query(CompanyWallet)
+                .filter(CompanyWallet.company_id == company.id)
+                .first()
+            )
+            wallet = (
+                session.query(Wallet)
+                .filter(Wallet.id == company_wallet.wallet_id)
+                .first()
+            )
+            wallet.name = form_param.name
+        update_data.pop("name")
+
+    update_if_changed(company, update_data)
+    have_updates = session.is_modified(company) or (
+        wallet and session.is_modified(wallet)
+    )
+    if have_updates:
+        session.commit()
+        session.refresh(company)
+
+    company_data = jsonable_encoder(
+        company,
+        exclude={Company.location.name},
+    )
+    company_data[Company.location.name] = (wkb.loads(bytes(company.location.data))).wkt
+    return have_updates, company_data
 
 
 # ---------------------------------------------------------------------------
@@ -148,9 +222,8 @@ async def create_company(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY)
 
-        # Validate WKT and SRID
-        location_geom = validate_wkt_string(form_param.location, Point)
-        validate_srid_4326(location_geom)
+        # Validate location (WKT and SRID)
+        location_geom = validate_location(form_param.location)
         validated_location = wkt.dumps(location_geom)
 
         company = Company(
@@ -223,50 +296,10 @@ async def update_company_executive(
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY)
 
         company = validate_company_id(session, id)
-
-        update_data = form_param.model_dump(exclude_unset=True)
-        # Validate location if changed
-        if form_param.location is not None:
-            new_geom = validate_wkt_string(form_param.location, Point)
-            validate_srid_4326(new_geom)
-            old_geom = wkb.loads(bytes(company.location.data))
-
-            if new_geom.wkt != old_geom.wkt:
-                company.location = wkt.dumps(new_geom)
-            update_data.pop("location")
-
-        wallet = None
-        if form_param.name is not None:
-            if form_param.name != company.name:
-                company.name = form_param.name
-                company_wallet = (
-                    session.query(CompanyWallet)
-                    .filter(CompanyWallet.company_id == company.id)
-                    .first()
-                )
-                wallet = (
-                    session.query(Wallet)
-                    .filter(Wallet.id == company_wallet.wallet_id)
-                    .first()
-                )
-                wallet.name = form_param.name
-            update_data.pop("name")
-
-        update_if_changed(company, update_data)
-        have_updates = session.is_modified(company) or (
-            wallet and session.is_modified(wallet)
+        have_updates, company_data = update_company(
+            session, company, UpdateForm(**form_param.model_dump(exclude_unset=True))
         )
-        if have_updates:
-            session.commit()
-            session.refresh(company)
 
-        company_data = jsonable_encoder(
-            company,
-            exclude={Company.location.name},
-        )
-        company_data[Company.location.name] = (
-            wkb.loads(bytes(company.location.data))
-        ).wkt
         if have_updates:
             log_event(token, request_info, company_data)
         return company_data
@@ -317,31 +350,10 @@ async def update_company_operator(
         company = validate_company_id(session, id)
         if token.company_id != company.id:
             raise exceptions.NoPermission()
-
-        update_data = form_param.model_dump(exclude_unset=True)
-        # Validate location if changed
-        if form_param.location is not None:
-            new_geom = validate_wkt_string(form_param.location, Point)
-            validate_srid_4326(new_geom)
-            old_geom = wkb.loads(bytes(company.location.data))
-
-            if new_geom.wkt != old_geom.wkt:
-                company.location = wkt.dumps(new_geom)
-            update_data.pop("location")
-
-        update_if_changed(company, update_data)
-        have_updates = session.is_modified(company)
-        if have_updates:
-            session.commit()
-            session.refresh(company)
-
-        company_data = jsonable_encoder(
-            company,
-            exclude={Company.location.name},
+        have_updates, company_data = update_company(
+            session, company, UpdateForm(**form_param.model_dump(exclude_unset=True))
         )
-        company_data[Company.location.name] = (
-            wkb.loads(bytes(company.location.data))
-        ).wkt
+
         if have_updates:
             log_event(token, request_info, company_data)
         return company_data

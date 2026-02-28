@@ -280,7 +280,7 @@ async def revoke_token(
             token_to_revoke.is_revoked = True
             session.commit()
             session.refresh(token_to_revoke)
-            
+
             token_log_data = jsonable_encoder(token_to_revoke)
             token_log_data.pop(ExecutiveToken.access_token.name)
             token_log_data.pop(ExecutiveToken.refresh_token.name)
@@ -306,6 +306,7 @@ async def revoke_token(
             - Executive must have a valid access token.    
             - Executives can delete their own tokens without additional permissions.    
             - To delete another executive's token, the 'executive.token.delete' permission is required.    
+            - Trying to delete another executive's token without the required permission will result in a `NoPermission` error.    
             - If the token ID is invalid or already revoked, the operation is silently ignored.    
         """
     ),
@@ -318,6 +319,12 @@ async def delete_token(
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        has_permission = verify_permission(
+            roles,
+            PermissionPath.DELETE_EXECUTIVE_TOKEN,
+            False,
+        )
 
         token_to_delete = (
             session.query(ExecutiveToken)
@@ -327,9 +334,8 @@ async def delete_token(
         )
         if token_to_delete is None:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
-        if token_to_delete.executive_id != token.executive_id:
-            roles = get_executive_roles(session, token)
-            verify_permission(roles, PermissionPath.DELETE_EXECUTIVE_TOKEN)
+        if not has_permission and token_to_delete.executive_id != token.executive_id:
+            raise exceptions.NoPermission()
 
         # Revoke the chosen token
         token_to_delete.is_revoked = True
@@ -351,7 +357,9 @@ async def delete_token(
     URL_EXECUTIVE_TOKEN,
     tags=["Token"],
     response_model=list[MaskedExecutiveTokenSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
     description=(
         """
             **Fetch executive tokens with permission-based filtering.**     
@@ -375,11 +383,10 @@ async def fetch_token(
         )
 
         query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked == False)
-        if query_params.executive_id is not None:
-            query = query.filter(
-                ExecutiveToken.executive_id == query_params.executive_id
-            )
-        if has_permission is False:
+        if not has_permission:
+            if query_params.executive_id not in (None, token.executive_id):
+                raise exceptions.NoPermission()
+            # Restrict to only the logged-in executive's tokens
             query = query.filter(ExecutiveToken.executive_id == token.executive_id)
 
         # Generalized filters
