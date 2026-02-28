@@ -240,6 +240,7 @@ async def update_account(
                 .update({ExecutiveToken.is_revoked: True})
                 > 0
             )
+        
         update_if_changed(executive, update_data)
         have_updates = session.is_modified(executive) or tokens_revoked
         if have_updates:
