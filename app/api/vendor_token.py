@@ -413,7 +413,7 @@ async def fetch_tokens_vendor(
             **Deletes a vendor access token.**    
             - Vendor must have a valid access token.    
             - Vendors can delete their own tokens without additional permissions.    
-            - To delete another vendor's token in the same business, the 'business.vendor.token.delete' permission is required,    
+            - To delete another vendor's token in the same business, the 'business.vendor.token.delete' permission is required.    
             - Trying to delete another vendor's token without permission will result in a `NoPermission` error.   
             - If the token ID is invalid or already revoked, the operation is silently ignored.   
         """
