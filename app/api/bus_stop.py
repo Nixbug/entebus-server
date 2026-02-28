@@ -338,7 +338,7 @@ async def update_bus_stop(
 
         update_data = form_param.model_dump(exclude_unset=True)
         if form_param.location is not None:
-            # Validate location (WKT, SRID, and landmark boundary)
+            # Validate location if changed
             new_geom = validate_location(
                 session, form_param.location, bus_stop.landmark_id
             )
