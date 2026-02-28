@@ -113,7 +113,7 @@ class OrderBy(StrEnum):
 
 
 class QueryParamsForOP(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter):
-    """Query parameters for operator token endpoints."""
+    """Query parameters for operator token endpoints (for operator)."""
 
     operator_id: int | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
@@ -123,14 +123,20 @@ class QueryParamsForOP(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFi
 
 
 class QueryParamsForEX(QueryParamsForOP):
+    """Query parameters for operator token endpoints (for executive)."""
+
     company_id: int | None = Field(Query(default=None))
+
+
+class QueryParams(QueryParamsForEX):
+    """Query parameters for operator token endpoints."""
+
+    pass
 
 
 ## Functions
 def search_operator_tokens(
-    session: Session,
-    query_params: QueryParamsForOP | QueryParamsForEX,
-    company_id: int | None = None,
+    session: Session, query_params: QueryParams
 ) -> List[OperatorToken]:
     """
     Search for operator tokens based on provided query parameters.
@@ -140,21 +146,14 @@ def search_operator_tokens(
 
     Args:
         session (Session): Active SQLAlchemy database session.
-        query_params (QueryParamsForOP | QueryParamsForEX): Query parameters for filtering, ordering, and pagination.
-        company_id (int | None): Optional company ID for additional filtering (mandatory for QueryParamsForOP).
+        query_params (QueryParams): Object containing all possible query parameters for filtering, ordering, and pagination.
 
     Returns:
         List[OperatorToken]: List of operator tokens that match the search criteria.
     """
     query = session.query(OperatorToken).filter(OperatorToken.is_revoked == False)
-
-    if (
-        isinstance(query_params, QueryParamsForEX)
-        and query_params.company_id is not None
-    ):
+    if query_params.company_id is not None:
         query = query.filter(OperatorToken.company_id == query_params.company_id)
-    if isinstance(query_params, QueryParamsForOP):
-        query = query.filter(OperatorToken.company_id == company_id)
     if query_params.operator_id is not None:
         query = query.filter(OperatorToken.operator_id == query_params.operator_id)
 
@@ -393,7 +392,8 @@ async def fetch_tokens_operator(
             query_params.operator_id = token.operator_id
 
         return search_operator_tokens(
-            session, query_params, company_id=token.company_id
+            session,
+            QueryParams(**query_params.model_dump(), company_id=token.company_id),
         )
     except Exception as e:
         exceptions.handle(e)
@@ -499,7 +499,7 @@ async def fetch_tokens_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.FETCH_COMPANY_OPERATOR_TOKEN)
 
-        return search_operator_tokens(session, query_params)
+        return search_operator_tokens(session, QueryParams(**query_params.model_dump()))
     except Exception as e:
         exceptions.handle(e)
     finally:
