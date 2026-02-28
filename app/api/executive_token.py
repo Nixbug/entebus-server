@@ -319,8 +319,9 @@ async def delete_token(
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
         has_permission = verify_permission(
-            get_executive_roles(session, token),
+            roles,
             PermissionPath.DELETE_EXECUTIVE_TOKEN,
             False,
         )
@@ -331,14 +332,10 @@ async def delete_token(
             .filter(ExecutiveToken.is_revoked.is_(False))
             .first()
         )
-        if not has_permission:
-            if (
-                token_to_delete is None
-                or token_to_delete.executive_id != token.executive_id
-            ):
-                raise exceptions.NoPermission()
         if token_to_delete is None:
             raise exceptions.InvalidToken()
+        if not has_permission and token_to_delete.executive_id != token.executive_id:
+            raise exceptions.NoPermission()
 
         # Revoke the chosen token
         token_to_delete.is_revoked = True
