@@ -219,6 +219,7 @@ async def update_account(
         executive = session.query(Executive).filter(Executive.id == id).first()
         if executive is None:
             raise exceptions.UnknownValue(Executive.id)
+        
         update_data = form_param.model_dump(exclude_unset=True)
         is_self_update = executive.id == token.executive_id
         if not is_self_update:
