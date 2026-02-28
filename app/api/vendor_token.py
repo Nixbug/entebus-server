@@ -116,7 +116,7 @@ class OrderBy(StrEnum):
 
 
 class QueryParamsForVE(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter):
-    """Query parameters for vendor token endpoints (for vendor)."""
+    """Query parameters for vendor."""
 
     vendor_id: int | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
@@ -126,13 +126,13 @@ class QueryParamsForVE(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFi
 
 
 class QueryParamsForEX(QueryParamsForVE):
-    """Query parameters for vendor token endpoints (for executive)."""
+    """Query parameters for executive."""
 
     business_id: int | None = Field(Query(default=None))
 
 
 class QueryParams(QueryParamsForEX):
-    """Query parameters for vendor token endpoints."""
+    """Query parameters for vendor and executive."""
 
     pass
 

@@ -113,7 +113,7 @@ class OrderBy(StrEnum):
 
 
 class QueryParamsForOP(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter):
-    """Query parameters for operator token endpoints (for operator)."""
+    """Query parameters for operator."""
 
     operator_id: int | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
@@ -123,13 +123,13 @@ class QueryParamsForOP(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFi
 
 
 class QueryParamsForEX(QueryParamsForOP):
-    """Query parameters for operator token endpoints (for executive)."""
+    """Query parameters for executive."""
 
     company_id: int | None = Field(Query(default=None))
 
 
 class QueryParams(QueryParamsForEX):
-    """Query parameters for operator token endpoints."""
+    """Query parameters for operator and executive."""
 
     pass
 
