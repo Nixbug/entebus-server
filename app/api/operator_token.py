@@ -358,9 +358,8 @@ async def revoke_token(
         """
             **Fetch operator tokens with permission-based filtering.**    
             - If the logged-in operator has `company.operator.token.fetch` permission, all masked tokens are returned.    
-            - If the logged-in operator does not have permission:    
-              - only masked tokens for the logged-in operator are returned.    
-              - Trying to access tokens of other operators will result in `NoPermission` error.    
+            - If the logged-in operator does not have permission, only masked tokens for the logged-in operator are returned.    
+            - Trying to access tokens of other operators without permission will result in `NoPermission` error.    
         """
     ),
 )
