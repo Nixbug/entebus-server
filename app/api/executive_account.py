@@ -219,7 +219,7 @@ async def update_account(
         executive = session.query(Executive).filter(Executive.id == id).first()
         if executive is None:
             raise exceptions.UnknownValue(Executive.id)
-        
+
         update_data = form_param.model_dump(exclude_unset=True)
         is_self_update = executive.id == token.executive_id
         if not is_self_update:
@@ -240,7 +240,7 @@ async def update_account(
                 .update({ExecutiveToken.is_revoked: True})
                 > 0
             )
-        
+
         update_if_changed(executive, update_data)
         have_updates = session.is_modified(executive) or tokens_revoked
         if have_updates:
