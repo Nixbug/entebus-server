@@ -7,13 +7,17 @@ Endpoints for deletion, and retrieval are planned for future implementation.
 """
 
 from datetime import datetime
-from typing import Tuple
-from fastapi import APIRouter, status, Depends
+from enum import StrEnum
+from typing import Tuple, List, Union
+
+from fastapi import APIRouter, status, Depends, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from shapely import wkb, wkt
 from shapely.geometry import Point
 from sqlalchemy.orm.session import Session
+from sqlalchemy import func, String, or_
+from geoalchemy2 import Geography
 
 from app.api.bearer import oauth2_executive, bearer_operator
 from app.src.db import (
@@ -24,15 +28,30 @@ from app.src.db import (
     Wallet,
     CompanyWallet,
 )
+from app.src.filters import (
+    CreatedOnFilter,
+    CreatedOnFilter,
+    IDFilter,
+    NameFilter,
+    NameFilter,
+    PaginationFilter,
+    PaginationFilter,
+    UpdatedOnFilter,
+    UpdatedOnFilter,
+)
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src import exceptions
 from app.src.regex import NAME_PATTERN
-from app.src.enums import CompanyStatus, CompanyType
+from app.src.enums import CompanyStatus, CompanyType, OrderIn
 from app.src.urls import URL_COMPANY
 from app.src.openobserve import log_event
 from app.src.validators import validate_company_id, verify_permission, verify_token
 from app.src.functions import (
+    apply_created_on_filters,
+    apply_updated_on_filters,
+    apply_name_filters,
+    apply_id_filters,
     enum_str,
     fuse_exception_responses,
     get_executive_roles,
@@ -45,6 +64,7 @@ from app.src.functions import (
 
 route_executive = APIRouter()
 route_operator = APIRouter()
+route_public = APIRouter()
 
 
 ## Output Schema
@@ -60,6 +80,14 @@ class CompanySchema(BaseModel):
     location: str
     updated_on: datetime | None
     created_on: datetime
+
+
+class CompanySchemaOP(BaseModel):
+    """Schema for company response for operator."""
+
+    id: int
+    name: str
+    type: int
 
 
 ## Input Forms
@@ -100,9 +128,7 @@ class UpdateFormForOP(BaseModel):
 class UpdateFormForEX(UpdateFormForOP):
     """Form for updating a company by executive."""
 
-    name: str = Field(
-        min_length=1, max_length=32, pattern=NAME_PATTERN, default=None
-    )
+    name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN, default=None)
     status: CompanyStatus = Field(
         description=enum_str(CompanyStatus),
         default=None,
@@ -119,7 +145,46 @@ class UpdateForm(UpdateFormForEX):
     pass
 
 
-# Function
+## Query Parameters
+class OrderBy(StrEnum):
+    """Enum for ordering company results."""
+
+    ID = "id"
+    CREATED_ON = "created_on"
+    UPDATED_ON = "updated_on"
+    LOCATION = "location"
+
+
+class QueryParams(
+    UpdatedOnFilter,
+    CreatedOnFilter,
+    NameFilter,
+    IDFilter,
+    PaginationFilter,
+):
+    """Query parameters for fetching companies."""
+
+    search: str | None = Field(Query(default=None))
+    location: str | None = Field(
+        Query(
+            default=None,
+            description="Accepts only SRID 4326 (WGS84) and a valid WKT POINT.",
+        )
+    )
+    type: CompanyType | None = Field(
+        Query(default=None, description=enum_str(CompanyType))
+    )
+    status: CompanyStatus | None = Field(
+        Query(default=None, description=enum_str(CompanyStatus))
+    )
+    address: str | None = Field(Query(default=None, min_length=1, max_length=512))
+    description: str | None = Field(Query(default=None, min_length=1, max_length=1024))
+    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
+    order_in: OrderIn = Field(
+        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
+    )
+
+
 def validate_location(location_wkt: str) -> Point:
     """
     Validate a WKT string as a Point geometry with SRID 4326.
@@ -182,6 +247,84 @@ def update_company(
     )
     company_data[Company.location.name] = (wkb.loads(bytes(company.location.data))).wkt
     return have_updates, company_data
+
+
+def search_company(session: Session, query_params: QueryParams) -> List[Company]:
+    """
+    Search for companies based on provided query parameters.
+
+    This function supports multiple filtering, searching, ordering, and
+    pagination capabilities to retrieve companies that match  various criteria.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        query_params (QueryParams): Query parameters containing search criteria.
+
+    Returns:
+        List[Company]: List of companies that match the search criteria.
+    """
+
+    query = session.query(Company)
+    validated_location = None
+    if query_params.location is not None:
+        geometry = validate_wkt_string(query_params.location, Point)
+        validate_srid_4326(geometry)
+        validated_location = wkt.dumps(geometry)
+    if query_params.type is not None:
+        query = query.filter(Company.type == query_params.type)
+    if query_params.status is not None:
+        query = query.filter(Company.status == query_params.status)
+    if query_params.address is not None:
+        query = query.filter(Company.address.ilike(f"%{query_params.address}%"))
+    if query_params.description is not None:
+        query = query.filter(Company.description.ilike(f"%{query_params.description}%"))
+
+    # Common search
+    if query_params.search:
+        search = f"%{query_params.search}%"
+        query = query.filter(
+            or_(
+                Company.id.cast(String).ilike(search),
+                Company.name.ilike(search),
+            )
+        )
+
+    # Generalized filters
+    query = apply_id_filters(query, Company, query_params)
+    query = apply_created_on_filters(query, Company, query_params)
+    query = apply_updated_on_filters(query, Company, query_params)
+    query = apply_name_filters(query, Company, query_params)
+
+    # Ordering and pagination
+    if query_params.order_by == OrderBy.LOCATION:
+        if validated_location is not None:
+            ordering_attr = func.ST_Distance(
+                Company.location.cast(Geography),
+                func.ST_GeogFromText(validated_location),
+            )
+        else:
+            ordering_attr = Company.id
+    else:
+        ordering_attr = getattr(Company, query_params.order_by.value)
+    ordering_func = (
+        ordering_attr.asc
+        if query_params.order_in == OrderIn.ASCENDING
+        else ordering_attr.desc
+    )
+    query = query.order_by(ordering_func())
+    query = query.offset(query_params.offset).limit(query_params.limit)
+
+    query = query.with_entities(
+        Company,
+        func.ST_AsText(Company.location).label("location_wkt"),
+    )
+    results = query.all()
+    companies = []
+    for company_obj, location_wkt in results:
+        company_obj.location = location_wkt
+        companies.append(company_obj)
+
+    return companies
 
 
 # ---------------------------------------------------------------------------
@@ -309,6 +452,32 @@ async def update_company_executive(
         session.close()
 
 
+@route_executive.get(
+    URL_COMPANY,
+    tags=["Company"],
+    response_model=List[CompanySchema],
+    responses=fuse_exception_responses(
+        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+    ),
+    description=(
+        """
+            **Fetches a list of companies.**    
+            - Common search supports searching by id and name.    
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
+        """
+    ),
+)
+async def fetch_company_executive(query_params: QueryParams = Depends()):
+    try:
+        session = SessionLocal()
+
+        return search_company(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Operator]
 # ---------------------------------------------------------------------------
@@ -357,6 +526,93 @@ async def update_company_operator(
         if have_updates:
             log_event(token, request_info, company_data)
         return company_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.get(
+    URL_COMPANY,
+    tags=["Company"],
+    response_model=List[Union[CompanySchema, CompanySchemaOP]],
+    responses=fuse_exception_responses(
+        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+    ),
+    description=(
+        """
+            **Fetches a list of active companies.**    
+            - Own company return all fields.    
+            - Other companies return only id, name, type fields.    
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
+        """
+    ),
+)
+async def fetch_company_operator(
+    query_params: QueryParams = Depends(), access_token=Depends(bearer_operator)
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+
+        query_params.status = CompanyStatus.VERIFIED
+        companies = search_company(session, query_params)
+
+        results = []
+        for company in companies:
+            if company.id == token.company_id:
+                results.append(company)
+            else:
+                results.append(
+                    CompanySchemaOP(
+                        id=company.id,
+                        name=company.name,
+                        type=company.type,
+                    )
+                )
+        return results
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Public]
+# ---------------------------------------------------------------------------
+@route_public.get(
+    URL_COMPANY,
+    tags=["Company"],
+    response_model=List[CompanySchemaOP],
+    responses=fuse_exception_responses(
+        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+    ),
+    description=(
+        """
+            **Fetches a list of companies.**    
+            - Only verified companies are returned.
+            - Only id, name, type are returned.
+            - Common search supports searching by id and name.    
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
+        """
+    ),
+)
+async def fetch_company_public(
+    query_params: QueryParams = Depends(),
+):
+    try:
+        session = SessionLocal()
+
+        query_params.status = CompanyStatus.VERIFIED
+        companies = search_company(session, query_params)
+        return [
+            CompanySchemaOP(
+                id=company.id,
+                name=company.name,
+                type=company.type,
+            )
+            for company in companies
+        ]
     except Exception as e:
         exceptions.handle(e)
     finally:
