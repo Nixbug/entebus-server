@@ -148,7 +148,7 @@ class OrderBy(StrEnum):
     LOCATION = "location"
 
 
-class QueryParamsPU(
+class QueryParamsForPU(
     IDFilter, CreatedOnFilter, NameFilter, PaginationFilter, UpdatedOnFilter
 ):
     """Query parameters for public users."""
@@ -167,7 +167,7 @@ class QueryParamsPU(
     order_in: OrderIn = Field(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
 
 
-class QueryParamsEX(QueryParamsPU):
+class QueryParamsForEX(QueryParamsForPU):
     """Query parameters for executives."""
 
     status: CompanyStatus | None = Field(
@@ -177,7 +177,7 @@ class QueryParamsEX(QueryParamsPU):
     description: str | None = Field(default=None, min_length=1, max_length=1024)
 
 
-class QueryParams(QueryParamsEX):
+class QueryParams(QueryParamsForEX):
     """Query parameters for executives."""
 
     pass
