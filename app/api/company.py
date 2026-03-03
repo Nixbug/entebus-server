@@ -68,7 +68,7 @@ route_public = APIRouter()
 
 
 ## Output Schema
-class CompanySchema(BaseModel):
+class MaskedCompanySchema(BaseModel):
     """Schema for company response."""
 
     id: int
@@ -155,34 +155,44 @@ class OrderBy(StrEnum):
     LOCATION = "location"
 
 
-class QueryParams(
-    UpdatedOnFilter,
-    CreatedOnFilter,
-    NameFilter,
-    IDFilter,
-    PaginationFilter,
+class QueryParamsPU(
+    IDFilter, CreatedOnFilter, NameFilter, PaginationFilter, UpdatedOnFilter
 ):
-    """Query parameters for fetching companies."""
+    """Query parameters for public users."""
 
-    search: str | None = Field(Query(default=None))
+    search: str | None = Field(
+        default=None,
+    )
     location: str | None = Field(
-        Query(
-            default=None,
-            description="Accepts only SRID 4326 (WGS84) and a valid WKT POINT.",
-        )
+        default=None,
+        description=(
+            f"Accepts only SRID 4326 (WGS84), valid WKT string representing a `POINT`. Used for distance-based ordering."
+        ),
     )
-    type: CompanyType | None = Field(
-        Query(default=None, description=enum_str(CompanyType))
-    )
+    order_by: OrderBy = Field(default=OrderBy.ID, description=enum_str(OrderBy))
+    order_in: OrderIn = Field(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
+
+
+class QueryParamsOP(QueryParamsPU):
+    """Query parameters for operators."""
+
+    type: CompanyType | None = Field(default=None, description=enum_str(CompanyType))
+
+
+class QueryParamsEX(QueryParamsOP):
+    """Query parameters for executives."""
+
     status: CompanyStatus | None = Field(
-        Query(default=None, description=enum_str(CompanyStatus))
+        default=None, description=enum_str(CompanyStatus)
     )
-    address: str | None = Field(Query(default=None, min_length=1, max_length=512))
-    description: str | None = Field(Query(default=None, min_length=1, max_length=1024))
-    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
-    order_in: OrderIn = Field(
-        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
-    )
+    address: str | None = Field(default=None, min_length=1, max_length=512)
+    description: str | None = Field(default=None, min_length=1, max_length=1024)
+
+
+class QueryParams(QueryParamsEX):
+    """Query parameters for executives and operators."""
+
+    pass
 
 
 def validate_location(location_wkt: str) -> Point:
@@ -286,6 +296,7 @@ def search_company(session: Session, query_params: QueryParams) -> List[Company]
             or_(
                 Company.id.cast(String).ilike(search),
                 Company.name.ilike(search),
+                Company.address.ilike(search),
             )
         )
 
@@ -333,7 +344,7 @@ def search_company(session: Session, query_params: QueryParams) -> List[Company]
 @route_executive.post(
     URL_COMPANY,
     tags=["Company"],
-    response_model=CompanySchema,
+    response_model=MaskedCompanySchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
         [
@@ -405,7 +416,7 @@ async def create_company(
 @route_executive.patch(
     f"{URL_COMPANY}/{{id}}",
     tags=["Company"],
-    response_model=CompanySchema,
+    response_model=MaskedCompanySchema,
     responses=fuse_exception_responses(
         [
             exceptions.InvalidToken(),
@@ -455,7 +466,7 @@ async def update_company_executive(
 @route_executive.get(
     URL_COMPANY,
     tags=["Company"],
-    response_model=List[CompanySchema],
+    response_model=List[MaskedCompanySchema],
     responses=fuse_exception_responses(
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
@@ -467,11 +478,14 @@ async def update_company_executive(
         """
     ),
 )
-async def fetch_company_executive(query_params: QueryParams = Depends()):
+async def fetch_company_executive(query_params: QueryParamsEX = Depends()):
     try:
         session = SessionLocal()
 
-        return search_company(session, query_params)
+        return search_company(
+            session,
+            QueryParams(**query_params.model_dump()),
+        )
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -484,7 +498,7 @@ async def fetch_company_executive(query_params: QueryParams = Depends()):
 @route_operator.patch(
     f"{URL_COMPANY}/{{id}}",
     tags=["Company"],
-    response_model=CompanySchema,
+    response_model=MaskedCompanySchema,
     responses=fuse_exception_responses(
         [
             exceptions.InvalidToken(),
@@ -535,7 +549,7 @@ async def update_company_operator(
 @route_operator.get(
     URL_COMPANY,
     tags=["Company"],
-    response_model=List[Union[CompanySchema, CompanySchemaOP]],
+    response_model=List[Union[CompanySchemaOP, MaskedCompanySchema]],
     responses=fuse_exception_responses(
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
@@ -549,14 +563,16 @@ async def update_company_operator(
     ),
 )
 async def fetch_company_operator(
-    query_params: QueryParams = Depends(), access_token=Depends(bearer_operator)
+    query_params: QueryParamsOP = Depends(), access_token=Depends(bearer_operator)
 ):
     try:
         session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
 
-        query_params.status = CompanyStatus.VERIFIED
-        companies = search_company(session, query_params)
+        companies = search_company(
+            session,
+            QueryParams(**query_params.model_dump(), status=CompanyStatus.VERIFIED),
+        )
 
         results = []
         for company in companies:
@@ -598,13 +614,16 @@ async def fetch_company_operator(
     ),
 )
 async def fetch_company_public(
-    query_params: QueryParams = Depends(),
+    query_params: QueryParamsPU = Depends(),
 ):
     try:
         session = SessionLocal()
 
-        query_params.status = CompanyStatus.VERIFIED
-        companies = search_company(session, query_params)
+        companies = search_company(
+            session,
+            QueryParams(**query_params.model_dump(), status=CompanyStatus.VERIFIED),
+        )
+
         return [
             CompanySchemaOP(
                 id=company.id,

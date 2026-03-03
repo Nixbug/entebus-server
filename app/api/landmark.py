@@ -264,6 +264,7 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
     for landmark_obj, boundary_wkt in results:
         setattr(landmark_obj, Landmark.boundary.name, boundary_wkt)
         landmarks.append(landmark_obj)
+        
     return landmarks
 
 
