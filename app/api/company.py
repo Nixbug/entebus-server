@@ -166,17 +166,12 @@ class QueryParamsPU(
             f"Accepts only SRID 4326 (WGS84), valid WKT string representing a `POINT`. Used for distance-based ordering."
         ),
     )
+    type: CompanyType | None = Field(default=None, description=enum_str(CompanyType))
     order_by: OrderBy = Field(default=OrderBy.ID, description=enum_str(OrderBy))
     order_in: OrderIn = Field(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
 
 
-class QueryParamsOP(QueryParamsPU):
-    """Query parameters for operators."""
-
-    type: CompanyType | None = Field(default=None, description=enum_str(CompanyType))
-
-
-class QueryParamsEX(QueryParamsOP):
+class QueryParamsEX(QueryParamsPU):
     """Query parameters for executives."""
 
     status: CompanyStatus | None = Field(
@@ -187,7 +182,7 @@ class QueryParamsEX(QueryParamsOP):
 
 
 class QueryParams(QueryParamsEX):
-    """Query parameters for executives and operators."""
+    """Query parameters for executives."""
 
     pass
 
@@ -552,25 +547,19 @@ async def update_company_operator(
     ),
     description=(
         """
-            **Fetches a list of active companies.**    
-            - Only operator companies will be returned.     
-            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
+            **Fetches the operator's company.**    
+            - Only the company associated with the operator will be returned.    
         """
     ),
 )
-async def fetch_company_operator(
-    query_params: QueryParamsOP = Depends(), access_token=Depends(bearer_operator)
-):
+async def fetch_company_operator(access_token=Depends(bearer_operator)):
     try:
         session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
 
-        query_params.id = token.company_id
-
-        return search_company(
-            session,
-            QueryParams(**query_params.model_dump(), status=CompanyStatus.VERIFIED),
-        )
+        company = session.query(Company).filter(Company.id == token.company_id).first()
+        company.location = (wkb.loads(bytes(company.location.data))).wkt
+        return [company]
     except Exception as e:
         exceptions.handle(e)
     finally:
