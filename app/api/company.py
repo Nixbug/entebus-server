@@ -8,9 +8,9 @@ Endpoints for deletion are planned for future implementation.
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Tuple, List, Union
+from typing import Tuple, List
 
-from fastapi import APIRouter, status, Depends, Query
+from fastapi import APIRouter, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from shapely import wkb, wkt
@@ -30,13 +30,9 @@ from app.src.db import (
 )
 from app.src.filters import (
     CreatedOnFilter,
-    CreatedOnFilter,
     IDFilter,
     NameFilter,
-    NameFilter,
     PaginationFilter,
-    PaginationFilter,
-    UpdatedOnFilter,
     UpdatedOnFilter,
 )
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
