@@ -1,9 +1,9 @@
 """
 Company API Router for EnteBus.
 
-Provides endpoints for managing companies, including creation, update,
+Provides endpoints for managing companies, including creation, update, retrieval,
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion, and retrieval are planned for future implementation.
+Endpoints for deletion are planned for future implementation.
 """
 
 from datetime import datetime
@@ -69,7 +69,7 @@ route_public = APIRouter()
 
 ## Output Schema
 class MaskedCompanySchema(BaseModel):
-    """Schema for company response for operator without revealing all details."""
+    """Schema for company response for public users without revealing all details."""
 
     id: int
     name: str
@@ -470,7 +470,7 @@ async def update_company_executive(
     description=(
         """
             **Fetches a list of companies.**    
-            - Common search supports searching by id and name.    
+            - Common search supports searching by id, name and address.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
@@ -546,15 +546,14 @@ async def update_company_operator(
 @route_operator.get(
     URL_COMPANY,
     tags=["Company"],
-    response_model=List[Union[MaskedCompanySchema, CompanySchema]],
+    response_model=List[CompanySchema],
     responses=fuse_exception_responses(
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
     description=(
         """
             **Fetches a list of active companies.**    
-            - Own company return all fields.    
-            - Other companies return only id, name, type fields.    
+            - Only operator companies will be returned.     
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
@@ -566,24 +565,12 @@ async def fetch_company_operator(
         session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
 
-        companies = search_company(
+        query_params.id = token.company_id
+
+        return search_company(
             session,
             QueryParams(**query_params.model_dump(), status=CompanyStatus.VERIFIED),
         )
-
-        results = []
-        for company in companies:
-            if company.id == token.company_id:
-                results.append(company)
-            else:
-                results.append(
-                    MaskedCompanySchema(
-                        id=company.id,
-                        name=company.name,
-                        type=company.type,
-                    )
-                )
-        return results
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -605,7 +592,7 @@ async def fetch_company_operator(
             **Fetches a list of companies.**    
             - Only verified companies are returned.
             - Only id, name, type are returned.
-            - Common search supports searching by id and name.    
+            - Common search supports searching by id, name and address.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
@@ -616,19 +603,10 @@ async def fetch_company_public(
     try:
         session = SessionLocal()
 
-        companies = search_company(
+        return search_company(
             session,
             QueryParams(**query_params.model_dump(), status=CompanyStatus.VERIFIED),
         )
-
-        return [
-            MaskedCompanySchema(
-                id=company.id,
-                name=company.name,
-                type=company.type,
-            )
-            for company in companies
-        ]
     except Exception as e:
         exceptions.handle(e)
     finally:
