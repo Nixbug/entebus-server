@@ -69,25 +69,22 @@ route_public = APIRouter()
 
 ## Output Schema
 class MaskedCompanySchema(BaseModel):
-    """Schema for company response."""
+    """Schema for company response for operator without revealing all details."""
 
     id: int
     name: str
-    status: int
     type: int
+
+
+class CompanySchema(MaskedCompanySchema):
+    """Schema for company response."""
+
+    status: int
     description: str | None
     address: str
     location: str
     updated_on: datetime | None
     created_on: datetime
-
-
-class CompanySchemaOP(BaseModel):
-    """Schema for company response for operator."""
-
-    id: int
-    name: str
-    type: int
 
 
 ## Input Forms
@@ -466,7 +463,7 @@ async def update_company_executive(
 @route_executive.get(
     URL_COMPANY,
     tags=["Company"],
-    response_model=List[MaskedCompanySchema],
+    response_model=List[CompanySchema],
     responses=fuse_exception_responses(
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
@@ -549,7 +546,7 @@ async def update_company_operator(
 @route_operator.get(
     URL_COMPANY,
     tags=["Company"],
-    response_model=List[Union[CompanySchemaOP, MaskedCompanySchema]],
+    response_model=List[Union[MaskedCompanySchema, CompanySchema]],
     responses=fuse_exception_responses(
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
@@ -580,7 +577,7 @@ async def fetch_company_operator(
                 results.append(company)
             else:
                 results.append(
-                    CompanySchemaOP(
+                    MaskedCompanySchema(
                         id=company.id,
                         name=company.name,
                         type=company.type,
@@ -599,7 +596,7 @@ async def fetch_company_operator(
 @route_public.get(
     URL_COMPANY,
     tags=["Company"],
-    response_model=List[CompanySchemaOP],
+    response_model=List[MaskedCompanySchema],
     responses=fuse_exception_responses(
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
@@ -625,7 +622,7 @@ async def fetch_company_public(
         )
 
         return [
-            CompanySchemaOP(
+            MaskedCompanySchema(
                 id=company.id,
                 name=company.name,
                 type=company.type,
