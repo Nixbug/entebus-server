@@ -1,0 +1,85 @@
+name: Docker Build
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        required: false
+        type: string
+      push:
+        required: false
+        type: boolean
+        default: true
+
+env:
+  REGISTRY: ghcr.io
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image name
+        id: vars
+        run: |
+          if [ -z "${{ inputs.image_name }}" ]; then
+            IMAGE="${{ github.repository }}"
+          else
+            IMAGE="${{ inputs.image_name }}"
+          fi
+          echo "image=ghcr.io/${IMAGE,,}" >> $GITHUB_OUTPUT
+
+      # Prevent pushing images from fork PRs
+      - name: Detect fork PR
+        id: fork
+        run: |
+          if [[ "${{ github.event.pull_request.head.repo.fork }}" == "true" ]]; then
+            echo "fork=true" >> $GITHUB_OUTPUT
+          else
+            echo "fork=false" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.vars.outputs.image }}
+          tags: |
+            type=sha
+            type=ref,event=branch
+            type=ref,event=pr
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Login to GHCR
+        if: steps.fork.outputs.fork != 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ inputs.push && steps.fork.outputs.fork != 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
