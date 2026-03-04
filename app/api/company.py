@@ -9,7 +9,6 @@ Endpoints for deletion are planned for future implementation.
 from datetime import datetime
 from enum import StrEnum
 from typing import Tuple, List
-
 from fastapi import APIRouter, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -56,6 +55,7 @@ from app.src.functions import (
     update_if_changed,
     validate_srid_4326,
     validate_wkt_string,
+    resolve_model_defaults,
 )
 
 route_executive = APIRouter()
@@ -332,7 +332,7 @@ def search_company(session: Session, query_params: QueryParams) -> List[Company]
 @route_executive.post(
     URL_COMPANY,
     tags=["Company"],
-    response_model=MaskedCompanySchema,
+    response_model=CompanySchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
         [
@@ -404,7 +404,7 @@ async def create_company(
 @route_executive.patch(
     f"{URL_COMPANY}/{{id}}",
     tags=["Company"],
-    response_model=MaskedCompanySchema,
+    response_model=CompanySchema,
     responses=fuse_exception_responses(
         [
             exceptions.InvalidToken(),
@@ -466,7 +466,7 @@ async def update_company_executive(
         """
     ),
 )
-async def fetch_company_executive(query_params: QueryParamsEX = Depends()):
+async def fetch_company_executive(query_params: QueryParamsForEX = Depends()):
     try:
         session = SessionLocal()
 
@@ -486,7 +486,7 @@ async def fetch_company_executive(query_params: QueryParamsEX = Depends()):
 @route_operator.patch(
     f"{URL_COMPANY}/{{id}}",
     tags=["Company"],
-    response_model=MaskedCompanySchema,
+    response_model=CompanySchema,
     responses=fuse_exception_responses(
         [
             exceptions.InvalidToken(),
@@ -553,9 +553,10 @@ async def fetch_company_operator(access_token=Depends(bearer_operator)):
         session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
 
-        company = session.query(Company).filter(Company.id == token.company_id).first()
-        company.location = (wkb.loads(bytes(company.location.data))).wkt
-        return [company]
+        query_params = resolve_model_defaults(
+            QueryParams, id_list=[token.company_id], offset=0, limit=1
+        )
+        return search_company(session, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -583,7 +584,7 @@ async def fetch_company_operator(access_token=Depends(bearer_operator)):
     ),
 )
 async def fetch_company_public(
-    query_params: QueryParamsPU = Depends(),
+    query_params: QueryParamsForPU = Depends(),
 ):
     try:
         session = SessionLocal()
