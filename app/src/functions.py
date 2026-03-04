@@ -636,14 +636,14 @@ def get_area(geom: BaseGeometry) -> float:
 
 def resolve_model_defaults(model_cls: Type[BaseModel], **overrides):
     """
-    Build a QueryParams instance with all Query() defaults resolved to concrete values.
+    Build a model instance with all Query() defaults resolved to concrete values.
 
     Args:
         model_cls (Type[BaseModel]): The Pydantic model class to build.
-        **overrides: Any field values to override the defaults.
+        **overrides: Field values to override the defaults.
 
     Returns:
-        QueryParams: A QueryParams instance with all Query() defaults resolved.
+        BaseModel: An instance of model_cls with all Query() defaults resolved.
     """
     data = {}
     for field_name, field_info in model_cls.model_fields.items():

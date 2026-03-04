@@ -9,7 +9,7 @@ Endpoints for deletion are planned for future implementation.
 from datetime import datetime
 from enum import StrEnum
 from typing import Tuple, List
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, Query, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from shapely import wkb, wkt
@@ -153,28 +153,32 @@ class QueryParamsForPU(
 ):
     """Query parameters for public users."""
 
-    search: str | None = Field(
-        default=None,
-    )
+    search: str | None = Field(Query(default=None))
     location: str | None = Field(
-        default=None,
-        description=(
-            f"Accepts only SRID 4326 (WGS84), valid WKT string representing a `POINT`. Used for distance-based ordering."
-        ),
+        Query(
+            default=None,
+            description=(
+                f"Accepts only SRID 4326 (WGS84), valid WKT string representing a `POINT`. Used for distance-based ordering."
+            ),
+        )
     )
-    type: CompanyType | None = Field(default=None, description=enum_str(CompanyType))
-    order_by: OrderBy = Field(default=OrderBy.ID, description=enum_str(OrderBy))
-    order_in: OrderIn = Field(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
+    type: CompanyType | None = Field(
+        Query(default=None, description=enum_str(CompanyType))
+    )
+    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
+    order_in: OrderIn = Field(
+        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
+    )
 
 
 class QueryParamsForEX(QueryParamsForPU):
     """Query parameters for executives."""
 
     status: CompanyStatus | None = Field(
-        default=None, description=enum_str(CompanyStatus)
+        Query(default=None, description=enum_str(CompanyStatus))
     )
-    address: str | None = Field(default=None, min_length=1, max_length=512)
-    description: str | None = Field(default=None, min_length=1, max_length=1024)
+    address: str | None = Field(Query(default=None, min_length=1, max_length=512))
+    description: str | None = Field(Query(default=None, min_length=1, max_length=1024))
 
 
 class QueryParams(QueryParamsForEX):
