@@ -132,7 +132,7 @@ class QueryParamsForEX(QueryParamsForVE):
 
 
 class QueryParams(QueryParamsForEX):
-    """Query parameters for vendor and executive."""
+    """General combined query parameters."""
 
     pass
 

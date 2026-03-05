@@ -182,7 +182,7 @@ class QueryParamsForEX(QueryParamsForPU):
 
 
 class QueryParams(QueryParamsForEX):
-    """Internal query parameter model combining all filters for company search."""
+    """General combined query parameters."""
 
     pass
 
