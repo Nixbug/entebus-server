@@ -27,10 +27,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set lowercased image name
+        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
       - name: Build Docker image
         run: |
-          docker build -t ghcr.io/${{ github.repository }}:develop .
+          docker build -t "${IMAGE_NAME}:develop" .
 
       - name: Push Docker image
         run: |
-          docker push ghcr.io/${{ github.repository }}:develop
+          docker push "${IMAGE_NAME}:develop"
