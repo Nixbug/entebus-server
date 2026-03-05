@@ -182,7 +182,7 @@ class QueryParamsForEX(QueryParamsForPU):
 
 
 class QueryParams(QueryParamsForEX):
-    """Query parameters for executives."""
+    """Internal query parameter model combining all filters for company search."""
 
     pass
 
@@ -256,7 +256,7 @@ def search_company(session: Session, query_params: QueryParams) -> List[Company]
     Search for companies based on provided query parameters.
 
     This function supports multiple filtering, searching, ordering, and
-    pagination capabilities to retrieve companies that match  various criteria.
+    pagination capabilities to retrieve companies that match various criteria.
 
     Args:
         session (Session): SQLAlchemy database session.
@@ -542,9 +542,7 @@ async def update_company_operator(
     URL_COMPANY,
     tags=["Company"],
     response_model=List[CompanySchema],
-    responses=fuse_exception_responses(
-        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
-    ),
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
     description=(
         """
             **Fetches the operator's company.**    
@@ -595,7 +593,12 @@ async def fetch_company_public(
 
         return search_company(
             session,
-            QueryParams(**query_params.model_dump(), status=CompanyStatus.VERIFIED),
+            QueryParams(
+                **query_params.model_dump(),
+                status=CompanyStatus.VERIFIED,
+                address=None,
+                description=None,
+            ),
         )
     except Exception as e:
         exceptions.handle(e)
