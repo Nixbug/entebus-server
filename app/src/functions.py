@@ -632,3 +632,27 @@ def get_area(geom: BaseGeometry) -> float:
 
     projected_geom = transform(projection, geom)
     return projected_geom.area
+
+
+def resolve_model_defaults(model_cls: Type[BaseModel], **overrides):
+    """
+    Build a model instance with all Query() defaults resolved to concrete values.
+
+    Args:
+        model_cls (Type[BaseModel]): The Pydantic model class to build.
+        **overrides: Field values to override the defaults.
+
+    Returns:
+        BaseModel: An instance of model_cls with all Query() defaults resolved.
+    """
+    data = {}
+    for field_name, field_info in model_cls.model_fields.items():
+        if field_name in overrides:
+            data[field_name] = overrides[field_name]
+        else:
+            default_val = field_info.default
+            if hasattr(default_val, "default") and not isinstance(default_val, type):
+                data[field_name] = default_val.default
+            else:
+                data[field_name] = default_val
+    return model_cls(**data)

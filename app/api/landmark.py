@@ -264,6 +264,7 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
     for landmark_obj, boundary_wkt in results:
         setattr(landmark_obj, Landmark.boundary.name, boundary_wkt)
         landmarks.append(landmark_obj)
+
     return landmarks
 
 
@@ -405,7 +406,7 @@ async def update_landmark(
                     bus_stop_geom = wkb.loads(bytes(bus_stop.location.data))
                     if not bus_stop_geom.within(new_geom):
                         raise exceptions.BusStopOutsideLandmark()
-                    
+
                 landmark.boundary = wkt.dumps(new_geom)
             update_data.pop("boundary")
 

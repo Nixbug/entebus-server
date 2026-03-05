@@ -129,7 +129,7 @@ class QueryParamsForEX(QueryParamsForOP):
 
 
 class QueryParams(QueryParamsForEX):
-    """Query parameters for operator and executive."""
+    """General combined query parameters."""
 
     pass
 

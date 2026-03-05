@@ -73,3 +73,4 @@ app_operator.include_router(company.route_operator)
 # ------------------------------------------------------
 app_public.include_router(landmark.route_public)
 app_public.include_router(bus_stop.route_public)
+app_public.include_router(company.route_public)
