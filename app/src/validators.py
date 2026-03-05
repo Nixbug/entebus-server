@@ -12,7 +12,7 @@ from sqlalchemy.orm.session import Session
 
 from app.src.functions import get_by_path
 from app.src import argon2, exceptions
-from app.src.enums import AccountStatus, GrantType
+from app.src.enums import AccountStatus, BusinessStatus, CompanyStatus, GrantType
 from app.src.db import (
     Executive,
     ExecutiveRole,
@@ -116,6 +116,9 @@ def authenticate_operator(
     company = session.query(Company).filter(Company.id == form_param.company_id).first()
     if company is None:
         raise exceptions.UnknownValue(Operator.company_id)
+    if company.status == CompanyStatus.SUSPENDED:
+        raise exceptions.InactiveAccount()
+
     operator = (
         session.query(Operator)
         .filter(
@@ -127,6 +130,8 @@ def authenticate_operator(
 
     if operator is None:
         raise exceptions.InvalidCredentials()
+    if operator.status == AccountStatus.SUSPENDED:
+        raise exceptions.InactiveAccount()
 
     return user_credentials(operator, credentials)
 
@@ -158,6 +163,8 @@ def authenticate_vendor(
     )
     if business is None:
         raise exceptions.UnknownValue(Vendor.business_id)
+    if business.status != BusinessStatus.ACTIVE:
+        raise exceptions.InactiveAccount()
 
     vendor = (
         session.query(Vendor)
@@ -170,7 +177,9 @@ def authenticate_vendor(
 
     if vendor is None:
         raise exceptions.InvalidCredentials()
-
+    if vendor.status == AccountStatus.SUSPENDED:
+        raise exceptions.InactiveAccount()
+    
     return user_credentials(vendor, credentials)
 
 
