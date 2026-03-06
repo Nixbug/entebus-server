@@ -108,7 +108,7 @@ def authenticate_operator(
     Raises:
         InvalidCredentials: If the username/company lookup or password validation fails.
         InvalidGrantType: If credentials.grant_type is not GrantType.PASSWORD.
-        InactiveAccount: If the company or operator account is suspended.
+        InactiveAccount: If the company account is suspended.
         UnknownValue: If the provided company_id does not exist.
     """
     company = session.query(Company).filter(Company.id == form_param.company_id).first()
@@ -127,8 +127,6 @@ def authenticate_operator(
     )
     if operator is None:
         raise exceptions.InvalidCredentials()
-    if operator.status == AccountStatus.SUSPENDED:
-        raise exceptions.InactiveAccount()
     return user_credentials(operator, credentials)
 
 
@@ -151,7 +149,7 @@ def authenticate_vendor(
     Raises:
         InvalidCredentials: If the username/business lookup or password validation fails.
         InvalidGrantType: If credentials.grant_type is not GrantType.PASSWORD.
-        InactiveAccount: If the business or vendor account is suspended.
+        InactiveAccount: If the business account is not active(suspended or blocked).
         UnknownValue: If the provided business_id does not exist.
     """
     business = (
@@ -172,8 +170,6 @@ def authenticate_vendor(
     )
     if vendor is None:
         raise exceptions.InvalidCredentials()
-    if vendor.status == AccountStatus.SUSPENDED:
-        raise exceptions.InactiveAccount()
     return user_credentials(vendor, credentials)
 
 
