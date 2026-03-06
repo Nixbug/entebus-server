@@ -496,7 +496,8 @@ async def fetch_company_executive(query_params: QueryParamsForEX = Depends()):
             **Deletes a company.**    
             - Requires a valid access token for authentication.    
             - The logged-in executive must have `company.delete` permission.    
-            - Return 204 No Content even if the specified company does not exist.    
+            - Returns 204 No Content even if the specified company does not exist.    
+            - A foreign key constraint error will occur if the company is referenced in any other table.    
         """
     ),
 )
