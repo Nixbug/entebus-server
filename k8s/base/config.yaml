@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: entebus-server-secret
+  namespace: entebus
+stringData:
+  # PostgreSQL Credentials (should be overridden in production)
+  PSQL_DB_USERNAME: "postgres"
+  PSQL_DB_PASSWORD: "password"
+
+  # Redis Credentials (should be overridden in production)
+  REDIS_PASSWORD: "password"
+
+  # MinIO Credentials (should be overridden in production)
+  MINIO_ROOT_USER: "minio"
+  MINIO_ROOT_PASSWORD: "password"
+
+  # OpenObserve Credentials (should be overridden in production)
+  OPENOBSERVE_USERNAME: "admin@entebus.com"
+  OPENOBSERVE_PASSWORD: "password"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: entebus-server-config
+  namespace: entebus
+data:
+  # PostgreSQL Configuration (should be overridden in production)
+  PSQL_DB_DRIVER: "postgresql"
+  PSQL_DB_HOST: "postgis"
+  PSQL_DB_PORT: "5432"
+  PSQL_DB_NAME: "postgis"
+
+  # Redis Configuration (should be overridden in production)
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+
+  # MinIO Configuration (should be overridden in production)
+  MINIO_HOST: "minio"
+  MINIO_PORT: "9000"
+
+  # OpenObserve Configuration (should be overridden in production)
+  OPENOBSERVE_HOST: "openobserve"
+  OPENOBSERVE_PORT: "5080"
