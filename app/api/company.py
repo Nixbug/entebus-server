@@ -9,7 +9,7 @@ Endpoints for deletion are planned for future implementation.
 from datetime import datetime
 from enum import StrEnum
 from typing import Tuple, List
-from fastapi import APIRouter, Query, status, Depends
+from fastapi import APIRouter, Query, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from shapely import wkb, wkt
@@ -478,6 +478,52 @@ async def fetch_company_executive(query_params: QueryParamsForEX = Depends()):
             session,
             QueryParams(**query_params.model_dump()),
         )
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.delete(
+    f"{URL_COMPANY}/{{id}}",
+    tags=["Company"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes a company.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in executive must have `company.delete` permission.    
+            - Return 204 No Content even if the specified company does not exist.    
+        """
+    ),
+)
+async def delete_company_executive(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY)
+
+        company = session.query(Company).filter(Company.id == id).first()
+        if company is not None:
+            company_data = jsonable_encoder(
+                company,
+                exclude={Company.location.name},
+            )
+            company_data[Company.location.name] = (
+                wkb.loads(bytes(company.location.data))
+            ).wkt
+            session.delete(company)
+            session.commit()
+            log_event(token, request_info, company_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
