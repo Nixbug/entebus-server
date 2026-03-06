@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: entebus-server
+  namespace: entebus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: entebus-server
+  template:
+    metadata:
+      labels:
+        app: entebus-server
+        tier: backend
+    spec:
+      containers:
+        - name: entebus-server
+          image: ghcr.io/nixbug/entebus-server:latest
+          ports:
+            - containerPort: 8080
+          env:
+            # PostgreSQL
+            - name: PSQL_DB_DRIVER
+              valueFrom:
+                configMapKeyRef:
+                  name: entebus-server-config
+                  key: PSQL_DB_DRIVER
+            - name: PSQL_DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: entebus-server-config
+                  key: PSQL_DB_HOST
+            - name: PSQL_DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: entebus-server-config
+                  key: PSQL_DB_PORT
+            - name: PSQL_DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: entebus-server-config
+                  key: PSQL_DB_NAME
+            - name: PSQL_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: entebus-server-secret
+                  key: PSQL_DB_USERNAME
+            - name: PSQL_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: entebus-server-secret
+                  key: PSQL_DB_PASSWORD
+            # Redis
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: entebus-server-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: entebus-server-config
+                  key: REDIS_PORT
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: entebus-server-secret
+                  key: REDIS_PASSWORD
+            # MinIO
+            - name: MINIO_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: entebus-server-config
+                  key: MINIO_HOST
+            - name: MINIO_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: entebus-server-config
+                  key: MINIO_PORT
+            - name: MINIO_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: entebus-server-secret
+                  key: MINIO_ROOT_USER
+            - name: MINIO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: entebus-server-secret
+                  key: MINIO_ROOT_PASSWORD
+            # OpenObserve
+            - name: OPENOBSERVE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: entebus-server-config
+                  key: OPENOBSERVE_HOST
+            - name: OPENOBSERVE_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: entebus-server-config
+                  key: OPENOBSERVE_PORT
+            - name: OPENOBSERVE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: entebus-server-secret
+                  key: OPENOBSERVE_USERNAME
+            - name: OPENOBSERVE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: entebus-server-secret
+                  key: OPENOBSERVE_PASSWORD
