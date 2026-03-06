@@ -29,13 +29,9 @@ spec:
         - name: redis
           image: redis:latest
           command:
-            [
-              "redis-server",
-              "--requirepass",
-              "$(REDIS_PASSWORD)",
-              "--appendonly",
-              "yes",
-            ]
+            - sh
+            - -c
+            - 'redis-server --requirepass "$REDIS_PASSWORD" --appendonly yes'
           ports:
             - containerPort: 6379
           env:
