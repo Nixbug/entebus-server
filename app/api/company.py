@@ -19,6 +19,7 @@ from sqlalchemy import func, String, or_
 from geoalchemy2 import Geography
 
 from app.api.bearer import oauth2_executive, bearer_operator
+from app.src.buckets import OPERATOR_IMAGES
 from app.src.db import (
     Company,
     ExecutiveToken,
@@ -26,6 +27,7 @@ from app.src.db import (
     SessionLocal,
     Wallet,
     CompanyWallet,
+    OperatorImage,
 )
 from app.src.filters import (
     CreatedOnFilter,
@@ -34,6 +36,7 @@ from app.src.filters import (
     PaginationFilter,
     UpdatedOnFilter,
 )
+from app.src.minio import delete_file
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src import exceptions
@@ -498,6 +501,7 @@ async def fetch_company_executive(query_params: QueryParamsForEX = Depends()):
             - The logged-in executive must have `company.delete` permission.    
             - Returns 204 No Content even if the specified company does not exist.    
             - A foreign key constraint error will occur if the company is referenced in any other table.    
+            - Operator images from the deleted company will also be removed from MinIO to prevent orphaned files and save storage space.    
         """
     ),
 )
@@ -514,6 +518,11 @@ async def delete_company_executive(
 
         company = session.query(Company).filter(Company.id == id).first()
         if company is not None:
+            operator_images = (
+                session.query(OperatorImage)
+                .filter(OperatorImage.company_id == id)
+                .all()
+            )
             company_data = jsonable_encoder(
                 company,
                 exclude={Company.location.name},
@@ -523,6 +532,10 @@ async def delete_company_executive(
             ).wkt
             session.delete(company)
             session.commit()
+            # Delete operator images
+            for image in operator_images:
+                delete_file(OPERATOR_IMAGES, str(image.id))
+
             log_event(token, request_info, company_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
