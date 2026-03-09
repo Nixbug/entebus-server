@@ -13,6 +13,7 @@ from app.api import (
     company,
     executive_account,
     executive_image,
+    executive_role_map,
     executive_token,
     executive_role,
     landmark,
@@ -49,6 +50,7 @@ app_executive.include_router(bus_stop.route_executive)
 app_executive.include_router(operator_token.route_executive)
 app_executive.include_router(company.route_executive)
 app_executive.include_router(vendor_token.route_executive)
+app_executive.include_router(executive_role_map.route_executive)
 
 
 # ------------------------------------------------------
