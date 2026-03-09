@@ -500,8 +500,7 @@ async def fetch_company_executive(query_params: QueryParamsForEX = Depends()):
             - Requires a valid access token for authentication.    
             - The logged-in executive must have `company.delete` permission.    
             - Returns 204 No Content even if the specified company does not exist.    
-            - Deleting a company will cascade-delete related records (operators, tokens, roles, images, wallets). Use with caution.    
-            - Operator images from the deleted company will also be removed from MinIO to prevent orphaned files and save storage space.    
+            - Deleting a company will delete all related records (operators, tokens, roles, images, wallets). Use with caution.    
         """
     ),
 )
