@@ -55,7 +55,7 @@ class OperatorSchema(BaseModel):
 
 ## Input Forms
 class CreateFormForOP(BaseModel):
-    """Form data for creating a new operator account."""
+    """Form data for creating a new operator account for an operator."""
 
     username: str = Field(min_length=4, max_length=32, pattern=USERNAME_PATTERN)
     password: str = Field(min_length=8, max_length=32, pattern=PASSWORD_PATTERN)
@@ -80,7 +80,8 @@ class CreateFormForOP(BaseModel):
 
 
 class CreateFormForEX(CreateFormForOP):
-    company_id: int = Field(Form())
+    """Form data for creating a new operator account for an executive."""
+    company_id: int = Field()
 
 
 # ---------------------------------------------------------------------------
@@ -97,14 +98,14 @@ class CreateFormForEX(CreateFormForOP):
     description=(
         """
             **Creates a new operator account.**    
-            - Executive must have a valid access token. 
-            - Logged-in executive must have `company.operator.create` permission.  
-            - Duplicate usernames are not allowed.  
-            - By default the user is created in active status.  
+            - Executive must have a valid access token.    
+            - Logged-in executive must have `company.operator.create` permission.    
+            - Duplicate usernames are not allowed.    
+            - By default the user is created in active status.     
         """
     ),
 )
-async def create_account(
+async def create_account_executive(
     form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -161,7 +162,7 @@ async def create_account(
         """
     ),
 )
-async def create_account(
+async def create_account_operator(
     form_param: CreateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
