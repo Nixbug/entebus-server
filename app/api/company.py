@@ -533,8 +533,8 @@ async def delete_company_executive(
             session.delete(company)
             session.commit()
             # Delete operator images
-            for image in operator_images:
-                delete_file(OPERATOR_IMAGES, str(image.id))
+            for operator_image in operator_images:
+                delete_file(OPERATOR_IMAGES, str(operator_image.id))
 
             log_event(token, request_info, company_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
