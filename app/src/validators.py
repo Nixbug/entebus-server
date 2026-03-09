@@ -12,7 +12,7 @@ from sqlalchemy.orm.session import Session
 
 from app.src.functions import get_by_path
 from app.src import argon2, exceptions
-from app.src.enums import AccountStatus, GrantType
+from app.src.enums import AccountStatus, BusinessStatus, CompanyStatus, GrantType
 from app.src.db import (
     Executive,
     ExecutiveRole,
@@ -84,10 +84,8 @@ def authenticate_executive(
         .filter(Executive.username == credentials.username)
         .first()
     )
-
     if executive is None:
         raise exceptions.InvalidCredentials()
-
     return user_credentials(executive, credentials)
 
 
@@ -110,12 +108,15 @@ def authenticate_operator(
     Raises:
         InvalidCredentials: If the username/company lookup or password validation fails.
         InvalidGrantType: If credentials.grant_type is not GrantType.PASSWORD.
-        InactiveAccount: If the operator account is not ACTIVE.
+        InactiveAccount: If the company account is not verified or under verification.
         UnknownValue: If the provided company_id does not exist.
     """
     company = session.query(Company).filter(Company.id == form_param.company_id).first()
     if company is None:
         raise exceptions.UnknownValue(Operator.company_id)
+    if company.status not in (CompanyStatus.VERIFIED, CompanyStatus.UNDER_VERIFICATION):
+        raise exceptions.InactiveAccount()
+
     operator = (
         session.query(Operator)
         .filter(
@@ -124,10 +125,8 @@ def authenticate_operator(
         )
         .first()
     )
-
     if operator is None:
         raise exceptions.InvalidCredentials()
-
     return user_credentials(operator, credentials)
 
 
@@ -150,7 +149,7 @@ def authenticate_vendor(
     Raises:
         InvalidCredentials: If the username/business lookup or password validation fails.
         InvalidGrantType: If credentials.grant_type is not GrantType.PASSWORD.
-        InactiveAccount: If the vendor account is not ACTIVE.
+        InactiveAccount: If the business account is not active.
         UnknownValue: If the provided business_id does not exist.
     """
     business = (
@@ -158,6 +157,8 @@ def authenticate_vendor(
     )
     if business is None:
         raise exceptions.UnknownValue(Vendor.business_id)
+    if business.status != BusinessStatus.ACTIVE:
+        raise exceptions.InactiveAccount()
 
     vendor = (
         session.query(Vendor)
@@ -167,10 +168,8 @@ def authenticate_vendor(
         )
         .first()
     )
-
     if vendor is None:
         raise exceptions.InvalidCredentials()
-
     return user_credentials(vendor, credentials)
 
 
