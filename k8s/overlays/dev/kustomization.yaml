@@ -33,6 +33,6 @@ patches:
       kind: Deployment
       name: entebus-server
     patch: |-
-      - op: replace
+      - op: add
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: Always
