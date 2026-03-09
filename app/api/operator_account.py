@@ -1,13 +1,13 @@
 """
 Operator Account API Router for EnteBus.
 
-Provides endpoints for managing operator accounts, including creation,
+Provides endpoints for managing operator accounts, including creation.
 Uses Pydantic schemas for input validation and structured output.
 Endpoints for update, deletion, and retrieval are planned for future implementation.
 """
 
 from datetime import datetime
-from fastapi import APIRouter, Form, status, Depends
+from fastapi import APIRouter, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic_extra_types.phone_numbers import PhoneNumber
 from pydantic import BaseModel, EmailStr, Field
@@ -65,7 +65,7 @@ class CreateFormForOP(BaseModel):
     description: str | None = Field(min_length=1, max_length=32, default=None)
     type: OperatorType = Field(
         description=enum_str(OperatorType),
-        default=None,
+        default=OperatorType.NORMAL,
     )
     full_name: str | None = Field(min_length=1, max_length=32, default=None)
     status: AccountStatus = Field(
@@ -81,6 +81,7 @@ class CreateFormForOP(BaseModel):
 
 class CreateFormForEX(CreateFormForOP):
     """Form data for creating a new operator account for an executive."""
+
     company_id: int = Field()
 
 
