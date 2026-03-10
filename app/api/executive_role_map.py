@@ -1,13 +1,13 @@
 """
 Executive Role Map API Router for EnteBus.
 
-Provides endpoints for managing executive role mappings, including creation, update.
-Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion, and retrieval are planned for future implementation.
+Provides endpoints for managing executive role mappings, including creation,
+update, deletion, and retrieval. Uses Pydantic schemas for
+input validation and structured output.
 """
 
 from datetime import datetime
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
@@ -151,6 +151,49 @@ async def update_role_map(
         if have_updates:
             log_event(token, request_info, role_map_data)
         return role_map_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.delete(
+    f"{URL_EXECUTIVE_ROLE_MAP}/{{id}}",
+    tags=["Role Map"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing executive role mapping.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in executive must have the `executive.role.update` permission.    
+            - Returns 204 No Content even if the specified role mapping does not exist.    
+        """
+    ),
+)
+async def delete_role_map(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE_ROLE)
+
+        role_map = (
+            session.query(ExecutiveRoleMap).filter(ExecutiveRoleMap.id == id).first()
+        )
+        if role_map is not None:
+            role_map_data = jsonable_encoder(role_map)
+            session.delete(role_map)
+            session.commit()
+            log_event(token, request_info, role_map_data)
+
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
