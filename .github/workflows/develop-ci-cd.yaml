@@ -11,6 +11,7 @@ jobs:
   build-and-deploy:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    environment: develop
 
     permissions:
       contents: read
@@ -46,7 +47,7 @@ jobs:
       - name: Configure kubeconfig
         run: |
           mkdir -p ~/.kube
-          echo "${{ secrets.DEV_KUBECONFIG_DATA }}" > ~/.kube/config
+          echo "${{ secrets.KUBECONFIG_DATA }}" > ~/.kube/config
 
       - name: Deploy to K8s
         run: |
