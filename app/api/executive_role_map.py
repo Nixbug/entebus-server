@@ -1,7 +1,7 @@
 """
 Executive Role Map API Router for EnteBus.
 
-Provides endpoints for managing executive role mappings, including creation, updating.
+Provides endpoints for managing executive role mappings, including creation, update.
 Uses Pydantic schemas for input validation and structured output.
 Endpoints for deletion, and retrieval are planned for future implementation.
 """
@@ -49,7 +49,7 @@ class CreateForm(BaseModel):
 
 
 class UpdateForm(BaseModel):
-    """Form data for updating an existing executive role mapping."""
+    """Form data for updating an executive role mapping."""
 
     role_id: int = Field()
 
@@ -113,12 +113,11 @@ async def create_role_map(
             exceptions.UnknownValue(ExecutiveRoleMap.id),
         ]
     ),
-     description=(
+    description=(
         """
             **Updates an existing executive role mapping.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `executive.role.update` permission.    
-            - Duplicate mappings are not allowed.    
         """
     ),
 )
@@ -141,17 +140,16 @@ async def update_role_map(
             raise exceptions.UnknownValue(ExecutiveRoleMap.id)
         update_data = form_param.model_dump(exclude_unset=True)
         update_if_changed(role_map, update_data)
-        haveUpdates = session.is_modified(role_map)
-        if haveUpdates:
+        have_updates = session.is_modified(role_map)
+        if have_updates:
             session.commit()
             session.refresh(role_map)
 
         role_map_data = jsonable_encoder(role_map)
-        if haveUpdates:
+        if have_updates:
             log_event(token, request_info, role_map_data)
         return role_map_data
     except Exception as e:
         exceptions.handle(e)
     finally:
         session.close()
-
