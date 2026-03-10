@@ -51,7 +51,7 @@ class CreateForm(BaseModel):
 class UpdateForm(BaseModel):
     """Form data for updating an executive role mapping."""
 
-    role_id: int = Field()
+    role_id: int | None = Field(default=None)
 
 
 # ---------------------------------------------------------------------------
@@ -118,6 +118,8 @@ async def create_role_map(
             **Updates an existing executive role mapping.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `executive.role.update` permission.    
+            - Duplicate mappings are not allowed.    
+            - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
 )
