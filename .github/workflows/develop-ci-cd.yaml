@@ -1,4 +1,4 @@
-name: Build and Push Docker Image (Develop)
+name: Build and Deploy Docker Image (Develop)
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ on:
       - closed
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
@@ -37,3 +37,18 @@ jobs:
       - name: Push Docker image
         run: |
           docker push "${IMAGE_NAME}:develop"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: "v1.35.2"
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.DEV_KUBECONFIG_DATA }}" > ~/.kube/config
+
+      - name: Deploy to K8s
+        run: |
+          kubectl apply -k k8s/overlays/dev
+          kubectl -n entebus rollout status deployment/entebus-server --timeout=120s
