@@ -44,6 +44,7 @@ app_public.state.id = AppID.PUBLIC
 # ------------------------------------------------------
 app_executive.include_router(executive_token.route_executive)
 app_executive.include_router(executive_role.route_executive)
+app_executive.include_router(executive_role_map.route_executive)
 app_executive.include_router(executive_account.route_executive)
 app_executive.include_router(executive_image.route_executive)
 app_executive.include_router(landmark.route_executive)
@@ -51,7 +52,6 @@ app_executive.include_router(bus_stop.route_executive)
 app_executive.include_router(operator_token.route_executive)
 app_executive.include_router(company.route_executive)
 app_executive.include_router(vendor_token.route_executive)
-app_executive.include_router(executive_role_map.route_executive)
 app_executive.include_router(operator_account.route_executive)
 
 
