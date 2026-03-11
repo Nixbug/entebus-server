@@ -207,8 +207,8 @@ black .
 ```
 
 **CI Workflow:**
-- The workflow runs on every PR and uses the same Black version as the VS Code extension (`ms-python.black-formatter`).
-- To pass the check, ensure you run Black locally before pushing your changes.
+- The workflow runs on every PR and uses `black==25.1.0` (the same version shown in the local install example above).
+- To pass the check, ensure you run Black 25.1.0 locally (via CLI or your editor/VS Code `ms-python.black-formatter` extension configured to use this version) before pushing your changes.
 
 See `.github/workflows/black-format.yaml` for details.
 
