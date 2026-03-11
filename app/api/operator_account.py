@@ -1,9 +1,9 @@
 """
 Operator Account API Router for EnteBus.
 
-Provides endpoints for managing operator accounts, including creation, update.
+Provides endpoints for managing operator accounts, including creation and update.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion, and retrieval are planned for future implementation.
+Endpoints for deletion and retrieval are planned for future implementation.
 """
 
 from datetime import datetime
@@ -320,15 +320,20 @@ async def update_account_operator(
         session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
 
-        operator = session.query(Operator).filter(Operator.id == id).first()
+        is_self_update = id == token.operator_id
+        if not is_self_update:
+            roles = get_operator_roles(session, token)
+            verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR)
+
+        operator = (
+            session.query(Operator)
+            .filter(Operator.id == id, Operator.company_id == token.company_id)
+            .first()
+        )
         if operator is None:
             raise exceptions.UnknownValue(Operator.id)
 
         update_data = form_param.model_dump(exclude_unset=True)
-        is_self_update = operator.id == token.operator_id
-        if not is_self_update:
-            roles = get_operator_roles(session, token)
-            verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR)
         if is_self_update and Operator.status.key in update_data:
             raise exceptions.NoPermission()
 
