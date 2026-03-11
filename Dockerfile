@@ -1,5 +1,5 @@
 # ---- Builder Stage ----
-FROM python:3.11-slim AS builder
+FROM python:3.12-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -19,7 +19,7 @@ COPY requirements.txt .
 RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 
 # ---- Final Runtime Stage ----
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
