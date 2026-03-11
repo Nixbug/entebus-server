@@ -13,6 +13,7 @@ exclude = '''
   | buck-out
   | build
   | dist
-  | alembic/versions  # Exclude migration scripts
+  | alembic/versions
 )/
 '''
+# Exclude Alembic migration scripts from Black formatting
