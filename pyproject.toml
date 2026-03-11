@@ -16,4 +16,3 @@ exclude = '''
   | alembic/versions
 )/
 '''
-# Exclude Alembic migration scripts from Black formatting
