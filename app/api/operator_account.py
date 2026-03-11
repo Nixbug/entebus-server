@@ -28,6 +28,7 @@ from app.src.functions import (
     get_executive_roles,
     get_operator_roles,
     get_request_info,
+    update_if_changed,
 )
 
 
@@ -85,6 +86,30 @@ class CreateFormForEX(CreateFormForOP):
     company_id: int = Field()
 
 
+class UpdateForm(BaseModel):
+    """Form data for updating an operator account."""
+
+    password: str = Field(min_length=8, max_length=32, pattern=PASSWORD_PATTERN)
+    gender: GenderType = Field(
+        description=enum_str(GenderType), default=GenderType.OTHER
+    )
+    description: str | None = Field(min_length=1, max_length=32, default=None)
+    type: OperatorType = Field(
+        description=enum_str(OperatorType),
+        default=OperatorType.NORMAL,
+    )
+    full_name: str | None = Field(min_length=1, max_length=32, default=None)
+    status: AccountStatus = Field(
+        description=enum_str(AccountStatus), default=AccountStatus.ACTIVE
+    )
+    phone_number: PhoneNumber | None = Field(
+        max_length=32, default=None, description="Phone number in RFC 3966 format"
+    )
+    email_id: EmailStr | None = Field(
+        max_length=256, default=None, description="Email in RFC 5322 format"
+    )
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -135,6 +160,71 @@ async def create_account_executive(
 
         operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
         log_event(token, request_info, operator_data)
+        return operator_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.patch(
+    f"{URL_OPERATOR_ACCOUNT}/{{id}}",
+    tags=["Operator Account"],
+    response_model=OperatorSchema,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(Operator.id),
+        ]
+    ),
+    description=(
+        """
+            **Updates an existing operator account.**    
+            - Requires a valid access token.    
+            - Logged-in executive must have `company.operator.update` permission to update other operators.    
+            - Empty PATCH requests are allowed and will result in no changes.    
+        """
+    ),
+)
+async def update_account(
+    id: int,
+    form_param: UpdateForm,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+
+        operator = session.query(Operator).filter(Operator.id == id).first()
+        if operator is None:
+            raise exceptions.UnknownValue(Operator.id)
+
+        update_data = form_param.model_dump(exclude_unset=True)
+
+        # Revoking all the tokens for a suspended operator
+        tokens_revoked = False
+        if form_param.status == AccountStatus.SUSPENDED:
+            tokens_revoked = (
+                session.query(OperatorToken)
+                .filter(
+                    OperatorToken.operator_id == id,
+                    OperatorToken.is_revoked.is_(False),
+                )
+                .update({OperatorToken.is_revoked: True})
+                > 0
+            )
+
+        update_if_changed(operator, update_data)
+        have_updates = session.is_modified(operator) or tokens_revoked
+        if have_updates:
+            session.commit()
+            session.refresh(operator)
+
+        operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
+        if have_updates:
+            log_event(token, request_info, operator_data)
         return operator_data
     except Exception as e:
         exceptions.handle(e)
