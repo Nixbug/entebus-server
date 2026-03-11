@@ -531,7 +531,7 @@ async def delete_company_executive(
             ).wkt
             session.delete(company)
             session.commit()
-            
+
             # Delete operator images
             for operator_image in operator_images:
                 delete_file(OPERATOR_IMAGES, str(operator_image.id))
