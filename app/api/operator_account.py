@@ -1,16 +1,18 @@
 """
 Operator Account API Router for EnteBus.
 
-Provides endpoints for managing operator accounts, including creation.
+Provides endpoints for managing operator accounts, including creation and update.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for update, deletion, and retrieval are planned for future implementation.
+Endpoints for deletion and retrieval are planned for future implementation.
 """
 
+from typing import Tuple
 from datetime import datetime
 from fastapi import APIRouter, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic_extra_types.phone_numbers import PhoneNumber
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive, bearer_operator
 from app.src.db import ExecutiveToken, OperatorToken, SessionLocal, Operator
@@ -28,6 +30,7 @@ from app.src.functions import (
     get_executive_roles,
     get_operator_roles,
     get_request_info,
+    update_if_changed,
 )
 
 
@@ -83,6 +86,56 @@ class CreateFormForEX(CreateFormForOP):
     """Form data for creating a new operator account for an executive."""
 
     company_id: int = Field()
+
+
+class UpdateForm(BaseModel):
+    """Form data for updating an operator account."""
+
+    password: str = Field(
+        default=None, min_length=8, max_length=32, pattern=PASSWORD_PATTERN
+    )
+    gender: GenderType = Field(description=enum_str(GenderType), default=None)
+    description: str | None = Field(min_length=1, max_length=32, default=None)
+    type: OperatorType = Field(
+        description=enum_str(OperatorType),
+        default=None,
+    )
+    full_name: str | None = Field(min_length=1, max_length=32, default=None)
+    status: AccountStatus = Field(description=enum_str(AccountStatus), default=None)
+    phone_number: PhoneNumber | None = Field(
+        max_length=32, default=None, description="Phone number in RFC 3966 format"
+    )
+    email_id: EmailStr | None = Field(
+        max_length=256, default=None, description="Email in RFC 5322 format"
+    )
+
+
+## Functions
+def update_operator(
+    session: Session, operator: Operator, form_param: UpdateForm
+) -> Tuple[bool, dict]:
+
+    update_data = form_param.model_dump(exclude_unset=True)
+    tokens_revoked = False
+    if form_param.status == AccountStatus.SUSPENDED:
+        tokens_revoked = (
+            session.query(OperatorToken)
+            .filter(
+                OperatorToken.operator_id == operator.id,
+                OperatorToken.is_revoked.is_(False),
+            )
+            .update({OperatorToken.is_revoked: True})
+            > 0
+        )
+
+    update_if_changed(operator, update_data)
+    have_updates = session.is_modified(operator) or tokens_revoked
+    if have_updates:
+        session.commit()
+        session.refresh(operator)
+
+    operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
+    return have_updates, operator_data
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +195,52 @@ async def create_account_executive(
         session.close()
 
 
+@route_executive.patch(
+    f"{URL_OPERATOR_ACCOUNT}/{{id}}",
+    tags=["Operator Account"],
+    response_model=OperatorSchema,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(Operator.id),
+        ]
+    ),
+    description=(
+        """
+            **Updates an existing operator account.**    
+            - Requires a valid access token.    
+            - Logged-in executive must have `company.operator.update` permission to update other operators.    
+            - Empty PATCH requests are allowed and will result in no changes.    
+        """
+    ),
+)
+async def update_account_executive(
+    id: int,
+    form_param: UpdateForm,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR)
+
+        operator = session.query(Operator).filter(Operator.id == id).first()
+        if operator is None:
+            raise exceptions.UnknownValue(Operator.id)
+
+        have_updates, operator_data = update_operator(session, operator, form_param)
+        if have_updates:
+            log_event(token, request_info, operator_data)
+        return operator_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Operator]
 # ---------------------------------------------------------------------------
@@ -192,6 +291,62 @@ async def create_account_operator(
 
         operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
         log_event(token, request_info, operator_data)
+        return operator_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.patch(
+    f"{URL_OPERATOR_ACCOUNT}/{{id}}",
+    tags=["Operator Account"],
+    response_model=OperatorSchema,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(Operator.id),
+        ]
+    ),
+    description=(
+        """
+            **Updates an existing operator account.**    
+            - Requires a valid access token.    
+            - Logged-in operator must have `company.operator.update` permission to update other operators.    
+            - Operator can update their own account except status.    
+            - Empty PATCH requests are allowed and will result in no changes.    
+        """
+    ),
+)
+async def update_account_operator(
+    id: int,
+    form_param: UpdateForm,
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+
+        is_self_update = id == token.operator_id
+        if not is_self_update:
+            roles = get_operator_roles(session, token)
+            verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR)
+
+        operator = (
+            session.query(Operator)
+            .filter(Operator.id == id, Operator.company_id == token.company_id)
+            .first()
+        )
+        if operator is None:
+            raise exceptions.UnknownValue(Operator.id)
+        if is_self_update and form_param.status is not None:
+            raise exceptions.NoPermission()
+
+        have_updates, operator_data = update_operator(session, operator, form_param)
+        if have_updates:
+            log_event(token, request_info, operator_data)
         return operator_data
     except Exception as e:
         exceptions.handle(e)
