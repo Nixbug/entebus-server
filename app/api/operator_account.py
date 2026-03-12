@@ -341,7 +341,6 @@ async def update_account_operator(
         )
         if operator is None:
             raise exceptions.UnknownValue(Operator.id)
-
         if is_self_update and form_param.status is not None:
             raise exceptions.NoPermission()
 
