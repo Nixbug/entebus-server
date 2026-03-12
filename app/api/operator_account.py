@@ -6,11 +6,13 @@ Uses Pydantic schemas for input validation and structured output.
 Endpoints for deletion and retrieval are planned for future implementation.
 """
 
+from typing import Tuple
 from datetime import datetime
 from fastapi import APIRouter, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic_extra_types.phone_numbers import PhoneNumber
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive, bearer_operator
 from app.src.db import ExecutiveToken, OperatorToken, SessionLocal, Operator
@@ -108,6 +110,34 @@ class UpdateForm(BaseModel):
     )
 
 
+## Functions
+def update_operator(
+    session: Session, operator: Operator, form_param: UpdateForm
+) -> Tuple[bool, dict]:
+
+    update_data = form_param.model_dump(exclude_unset=True)
+    tokens_revoked = False
+    if form_param.status == AccountStatus.SUSPENDED:
+        tokens_revoked = (
+            session.query(OperatorToken)
+            .filter(
+                OperatorToken.operator_id == operator.id,
+                OperatorToken.is_revoked.is_(False),
+            )
+            .update({OperatorToken.is_revoked: True})
+            > 0
+        )
+
+    update_if_changed(operator, update_data)
+    have_updates = session.is_modified(operator) or tokens_revoked
+    if have_updates:
+        session.commit()
+        session.refresh(operator)
+
+    operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
+    return have_updates, operator_data
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -201,28 +231,7 @@ async def update_account_executive(
         if operator is None:
             raise exceptions.UnknownValue(Operator.id)
 
-        update_data = form_param.model_dump(exclude_unset=True)
-
-        # Revoking all the tokens for a suspended operator
-        tokens_revoked = False
-        if form_param.status == AccountStatus.SUSPENDED:
-            tokens_revoked = (
-                session.query(OperatorToken)
-                .filter(
-                    OperatorToken.operator_id == id,
-                    OperatorToken.is_revoked.is_(False),
-                )
-                .update({OperatorToken.is_revoked: True})
-                > 0
-            )
-
-        update_if_changed(operator, update_data)
-        have_updates = session.is_modified(operator) or tokens_revoked
-        if have_updates:
-            session.commit()
-            session.refresh(operator)
-
-        operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
+        have_updates, operator_data = update_operator(session, operator, form_param)
         if have_updates:
             log_event(token, request_info, operator_data)
         return operator_data
@@ -333,30 +342,10 @@ async def update_account_operator(
         if operator is None:
             raise exceptions.UnknownValue(Operator.id)
 
-        update_data = form_param.model_dump(exclude_unset=True)
-        if is_self_update and Operator.status.key in update_data:
+        if is_self_update and form_param.status is not None:
             raise exceptions.NoPermission()
 
-        # Revoking all the tokens for a suspended operator
-        tokens_revoked = False
-        if form_param.status == AccountStatus.SUSPENDED:
-            tokens_revoked = (
-                session.query(OperatorToken)
-                .filter(
-                    OperatorToken.operator_id == id,
-                    OperatorToken.is_revoked.is_(False),
-                )
-                .update({OperatorToken.is_revoked: True})
-                > 0
-            )
-
-        update_if_changed(operator, update_data)
-        have_updates = session.is_modified(operator) or tokens_revoked
-        if have_updates:
-            session.commit()
-            session.refresh(operator)
-
-        operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
+        have_updates, operator_data = update_operator(session, operator, form_param)
         if have_updates:
             log_event(token, request_info, operator_data)
         return operator_data
