@@ -413,6 +413,28 @@ def apply_status_filters(
     return query
 
 
+def apply_type_filters(
+    query: Query, model_cls: Type[ORMbase], params: BaseModel
+) -> Query:
+    """
+    Apply type-based filters to a SQLAlchemy query.
+
+    This function filters records based on type.
+    The filters are applied only if the corresponding parameter values are provided.
+
+    Args:
+        query (Query): Active SQLAlchemy query object.
+        model_cls (Type[ORMbase]): SQLAlchemy model class containing the relevant column.
+        params (BaseModel): Pydantic model instance.
+
+    Returns:
+        Query: Updated SQLAlchemy query with applied filters.
+    """
+    if params.type_list is not None:
+        query = query.filter(model_cls.type.in_(params.type_list))
+    return query
+
+
 def apply_picture_filters(
     query: Query, model_cls: Type[ORMbase], params: BaseModel
 ) -> Query:
