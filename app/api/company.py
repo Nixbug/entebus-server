@@ -463,19 +463,28 @@ async def update_company_executive(
     tags=["Company"],
     response_model=List[CompanySchema],
     responses=fuse_exception_responses(
-        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+        [
+            exceptions.InvalidWKTStringOrType(),
+            exceptions.InvalidSRID4326(),
+            exceptions.InvalidToken(),
+        ]
     ),
     description=(
         """
             **Fetches a list of companies.**    
+            - Requires a valid access token for authentication.    
             - Common search supports searching by id, name and address.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
 )
-async def fetch_company_executive(query_params: QueryParamsForEX = Depends()):
+async def fetch_company_executive(
+    query_params: QueryParamsForEX = Depends(),
+    access_token=Depends(oauth2_executive),
+):
     try:
         session = SessionLocal()
+        verify_token(session, ExecutiveToken, access_token)
 
         return search_company(
             session,

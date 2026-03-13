@@ -18,8 +18,15 @@ from shapely.geometry import Point
 from shapely import wkb, wkt
 from sqlalchemy import String, func, or_
 
-from app.api.bearer import oauth2_executive
-from app.src.db import BusStop, ExecutiveToken, Landmark, SessionLocal
+from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
+from app.src.db import (
+    BusStop,
+    ExecutiveToken,
+    Landmark,
+    SessionLocal,
+    OperatorToken,
+    VendorToken,
+)
 from app.src.enums import OrderIn
 from app.src.filters import (
     CreatedOnFilter,
@@ -415,19 +422,28 @@ async def delete_bus_stop(
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
     responses=fuse_exception_responses(
-        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+        [
+            exceptions.InvalidWKTStringOrType(),
+            exceptions.InvalidSRID4326(),
+            exceptions.InvalidToken(),
+        ]
     ),
     description=(
         """
             **Fetches a list of Bus Stops.**    
-            - Common search supports searching by id and name.  
+            - Requires a valid access token for authentication.    
+            - Common search supports searching by id and name.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
 )
-async def fetch_bus_stop_executive(query_params: QueryParams = Depends()):
+async def fetch_bus_stop_executive(
+    query_params: QueryParams = Depends(),
+    access_token=Depends(oauth2_executive),
+):
     try:
         session = SessionLocal()
+        verify_token(session, ExecutiveToken, access_token)
 
         return search_bus_stops(session, query_params)
     except Exception as e:
@@ -444,19 +460,28 @@ async def fetch_bus_stop_executive(query_params: QueryParams = Depends()):
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
     responses=fuse_exception_responses(
-        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+        [
+            exceptions.InvalidWKTStringOrType(),
+            exceptions.InvalidSRID4326(),
+            exceptions.InvalidToken(),
+        ]
     ),
     description=(
         """
             **Fetches a list of Bus Stops.**    
-            - Common search supports searching by id and name.  
+            - Requires a valid access token for authentication.    
+            - Common search supports searching by id and name.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
 )
-async def fetch_bus_stop_vendor(query_params: QueryParams = Depends()):
+async def fetch_bus_stop_vendor(
+    query_params: QueryParams = Depends(),
+    access_token=Depends(bearer_vendor),
+):
     try:
         session = SessionLocal()
+        verify_token(session, VendorToken, access_token.credentials)
 
         return search_bus_stops(session, query_params)
     except Exception as e:
@@ -473,19 +498,28 @@ async def fetch_bus_stop_vendor(query_params: QueryParams = Depends()):
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
     responses=fuse_exception_responses(
-        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+        [
+            exceptions.InvalidWKTStringOrType(),
+            exceptions.InvalidSRID4326(),
+            exceptions.InvalidToken(),
+        ]
     ),
     description=(
         """
             **Fetches a list of Bus Stops.**    
-            - Common search supports searching by id and name.  
+            - Requires a valid access token for authentication.    
+            - Common search supports searching by id and name.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
 )
-async def fetch_bus_stop_operator(query_params: QueryParams = Depends()):
+async def fetch_bus_stop_operator(
+    query_params: QueryParams = Depends(),
+    access_token=Depends(bearer_operator),
+):
     try:
         session = SessionLocal()
+        verify_token(session, OperatorToken, access_token.credentials)
 
         return search_bus_stops(session, query_params)
     except Exception as e:
