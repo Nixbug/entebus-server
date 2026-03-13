@@ -62,6 +62,7 @@ from app.src.functions import (
     validate_wkt_string,
     validate_AABB,
     validate_srid_4326,
+    apply_type_filters,
 )
 
 route_executive = APIRouter()
@@ -218,8 +219,6 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
         geometry = validate_wkt_string(query_params.location, Point)
         validate_srid_4326(geometry)
         validated_location = wkt.dumps(geometry)
-    if query_params.type_list is not None:
-        query = query.filter(Landmark.type.in_(query_params.type_list))
     if query_params.alias_names is not None:
         query = query.filter(
             func.array_to_string(Landmark.alias_names, ",").ilike(
@@ -243,6 +242,7 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
     query = apply_created_on_filters(query, Landmark, query_params)
     query = apply_updated_on_filters(query, Landmark, query_params)
     query = apply_name_filters(query, Landmark, query_params)
+    query = apply_type_filters(query, Landmark, query_params)
 
     # Ordering and pagination
     if query_params.order_by == OrderBy.LOCATION:

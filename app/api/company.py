@@ -59,6 +59,8 @@ from app.src.functions import (
     validate_srid_4326,
     validate_wkt_string,
     resolve_model_defaults,
+    apply_status_filters,
+    apply_type_filters,
 )
 
 route_executive = APIRouter()
@@ -165,7 +167,7 @@ class QueryParamsForPU(
             ),
         )
     )
-    type: CompanyType | None = Field(
+    type_list: List[CompanyType] | None = Field(
         Query(default=None, description=enum_str(CompanyType))
     )
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
@@ -177,7 +179,7 @@ class QueryParamsForPU(
 class QueryParamsForEX(QueryParamsForPU):
     """Query parameters for executives."""
 
-    status: CompanyStatus | None = Field(
+    status_list: List[CompanyStatus] | None = Field(
         Query(default=None, description=enum_str(CompanyStatus))
     )
     address: str | None = Field(Query(default=None, min_length=1, max_length=512))
@@ -275,10 +277,6 @@ def search_company(session: Session, query_params: QueryParams) -> List[Company]
         geometry = validate_wkt_string(query_params.location, Point)
         validate_srid_4326(geometry)
         validated_location = wkt.dumps(geometry)
-    if query_params.type is not None:
-        query = query.filter(Company.type == query_params.type)
-    if query_params.status is not None:
-        query = query.filter(Company.status == query_params.status)
     if query_params.address is not None:
         query = query.filter(Company.address.ilike(f"%{query_params.address}%"))
     if query_params.description is not None:
@@ -300,6 +298,8 @@ def search_company(session: Session, query_params: QueryParams) -> List[Company]
     query = apply_created_on_filters(query, Company, query_params)
     query = apply_updated_on_filters(query, Company, query_params)
     query = apply_name_filters(query, Company, query_params)
+    query = apply_status_filters(query, Company, query_params)
+    query = apply_type_filters(query, Company, query_params)
 
     # Ordering and pagination
     if query_params.order_by == OrderBy.LOCATION:
@@ -664,7 +664,7 @@ async def fetch_company_public(
             session,
             QueryParams(
                 **query_params.model_dump(),
-                status=CompanyStatus.VERIFIED,
+                status_list=[CompanyStatus.VERIFIED],
                 address=None,
                 description=None,
             ),
