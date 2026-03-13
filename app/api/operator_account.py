@@ -1,22 +1,31 @@
 """
 Operator Account API Router for EnteBus.
 
-Provides endpoints for managing operator accounts, including creation and update.
+Provides endpoints for managing operator accounts, including creation,update and retrieval.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion and retrieval are planned for future implementation.
+Endpoints for deletion are planned for future implementation.
 """
 
-from typing import Tuple
+from enum import StrEnum
+from typing import List, Tuple
 from datetime import datetime
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, Query, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic_extra_types.phone_numbers import PhoneNumber
+from sqlalchemy import String, or_
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive, bearer_operator
 from app.src.db import ExecutiveToken, OperatorToken, SessionLocal, Operator
-from app.src.enums import AccountStatus, GenderType, OperatorType
+from app.src.enums import AccountStatus, GenderType, OperatorType, OrderIn
+from app.src.filters import (
+    AccountDataFilter,
+    CreatedOnFilter,
+    IDFilter,
+    PaginationFilter,
+    UpdatedOnFilter,
+)
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src import exceptions
@@ -25,12 +34,18 @@ from app.src.urls import URL_OPERATOR_ACCOUNT
 from app.src.openobserve import log_event
 from app.src.validators import verify_permission, verify_token
 from app.src.functions import (
+    apply_account_filters,
+    apply_created_on_filters,
+    apply_id_filters,
+    apply_updated_on_filters,
     enum_str,
     fuse_exception_responses,
     get_executive_roles,
     get_operator_roles,
     get_request_info,
     update_if_changed,
+    apply_status_filters,
+    apply_type_filters,
 )
 
 
@@ -110,6 +125,50 @@ class UpdateForm(BaseModel):
     )
 
 
+# Query parameters
+class OrderBy(StrEnum):
+    """Enum for ordering results."""
+
+    ID = "id"
+    CREATED_ON = "created_on"
+    UPDATED_ON = "updated_on"
+
+
+class QueryParamsForOP(
+    AccountDataFilter,
+    UpdatedOnFilter,
+    CreatedOnFilter,
+    IDFilter,
+    PaginationFilter,
+):
+    """Query parameters for operators."""
+
+    search: str | None = Field(Query(default=None))
+    description: str | None = Field(Query(default=None))
+    type_list: List[OperatorType] | None = Field(
+        Query(default=None, description=enum_str(OperatorType))
+    )
+    status_list: List[AccountStatus] | None = Field(
+        Query(default=None, description=enum_str(AccountStatus))
+    )
+    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
+    order_in: OrderIn = Field(
+        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
+    )
+
+
+class QueryParamsForEX(QueryParamsForOP):
+    """Query parameters for executives."""
+
+    company_id: int | None = Field(Query(default=None))
+
+
+class QueryParams(QueryParamsForEX):
+    """General combined query parameters."""
+
+    pass
+
+
 ## Functions
 def update_operator(
     session: Session, operator: Operator, form_param: UpdateForm
@@ -136,6 +195,63 @@ def update_operator(
 
     operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
     return have_updates, operator_data
+
+
+def search_operator(session: Session, query_params: QueryParams) -> List[Operator]:
+    """
+    Search for Operators based on provided query parameters.
+
+    This function supports multiple filtering, searching, ordering, and
+    pagination capabilities to retrieve operators that match various criteria.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        query_params (QueryParams): Query parameters containing search criteria.
+
+    Returns:
+        List[Operator]: List of Operators that match the search criteria.
+    """
+    query = session.query(Operator)
+    if query_params.company_id is not None:
+        query = query.filter(Operator.company_id == query_params.company_id)
+    if query_params.description is not None:
+        query = query.filter(
+            Operator.description.ilike(f"%{query_params.description}%")
+        )
+        # Common search
+    if query_params.search:
+        search = f"%{query_params.search}%"
+        query = query.filter(
+            or_(
+                Operator.id.cast(String).ilike(search),
+                Operator.username.ilike(search),
+                Operator.full_name.ilike(search),
+                Operator.description.ilike(search),
+                Operator.phone_number.ilike(search),
+                Operator.email_id.ilike(search),
+            )
+        )
+
+    # Generalized filters
+    query = apply_id_filters(query, Operator, query_params)
+    query = apply_created_on_filters(query, Operator, query_params)
+    query = apply_updated_on_filters(query, Operator, query_params)
+    query = apply_account_filters(query, Operator, query_params)
+    query = apply_status_filters(query, Operator, query_params)
+    query = apply_type_filters(query, Operator, query_params)
+
+    # Ordering and pagination
+    ordering_attr = getattr(Operator, query_params.order_by.value)
+    ordering_func = (
+        ordering_attr.asc
+        if query_params.order_in == OrderIn.ASCENDING
+        else ordering_attr.desc
+    )
+    query = query.order_by(ordering_func())
+    query = query.offset(query_params.offset).limit(query_params.limit)
+
+    operators = query.all()
+    return operators
 
 
 # ---------------------------------------------------------------------------
@@ -235,6 +351,36 @@ async def update_account_executive(
         if have_updates:
             log_event(token, request_info, operator_data)
         return operator_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.get(
+    URL_OPERATOR_ACCOUNT,
+    tags=["Operator Account"],
+    response_model=List[OperatorSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches a list of operators.**    
+            - Requires a valid access token for authentication.    
+            - Common search supports searching by id, username, full_name, designation, phone_number, and email_id.    
+        """
+    ),
+)
+async def fetch_account_executive(
+    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+):
+    try:
+        session = SessionLocal()
+        verify_token(session, ExecutiveToken, access_token)
+
+        return search_operator(
+            session,
+            QueryParams(**query_params.model_dump()),
+        )
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -348,6 +494,37 @@ async def update_account_operator(
         if have_updates:
             log_event(token, request_info, operator_data)
         return operator_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.get(
+    URL_OPERATOR_ACCOUNT,
+    tags=["Operator Account"],
+    response_model=List[OperatorSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches a list of operators.**    
+            - Requires a valid access token for authentication.    
+            - Only operators belonging to the same company as the logged-in operator will be returned.    
+            - Common search supports searching by id, username, full_name, designation, phone_number, and email_id.    
+        """
+    ),
+)
+async def fetch_account_operator(
+    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+
+        return search_operator(
+            session,
+            QueryParams(**query_params.model_dump(), company_id=token.company_id),
+        )
     except Exception as e:
         exceptions.handle(e)
     finally:
