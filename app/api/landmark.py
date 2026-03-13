@@ -20,13 +20,20 @@ from shapely import wkb, wkt
 from shapely.ops import transform
 import pyproj
 
-from app.api.bearer import oauth2_executive
+from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
 from app.src.constants import (
     MAX_LANDMARK_AREA,
     MAX_LANDMARK_UPDATE_DISTANCE,
     MIN_LANDMARK_AREA,
 )
-from app.src.db import BusStop, Landmark, ExecutiveToken, SessionLocal
+from app.src.db import (
+    BusStop,
+    Landmark,
+    ExecutiveToken,
+    SessionLocal,
+    VendorToken,
+    OperatorToken,
+)
 from app.src.enums import LandmarkType, OrderIn
 from app.src.filters import (
     CreatedOnFilter,
@@ -484,14 +491,19 @@ async def delete_landmark(
     description=(
         """
             **Fetches a list of landmarks.**    
-            - Common search supports searching by id, name and alias_names.      
+            - Requires a valid access token for authentication.    
+            - Common search supports searching by id, name and alias_names.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
 )
-async def fetch_landmark_executive(query_params: QueryParams = Depends()):
+async def fetch_landmark_executive(
+    query_params: QueryParams = Depends(),
+    access_token=Depends(oauth2_executive),
+):
     try:
         session = SessionLocal()
+        verify_token(session, ExecutiveToken, access_token)
 
         return search_landmark(session, query_params)
     except Exception as e:
@@ -513,14 +525,19 @@ async def fetch_landmark_executive(query_params: QueryParams = Depends()):
     description=(
         """
             **Fetches a list of landmarks.**    
-            - Common search supports searching by id, name and alias_names.     
+            - Requires a valid access token for authentication.    
+            - Common search supports searching by id, name and alias_names.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
 )
-async def fetch_landmark_vendor(query_params: QueryParams = Depends()):
+async def fetch_landmark_vendor(
+    query_params: QueryParams = Depends(),
+    access_token=Depends(bearer_vendor),
+):
     try:
         session = SessionLocal()
+        verify_token(session, VendorToken, access_token.credentials)
 
         return search_landmark(session, query_params)
     except Exception as e:
@@ -542,14 +559,19 @@ async def fetch_landmark_vendor(query_params: QueryParams = Depends()):
     description=(
         """
             **Fetches a list of landmarks.**    
-            - Common search supports searching by id, name and alias_names.     
+            - Requires a valid access token for authentication.    
+            - Common search supports searching by id, name and alias_names.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
 )
-async def fetch_landmark_operator(query_params: QueryParams = Depends()):
+async def fetch_landmark_operator(
+    query_params: QueryParams = Depends(),
+    access_token=Depends(bearer_operator),
+):
     try:
         session = SessionLocal()
+        verify_token(session, OperatorToken, access_token.credentials)
 
         return search_landmark(session, query_params)
     except Exception as e:
