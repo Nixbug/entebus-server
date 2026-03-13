@@ -655,7 +655,7 @@ async def fetch_company_public(
             session,
             QueryParams(
                 **query_params.model_dump(),
-                status=CompanyStatus.VERIFIED,
+                status_list=[CompanyStatus.VERIFIED],
                 address=None,
                 description=None,
             ),
