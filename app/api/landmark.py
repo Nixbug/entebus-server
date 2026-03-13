@@ -486,7 +486,11 @@ async def delete_landmark(
     tags=["Landmark"],
     response_model=List[LandmarkSchema],
     responses=fuse_exception_responses(
-        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+        [
+            exceptions.InvalidWKTStringOrType(),
+            exceptions.InvalidSRID4326(),
+            exceptions.InvalidToken(),
+        ]
     ),
     description=(
         """
@@ -520,7 +524,11 @@ async def fetch_landmark_executive(
     tags=["Landmark"],
     response_model=List[LandmarkSchema],
     responses=fuse_exception_responses(
-        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+        [
+            exceptions.InvalidWKTStringOrType(),
+            exceptions.InvalidSRID4326(),
+            exceptions.InvalidToken(),
+        ]
     ),
     description=(
         """
@@ -554,7 +562,11 @@ async def fetch_landmark_vendor(
     tags=["Landmark"],
     response_model=List[LandmarkSchema],
     responses=fuse_exception_responses(
-        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+        [
+            exceptions.InvalidWKTStringOrType(),
+            exceptions.InvalidSRID4326(),
+            exceptions.InvalidToken(),
+        ]
     ),
     description=(
         """

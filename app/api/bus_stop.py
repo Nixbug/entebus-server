@@ -422,7 +422,11 @@ async def delete_bus_stop(
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
     responses=fuse_exception_responses(
-        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+        [
+            exceptions.InvalidWKTStringOrType(),
+            exceptions.InvalidSRID4326(),
+            exceptions.InvalidToken(),
+        ]
     ),
     description=(
         """
@@ -456,7 +460,11 @@ async def fetch_bus_stop_executive(
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
     responses=fuse_exception_responses(
-        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+        [
+            exceptions.InvalidWKTStringOrType(),
+            exceptions.InvalidSRID4326(),
+            exceptions.InvalidToken(),
+        ]
     ),
     description=(
         """
@@ -490,7 +498,11 @@ async def fetch_bus_stop_vendor(
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
     responses=fuse_exception_responses(
-        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+        [
+            exceptions.InvalidWKTStringOrType(),
+            exceptions.InvalidSRID4326(),
+            exceptions.InvalidToken(),
+        ]
     ),
     description=(
         """

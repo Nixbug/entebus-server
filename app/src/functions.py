@@ -9,9 +9,8 @@ import pyproj
 from enum import Enum
 from io import BytesIO
 from PIL import Image, UnidentifiedImageError
-from typing import Any, List, Dict, Type, Union, Tuple
+from typing import Any, List, Dict, Type, Union
 from fastapi import Query, Request
-from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session

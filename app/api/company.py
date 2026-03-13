@@ -463,7 +463,11 @@ async def update_company_executive(
     tags=["Company"],
     response_model=List[CompanySchema],
     responses=fuse_exception_responses(
-        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+        [
+            exceptions.InvalidWKTStringOrType(),
+            exceptions.InvalidSRID4326(),
+            exceptions.InvalidToken(),
+        ]
     ),
     description=(
         """
