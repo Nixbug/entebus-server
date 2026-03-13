@@ -1,7 +1,7 @@
 """
 Operator Account API Router for EnteBus.
 
-Provides endpoints for managing operator accounts, including creation,update and retrieval.
+Provides endpoints for managing operator accounts, including creation, update and retrieval.
 Uses Pydantic schemas for input validation and structured output.
 Endpoints for deletion are planned for future implementation.
 """
@@ -218,7 +218,8 @@ def search_operator(session: Session, query_params: QueryParams) -> List[Operato
         query = query.filter(
             Operator.description.ilike(f"%{query_params.description}%")
         )
-        # Common search
+
+    # Common search
     if query_params.search:
         search = f"%{query_params.search}%"
         query = query.filter(
@@ -366,7 +367,7 @@ async def update_account_executive(
         """
             **Fetches a list of operators.**    
             - Requires a valid access token for authentication.    
-            - Common search supports searching by id, username, full_name, designation, phone_number, and email_id.    
+            - Common search supports searching by id, username, full_name, description, phone_number, and email_id.    
         """
     ),
 )
@@ -510,7 +511,7 @@ async def update_account_operator(
             **Fetches a list of operators.**    
             - Requires a valid access token for authentication.    
             - Only operators belonging to the same company as the logged-in operator will be returned.    
-            - Common search supports searching by id, username, full_name, designation, phone_number, and email_id.    
+            - Common search supports searching by id, username, full_name, description, phone_number, and email_id.    
         """
     ),
 )
