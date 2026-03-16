@@ -1,15 +1,15 @@
 """
 Operator Account API Router for EnteBus.
 
-Provides endpoints for managing operator accounts, including creation, update and retrieval.
-Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion are planned for future implementation.
+Provides endpoints for managing operator accounts, including creation,
+update, deletion, and retrieval. Uses Pydantic schemas for
+input validation and structured output.
 """
 
 from enum import StrEnum
 from typing import List, Tuple
 from datetime import datetime
-from fastapi import APIRouter, Query, status, Depends
+from fastapi import APIRouter, Query, status, Depends, Response
 from fastapi.encoders import jsonable_encoder
 from pydantic_extra_types.phone_numbers import PhoneNumber
 from sqlalchemy import String, or_
@@ -17,7 +17,13 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive, bearer_operator
-from app.src.db import ExecutiveToken, OperatorToken, SessionLocal, Operator
+from app.src.db import (
+    ExecutiveToken,
+    OperatorToken,
+    SessionLocal,
+    Operator,
+    OperatorImage,
+)
 from app.src.enums import AccountStatus, GenderType, OperatorType, OrderIn
 from app.src.filters import (
     AccountDataFilter,
@@ -26,6 +32,8 @@ from app.src.filters import (
     PaginationFilter,
     UpdatedOnFilter,
 )
+from app.src.minio import delete_file
+from app.src.buckets import OPERATOR_IMAGES
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src import exceptions
@@ -255,6 +263,31 @@ def search_operator(session: Session, query_params: QueryParams) -> List[Operato
     return operators
 
 
+def delete_operator(session: Session, operator: Operator) -> dict:
+    """
+    Delete an Operator and its associated image.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        operator (Operator): Operator to delete.
+
+    Returns:
+        dict: deleted operator data for logging purposes.
+    """
+    operator_image = (
+        session.query(OperatorImage)
+        .filter(OperatorImage.operator_id == operator.id)
+        .first()
+    )
+    operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
+    session.delete(operator)
+    session.commit()
+
+    if operator_image is not None:
+        delete_file(OPERATOR_IMAGES, str(operator_image.id))
+    return operator_data
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -388,12 +421,50 @@ async def fetch_account_executive(
         session.close()
 
 
+@route_executive.delete(
+    f"{URL_OPERATOR_ACCOUNT}/{{id}}",
+    tags=["Operator Account"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing operator account.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in executive must have the `company.operator.delete` permission.    
+            - Returns 204 No Content even if the specified account does not exist.    
+        """
+    ),
+)
+async def delete_account_executive(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_OPERATOR)
+
+        operator = session.query(Operator).filter(Operator.id == id).first()
+        if operator is not None:
+            operator_data = delete_operator(session, operator)
+            log_event(token, request_info, operator_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Operator]
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_OPERATOR_ACCOUNT,
-    tags=["Operator Account"],
+    tags=["Account"],
     response_model=OperatorSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
@@ -447,7 +518,7 @@ async def create_account_operator(
 
 @route_operator.patch(
     f"{URL_OPERATOR_ACCOUNT}/{{id}}",
-    tags=["Operator Account"],
+    tags=["Account"],
     response_model=OperatorSchema,
     responses=fuse_exception_responses(
         [
@@ -503,7 +574,7 @@ async def update_account_operator(
 
 @route_operator.get(
     URL_OPERATOR_ACCOUNT,
-    tags=["Operator Account"],
+    tags=["Account"],
     response_model=List[OperatorSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
     description=(
@@ -526,6 +597,51 @@ async def fetch_account_operator(
             session,
             QueryParams(**query_params.model_dump(), company_id=token.company_id),
         )
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.delete(
+    f"{URL_OPERATOR_ACCOUNT}/{{id}}",
+    tags=["Account"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing operator account.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in operator must have the `company.operator.delete` permission.    
+            - Self-deletion is not allowed for safety reasons.    
+            - Returns 204 No Content even if the specified account does not exist.    
+        """
+    ),
+)
+async def delete_account_operator(
+    id: int,
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+        roles = get_operator_roles(session, token)
+        verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_OPERATOR)
+
+        if token.operator_id == id:
+            raise exceptions.NoPermission()
+        operator = (
+            session.query(Operator)
+            .filter(Operator.id == id, Operator.company_id == token.company_id)
+            .first()
+        )
+        if operator is not None:
+            operator_data = delete_operator(session, operator)
+            log_event(token, request_info, operator_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
