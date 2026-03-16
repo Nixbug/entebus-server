@@ -263,6 +263,31 @@ def search_operator(session: Session, query_params: QueryParams) -> List[Operato
     return operators
 
 
+def delete_operator(session: Session, operator: Operator) -> dict:
+    """
+    Delete an Operator and its associated image.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        operator (Operator): Operator to delete.
+
+    Returns:
+        dict: deleted operator data for logging purposes.
+    """
+    operator_image = (
+        session.query(OperatorImage)
+        .filter(OperatorImage.operator_id == operator.id)
+        .first()
+    )
+    operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
+    session.delete(operator)
+    session.commit()
+
+    if operator_image is not None:
+        delete_file(OPERATOR_IMAGES, str(operator_image.id))
+    return operator_data
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -425,18 +450,7 @@ async def delete_account_executive(
 
         operator = session.query(Operator).filter(Operator.id == id).first()
         if operator is not None:
-            operator_image = (
-                session.query(OperatorImage)
-                .filter(OperatorImage.operator_id == id)
-                .first()
-            )
-            operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
-            session.delete(operator)
-            session.commit()
-            # Delete operator image
-            if operator_image is not None:
-                delete_file(OPERATOR_IMAGES, str(operator_image.id))
-
+            operator_data = delete_operator(session, operator)
             log_event(token, request_info, operator_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
@@ -625,18 +639,7 @@ async def delete_account_operator(
             .first()
         )
         if operator is not None:
-            operator_image = (
-                session.query(OperatorImage)
-                .filter(OperatorImage.operator_id == id)
-                .first()
-            )
-            operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
-            session.delete(operator)
-            session.commit()
-            # Delete operator image
-            if operator_image is not None:
-                delete_file(OPERATOR_IMAGES, str(operator_image.id))
-
+            operator_data = delete_operator(session, operator)
             log_event(token, request_info, operator_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
