@@ -212,7 +212,19 @@ def validate_location(location_wkt: str) -> Point:
 def update_company(
     session: Session, company: Company, form_param: UpdateForm
 ) -> Tuple[bool, dict]:
+    """
+    Updates a Company with the provided form data.
 
+    Args:
+        session (Session): SQLAlchemy database session.
+        company (Company): Company to update.
+        form_param (UpdateForm): Form data containing fields to update.
+
+    Returns:
+    Tuple[bool, dict]:
+            - bool: True if the company was modified and the changes were committed.
+            - dict: JSON-encoded representation of the updated company.
+    """
     update_data = form_param.model_dump(exclude_unset=True)
     # Validate location if changed
     if form_param.location is not None:
@@ -270,7 +282,6 @@ def search_company(session: Session, query_params: QueryParams) -> List[Company]
     Returns:
         List[Company]: List of companies that match the search criteria.
     """
-
     query = session.query(Company)
     validated_location = None
     if query_params.location is not None:
