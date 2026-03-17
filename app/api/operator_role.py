@@ -120,7 +120,7 @@ async def create_role_executive(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_OPERATOR_ROLE,
-    tags=["Operator Role"],
+    tags=["Role"],
     response_model=OperatorRoleSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
