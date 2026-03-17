@@ -181,7 +181,19 @@ class QueryParams(QueryParamsForEX):
 def update_operator(
     session: Session, operator: Operator, form_param: UpdateForm
 ) -> Tuple[bool, dict]:
+    """
+    Updates an operator account with the provided form data.
 
+    Args:
+        session (Session): SQLAlchemy database session.
+        operator (Operator): Operator to update.
+        form_param (UpdateForm): Form data for updating the operator.
+
+    Returns:
+    Tuple[bool, dict]:
+            - bool: True if the operator was modified and the changes were committed.
+            - dict: JSON-encoded representation of the updated operator.
+    """
     update_data = form_param.model_dump(exclude_unset=True)
     tokens_revoked = False
     if form_param.status == AccountStatus.SUSPENDED:

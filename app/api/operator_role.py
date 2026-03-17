@@ -81,7 +81,19 @@ def update_role(
     role: OperatorRole,
     form_param: UpdateForm,
 ) -> Tuple[bool, dict]:
+    """
+    Updates an OperatorRole with the provided form data.
 
+    Args:
+        session (Session): SQLAlchemy database session.
+        role (OperatorRole): OperatorRole to update.
+        form_param (UpdateForm): Form data containing fields to update.
+
+    Returns:
+    Tuple[bool, dict]:
+            - bool: True if the role was modified and the changes were committed.
+            - dict: JSON-encoded representation of the updated role.
+    """
     update_data = form_param.model_dump(exclude_unset=True)
     update_if_changed(role, update_data)
     have_updates = session.is_modified(role)
