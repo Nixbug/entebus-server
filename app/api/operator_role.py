@@ -7,9 +7,11 @@ Endpoints for deletion and retrieval are planned for future implementation.
 """
 
 from datetime import datetime
+from typing import Tuple
 from fastapi import APIRouter, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive, bearer_operator
 from app.src import exceptions
@@ -71,6 +73,24 @@ class UpdateForm(BaseModel):
 
     name: str = Field(default=None, min_length=1, max_length=32, pattern=NAME_PATTERN)
     permissions: PermissionSchema = Field(default=None)
+
+
+# Functions
+def update_role(
+    session: Session,
+    role: OperatorRole,
+    form_param: UpdateForm,
+) -> Tuple[bool, dict]:
+
+    update_data = form_param.model_dump(exclude_unset=True)
+    update_if_changed(role, update_data)
+    have_updates = session.is_modified(role)
+    if have_updates:
+        session.commit()
+        session.refresh(role)
+
+    role_data = jsonable_encoder(role)
+    return have_updates, role_data
 
 
 # ---------------------------------------------------------------------------
@@ -160,14 +180,8 @@ async def update_role_executive(
         role = session.query(OperatorRole).filter(OperatorRole.id == id).first()
         if role is None:
             raise exceptions.UnknownValue(OperatorRole.id)
-        update_data = form_param.model_dump(exclude_unset=True)
-        update_if_changed(role, update_data)
-        have_updates = session.is_modified(role)
-        if have_updates:
-            session.commit()
-            session.refresh(role)
 
-        role_data = jsonable_encoder(role)
+        have_updates, role_data = update_role(session, role, form_param)
         if have_updates:
             log_event(token, request_info, role_data)
         return role_data
@@ -268,14 +282,8 @@ async def update_role_operator(
         )
         if role is None:
             raise exceptions.UnknownValue(OperatorRole.id)
-        update_data = form_param.model_dump(exclude_unset=True)
-        update_if_changed(role, update_data)
-        have_updates = session.is_modified(role)
-        if have_updates:
-            session.commit()
-            session.refresh(role)
 
-        role_data = jsonable_encoder(role)
+        have_updates, role_data = update_role(session, role, form_param)
         if have_updates:
             log_event(token, request_info, role_data)
         return role_data
