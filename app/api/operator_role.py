@@ -1,9 +1,9 @@
 """
 Operator Role API Router for EnteBus.
 
-Provides endpoints for managing operator roles, including creation.
+Provides endpoints for managing operator roles, including creation and retrieval.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for update, deletion, and retrieval are planned for future implementation.
+Endpoints for update and deletion are planned for future implementation.
 """
 
 from datetime import datetime
@@ -37,8 +37,6 @@ from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
     apply_name_filters,
-    apply_name_filters,
-    apply_updated_on_filters,
     apply_updated_on_filters,
     fuse_exception_responses,
     get_request_info,
