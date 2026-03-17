@@ -7,7 +7,7 @@ Endpoints for deletion and retrieval are planned for future implementation.
 """
 
 from datetime import datetime
-from typing import Tuple
+from typing import Tuple, Optional
 from fastapi import APIRouter, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -78,7 +78,7 @@ class UpdateForm(BaseModel):
 # Functions
 def update_role(
     session: Session,
-    role: OperatorRole,
+    role: Optional[OperatorRole],
     form_param: UpdateForm,
 ) -> Tuple[bool, dict]:
     """
@@ -94,6 +94,8 @@ def update_role(
             - bool: True if the role was modified and the changes were committed.
             - dict: JSON-encoded representation of the updated role.
     """
+    if role is None:
+        raise exceptions.UnknownValue(OperatorRole.id)
     update_data = form_param.model_dump(exclude_unset=True)
     update_if_changed(role, update_data)
     have_updates = session.is_modified(role)
@@ -190,9 +192,6 @@ async def update_role_executive(
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
 
         role = session.query(OperatorRole).filter(OperatorRole.id == id).first()
-        if role is None:
-            raise exceptions.UnknownValue(OperatorRole.id)
-
         have_updates, role_data = update_role(session, role, form_param)
         if have_updates:
             log_event(token, request_info, role_data)
@@ -292,9 +291,6 @@ async def update_role_operator(
             .filter(OperatorRole.id == id, OperatorRole.company_id == token.company_id)
             .first()
         )
-        if role is None:
-            raise exceptions.UnknownValue(OperatorRole.id)
-
         have_updates, role_data = update_role(session, role, form_param)
         if have_updates:
             log_event(token, request_info, role_data)
