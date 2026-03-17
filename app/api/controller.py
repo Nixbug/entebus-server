@@ -18,6 +18,7 @@ from app.api import (
     executive_role,
     landmark,
     operator_account,
+    operator_role,
     operator_token,
     vendor_token,
 )
@@ -53,6 +54,7 @@ app_executive.include_router(operator_token.route_executive)
 app_executive.include_router(company.route_executive)
 app_executive.include_router(vendor_token.route_executive)
 app_executive.include_router(operator_account.route_executive)
+app_executive.include_router(operator_role.route_executive)
 
 
 # ------------------------------------------------------
@@ -71,7 +73,7 @@ app_operator.include_router(landmark.route_operator)
 app_operator.include_router(bus_stop.route_operator)
 app_operator.include_router(company.route_operator)
 app_operator.include_router(operator_account.route_operator)
-
+app_operator.include_router(operator_role.route_operator)
 
 # ------------------------------------------------------
 # Public routers
