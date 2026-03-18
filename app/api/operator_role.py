@@ -1,14 +1,14 @@
 """
 Operator Role API Router for EnteBus.
 
-Provides endpoints for managing operator roles, including creation, update, and retrieval.
-Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion are planned for future implementation.
+Provides endpoints for managing operator roles, including creation,
+update, deletion, and retrieval. Uses Pydantic schemas for
+input validation and structured output.
 """
 
 from datetime import datetime
 from typing import List, Optional, Tuple
-from fastapi import APIRouter, status, Depends, Query
+from fastapi import APIRouter, Response, status, Depends, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
@@ -191,6 +191,23 @@ def search_role(session: Session, query_params: QueryParams) -> List[OperatorRol
     return roles
 
 
+def delete_role(session: Session, role: OperatorRole) -> dict:
+    """
+    Deletes an OperatorRole from the database.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        role (OperatorRole): OperatorRole to delete.
+
+    Returns:
+        dict: JSON-encoded representation of the deleted role.
+    """
+    role_data = jsonable_encoder(role)
+    session.delete(role)
+    session.commit()
+    return role_data
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -280,6 +297,44 @@ async def update_role_executive(
         if have_updates:
             log_event(token, request_info, role_data)
         return role_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.delete(
+    f"{URL_OPERATOR_ROLE}/{{id}}",
+    tags=["Operator Role"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing operator role.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in executive must have the `company.operator.role.delete` permission.    
+            - Returns 204 No Content even if the specified role does not exist.    
+        """
+    ),
+)
+async def delete_role_executive(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_OPERATOR_ROLE)
+
+        role = session.query(OperatorRole).filter(OperatorRole.id == id).first()
+        if role is not None:
+            role_data = delete_role(session, role)
+            log_event(token, request_info, role_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -408,6 +463,48 @@ async def update_role_operator(
         if have_updates:
             log_event(token, request_info, role_data)
         return role_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.delete(
+    f"{URL_OPERATOR_ROLE}/{{id}}",
+    tags=["Role"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing operator role.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in operator must have the `company.operator.role.delete` permission.    
+            - Returns 204 No Content even if the specified role does not exist.    
+        """
+    ),
+)
+async def delete_role_operator(
+    id: int,
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+        roles = get_operator_roles(session, token)
+        verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_OPERATOR_ROLE)
+
+        role = (
+            session.query(OperatorRole)
+            .filter(OperatorRole.id == id, OperatorRole.company_id == token.company_id)
+            .first()
+        )
+        if role is not None:
+            role_data = delete_role(session, role)
+            log_event(token, request_info, role_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
