@@ -219,7 +219,6 @@ async def delete_role_map(
             session.delete(role_map)
             session.commit()
             log_event(token, request_info, role_map_data)
-
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)

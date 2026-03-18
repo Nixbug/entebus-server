@@ -191,6 +191,23 @@ def search_role(session: Session, query_params: QueryParams) -> List[OperatorRol
     return roles
 
 
+def delete_role(session: Session, role: OperatorRole) -> dict:
+    """
+    Deletes an OperatorRole from the database.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        role (OperatorRole): OperatorRole to delete.
+
+    Returns:
+        dict: JSON-encoded representation of the deleted role.
+    """
+    role_data = jsonable_encoder(role)
+    session.delete(role)
+    session.commit()
+    return role_data
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -315,9 +332,7 @@ async def delete_role_executive(
 
         role = session.query(OperatorRole).filter(OperatorRole.id == id).first()
         if role is not None:
-            role_data = jsonable_encoder(role)
-            session.delete(role)
-            session.commit()
+            role_data = delete_role(session, role)
             log_event(token, request_info, role_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
@@ -487,9 +502,7 @@ async def delete_role_operator(
             .first()
         )
         if role is not None:
-            role_data = jsonable_encoder(role)
-            session.delete(role)
-            session.commit()
+            role_data = delete_role(session, role)
             log_event(token, request_info, role_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
