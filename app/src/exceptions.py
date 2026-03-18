@@ -223,7 +223,7 @@ class UnknownValue(APIException):
 
 class InvalidAssociation(APIException):
     """
-    Raised when an invalid association between two columns is provided.
+    Raised when an association between two columns is invalid.
     """
 
     status_code = status.HTTP_406_NOT_ACCEPTABLE

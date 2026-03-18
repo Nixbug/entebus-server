@@ -10,7 +10,6 @@ from datetime import datetime
 from fastapi import APIRouter, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive, bearer_operator
 from app.src.db import (
@@ -58,34 +57,6 @@ class CreateForm(BaseModel):
 
     role_id: int = Field()
     operator_id: int = Field()
-
-
-# Functions
-def create_role_map(session: Session, role: OperatorRole, operator: Operator) -> dict:
-    """
-    Create and persist a new operator role mapping.
-
-    Args:
-        session (Session): SQLAlchemy session to use for DB operations.
-        role (OperatorRole): The operator role to be mapped.
-        operator (Operator): The operator to be mapped.
-
-    Returns:
-        dict: JSON-serializable representation of the created mapping.
-    """
-
-    if role.company_id != operator.company_id:
-        raise exceptions.InvalidAssociation(
-            OperatorRoleMap.role_id, OperatorRoleMap.operator_id
-        )
-    role_map = OperatorRoleMap(
-        role_id=role.id, operator_id=operator.id, company_id=operator.company_id
-    )
-    session.add(role_map)
-    session.commit()
-    session.refresh(role_map)
-    role_map_data = jsonable_encoder(role_map)
-    return role_map_data
 
 
 # ---------------------------------------------------------------------------
@@ -141,8 +112,19 @@ async def create_role_map_executive(
         )
         if role is None:
             raise exceptions.UnknownValue(OperatorRoleMap.role_id)
+        if role.company_id != operator.company_id:
+            raise exceptions.InvalidAssociation(
+                OperatorRoleMap.role_id, OperatorRoleMap.operator_id
+            )
 
-        role_map_data = create_role_map(session, role, operator)
+        role_map = OperatorRoleMap(
+            role_id=role.id, operator_id=operator.id, company_id=operator.company_id
+        )
+        session.add(role_map)
+        session.commit()
+        session.refresh(role_map)
+
+        role_map_data = jsonable_encoder(role_map)
         log_event(token, request_info, role_map_data)
         return role_map_data
     except Exception as e:
@@ -211,7 +193,14 @@ async def create_role_map_operator(
         if role is None:
             raise exceptions.UnknownValue(OperatorRoleMap.role_id)
 
-        role_map_data = create_role_map(session, role, operator)
+        role_map = OperatorRoleMap(
+            role_id=role.id, operator_id=operator.id, company_id=token.company_id
+        )
+        session.add(role_map)
+        session.commit()
+        session.refresh(role_map)
+        role_map_data = jsonable_encoder(role_map)
+
         log_event(token, request_info, role_map_data)
         return role_map_data
     except Exception as e:
