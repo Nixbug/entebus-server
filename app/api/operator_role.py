@@ -1,14 +1,14 @@
 """
 Operator Role API Router for EnteBus.
 
-Provides endpoints for managing operator roles, including creation and update.
+Provides endpoints for managing operator roles, including creation, update, and deletion.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion and retrieval are planned for future implementation.
+Endpoints retrieval are planned for future implementation.
 """
 
 from datetime import datetime
 from typing import Tuple, Optional
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
@@ -202,6 +202,46 @@ async def update_role_executive(
         session.close()
 
 
+@route_executive.delete(
+    f"{URL_OPERATOR_ROLE}/{{id}}",
+    tags=["Operator Role"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing operator role.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in executive must have the `company.operator.role.delete` permission.    
+            - Returns 204 No Content even if the specified role does not exist.    
+        """
+    ),
+)
+async def delete_role_executive(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_OPERATOR_ROLE)
+
+        role = session.query(OperatorRole).filter(OperatorRole.id == id).first()
+        if role is not None:
+            role_data = jsonable_encoder(role)
+            session.delete(role)
+            session.commit()
+            log_event(token, request_info, role_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Operator]
 # ---------------------------------------------------------------------------
@@ -295,6 +335,50 @@ async def update_role_operator(
         if have_updates:
             log_event(token, request_info, role_data)
         return role_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.delete(
+    f"{URL_OPERATOR_ROLE}/{{id}}",
+    tags=["Role"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing operator role.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in operator must have the `company.operator.role.delete` permission.    
+            - Returns 204 No Content even if the specified role does not exist.    
+        """
+    ),
+)
+async def delete_role_operator(
+    id: int,
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+        roles = get_operator_roles(session, token)
+        verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_OPERATOR_ROLE)
+
+        role = (
+            session.query(OperatorRole)
+            .filter(OperatorRole.id == id, OperatorRole.company_id == token.company_id)
+            .first()
+        )
+        if role is not None:
+            role_data = jsonable_encoder(role)
+            session.delete(role)
+            session.commit()
+            log_event(token, request_info, role_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
