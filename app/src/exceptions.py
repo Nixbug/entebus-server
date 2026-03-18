@@ -221,6 +221,19 @@ class UnknownValue(APIException):
         super().__init__(detail=detail)
 
 
+class InvalidAssociation(APIException):
+    """
+    Raised when an invalid association between two columns is provided.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    headers = {"X-Error": "InvalidAssociation"}
+
+    def __init__(self, column_1: Column, column_2: Column):
+        detail = f"The {column_1.name} is not associated with {column_2.name}"
+        super().__init__(detail=detail)
+
+
 class NoPermission(APIException):
     """
     Raised when a user does not have permission to perform an action.
