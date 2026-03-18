@@ -1,24 +1,23 @@
 """
 Operator Role API Router for EnteBus.
 
-Provides endpoints for managing operator roles, including creation and retrieval.
+Provides endpoints for managing operator roles, including creation, update and retrieval.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for update and deletion are planned for future implementation.
+Endpoints for deletion are planned for future implementation.
 """
 
 from datetime import datetime
-from typing import List
+from typing import List, Optional, Tuple
 from fastapi import APIRouter, status, Depends, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from sqlalchemy.orm.session import Session
 from enum import StrEnum
-from sqlalchemy.orm import Session
 
 from app.api.bearer import oauth2_executive, bearer_operator
 from app.api.operator_token import QueryParamsForOP
 from app.src import exceptions
 from app.src.db import (
-    ExecutiveRole,
     ExecutiveToken,
     OperatorRole,
     OperatorToken,
@@ -42,6 +41,7 @@ from app.src.functions import (
     get_request_info,
     get_executive_roles,
     get_operator_roles,
+    update_if_changed,
 )
 from app.src.enums import OrderIn
 from app.src.filters import (
@@ -83,6 +83,13 @@ class CreateFormForEX(CreateFormForOP):
     company_id: int = Field()
 
 
+class UpdateForm(BaseModel):
+    """Form data for updating an operator role."""
+
+    name: str = Field(default=None, min_length=1, max_length=32, pattern=NAME_PATTERN)
+    permissions: PermissionSchema = Field(default=None)
+
+
 ## Query Parameters
 class OrderBy(StrEnum):
     """Enum for ordering results."""
@@ -113,6 +120,38 @@ class QueryParams(QueryParamsForEX):
     """General combined query parameters."""
 
     pass
+
+
+# Functions
+def update_role(
+    session: Session,
+    role: Optional[OperatorRole],
+    form_param: UpdateForm,
+) -> Tuple[bool, dict]:
+    """
+    Updates an OperatorRole with the provided form data.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        role (OperatorRole): OperatorRole to update.
+        form_param (UpdateForm): Form data containing fields to update.
+
+    Returns:
+    Tuple[bool, dict]:
+            - bool: True if the role was modified and the changes were committed.
+            - dict: JSON-encoded representation of the updated role.
+    """
+    if role is None:
+        raise exceptions.UnknownValue(OperatorRole.id)
+    update_data = form_param.model_dump(exclude_unset=True)
+    update_if_changed(role, update_data)
+    have_updates = session.is_modified(role)
+    if have_updates:
+        session.commit()
+        session.refresh(role)
+
+    role_data = jsonable_encoder(role)
+    return have_updates, role_data
 
 
 def search_role(session: Session, query_params: QueryParams) -> list[OperatorRole]:
@@ -203,6 +242,51 @@ async def create_role_executive(
         session.close()
 
 
+@route_executive.patch(
+    f"{URL_OPERATOR_ROLE}/{{id}}",
+    tags=["Operator Role"],
+    response_model=OperatorRoleSchema,
+    status_code=status.HTTP_200_OK,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(OperatorRole.id),
+        ]
+    ),
+    description=(
+        """
+            **Updates an existing operator role.**    
+            - Requires a valid access token.    
+            - Logged-in executive must have `company.operator.role.update` permission.    
+            - Duplicate names are not allowed.    
+            - Empty PATCH requests are allowed and will result in no changes.    
+        """
+    ),
+)
+async def update_role_executive(
+    id: int,
+    form_param: UpdateForm,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
+
+        role = session.query(OperatorRole).filter(OperatorRole.id == id).first()
+        have_updates, role_data = update_role(session, role, form_param)
+        if have_updates:
+            log_event(token, request_info, role_data)
+        return role_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 @route_executive.get(
     URL_OPERATOR_ROLE,
     tags=["Operator Role"],
@@ -211,7 +295,7 @@ async def create_role_executive(
     description=(
         """
             **Fetches a list of operator roles.**    
-            - Requires a valid access token for authentication.     
+            - Requires a valid access token for authentication.    
         """
     ),
 )
@@ -275,6 +359,55 @@ async def create_role_operator(
 
         role_data = jsonable_encoder(role)
         log_event(token, request_info, role_data)
+        return role_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.patch(
+    f"{URL_OPERATOR_ROLE}/{{id}}",
+    tags=["Role"],
+    response_model=OperatorRoleSchema,
+    status_code=status.HTTP_200_OK,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(OperatorRole.id),
+        ]
+    ),
+    description=(
+        """
+            **Updates an existing operator role.**    
+            - Requires a valid access token.    
+            - Logged-in operator must have `company.operator.role.update` permission.    
+            - Duplicate names are not allowed.    
+            - Empty PATCH requests are allowed and will result in no changes.    
+        """
+    ),
+)
+async def update_role_operator(
+    id: int,
+    form_param: UpdateForm,
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+        roles = get_operator_roles(session, token)
+        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
+
+        role = (
+            session.query(OperatorRole)
+            .filter(OperatorRole.id == id, OperatorRole.company_id == token.company_id)
+            .first()
+        )
+        have_updates, role_data = update_role(session, role, form_param)
+        if have_updates:
+            log_event(token, request_info, role_data)
         return role_data
     except Exception as e:
         exceptions.handle(e)
