@@ -1,7 +1,7 @@
 """
 Operator Role API Router for EnteBus.
 
-Provides endpoints for managing operator roles, including creation, update and retrieval.
+Provides endpoints for managing operator roles, including creation, update, and retrieval.
 Uses Pydantic schemas for input validation and structured output.
 Endpoints for deletion are planned for future implementation.
 """
@@ -15,7 +15,6 @@ from sqlalchemy.orm.session import Session
 from enum import StrEnum
 
 from app.api.bearer import oauth2_executive, bearer_operator
-from app.api.operator_token import QueryParamsForOP
 from app.src import exceptions
 from app.src.db import (
     ExecutiveToken,
@@ -154,7 +153,7 @@ def update_role(
     return have_updates, role_data
 
 
-def search_role(session: Session, query_params: QueryParams) -> list[OperatorRole]:
+def search_role(session: Session, query_params: QueryParams) -> List[OperatorRole]:
     """
     Search for operator roles based on provided query parameters.
 
