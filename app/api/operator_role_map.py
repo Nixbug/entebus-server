@@ -263,7 +263,7 @@ async def update_role_map_executive(
         if role_map is None:
             raise exceptions.UnknownValue(OperatorRoleMap.id)
 
-        if form_param.role_id is not None:
+        if form_param.role_id is not None and role_map.role_id != form_param.role_id:
             role = (
                 session.query(OperatorRole)
                 .filter(OperatorRole.id == form_param.role_id)
@@ -439,7 +439,7 @@ async def update_role_map_operator(
         if role_map is None:
             raise exceptions.UnknownValue(OperatorRoleMap.id)
 
-        if form_param.role_id is not None:
+        if form_param.role_id is not None and role_map.role_id != form_param.role_id:
             role = (
                 session.query(OperatorRole)
                 .filter(
