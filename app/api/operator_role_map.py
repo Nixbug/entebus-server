@@ -3,7 +3,7 @@ Operator Role Map API Router for EnteBus.
 
 Provides endpoints for managing operator role mappings, including creation, update, and retrieval.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion and retrieval are planned for future implementation.
+Endpoints for deletion are planned for future implementation.
 """
 
 from datetime import datetime
@@ -233,6 +233,9 @@ async def create_role_map_executive(
             exceptions.NoPermission(),
             exceptions.UnknownValue(OperatorRoleMap.id),
             exceptions.UnknownValue(OperatorRoleMap.role_id),
+            exceptions.InvalidAssociation(
+                OperatorRoleMap.role_id, OperatorRoleMap.operator_id
+            ),
         ]
     ),
     description=(
@@ -474,7 +477,7 @@ async def update_role_map_operator(
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
     description=(
         """
-            **Fetches a list of operator roles mappings.**    
+            **Fetches a list of operator role mappings.**    
             - Requires a valid access token for authentication.    
             - Only operator role mappings belonging to the same company as the logged-in operator will be returned.    
         """
