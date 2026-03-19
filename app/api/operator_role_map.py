@@ -194,8 +194,8 @@ async def create_role_map_operator(
         session.add(role_map)
         session.commit()
         session.refresh(role_map)
-        role_map_data = jsonable_encoder(role_map)
 
+        role_map_data = jsonable_encoder(role_map)
         log_event(token, request_info, role_map_data)
         return role_map_data
     except Exception as e:
