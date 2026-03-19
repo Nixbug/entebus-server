@@ -15,7 +15,6 @@ from app.api.bearer import oauth2_executive, bearer_operator
 from app.src.db import (
     ExecutiveToken,
     Operator,
-    Operator,
     OperatorRole,
     OperatorRoleMap,
     OperatorToken,
@@ -28,7 +27,6 @@ from app.src import exceptions
 from app.src.openobserve import log_event
 from app.src.validators import verify_permission, verify_token
 from app.src.functions import (
-    enum_str,
     fuse_exception_responses,
     get_executive_roles,
     get_request_info,
@@ -138,7 +136,7 @@ async def create_role_map_executive(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_OPERATOR_ROLE_MAP,
-    tags=[" Role Map"],
+    tags=["Role Map"],
     response_model=OperatorRoleMapSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
@@ -147,9 +145,6 @@ async def create_role_map_executive(
             exceptions.NoPermission(),
             exceptions.UnknownValue(OperatorRoleMap.operator_id),
             exceptions.UnknownValue(OperatorRoleMap.role_id),
-            exceptions.InvalidAssociation(
-                OperatorRoleMap.role_id, OperatorRoleMap.operator_id
-            ),
         ]
     ),
     description=(
