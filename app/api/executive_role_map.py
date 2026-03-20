@@ -20,7 +20,7 @@ from app.src.urls import URL_EXECUTIVE_ROLE_MAP
 from app.src.permissions.executive import PermissionPath
 from app.src import exceptions
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token
+from app.src.validators import validate_id, verify_permission, verify_token
 from app.src.functions import (
     enum_str,
     fuse_exception_responses,
@@ -162,11 +162,7 @@ async def update_role_map(
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE_ROLE)
 
-        role_map = (
-            session.query(ExecutiveRoleMap).filter(ExecutiveRoleMap.id == id).first()
-        )
-        if role_map is None:
-            raise exceptions.UnknownValue(ExecutiveRoleMap.id)
+        role_map = validate_id(session, ExecutiveRoleMap, id, ExecutiveRoleMap.id)
         update_data = form_param.model_dump(exclude_unset=True)
         update_if_changed(role_map, update_data)
         have_updates = session.is_modified(role_map)

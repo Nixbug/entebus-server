@@ -300,3 +300,38 @@ def validate_company_id(session: Session, company_id: int) -> Company:
     if company is None:
         raise exceptions.UnknownValue(Company.id)
     return company
+
+
+def validate_id(
+    session: Session,
+    model_cls: Type[Any],
+    id: int,
+    field_name: Any,
+    extra_filter: dict[str, Any] | None = None,
+) -> Any:
+    """
+    Generic function to validate an ID based on a given model class.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        model_cls (Type[Any]): The ORM model class.
+        id (int): The ID of the record to fetch.
+        field_name (Any): The field name to use in the exception message.
+        extra_filter (dict[str, Any] | None): Additional filters to apply, defaults to None.
+
+    Returns:
+        Any: The instance of the model class matching the given ID.
+
+    Raises:
+        UnknownValue: If no instance with the provided ID exists.
+    """
+    query = session.query(model_cls).filter(model_cls.id == id)
+
+    if extra_filter:
+        for field, value in extra_filter.items():
+            query = query.filter(getattr(model_cls, field) == value)
+    instance = query.first()
+
+    if instance is None:
+        raise exceptions.UnknownValue(field_name)
+    return instance

@@ -29,7 +29,7 @@ from app.src.permissions.executive import PermissionPath as ExecutivePermissionP
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src import exceptions
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token
+from app.src.validators import verify_permission, verify_token, validate_id
 from app.src.functions import (
     fuse_exception_responses,
     get_executive_roles,
@@ -187,20 +187,12 @@ async def create_role_map_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
 
-        operator = (
-            session.query(Operator)
-            .filter(Operator.id == form_param.operator_id)
-            .first()
+        operator = validate_id(
+            session, Operator, form_param.operator_id, OperatorRoleMap.operator_id
         )
-        if operator is None:
-            raise exceptions.UnknownValue(OperatorRoleMap.operator_id)
-        role = (
-            session.query(OperatorRole)
-            .filter(OperatorRole.id == form_param.role_id)
-            .first()
+        role = validate_id(
+            session, OperatorRole, form_param.role_id, OperatorRoleMap.role_id
         )
-        if role is None:
-            raise exceptions.UnknownValue(OperatorRoleMap.role_id)
         if role.company_id != operator.company_id:
             raise exceptions.InvalidAssociation(
                 OperatorRoleMap.role_id, OperatorRoleMap.operator_id
@@ -260,20 +252,20 @@ async def update_role_map_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
 
-        role_map = (
-            session.query(OperatorRoleMap).filter(OperatorRoleMap.id == id).first()
+        role_map = validate_id(
+            session,
+            OperatorRoleMap,
+            id,
+            OperatorRoleMap.id,
         )
-        if role_map is None:
-            raise exceptions.UnknownValue(OperatorRoleMap.id)
 
         if form_param.role_id is not None and role_map.role_id != form_param.role_id:
-            role = (
-                session.query(OperatorRole)
-                .filter(OperatorRole.id == form_param.role_id)
-                .first()
+            role = validate_id(
+                session,
+                OperatorRole,
+                form_param.role_id,
+                OperatorRoleMap.role_id,
             )
-            if role is None:
-                raise exceptions.UnknownValue(OperatorRoleMap.role_id)
             if role.company_id != role_map.company_id:
                 raise exceptions.InvalidAssociation(
                     OperatorRoleMap.role_id, OperatorRoleMap.operator_id
@@ -360,26 +352,20 @@ async def create_role_map_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
 
-        operator = (
-            session.query(Operator)
-            .filter(
-                Operator.id == form_param.operator_id,
-                Operator.company_id == token.company_id,
-            )
-            .first()
+        operator = validate_id(
+            session,
+            Operator,
+            form_param.operator_id,
+            OperatorRoleMap.operator_id,
+            extra_filter={"company_id": token.company_id},
         )
-        if operator is None:
-            raise exceptions.UnknownValue(OperatorRoleMap.operator_id)
-        role = (
-            session.query(OperatorRole)
-            .filter(
-                OperatorRole.id == form_param.role_id,
-                OperatorRole.company_id == token.company_id,
-            )
-            .first()
+        role = validate_id(
+            session,
+            OperatorRole,
+            form_param.role_id,
+            OperatorRoleMap.role_id,
+            extra_filter={"company_id": token.company_id},
         )
-        if role is None:
-            raise exceptions.UnknownValue(OperatorRoleMap.role_id)
 
         role_map = OperatorRoleMap(
             role_id=role.id, operator_id=operator.id, company_id=token.company_id
@@ -432,27 +418,22 @@ async def update_role_map_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
 
-        role_map = (
-            session.query(OperatorRoleMap)
-            .filter(
-                OperatorRoleMap.id == id, OperatorRoleMap.company_id == token.company_id
-            )
-            .first()
+        role_map = validate_id(
+            session,
+            OperatorRoleMap,
+            id,
+            OperatorRoleMap.id,
+            extra_filter={"company_id": token.company_id},
         )
-        if role_map is None:
-            raise exceptions.UnknownValue(OperatorRoleMap.id)
 
         if form_param.role_id is not None and role_map.role_id != form_param.role_id:
-            role = (
-                session.query(OperatorRole)
-                .filter(
-                    OperatorRole.id == form_param.role_id,
-                    OperatorRole.company_id == token.company_id,
-                )
-                .first()
+            role = validate_id(
+                session,
+                OperatorRole,
+                form_param.role_id,
+                OperatorRoleMap.role_id,
+                extra_filter={"company_id": token.company_id},
             )
-            if role is None:
-                raise exceptions.UnknownValue(OperatorRoleMap.role_id)
             role_map.role_id = form_param.role_id
 
         have_updates = session.is_modified(role_map)

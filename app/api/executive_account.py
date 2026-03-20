@@ -32,7 +32,7 @@ from app.src import exceptions
 from app.src.regex import PASSWORD_PATTERN, USERNAME_PATTERN
 from app.src.urls import URL_EXECUTIVE_ACCOUNT
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token
+from app.src.validators import validate_id, verify_permission, verify_token
 from app.src.functions import (
     apply_account_filters,
     apply_created_on_filters,
@@ -216,9 +216,7 @@ async def update_account(
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
 
-        executive = session.query(Executive).filter(Executive.id == id).first()
-        if executive is None:
-            raise exceptions.UnknownValue(Executive.id)
+        executive = validate_id(session, Executive, id, Executive.id)
 
         update_data = form_param.model_dump(exclude_unset=True)
         is_self_update = executive.id == token.executive_id
