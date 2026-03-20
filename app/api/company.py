@@ -192,6 +192,7 @@ class QueryParams(QueryParamsForEX):
     pass
 
 
+# Functions
 def validate_location(location_wkt: str) -> Point:
     """
     Validate a WKT string as a Point geometry with SRID 4326.
