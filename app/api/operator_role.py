@@ -124,7 +124,7 @@ class QueryParams(QueryParamsForEX):
 # Functions
 def update_role(
     session: Session,
-    role: Optional[OperatorRole],
+    role: OperatorRole,
     form_param: UpdateForm,
 ) -> Tuple[bool, dict]:
     """

@@ -316,7 +316,7 @@ def validate_id(
         session (Session): Active SQLAlchemy session.
         model_cls (Type[Any]): The ORM model class.
         id (int): The ID of the record to fetch.
-        field_name (Any): The field name to use in the exception message.
+        field_name (Any): field_name: The ORM column (e.g., Model.id) used for the exception message.
         extra_filter (dict[str, Any] | None): Additional filters to apply, defaults to None.
 
     Returns:
