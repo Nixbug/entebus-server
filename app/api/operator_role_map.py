@@ -554,7 +554,9 @@ async def delete_role_map_operator(
 
         role_map = (
             session.query(OperatorRoleMap)
-            .filter(OperatorRoleMap.id == id, OperatorRoleMap.company_id == token.company_id)
+            .filter(
+                OperatorRoleMap.id == id, OperatorRoleMap.company_id == token.company_id
+            )
             .first()
         )
         if role_map is not None:
