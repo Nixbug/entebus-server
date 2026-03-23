@@ -64,10 +64,11 @@ class OperatorImageSchema(BaseModel):
 
 
 ## Input Forms
-class CreateFormForOP(BaseModel):
+class CreateFormForEx(BaseModel):
     """Form data for creating a new operator image for an operator."""
-
-    operator_id: int | None = Field(Form(default=None))
+   
+    company_id: int = Field(Form())
+    operator_id: int = Field(Form())
     file: UploadFile = Field(
         File(
             description=(
@@ -80,10 +81,10 @@ class CreateFormForOP(BaseModel):
     )
 
 
-class CreateFormForEX(CreateFormForOP):
-    """Form data for creating a new operator image for an executive."""
+class CreateFormForOP(BaseModel):
+    """Form data for creating a new operator image for an operator."""
 
-    company_id: int = Field(Form())
+    operator_id: int | None = Field(Form(default=None))
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +122,7 @@ async def upload_operator_image_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR)
 
+        
         file_bytes = await form_param.file.read()
         validate_image(file_bytes, form_param.file.filename)
         operator_image = OperatorImage(
