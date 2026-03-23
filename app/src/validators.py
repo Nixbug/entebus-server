@@ -8,9 +8,10 @@ making it easier for developers to integrate them into their projects.
 from datetime import datetime, timedelta, timezone
 from typing import Any, Type, Union
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.orm.session import Session
-from sqlalchemy.sql.elements import BinaryExpression
-from sqlalchemy import Column
+from sqlalchemy.sql.elements import ClauseElement
+
 
 from app.src.functions import get_by_path
 from app.src import argon2, exceptions
@@ -308,9 +309,9 @@ def validate_company_id(session: Session, company_id: int) -> Company:
 def validate_id(
     session: Session,
     model_cls: Type[ORMbase],
-    id: int,
-    field_name: Column,
-    extra_filter: BinaryExpression | None = None,
+    unique_id: int,
+    field_name: InstrumentedAttribute,
+    extra_filter: ClauseElement[bool] | None = None,
 ) -> Any:
     """
     Generic function to validate an ID based on a given model class.
@@ -318,9 +319,9 @@ def validate_id(
     Args:
         session (Session): Active SQLAlchemy session.
         model_cls (Type[ORMbase]): The ORM model class.
-        id (int): The ID of the record to fetch.
-        field_name (Column): The ORM column (e.g., Model.id) used for the exception message.
-        extra_filter (BinaryExpression | None): Additional filters to apply, defaults to None.
+        unique_id (int): The ID of the record to fetch.
+        field_name (InstrumentedAttribute): The ORM column (e.g., Model.id) used for the exception message.
+        extra_filter (ClauseElement[bool] | None): Additional filters to apply, defaults to None.
 
     Returns:
         Any: The instance of the model class matching the given ID.
@@ -328,7 +329,7 @@ def validate_id(
     Raises:
         UnknownValue: If no instance with the provided ID exists.
     """
-    query = session.query(model_cls).filter(model_cls.id == id)
+    query = session.query(model_cls).filter(model_cls.id == unique_id)
 
     if extra_filter is not None:
         query = query.filter(extra_filter)
