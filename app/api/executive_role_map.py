@@ -13,7 +13,13 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
 from app.api.bearer import oauth2_executive
-from app.src.db import ExecutiveRoleMap, ExecutiveToken, SessionLocal, ExecutiveRole
+from app.src.db import (
+    Executive,
+    ExecutiveRoleMap,
+    ExecutiveToken,
+    SessionLocal,
+    ExecutiveRole,
+)
 from app.src.enums import OrderIn
 from app.src.filters import IDFilter, PaginationFilter, UpdatedOnFilter, CreatedOnFilter
 from app.src.urls import URL_EXECUTIVE_ROLE_MAP
@@ -112,6 +118,9 @@ async def create_role_map(
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE_ROLE)
 
+        validate_id(
+            session, Executive, form_param.executive_id, ExecutiveRoleMap.executive_id
+        )
         validate_id(
             session, ExecutiveRole, form_param.role_id, ExecutiveRoleMap.role_id
         )
