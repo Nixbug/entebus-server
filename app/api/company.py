@@ -44,7 +44,7 @@ from app.src.regex import NAME_PATTERN
 from app.src.enums import CompanyStatus, CompanyType, OrderIn
 from app.src.urls import URL_COMPANY
 from app.src.openobserve import log_event
-from app.src.validators import validate_company_id, verify_permission, verify_token
+from app.src.validators import validate_id, verify_permission, verify_token
 from app.src.functions import (
     apply_created_on_filters,
     apply_updated_on_filters,
@@ -456,7 +456,7 @@ async def update_company_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY)
 
-        company = validate_company_id(session, id)
+        company = validate_id(session, Company, id, Company.id)
         have_updates, company_data = update_company(
             session, company, UpdateForm(**form_param.model_dump(exclude_unset=True))
         )
@@ -603,7 +603,7 @@ async def update_company_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY)
 
-        company = validate_company_id(session, id)
+        company = validate_id(session, Company, id, Company.id)
         if token.company_id != company.id:
             raise exceptions.NoPermission()
         have_updates, company_data = update_company(

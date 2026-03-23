@@ -286,26 +286,6 @@ def verify_permission(
     return False
 
 
-def validate_company_id(session: Session, company_id: int) -> Company:
-    """
-    Validate the existence of a Company by its ID.
-
-    Args:
-        session (Session): Active SQLAlchemy session.
-        company_id (int): The ID of the company to fetch.
-
-    Returns:
-        Company: The Company instance matching the given ID.
-
-    Raises:
-        UnknownValue: If no Company with the provided ID exists.
-    """
-    company = session.query(Company).filter(Company.id == company_id).first()
-    if company is None:
-        raise exceptions.UnknownValue(Company.id)
-    return company
-
-
 def validate_id(
     session: Session,
     model_cls: Type[ORMbase],
@@ -320,7 +300,7 @@ def validate_id(
         session (Session): Active SQLAlchemy session.
         model_cls (Type[ORMbase]): The ORM model class.
         unique_id (int): The ID of the record to fetch.
-        field_name (InstrumentedAttribute): The ORM column (e.g., Model.id) used for the exception message.
+        column (InstrumentedAttribute): The ORM column (e.g., Model.id) used for the exception message.
         extra_filter (ClauseElement[bool] | None): Additional filters to apply, defaults to None.
 
     Returns:
