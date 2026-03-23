@@ -31,6 +31,9 @@ from app.src.functions import (
     update_if_changed,
     apply_id_filters,   apply_created_on_filters,
     apply_updated_on_filters,   apply_name_filters,
+    get_executive_roles,
+    get_operator_roles,
+    validate_image,
 )
 from app.src.constants import (
     MAX_IMAGE_FILE_SIZE,
@@ -116,26 +119,27 @@ async def upload_operator_image_executive(
 
         file_bytes = await form_param.file.read()
         validate_image(file_bytes, form_param.file.filename)
-        executive_image = ExecutiveImage(
-            executive_id=form_param.executive_id,
+        operator_image = OperatorImage(
+            company_id=form_param.company_id,
+            operator_id=form_param.operator_id,
             file_name=form_param.file.filename,
             file_type=form_param.file.content_type,
             file_size=len(file_bytes),
         )
-        session.add(executive_image)
+        session.add(operator_image_image)
         session.flush()
         upload_file(
-            EXECUTIVE_IMAGES,
-            str(executive_image.id),
+            OPERATOR_IMAGES_IMAGES,
+            str(operator_image.id),
             len(file_bytes),
             BytesIO(file_bytes),
         )
         session.commit()
-        session.refresh(executive_image)
+        session.refresh(operator_image)
 
-        executive_image_data = jsonable_encoder(executive_image)
-        log_event(token, request_info, executive_image_data)
-        return executive_image_data
+        operator_image_data = jsonable_encoder(operator_image)
+        log_event(token, request_info, operator_image_data)
+        return operator_image_data
     except Exception as e:
         exceptions.handle(e)
     finally:
