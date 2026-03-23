@@ -319,8 +319,8 @@ def validate_id(
         session (Session): Active SQLAlchemy session.
         model_cls (Type[ORMbase]): The ORM model class.
         id (int): The ID of the record to fetch.
-        field_name (str): The ORM column (e.g., Model.id) used for the exception message.
-        extra_filter (None): Additional filters to apply, defaults to None.
+        field_name (Column): The ORM column (e.g., Model.id) used for the exception message.
+        extra_filter (BinaryExpression | None): Additional filters to apply, defaults to None.
 
     Returns:
         Any: The instance of the model class matching the given ID.
@@ -330,8 +330,8 @@ def validate_id(
     """
     query = session.query(model_cls).filter(model_cls.id == id)
 
-    if extra_filter:
-        query = query.filter(*extra_filter)
+    if extra_filter is not None:
+        query = query.filter(extra_filter)
     result = query.first()
 
     if result is None:

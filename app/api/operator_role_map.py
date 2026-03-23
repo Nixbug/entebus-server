@@ -357,14 +357,14 @@ async def create_role_map_operator(
             Operator,
             form_param.operator_id,
             OperatorRoleMap.operator_id,
-            extra_filter=(OperatorRoleMap.company_id == token.company_id),
+            extra_filter=(Operator.company_id == token.company_id),
         )
         role = validate_id(
             session,
             OperatorRole,
             form_param.role_id,
             OperatorRoleMap.role_id,
-            extra_filter=(OperatorRoleMap.company_id == token.company_id),
+            extra_filter=(OperatorRole.company_id == token.company_id),
         )
 
         role_map = OperatorRoleMap(
@@ -427,12 +427,12 @@ async def update_role_map_operator(
         )
 
         if form_param.role_id is not None and role_map.role_id != form_param.role_id:
-            role = validate_id(
+            validate_id(
                 session,
                 OperatorRole,
                 form_param.role_id,
                 OperatorRoleMap.role_id,
-                extra_filter=(OperatorRoleMap.company_id == token.company_id),
+                extra_filter=(OperatorRole.company_id == token.company_id),
             )
             role_map.role_id = form_param.role_id
 
