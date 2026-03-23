@@ -13,7 +13,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
 from app.api.bearer import oauth2_executive
-from app.src.db import ExecutiveRoleMap, ExecutiveToken, SessionLocal
+from app.src.db import ExecutiveRoleMap, ExecutiveToken, SessionLocal, ExecutiveRole
 from app.src.enums import OrderIn
 from app.src.filters import IDFilter, PaginationFilter, UpdatedOnFilter, CreatedOnFilter
 from app.src.urls import URL_EXECUTIVE_ROLE_MAP
@@ -112,6 +112,9 @@ async def create_role_map(
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE_ROLE)
 
+        validate_id(
+            session, ExecutiveRole, form_param.role_id, ExecutiveRoleMap.role_id
+        )
         role_map = ExecutiveRoleMap(
             role_id=form_param.role_id, executive_id=form_param.executive_id
         )
@@ -163,8 +166,13 @@ async def update_role_map(
         verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE_ROLE)
 
         role_map = validate_id(session, ExecutiveRoleMap, id, ExecutiveRoleMap.id)
-        update_data = form_param.model_dump(exclude_unset=True)
-        update_if_changed(role_map, update_data)
+
+        if form_param.role_id is not None and role_map.role_id != form_param.role_id:
+            validate_id(
+                session, ExecutiveRole, form_param.role_id, ExecutiveRoleMap.role_id
+            )
+            role_map.role_id = form_param.role_id
+
         have_updates = session.is_modified(role_map)
         if have_updates:
             session.commit()

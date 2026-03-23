@@ -462,7 +462,7 @@ async def update_role_operator(
             OperatorRole,
             id,
             OperatorRole.id,
-            extra_filter={"company_id": token.company_id},
+            extra_filter=(OperatorRole.company_id == token.company_id),
         )
         have_updates, role_data = update_role(session, role, form_param)
         if have_updates:

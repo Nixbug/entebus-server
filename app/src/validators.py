@@ -17,6 +17,7 @@ from app.src.db import (
     Executive,
     ExecutiveRole,
     ExecutiveToken,
+    ORMbase,
     Operator,
     OperatorToken,
     Vendor,
@@ -304,20 +305,20 @@ def validate_company_id(session: Session, company_id: int) -> Company:
 
 def validate_id(
     session: Session,
-    model_cls: Type[Any],
+    model_cls: Type[ORMbase],
     id: int,
-    field_name: Any,
-    extra_filter: dict[str, Any] | None = None,
+    field_name: str,
+    extra_filter: None,
 ) -> Any:
     """
     Generic function to validate an ID based on a given model class.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[Any]): The ORM model class.
+        model_cls (Type[ORMbase]): The ORM model class.
         id (int): The ID of the record to fetch.
-        field_name (Any): field_name: The ORM column (e.g., Model.id) used for the exception message.
-        extra_filter (dict[str, Any] | None): Additional filters to apply, defaults to None.
+        field_name (str): The ORM column (e.g., Model.id) used for the exception message.
+        extra_filter (None): Additional filters to apply, defaults to None.
 
     Returns:
         Any: The instance of the model class matching the given ID.
@@ -328,10 +329,9 @@ def validate_id(
     query = session.query(model_cls).filter(model_cls.id == id)
 
     if extra_filter:
-        for field, value in extra_filter.items():
-            query = query.filter(getattr(model_cls, field) == value)
-    instance = query.first()
+        query = query.filter(*extra_filter)
+    result = query.first()
 
-    if instance is None:
+    if result is None:
         raise exceptions.UnknownValue(field_name)
-    return instance
+    return result
