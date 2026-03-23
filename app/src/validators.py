@@ -9,6 +9,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Type, Union
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm.session import Session
+from sqlalchemy.sql.elements import BinaryExpression
+from sqlalchemy import Column
 
 from app.src.functions import get_by_path
 from app.src import argon2, exceptions
@@ -307,8 +309,8 @@ def validate_id(
     session: Session,
     model_cls: Type[ORMbase],
     id: int,
-    field_name: str,
-    extra_filter: None,
+    field_name: Column,
+    extra_filter: BinaryExpression | None = None,
 ) -> Any:
     """
     Generic function to validate an ID based on a given model class.
