@@ -1,9 +1,9 @@
 """
 Operator Role Map API Router for EnteBus.
 
-Provides endpoints for managing operator role mappings, including creation, update, and retrieval.
-Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion are planned for future implementation.
+Provides endpoints for managing operator role mappings, including creation,
+update, deletion, and retrieval. Uses Pydantic schemas for
+input validation and structured output.
 """
 
 from datetime import datetime
@@ -323,7 +323,7 @@ async def update_role_map_executive(
         """
             **Deletes an existing operator role mapping.**    
             - Requires a valid access token for authentication.    
-            - The logged-in executive must have the `company.operator.role.map.delete` permission.    
+            - The logged-in executive must have the `company.operator.role.update` permission.    
             - Returns 204 No Content even if the specified role mapping does not exist.    
         """
     ),
@@ -339,9 +339,11 @@ async def delete_role_map_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
 
-        role = session.query(OperatorRoleMap).filter(OperatorRoleMap.id == id).first()
-        if role is not None:
-            role_map_data = delete_role_map(session, role)
+        role_map = (
+            session.query(OperatorRoleMap).filter(OperatorRoleMap.id == id).first()
+        )
+        if role_map is not None:
+            role_map_data = delete_role_map(session, role_map)
             log_event(token, request_info, role_map_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
@@ -536,7 +538,7 @@ async def update_role_map_operator(
         """
             **Deletes an existing operator role mapping.**    
             - Requires a valid access token for authentication.    
-            - The logged-in operator must have the `company.operator.role_map.delete` permission.    
+            - The logged-in operator must have the `company.operator.role.update` permission.    
             - Returns 204 No Content even if the specified role mapping does not exist.    
         """
     ),
