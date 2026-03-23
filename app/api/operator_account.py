@@ -389,7 +389,6 @@ async def update_account_executive(
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR)
 
         operator = validate_id(session, Operator, id, Operator.id)
-
         have_updates, operator_data = update_operator(session, operator, form_param)
         if have_updates:
             log_event(token, request_info, operator_data)

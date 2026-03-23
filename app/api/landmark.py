@@ -386,7 +386,6 @@ async def update_landmark(
         verify_permission(roles, PermissionPath.UPDATE_LANDMARK)
 
         landmark = validate_id(session, Landmark, id, Landmark.id)
-
         update_data = form_param.model_dump(exclude_unset=True)
         # Validate boundary if changed
         if form_param.boundary is not None:

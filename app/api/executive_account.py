@@ -217,7 +217,6 @@ async def update_account(
         token = verify_token(session, ExecutiveToken, access_token)
 
         executive = validate_id(session, Executive, id, Executive.id)
-
         update_data = form_param.model_dump(exclude_unset=True)
         is_self_update = executive.id == token.executive_id
         if not is_self_update:
