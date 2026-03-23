@@ -310,7 +310,7 @@ def validate_id(
     session: Session,
     model_cls: Type[ORMbase],
     unique_id: int,
-    field_name: InstrumentedAttribute,
+    column: InstrumentedAttribute,
     extra_filter: ClauseElement[bool] | None = None,
 ) -> Any:
     """
@@ -336,5 +336,5 @@ def validate_id(
     result = query.first()
 
     if result is None:
-        raise exceptions.UnknownValue(field_name)
+        raise exceptions.UnknownValue(column)
     return result
