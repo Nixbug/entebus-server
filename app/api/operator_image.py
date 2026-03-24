@@ -77,7 +77,7 @@ class ImageUploadForm(BaseModel):
     )
 
 
-class CreateFormForEx(ImageUploadForm):
+class CreateFormForEX(ImageUploadForm):
     """Form data for creating a new operator image for an executive."""
 
     company_id: int = Field(Form())
@@ -93,7 +93,7 @@ class CreateFormForOP(ImageUploadForm):
 # Functions
 def create_image(
     session: Session, operator_image: OperatorImage, file_bytes: bytes
-) -> OperatorImage:
+) -> dict:
     """
     Creates a new operator image record in the database.
 
@@ -103,7 +103,7 @@ def create_image(
         file_bytes (bytes): The image file bytes.
 
     Returns:
-        OperatorImage: The created operator image record.
+        dict: The created operator image data.
     """
     session.add(operator_image)
     session.flush()
@@ -150,6 +150,9 @@ def delete_image(session: Session, operator_image: OperatorImage) -> dict:
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.InvalidImageFile(),
+            exceptions.UnknownValue(OperatorImage.operator_id),
+            exceptions.UnknownValue(OperatorImage.company_id),
+            exceptions.InvalidAssociation(OperatorImage.operator_id, OperatorImage.company_id),
         ]
     ),
     description=(
@@ -161,7 +164,7 @@ def delete_image(session: Session, operator_image: OperatorImage) -> dict:
     ),
 )
 async def upload_operator_image_executive(
-    form_param: CreateFormForEx = Depends(),
+    form_param: CreateFormForEX = Depends(),
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
@@ -171,8 +174,8 @@ async def upload_operator_image_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR)
 
-        validate_id(session, Company, form_param.company_id, Company.id)
-        operator = validate_id(session, Operator, form_param.operator_id, Operator.id)
+        validate_id(session, Company, form_param.company_id, OperatorImage.company_id)
+        operator = validate_id(session, Operator, form_param.operator_id, OperatorImage.operator_id)
         if operator.company_id != form_param.company_id:
             raise exceptions.InvalidAssociation(
                 OperatorImage.operator_id, OperatorImage.company_id
@@ -250,6 +253,7 @@ async def delete_operator_image_executive(
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.InvalidImageFile(),
+            exceptions.UnknownValue(OperatorImage.operator_id),
         ]
     ),
     description=(
@@ -281,7 +285,7 @@ async def upload_operator_image(
             session,
             Operator,
             form_param.operator_id,
-            Operator.id,
+            OperatorImage.operator_id,
             extra_filter=Operator.company_id == token.company_id,
         )
         file_bytes = await form_param.file.read()

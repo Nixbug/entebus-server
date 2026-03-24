@@ -21,10 +21,10 @@ from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, Picture
 from app.src.urls import URL_EXECUTIVE_PICTURE
 from app.src.minio import delete_file, download_file, upload_file
 from app.api.bearer import oauth2_executive
-from app.src.db import ExecutiveToken, ExecutiveImage, SessionLocal
+from app.src.db import Executive, ExecutiveToken, ExecutiveImage, SessionLocal
 from app.src.permissions.executive import PermissionPath
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token
+from app.src.validators import verify_permission, verify_token, validate_id
 from app.src.constants import (
     MAX_IMAGE_FILE_SIZE,
     MAX_IMAGE_RESOLUTION,
@@ -114,6 +114,7 @@ class ImageQueryParams(BaseModel):
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.InvalidImageFile(),
+            exceptions.UnknownValue(ExecutiveImage.executive_id),
         ]
     ),
     description=(
@@ -141,6 +142,12 @@ async def upload_executive_image(
             roles = get_executive_roles(session, token)
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
 
+        validate_id(
+            session,
+            Executive,
+            form_param.executive_id,
+            ExecutiveImage.executive_id,
+        )
         file_bytes = await form_param.file.read()
         validate_image(file_bytes, form_param.file.filename)
         executive_image = ExecutiveImage(
