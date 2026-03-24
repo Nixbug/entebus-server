@@ -198,12 +198,12 @@ async def delete_executive_image(
         executive_image = (
             session.query(ExecutiveImage).filter(ExecutiveImage.id == id).first()
         )
-        if executive_image is None:
-            return Response(status_code=status.HTTP_204_NO_CONTENT)
-        if executive_image.executive_id != token.executive_id:
+        if executive_image is None or executive_image.executive_id != token.executive_id:
             roles = get_executive_roles(session, token)
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
 
+        if executive_image is  None:
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
         executive_image_data = jsonable_encoder(executive_image)
         session.delete(executive_image)
         session.commit()
