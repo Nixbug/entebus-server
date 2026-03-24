@@ -258,7 +258,6 @@ async def update_role_map_executive(
             id,
             OperatorRoleMap.id,
         )
-
         if form_param.role_id is not None and role_map.role_id != form_param.role_id:
             role = validate_id(
                 session,
