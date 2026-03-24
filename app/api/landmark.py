@@ -47,7 +47,7 @@ from app.src import exceptions
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_LANDMARK
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token
+from app.src.validators import verify_permission, verify_token, validate_id
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
@@ -385,10 +385,7 @@ async def update_landmark(
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.UPDATE_LANDMARK)
 
-        landmark = session.query(Landmark).filter(Landmark.id == id).first()
-        if landmark is None:
-            raise exceptions.UnknownValue(Landmark.id)
-
+        landmark = validate_id(session, Landmark, id, Landmark.id)
         update_data = form_param.model_dump(exclude_unset=True)
         # Validate boundary if changed
         if form_param.boundary is not None:
