@@ -32,7 +32,6 @@ from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
     get_executive_roles,
-    update_if_changed,
     apply_id_filters,
     apply_created_on_filters,
     apply_updated_on_filters,
