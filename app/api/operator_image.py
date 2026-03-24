@@ -152,7 +152,9 @@ def delete_image(session: Session, operator_image: OperatorImage) -> dict:
             exceptions.InvalidImageFile(),
             exceptions.UnknownValue(OperatorImage.operator_id),
             exceptions.UnknownValue(OperatorImage.company_id),
-            exceptions.InvalidAssociation(OperatorImage.operator_id, OperatorImage.company_id),
+            exceptions.InvalidAssociation(
+                OperatorImage.operator_id, OperatorImage.company_id
+            ),
         ]
     ),
     description=(
@@ -175,7 +177,9 @@ async def upload_operator_image_executive(
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR)
 
         validate_id(session, Company, form_param.company_id, OperatorImage.company_id)
-        operator = validate_id(session, Operator, form_param.operator_id, OperatorImage.operator_id)
+        operator = validate_id(
+            session, Operator, form_param.operator_id, OperatorImage.operator_id
+        )
         if operator.company_id != form_param.company_id:
             raise exceptions.InvalidAssociation(
                 OperatorImage.operator_id, OperatorImage.company_id
