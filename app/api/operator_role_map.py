@@ -1,13 +1,13 @@
 """
 Operator Role Map API Router for EnteBus.
 
-Provides endpoints for managing operator role mappings, including creation, update, and retrieval.
-Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion are planned for future implementation.
+Provides endpoints for managing operator role mappings, including creation,
+update, deletion, and retrieval. Uses Pydantic schemas for
+input validation and structured output.
 """
 
 from datetime import datetime
-from fastapi import APIRouter, status, Depends, Query
+from fastapi import APIRouter, Response, status, Depends, Query
 from enum import StrEnum
 from typing import List
 from fastapi.encoders import jsonable_encoder
@@ -148,6 +148,23 @@ def search_role_map(
     return role_maps
 
 
+def delete_role_map(session: Session, role_map: OperatorRoleMap) -> dict:
+    """
+    Deletes an OperatorRoleMap from the database.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        role_map (OperatorRoleMap): OperatorRoleMap to delete.
+
+    Returns:
+        dict: JSON-encoded representation of the deleted role mapping.
+    """
+    role_map_data = jsonable_encoder(role_map)
+    session.delete(role_map)
+    session.commit()
+    return role_map_data
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -280,6 +297,46 @@ async def update_role_map_executive(
         if have_updates:
             log_event(token, request_info, role_map_data)
         return role_map_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.delete(
+    f"{URL_OPERATOR_ROLE_MAP}/{{id}}",
+    tags=["Operator Role Map"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing operator role mapping.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in executive must have the `company.operator.role.update` permission.    
+            - Returns 204 No Content even if the specified role mapping does not exist.    
+        """
+    ),
+)
+async def delete_role_map_executive(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
+
+        role_map = (
+            session.query(OperatorRoleMap).filter(OperatorRoleMap.id == id).first()
+        )
+        if role_map is not None:
+            role_map_data = delete_role_map(session, role_map)
+            log_event(token, request_info, role_map_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -444,6 +501,50 @@ async def update_role_map_operator(
         if have_updates:
             log_event(token, request_info, role_map_data)
         return role_map_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.delete(
+    f"{URL_OPERATOR_ROLE_MAP}/{{id}}",
+    tags=["Role Map"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing operator role mapping.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in operator must have the `company.operator.role.update` permission.    
+            - Returns 204 No Content even if the specified role mapping does not exist.    
+        """
+    ),
+)
+async def delete_role_map_operator(
+    id: int,
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+        roles = get_operator_roles(session, token)
+        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
+
+        role_map = (
+            session.query(OperatorRoleMap)
+            .filter(
+                OperatorRoleMap.id == id, OperatorRoleMap.company_id == token.company_id
+            )
+            .first()
+        )
+        if role_map is not None:
+            role_map_data = delete_role_map(session, role_map)
+            log_event(token, request_info, role_map_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
