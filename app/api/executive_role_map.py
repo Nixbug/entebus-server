@@ -13,20 +13,25 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
 from app.api.bearer import oauth2_executive
-from app.src.db import ExecutiveRoleMap, ExecutiveToken, SessionLocal
+from app.src.db import (
+    Executive,
+    ExecutiveRoleMap,
+    ExecutiveToken,
+    SessionLocal,
+    ExecutiveRole,
+)
 from app.src.enums import OrderIn
 from app.src.filters import IDFilter, PaginationFilter, UpdatedOnFilter, CreatedOnFilter
 from app.src.urls import URL_EXECUTIVE_ROLE_MAP
 from app.src.permissions.executive import PermissionPath
 from app.src import exceptions
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token
+from app.src.validators import validate_id, verify_permission, verify_token
 from app.src.functions import (
     enum_str,
     fuse_exception_responses,
     get_request_info,
     get_executive_roles,
-    update_if_changed,
     apply_id_filters,
     apply_created_on_filters,
     apply_updated_on_filters,
@@ -112,6 +117,12 @@ async def create_role_map(
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE_ROLE)
 
+        validate_id(
+            session, Executive, form_param.executive_id, ExecutiveRoleMap.executive_id
+        )
+        validate_id(
+            session, ExecutiveRole, form_param.role_id, ExecutiveRoleMap.role_id
+        )
         role_map = ExecutiveRoleMap(
             role_id=form_param.role_id, executive_id=form_param.executive_id
         )
@@ -162,13 +173,13 @@ async def update_role_map(
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE_ROLE)
 
-        role_map = (
-            session.query(ExecutiveRoleMap).filter(ExecutiveRoleMap.id == id).first()
-        )
-        if role_map is None:
-            raise exceptions.UnknownValue(ExecutiveRoleMap.id)
-        update_data = form_param.model_dump(exclude_unset=True)
-        update_if_changed(role_map, update_data)
+        role_map = validate_id(session, ExecutiveRoleMap, id, ExecutiveRoleMap.id)
+        if form_param.role_id is not None and role_map.role_id != form_param.role_id:
+            validate_id(
+                session, ExecutiveRole, form_param.role_id, ExecutiveRoleMap.role_id
+            )
+            role_map.role_id = form_param.role_id
+
         have_updates = session.is_modified(role_map)
         if have_updates:
             session.commit()

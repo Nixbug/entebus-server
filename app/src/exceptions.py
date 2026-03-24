@@ -12,12 +12,12 @@ It ensures consistent error responses across the API.
 from traceback import format_exception
 from logging import getLogger
 from fastapi import status, HTTPException
-from sqlalchemy import Column
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
 from pydantic import ValidationError
 from redis.exceptions import RedisError
 from requests.exceptions import ConnectionError, Timeout
+from sqlalchemy.orm import InstrumentedAttribute
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +216,7 @@ class UnknownValue(APIException):
     status_code = status.HTTP_404_NOT_FOUND
     headers = {"X-Error": "UnknownValue"}
 
-    def __init__(self, column: Column):
+    def __init__(self, column: InstrumentedAttribute):
         detail = f"Unknown {column.name} is provided"
         super().__init__(detail=detail)
 
@@ -229,7 +229,9 @@ class InvalidAssociation(APIException):
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     headers = {"X-Error": "InvalidAssociation"}
 
-    def __init__(self, column_1: Column, column_2: Column):
+    def __init__(
+        self, column_1: InstrumentedAttribute, column_2: InstrumentedAttribute
+    ):
         detail = f"The {column_1.name} is not associated with {column_2.name}"
         super().__init__(detail=detail)
 

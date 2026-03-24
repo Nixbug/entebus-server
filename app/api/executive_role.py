@@ -27,7 +27,7 @@ from app.src import exceptions
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_EXECUTIVE_ROLE
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token
+from app.src.validators import validate_id, verify_permission, verify_token
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
@@ -169,9 +169,7 @@ async def update_role(
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE_ROLE)
 
-        role = session.query(ExecutiveRole).filter(ExecutiveRole.id == id).first()
-        if not role:
-            raise exceptions.UnknownValue(ExecutiveRole.id)
+        role = validate_id(session, ExecutiveRole, id, ExecutiveRole.id)
         update_data = form_param.model_dump(exclude_unset=True)
         update_if_changed(role, update_data)
         have_updates = session.is_modified(role)

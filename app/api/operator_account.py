@@ -40,7 +40,7 @@ from app.src import exceptions
 from app.src.regex import PASSWORD_PATTERN, USERNAME_PATTERN
 from app.src.urls import URL_OPERATOR_ACCOUNT
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token
+from app.src.validators import verify_permission, verify_token, validate_id
 from app.src.functions import (
     apply_account_filters,
     apply_created_on_filters,
@@ -55,7 +55,6 @@ from app.src.functions import (
     apply_status_filters,
     apply_type_filters,
 )
-
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -389,10 +388,7 @@ async def update_account_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR)
 
-        operator = session.query(Operator).filter(Operator.id == id).first()
-        if operator is None:
-            raise exceptions.UnknownValue(Operator.id)
-
+        operator = validate_id(session, Operator, id, Operator.id)
         have_updates, operator_data = update_operator(session, operator, form_param)
         if have_updates:
             log_event(token, request_info, operator_data)
@@ -564,13 +560,13 @@ async def update_account_operator(
             roles = get_operator_roles(session, token)
             verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR)
 
-        operator = (
-            session.query(Operator)
-            .filter(Operator.id == id, Operator.company_id == token.company_id)
-            .first()
+        operator = validate_id(
+            session,
+            Operator,
+            id,
+            Operator.id,
+            extra_filter=(Operator.company_id == token.company_id),
         )
-        if operator is None:
-            raise exceptions.UnknownValue(Operator.id)
         if is_self_update and form_param.status is not None:
             raise exceptions.NoPermission()
 

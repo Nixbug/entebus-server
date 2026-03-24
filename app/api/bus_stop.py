@@ -40,7 +40,7 @@ from app.src import exceptions
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_BUS_STOP
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token
+from app.src.validators import verify_permission, verify_token, validate_id
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
@@ -157,9 +157,7 @@ def validate_location(session: Session, location_wkt: str, landmark_id: int) -> 
     validate_srid_4326(location_geom)
 
     # Validate location is within landmark boundary
-    landmark = session.query(Landmark).filter(Landmark.id == landmark_id).first()
-    if landmark is None:
-        raise exceptions.UnknownValue(BusStop.landmark_id)
+    landmark = validate_id(session, Landmark, landmark_id, BusStop.landmark_id)
 
     boundary_geom = wkb.loads(bytes(landmark.boundary.data))
     if not boundary_geom.contains(location_geom):
@@ -339,9 +337,7 @@ async def update_bus_stop(
         roles = get_executive_roles(session, token)
         verify_permission(roles, PermissionPath.UPDATE_BUS_STOP)
 
-        bus_stop = session.query(BusStop).filter(BusStop.id == id).first()
-        if bus_stop is None:
-            raise exceptions.UnknownValue(BusStop.id)
+        bus_stop = validate_id(session, BusStop, id, BusStop.id)
 
         update_data = form_param.model_dump(exclude_unset=True)
         if form_param.location is not None:

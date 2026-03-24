@@ -30,7 +30,7 @@ from app.src.permissions.operator import (
 )
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_OPERATOR_ROLE
-from app.src.validators import verify_permission, verify_token
+from app.src.validators import verify_permission, verify_token, validate_id
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
@@ -124,7 +124,7 @@ class QueryParams(QueryParamsForEX):
 # Functions
 def update_role(
     session: Session,
-    role: Optional[OperatorRole],
+    role: OperatorRole,
     form_param: UpdateForm,
 ) -> Tuple[bool, dict]:
     """
@@ -140,8 +140,6 @@ def update_role(
             - bool: True if the role was modified and the changes were committed.
             - dict: JSON-encoded representation of the updated role.
     """
-    if role is None:
-        raise exceptions.UnknownValue(OperatorRole.id)
     update_data = form_param.model_dump(exclude_unset=True)
     update_if_changed(role, update_data)
     have_updates = session.is_modified(role)
@@ -292,7 +290,12 @@ async def update_role_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
 
-        role = session.query(OperatorRole).filter(OperatorRole.id == id).first()
+        role = validate_id(
+            session,
+            OperatorRole,
+            id,
+            OperatorRole.id,
+        )
         have_updates, role_data = update_role(session, role, form_param)
         if have_updates:
             log_event(token, request_info, role_data)
@@ -454,10 +457,12 @@ async def update_role_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
 
-        role = (
-            session.query(OperatorRole)
-            .filter(OperatorRole.id == id, OperatorRole.company_id == token.company_id)
-            .first()
+        role = validate_id(
+            session,
+            OperatorRole,
+            id,
+            OperatorRole.id,
+            extra_filter=(OperatorRole.company_id == token.company_id),
         )
         have_updates, role_data = update_role(session, role, form_param)
         if have_updates:

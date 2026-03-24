@@ -8,7 +8,10 @@ making it easier for developers to integrate them into their projects.
 from datetime import datetime, timedelta, timezone
 from typing import Any, Type, Union
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.orm.session import Session
+from sqlalchemy.sql.elements import ClauseElement
+
 
 from app.src.functions import get_by_path
 from app.src import argon2, exceptions
@@ -17,6 +20,7 @@ from app.src.db import (
     Executive,
     ExecutiveRole,
     ExecutiveToken,
+    ORMbase,
     Operator,
     OperatorToken,
     Vendor,
@@ -282,21 +286,34 @@ def verify_permission(
     return False
 
 
-def validate_company_id(session: Session, company_id: int) -> Company:
+def validate_id(
+    session: Session,
+    model_cls: Type[ORMbase],
+    unique_id: int,
+    column: InstrumentedAttribute,
+    extra_filter: ClauseElement[bool] | None = None,
+) -> Any:
     """
-    Validate the existence of a Company by its ID.
+    Generic function to validate an ID based on a given model class.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        company_id (int): The ID of the company to fetch.
+        model_cls (Type[ORMbase]): The ORM model class.
+        unique_id (int): The ID of the record to fetch.
+        column (InstrumentedAttribute): The ORM column (e.g., Model.id) used for the exception message.
+        extra_filter (ClauseElement[bool] | None): Additional filters to apply, defaults to None.
 
     Returns:
-        Company: The Company instance matching the given ID.
+        Any: The instance of the model class matching the given ID.
 
     Raises:
-        UnknownValue: If no Company with the provided ID exists.
+        UnknownValue: If no instance with the provided ID exists.
     """
-    company = session.query(Company).filter(Company.id == company_id).first()
-    if company is None:
-        raise exceptions.UnknownValue(Company.id)
-    return company
+    query = session.query(model_cls).filter(model_cls.id == unique_id)
+    if extra_filter is not None:
+        query = query.filter(extra_filter)
+    result = query.first()
+
+    if result is None:
+        raise exceptions.UnknownValue(column)
+    return result
