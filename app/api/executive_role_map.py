@@ -175,7 +175,6 @@ async def update_role_map(
         verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE_ROLE)
 
         role_map = validate_id(session, ExecutiveRoleMap, id, ExecutiveRoleMap.id)
-
         if form_param.role_id is not None and role_map.role_id != form_param.role_id:
             validate_id(
                 session, ExecutiveRole, form_param.role_id, ExecutiveRoleMap.role_id
