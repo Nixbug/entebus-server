@@ -11,6 +11,7 @@ from fastapi import APIRouter, Form, File, UploadFile, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from io import BytesIO
 from pydantic import BaseModel, Field
+from sqlalchemy.orm.session import Session
 
 from app.api import executive_image
 from app.src.buckets import OPERATOR_IMAGES
@@ -64,11 +65,9 @@ class OperatorImageSchema(BaseModel):
 
 
 ## Input Forms
-class CreateFormForEx(BaseModel):
-    """Form data for creating a new operator image for an operator."""
-   
-    company_id: int = Field(Form())
-    operator_id: int = Field(Form())
+class ImageUploadForm(BaseModel):
+    """Form data for uploading an operator image."""
+
     file: UploadFile = Field(
         File(
             description=(
@@ -81,10 +80,64 @@ class CreateFormForEx(BaseModel):
     )
 
 
-class CreateFormForOP(BaseModel):
+class CreateFormForEx(ImageUploadForm):
+    """Form data for creating a new operator image for an operator."""
+
+    company_id: int = Field(Form())
+    operator_id: int = Field(Form())
+
+
+class CreateFormForOP(ImageUploadForm):
     """Form data for creating a new operator image for an operator."""
 
     operator_id: int | None = Field(Form(default=None))
+
+
+# Functions
+def create_operator_image(
+    session: Session, operator_image: OperatorImage, file_bytes: bytes
+) -> OperatorImage:
+    """
+    Creates a new operator image record in the database.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        operator_image (OperatorImage): Operator image data to create.
+        file_bytes (bytes): The image file bytes.
+
+    Returns:
+        OperatorImage: The created operator image record.
+    """
+    session.add(operator_image)
+    session.flush()
+    upload_file(
+        OPERATOR_IMAGES,
+        str(operator_image.id),
+        len(file_bytes),
+        BytesIO(file_bytes),
+    )
+    session.commit()
+    session.refresh(operator_image)
+    operator_image_data = jsonable_encoder(operator_image)
+    return operator_image_data
+
+
+def delete_operator_image(session: Session, operator_image: OperatorImage) -> dict:
+    """
+    Deletes an operator image and its associated file from storage.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        operator_image (OperatorImage): Operator image to delete.
+
+    Returns:
+        dict: deleted operator image data for logging purposes.
+    """
+    operator_image_data = jsonable_encoder(operator_image)
+    session.delete(operator_image)
+    session.commit()
+    delete_file(OPERATOR_IMAGES, str(operator_image.id))
+    return operator_image_data
 
 
 # ---------------------------------------------------------------------------
@@ -105,14 +158,14 @@ class CreateFormForOP(BaseModel):
     description=(
         """
             **Uploads an operator image.**    
-            - Operator must have a valid access token.   
-            - Logged-in operator must have `operator.update` permission to upload other operator images.   
+            - Operator must have a valid access token.    
+            - Logged-in operator must have `operator.update` permission to upload other operator images.    
             - Operator can update their own image without permission.    
         """
     ),
 )
 async def upload_operator_image_executive(
-    form_param: CreateFormForEX = Depends(),
+    form_param: CreateFormForEx = Depends(),
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
@@ -122,7 +175,6 @@ async def upload_operator_image_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR)
 
-        
         file_bytes = await form_param.file.read()
         validate_image(file_bytes, form_param.file.filename)
         operator_image = OperatorImage(
@@ -132,20 +184,50 @@ async def upload_operator_image_executive(
             file_type=form_param.file.content_type,
             file_size=len(file_bytes),
         )
-        session.add(operator_image)
-        session.flush()
-        upload_file(
-            OPERATOR_IMAGES,
-            str(operator_image.id),
-            len(file_bytes),
-            BytesIO(file_bytes),
-        )
-        session.commit()
-        session.refresh(operator_image)
-
-        operator_image_data = jsonable_encoder(operator_image)
+        operator_image_data = create_operator_image(session, operator_image, file_bytes)
         log_event(token, request_info, operator_image_data)
         return operator_image_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.delete(
+    f"{URL_OPERATOR_PICTURE}/{{id}}",
+    tags=["Operator Account Image"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an operator image.**    
+            - Operator must have a valid access token.    
+            - Operators can delete their own image without additional permissions.    
+            - To delete another operator's image, the `company.operator.update` permission is required.    
+            - Returns 204 No Content even if the specified image does not exist.    
+        """
+    ),
+)
+async def delete_operator_image_executive(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR)
+
+        operator_image = (
+            session.query(OperatorImage).filter(OperatorImage.id == id).first()
+        )
+        if operator_image is not None:
+            operator_image_data = delete_operator_image(session, operator_image)
+            log_event(token, request_info, operator_image_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -170,8 +252,8 @@ async def upload_operator_image_executive(
     description=(
         """
             **Uploads an operator image.**    
-            - Operator must have a valid access token.   
-            - Logged-in operator must have `operator.update` permission to upload other operator images.   
+            - Operator must have a valid access token.    
+            - Logged-in operator must have `operator.update` permission to upload other operator images.    
             - Operator can update their own image without permission.    
         """
     ),
@@ -201,20 +283,55 @@ async def upload_operator_image(
             file_type=form_param.file.content_type,
             file_size=len(file_bytes),
         )
-        session.add(operator_image)
-        session.flush()
-        upload_file(
-            OPERATOR_IMAGES,
-            str(operator_image.id),
-            len(file_bytes),
-            BytesIO(file_bytes),
-        )
-        session.commit()
-        session.refresh(operator_image)
-
-        operator_image_data = jsonable_encoder(operator_image)
+        operator_image_data = create_operator_image(session, operator_image, file_bytes)
         log_event(token, request_info, operator_image_data)
         return operator_image_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.delete(
+    f"{URL_OPERATOR_PICTURE}/{{id}}",
+    tags=["Account Image"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an operator image.**    
+            - Operator must have a valid access token.    
+            - Operators can delete their own image without additional permissions.    
+            - To delete another operator's image, the `operator.update` permission is required.    
+            - Returns 204 No Content even if the specified image does not exist.      
+        """
+    ),
+)
+async def delete_operator_image(
+    id: int,
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+
+        operator_image = (
+            session.query(OperatorImage)
+            .filter(
+                OperatorImage.id == id, OperatorImage.company_id == token.company_id
+            )
+            .first()
+        )
+        if operator_image.operator_id != token.operator_id:
+            roles = get_operator_roles(session, token)
+            verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR)
+
+        operator_image_data = delete_operator_image(session, operator_image)
+        log_event(token, request_info, operator_image_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
