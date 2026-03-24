@@ -310,7 +310,6 @@ def validate_id(
         UnknownValue: If no instance with the provided ID exists.
     """
     query = session.query(model_cls).filter(model_cls.id == unique_id)
-
     if extra_filter is not None:
         query = query.filter(extra_filter)
     result = query.first()
