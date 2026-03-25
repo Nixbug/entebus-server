@@ -123,7 +123,7 @@ DYNAMIC_FARE_VERSION = 1  # Current dynamic fare version
 # ---------------------------------------------------------------------------
 # Image constants
 # ---------------------------------------------------------------------------
-MAX_IMAGE_RESOLUTION = 2048  # Maximum allowed width/height in pixels
+MAX_IMAGE_RESOLUTION = 4096  # Maximum allowed width/height in pixels
 MIN_IMAGE_RESOLUTION = 16  # Minimum allowed width/height in pixels
 MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024  # Maximum allowed file size in bytes (10 MB)
 MIN_IMAGE_FILE_SIZE = 1 * 1024  # Minimum allowed file size in bytes (1 KB)

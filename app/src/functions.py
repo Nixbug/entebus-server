@@ -502,14 +502,17 @@ def validate_image(file_bytes: bytes, filename: str) -> None:
         if size > MAX_IMAGE_FILE_SIZE or size < MIN_IMAGE_FILE_SIZE:
             raise exceptions.InvalidImageFile()
 
+        Image.MAX_IMAGE_PIXELS = None
+
         with Image.open(BytesIO(file_bytes)) as image:
             image.load()
             width, height = image.size
             if not (MIN_IMAGE_RESOLUTION <= width <= MAX_IMAGE_RESOLUTION) or not (
                 MIN_IMAGE_RESOLUTION <= height <= MAX_IMAGE_RESOLUTION
             ):
-                raise exceptions.InvalidImageFile()
-
+                raise exceptions.PayloadTooLarge()
+    except Image.DecompressionBombError:
+        raise exceptions.PayloadTooLarge()
     except UnidentifiedImageError:
         raise exceptions.InvalidImageFile()
 
