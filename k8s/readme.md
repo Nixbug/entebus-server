@@ -40,6 +40,9 @@ This guide explains how to deploy **Entebus Server** on Kubernetes using Kustomi
 Optional checks:
 
 ```bash
+# Export KUBECONFIG as per need 
+export KUBECONFIG=$HOME/.kube/entebus-k8-dev-kubeconfig.yaml
+
 kubectl version --client
 kubectl cluster-info
 helm version
@@ -88,13 +91,6 @@ Verify controller is healthy:
 kubectl get pods -n ingress-nginx
 kubectl get svc -n ingress-nginx
 ```
-
-
-
-
-
-
-
 
 ## 🔐 Cloudflare Origin Certificate Setup
 
@@ -170,9 +166,6 @@ kubectl get service -A
 ```bash
 kubectl logs -n entebus deploy/entebus-server --tail=200
 ```
-
-
-
 
 ## 🔁 Recommended Deployment Sequence
 
