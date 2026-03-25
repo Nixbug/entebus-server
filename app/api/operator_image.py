@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
 
 from app.src.buckets import OPERATOR_IMAGES
+from app.src.constants import MIN_IMAGE_RESOLUTION, MAX_IMAGE_RESOLUTION
 from app.api.bearer import oauth2_executive, bearer_operator
 from app.src import exceptions
 from app.src.enums import OrderIn
@@ -89,8 +90,8 @@ class QueryParams(QueryParamsForEX):
 class ImageQueryParams(BaseModel):
     """Query parameters for retrieving an operator image."""
 
-    width: int | None = Field(Query(default=None, ge=16, le=2048))
-    height: int | None = Field(Query(default=None, ge=16, le=2048))
+    width: int | None = Field(Query(default=None, ge=MIN_IMAGE_RESOLUTION, le=MAX_IMAGE_RESOLUTION))
+    height: int | None = Field(Query(default=None, ge=MIN_IMAGE_RESOLUTION, le=MAX_IMAGE_RESOLUTION))
 
 
 def search_image(
