@@ -7,7 +7,7 @@ Endpoints for creation, and deletion are planned for future implementation.
 """
 
 from datetime import datetime
-from fastapi import APIRouter,  Depends, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from io import BytesIO
 from typing import List
@@ -17,22 +17,26 @@ from sqlalchemy.orm.session import Session
 
 from app.src.buckets import OPERATOR_IMAGES
 from app.api.bearer import oauth2_executive, bearer_operator
-
 from app.src import exceptions
 from app.src.enums import OrderIn
-from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, PictureFilter, UpdatedOnFilter
+from app.src.filters import (
+    CreatedOnFilter,
+    IDFilter,
+    PaginationFilter,
+    PictureFilter,
+)
 from app.src.db import SessionLocal, ExecutiveToken, OperatorToken, OperatorImage
 from app.src.minio import download_file
-from app.src.validators import  verify_token
+from app.src.validators import verify_token
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
     apply_picture_filters,
     enum_str,
     fuse_exception_responses,
-    resize_image,   
+    resize_image,
 )
-from app.src.urls import URL_OPERATOR_PICTURE   
+from app.src.urls import URL_OPERATOR_PICTURE
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -89,7 +93,9 @@ class ImageQueryParams(BaseModel):
     height: int | None = Field(Query(default=None, ge=16, le=2048))
 
 
-def search_image(session: Session, query_params: QueryParams) -> list[OperatorImageSchema]:
+def search_image(
+    session: Session, query_params: QueryParams
+) -> list[OperatorImageSchema]:
     """
     Search for operator images based on provided query parameters.
 
@@ -126,6 +132,45 @@ def search_image(session: Session, query_params: QueryParams) -> list[OperatorIm
 
     operator_images = query.all()
     return operator_images
+
+
+def download_image(
+    operator_image: OperatorImage, query_params: ImageQueryParams
+) -> StreamingResponse:
+    """
+    Download an operator image by its ID.
+
+    This function retrieves the operator image metadata from the database and
+    then fetches the corresponding image file from the MinIO bucket.
+
+    Args:
+        operator_image (OperatorImage): The OperatorImage instance to download.
+        query_params (ImageQueryParams): Query parameters for image resizing.
+
+    Returns:
+        StreamingResponse: A StreamingResponse containing the downloaded image.
+
+    Raises:
+        exceptions.UnknownValue: If no operator image with the specified ID is found.
+    """
+    if operator_image is not None:
+        file_bytes = download_file(OPERATOR_IMAGES, str(operator_image.id))
+        resized_bytes = resize_image(
+            file_bytes,
+            width=query_params.width,
+            height=query_params.height,
+        )
+
+        return StreamingResponse(
+            BytesIO(resized_bytes),
+            media_type=operator_image.file_type,
+            headers={
+                "Content-Disposition": f'inline; filename="{operator_image.file_name}"',
+                "Cache-Control": "public, max-age=31536000, immutable",
+            },
+        )
+    raise exceptions.UnknownValue(OperatorImage.id)
+
 
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
@@ -167,8 +212,8 @@ async def fetch_operator_image_executive(
     ),
     description=(
         """
-            **Download executive profile picture in original or resized resolution.**       
-            - Requires a valid access token for authentication.     
+            **Download executive profile picture in original or resized resolution.**    
+            - Requires a valid access token for authentication.    
         """
     ),
 )
@@ -184,23 +229,7 @@ async def download_operator_image_executive(
         operator_image = (
             session.query(OperatorImage).filter(OperatorImage.id == id).first()
         )
-        if operator_image is not None:
-            file_bytes = download_file(OPERATOR_IMAGES, str(operator_image.id))
-            resized_bytes = resize_image(
-                file_bytes,
-                width=query_params.width,
-                height=query_params.height,
-            )
-
-            return StreamingResponse(
-                BytesIO(resized_bytes),
-                media_type=operator_image.file_type,
-                headers={
-                    "Content-Disposition": f'inline; filename="{operator_image.file_name}"',
-                    "Cache-Control": "public, max-age=31536000, immutable",
-                },
-            )
-        raise exceptions.UnknownValue(OperatorImage.id)
+        return download_image(operator_image, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -248,8 +277,8 @@ async def fetch_operator_image_operator(
     ),
     description=(
         """ 
-            **Download operator profile picture in original or resized resolution.**       
-            - Requires a valid access token for authentication.     
+            **Download operator profile picture in original or resized resolution.**    
+            - Requires a valid access token for authentication.    
         """
     ),
 )
@@ -263,25 +292,13 @@ async def download_operator_image_operator(
         token = verify_token(session, OperatorToken, access_token.credentials)
 
         operator_image = (
-            session.query(OperatorImage).filter(OperatorImage.id == id, OperatorImage.company_id == token.company_id).first()
+            session.query(OperatorImage)
+            .filter(
+                OperatorImage.id == id, OperatorImage.company_id == token.company_id
+            )
+            .first()
         )
-        if operator_image is not None:
-            file_bytes = download_file(OPERATOR_IMAGES, str(operator_image.id))
-            resized_bytes = resize_image(
-                file_bytes,
-                width=query_params.width,
-                height=query_params.height,
-            )
-
-            return StreamingResponse(
-                BytesIO(resized_bytes),
-                media_type=operator_image.file_type,
-                headers={
-                    "Content-Disposition": f'inline; filename="{operator_image.file_name}"',
-                    "Cache-Control": "public, max-age=31536000, immutable",
-                },
-            )
-        raise exceptions.UnknownValue(OperatorImage.id)
+        return download_image(operator_image, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:
