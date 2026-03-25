@@ -40,7 +40,7 @@ This guide explains how to deploy **Entebus Server** on Kubernetes using Kustomi
 Optional checks:
 
 ```bash
-# Export KUBECONFIG as per need 
+# Export KUBECONFIG as needed
 export KUBECONFIG=$HOME/.kube/entebus-k8-dev-kubeconfig.yaml
 
 kubectl version --client
