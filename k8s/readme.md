@@ -41,7 +41,7 @@ Optional checks:
 
 ```bash
 # Export KUBECONFIG as needed
-export KUBECONFIG=$HOME/.kube/entebus-k8-dev-kubeconfig.yaml
+export KUBECONFIG="$HOME/.kube/entebus-k8-dev-kubeconfig.yaml"
 
 kubectl version --client
 kubectl cluster-info
