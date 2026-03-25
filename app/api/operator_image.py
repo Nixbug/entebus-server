@@ -90,21 +90,32 @@ class CreateFormForOP(ImageUploadForm):
     operator_id: int | None = Field(Form(default=None))
 
 
+class CreateForm(CreateFormForEX):
+    """Generic combined form data for creating a new operator image."""
+
+    pass
+
+
 # Functions
-def create_image(
-    session: Session, operator_image: OperatorImage, file_bytes: bytes
-) -> dict:
+def create_image(session: Session, form_param: CreateForm, file_bytes: bytes) -> dict:
     """
     Creates a new operator image record in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
-        operator_image (OperatorImage): Operator image data to create.
+        form_param (CreateForm): Form data for creating an operator image.
         file_bytes (bytes): The image file bytes.
 
     Returns:
         dict: The created operator image data.
     """
+    operator_image = OperatorImage(
+        company_id=form_param.company_id,
+        operator_id=form_param.operator_id,
+        file_name=form_param.file.filename,
+        file_type=form_param.file.content_type,
+        file_size=len(file_bytes),
+    )
     session.add(operator_image)
     session.flush()
     upload_file(
@@ -119,7 +130,10 @@ def create_image(
     return operator_image_data
 
 
-def delete_image(session: Session, operator_image: OperatorImage) -> dict:
+def delete_image(
+    session: Session,
+    operator_image: OperatorImage,
+) -> dict:
     """
     Deletes an operator image and its associated file from storage.
 
@@ -187,15 +201,10 @@ async def upload_operator_image_executive(
 
         file_bytes = await form_param.file.read()
         validate_image(file_bytes, form_param.file.filename)
-        operator_image = OperatorImage(
-            company_id=form_param.company_id,
-            operator_id=form_param.operator_id,
-            file_name=form_param.file.filename,
-            file_type=form_param.file.content_type,
-            file_size=len(file_bytes),
-        )
 
-        operator_image_data = create_image(session, operator_image, file_bytes)
+        operator_image_data = create_image(
+            session, CreateForm(**form_param.model_dump()), file_bytes
+        )
         log_event(token, request_info, operator_image_data)
         return operator_image_data
     except Exception as e:
@@ -294,15 +303,12 @@ async def upload_operator_image(
         )
         file_bytes = await form_param.file.read()
         validate_image(file_bytes, form_param.file.filename)
-        operator_image = OperatorImage(
-            company_id=token.company_id,
-            operator_id=form_param.operator_id,
-            file_name=form_param.file.filename,
-            file_type=form_param.file.content_type,
-            file_size=len(file_bytes),
-        )
 
-        operator_image_data = create_image(session, operator_image, file_bytes)
+        operator_image_data = create_image(
+            session,
+            CreateForm(**form_param.model_dump(), company_id=token.company_id),
+            file_bytes,
+        )
         log_event(token, request_info, operator_image_data)
         return operator_image_data
     except Exception as e:
