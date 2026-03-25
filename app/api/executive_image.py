@@ -15,6 +15,7 @@ from io import BytesIO
 from datetime import datetime
 
 from app.src.buckets import EXECUTIVE_IMAGES
+from app.src.constants import MAX_IMAGE_RESOLUTION, MIN_IMAGE_RESOLUTION
 from app.src import exceptions
 from app.src.enums import OrderIn
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, PictureFilter
@@ -97,8 +98,12 @@ class QueryParams(PictureFilter, CreatedOnFilter, IDFilter, PaginationFilter):
 class ImageQueryParams(BaseModel):
     """Query parameters for retrieving an executive image."""
 
-    width: int | None = Field(Query(default=None, ge=16, le=4096))
-    height: int | None = Field(Query(default=None, ge=16, le=4096))
+    width: int | None = Field(
+        Query(default=None, ge=MIN_IMAGE_RESOLUTION, le=MAX_IMAGE_RESOLUTION)
+    )
+    height: int | None = Field(
+        Query(default=None, ge=MIN_IMAGE_RESOLUTION, le=MAX_IMAGE_RESOLUTION)
+    )
 
 
 # ---------------------------------------------------------------------------
