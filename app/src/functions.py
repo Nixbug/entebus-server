@@ -5,7 +5,6 @@ It offers reusable utilities that make it easier for developers to integrate the
 """
 
 import mimetypes
-import warnings
 import pyproj
 from enum import Enum
 from io import BytesIO
