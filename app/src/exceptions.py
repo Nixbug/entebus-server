@@ -334,13 +334,3 @@ class LandmarkDistanceLimitExceeded(APIException):
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "Landmark centroid movement exceeds allowed limit"
     headers = {"X-Error": "LandmarkDistanceLimitExceeded"}
-
-
-class PayloadTooLarge(APIException):
-    """
-    Raised when the uploaded file exceeds the maximum allowed size.
-    """
-
-    status_code = status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
-    detail = "Image exceed allowed size limit."
-    headers = {"X-Error": "PayloadTooLarge"}
