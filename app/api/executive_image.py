@@ -97,8 +97,8 @@ class QueryParams(PictureFilter, CreatedOnFilter, IDFilter, PaginationFilter):
 class ImageQueryParams(BaseModel):
     """Query parameters for retrieving an executive image."""
 
-    width: int | None = Field(Query(default=None, ge=16, le=2048))
-    height: int | None = Field(Query(default=None, ge=16, le=2048))
+    width: int | None = Field(Query(default=None, ge=16, le=4096))
+    height: int | None = Field(Query(default=None, ge=16, le=4096))
 
 
 # ---------------------------------------------------------------------------
