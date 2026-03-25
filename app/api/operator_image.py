@@ -208,9 +208,7 @@ def delete_image(
     return operator_image_data
 
 
-def search_image(
-    session: Session, query_params: QueryParams
-) -> list[OperatorImage]:
+def search_image(session: Session, query_params: QueryParams) -> list[OperatorImage]:
     """
     Search for operator images based on provided query parameters.
 
