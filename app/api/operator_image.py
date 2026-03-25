@@ -210,7 +210,7 @@ def delete_image(
 
 def search_image(
     session: Session, query_params: QueryParams
-) -> list[OperatorImageSchema]:
+) -> list[OperatorImage]:
     """
     Search for operator images based on provided query parameters.
 
@@ -222,7 +222,7 @@ def search_image(
         query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
-        List[OperatorImageSchema]: List of OperatorImageSchema instances that match the search criteria.
+        List[OperatorImage]: List of OperatorImage instances that match the search criteria.
     """
     query = session.query(OperatorImage)
     if query_params.company_id is not None:
@@ -426,7 +426,7 @@ async def fetch_operator_image_executive(
     ),
     description=(
         """
-            **Download executive profile picture in original or resized resolution.**    
+            **Download operator profile picture in original or resized resolution.**    
             - Requires a valid access token for authentication.    
         """
     ),
