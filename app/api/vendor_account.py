@@ -141,7 +141,7 @@ class OrderBy(StrEnum):
     UPDATED_ON = "updated_on"
 
 
-class QueryParamsForVD(
+class QueryParamsForVE(
     AccountDataFilter,
     UpdatedOnFilter,
     CreatedOnFilter,
@@ -164,7 +164,7 @@ class QueryParamsForVD(
     )
 
 
-class QueryParamsForEX(QueryParamsForVD):
+class QueryParamsForEX(QueryParamsForVE):
     """Query parameters for executives."""
 
     business_id: int | None = Field(Query(default=None))
@@ -591,7 +591,7 @@ async def update_account_vendor(
     ),
 )
 async def fetch_account_vendor(
-    query_params: QueryParamsForVD = Depends(), access_token=Depends(bearer_vendor)
+    query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
 ):
     try:
         session = SessionLocal()
