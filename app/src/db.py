@@ -1784,9 +1784,8 @@ class Vehicle(ORMbase):
             Seating or passenger capacity of the bus.
             Required.
 
-        manufactured_on (DateTime, not null):
+        manufactured_on (DateTime, nullable):
             Manufacture date of the bus.
-            Required.
 
         insurance_upto (DateTime, nullable):
             Date until which the bus is insured.
@@ -1823,7 +1822,7 @@ class Vehicle(ORMbase):
     registration_number = Column(String(16), nullable=False, index=True)
     name = Column(String(32), nullable=False, index=True)
     capacity = Column(Integer, nullable=False)
-    manufactured_on = Column(DateTime(timezone=True), nullable=False)
+    manufactured_on = Column(DateTime(timezone=True))
     insurance_upto = Column(DateTime(timezone=True))
     pollution_upto = Column(DateTime(timezone=True))
     fitness_upto = Column(DateTime(timezone=True))
