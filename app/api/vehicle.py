@@ -6,65 +6,39 @@ Uses Pydantic schemas for input validation and structured output.
 Endpoints for deletion and retrieval are planned for future implementation.
 """
 
-from ast import pattern
-from enum import StrEnum
-from typing import List, Tuple, Optional
+from typing import Optional
 from datetime import datetime
-from fastapi import APIRouter, Query, status, Depends, Response
+from fastapi import APIRouter,  status, Depends
 from fastapi.encoders import jsonable_encoder
-from pydantic_extra_types.phone_numbers import PhoneNumber
-from sqlalchemy import String, or_
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel,  Field
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive, bearer_operator
 from app.src.db import (
-    ExecutiveRole,
-    ExecutiveRole,
+    Company,
     ExecutiveToken,
     OperatorToken,
     SessionLocal,
-    Operator,
-    OperatorImage,
     Vehicle,
 )
 from app.src.enums import (
-    AccountStatus,
-    GenderType,
-    OperatorType,
-    OrderIn,
     VehicleStatus,
 )
-from app.src.filters import (
-    AccountDataFilter,
-    CreatedOnFilter,
-    IDFilter,
-    PaginationFilter,
-    UpdatedOnFilter,
-)
-from app.src.minio import delete_file
 from app.src.constants import TMZ_PRIMARY
-from app.src.buckets import OPERATOR_IMAGES
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src import exceptions
 from app.src.regex import VEHICLE_NUMBER_PATTERN, NAME_PATTERN
-from app.src.urls import URL_OPERATOR_ACCOUNT, URL_VEHICLE
+from app.src.urls import  URL_VEHICLE
 from app.src.openobserve import log_event
 from app.src.validators import verify_permission, verify_token, validate_id
 from app.src.functions import (
-    apply_account_filters,
-    apply_created_on_filters,
-    apply_id_filters,
-    apply_updated_on_filters,
     enum_str,
     fuse_exception_responses,
     get_executive_roles,
     get_operator_roles,
     get_request_info,
     update_if_changed,
-    apply_status_filters,
-    apply_type_filters,
     fuse_exception_responses,
 )
 
@@ -248,7 +222,8 @@ async def create_vehicle_executive(
         token = verify_token(session, ExecutiveToken, access_token)
         role = get_executive_roles(session, token)
         verify_permission(role, ExecutivePermissionPath.CREATE_COMPANY_VEHICLE)
-
+        
+        validate_id(session, Company, form_param.company_id, Vehicle.company_id)
         validate_manufactured_on(form_param)
         vehicle_data = create_vehicle(session, CreateForm(**form_param.model_dump()))
 
