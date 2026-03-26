@@ -125,11 +125,15 @@ def validate_manufactured_on(
         exceptions.InvalidValue: If the manufactured_on date is in the future.
     """
     if form_param.manufactured_on is not None:
-        form_param.manufactured_on = form_param.manufactured_on.replace(
-            tzinfo=TMZ_PRIMARY
-        )
-        if form_param.manufactured_on > datetime.now(tz=TMZ_PRIMARY):
-            raise exceptions.InvalidValue(Vehicle.manufactured_on)
+        manufactured_on = form_param.manufactured_on
+    if manufactured_on.tzinfo is None:
+        manufactured_on = manufactured_on.replace(tzinfo=TMZ_PRIMARY)
+    else:
+        manufactured_on = manufactured_on.astimezone(TMZ_PRIMARY)
+    form_param.manufactured_on = manufactured_on
+
+    if form_param.manufactured_on > datetime.now(tz=TMZ_PRIMARY):
+        raise exceptions.InvalidValue(Vehicle.manufactured_on)
 
 
 def create_vehicle(session: Session, form_param: CreateForm) -> dict:
