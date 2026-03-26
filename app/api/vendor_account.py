@@ -79,7 +79,7 @@ class VendorSchema(BaseModel):
 
 
 ## Input Forms
-class CreateFormForVD(BaseModel):
+class CreateFormForVE(BaseModel):
     """Form data for creating a new vendor account for a vendor."""
 
     username: str = Field(min_length=4, max_length=32, pattern=USERNAME_PATTERN)
@@ -104,7 +104,7 @@ class CreateFormForVD(BaseModel):
     )
 
 
-class CreateFormForEX(CreateFormForVD):
+class CreateFormForEX(CreateFormForVE):
     """Form data for creating a new vendor account for an executive."""
 
     business_id: int = Field()
@@ -485,7 +485,7 @@ async def delete_account_executive(
     ),
 )
 async def create_account_vendor(
-    form_param: CreateFormForVD,
+    form_param: CreateFormForVE,
     access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),
 ):
