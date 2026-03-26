@@ -469,7 +469,11 @@ async def delete_vehicle_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_VEHICLE)
 
-        vehicle = session.query(Vehicle).filter(Vehicle.id == id, Vehicle.company_id == token.company_id).first()
+        vehicle = (
+            session.query(Vehicle)
+            .filter(Vehicle.id == id, Vehicle.company_id == token.company_id)
+            .first()
+        )
         if vehicle is not None:
             vehicle_data = delete_vehicle(session, vehicle)
             log_event(token, request_info, vehicle_data)
