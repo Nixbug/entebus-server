@@ -1756,7 +1756,7 @@ class BusinessBankAccount(ORMbase):
 
 class Vehicle(ORMbase):
     """
-    Represents a bus that is part of a company's fleet.
+    Represents a Vehicle that is part of a company's fleet.
 
     This table stores registration and operational details and is uniquely
     identified by a combination of its registration number and company ID.
@@ -1800,8 +1800,8 @@ class Vehicle(ORMbase):
         road_tax_upto (DateTime, nullable):
             Date until which road tax is paid.
 
-        status (Integer, not null, default=BusStatus.ACTIVE):
-            Verification status of the vehicle. Mapped from the `BusStatus` enum.
+        status (Integer, not null, default=VehicleStatus.ACTIVE):
+            Verification status of the vehicle. Mapped from the `VehicleStatus` enum.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp automatically updated whenever the vehicle record is modified.

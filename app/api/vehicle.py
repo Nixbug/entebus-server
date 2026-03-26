@@ -1,7 +1,7 @@
 """
 Vehicle API Router for EnteBus.
 
-Provides endpoints for managing vehicles, including creation,and update.
+Provides endpoints for managing vehicles, including creation, and update.
 Uses Pydantic schemas for input validation and structured output.
 Endpoints for deletion and retrieval are planned for future implementation.
 """
@@ -101,18 +101,14 @@ class CreateForm(CreateFormForEX):
 class UpdateForm(BaseModel):
     """Form data for updating an vehicle."""
 
-    name: str | None = Field(
-        default=None, min_length=1, max_length=32, pattern=NAME_PATTERN
-    )
-    capacity: int | None = Field(ge=1, le=120, default=None)
-    manufactured_on: datetime | None = Field(default=None)
+    name: str = Field(default=None, min_length=1, max_length=32, pattern=NAME_PATTERN)
+    capacity: int = Field(ge=1, le=120, default=None)
+    manufactured_on: datetime = Field(default=None)
     insurance_upto: datetime | None = Field(default=None)
     pollution_upto: datetime | None = Field(default=None)
     fitness_upto: datetime | None = Field(default=None)
     road_tax_upto: datetime | None = Field(default=None)
-    status: VehicleStatus | None = Field(
-        description=enum_str(VehicleStatus), default=None
-    )
+    status: VehicleStatus = Field(description=enum_str(VehicleStatus), default=None)
 
 
 ## Functions
@@ -126,14 +122,14 @@ def validate_manufactured_on(
         form_param (CreateFormForOP | CreateFormForEX | UpdateForm): The form data containing the manufactured_on field.
 
     Raises:
-        exceptions.UnknownValue: If the manufactured_on date is in the future.
+        exceptions.InvalidValue: If the manufactured_on date is in the future.
     """
     if form_param.manufactured_on is not None:
         form_param.manufactured_on = form_param.manufactured_on.replace(
             tzinfo=TMZ_PRIMARY
         )
         if form_param.manufactured_on > datetime.now(tz=TMZ_PRIMARY):
-            raise exceptions.UnknownValue(Vehicle.manufactured_on)
+            raise exceptions.InvalidValue(Vehicle.manufactured_on)
 
 
 def create_vehicle(session: Session, form_param: CreateForm) -> dict:
@@ -202,7 +198,8 @@ def update_vehicle(session: Session, vehicle: Vehicle, form_param: UpdateForm):
         [
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
-            exceptions.UnknownValue(Vehicle.manufactured_on),
+            exceptions.InvalidValue(Vehicle.manufactured_on),
+            exceptions.UnknownValue(Vehicle.company_id),
         ]
     ),
     description=(
@@ -247,7 +244,8 @@ async def create_vehicle_executive(
         [
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
-            exceptions.UnknownValue(Vehicle.manufactured_on),
+            exceptions.InvalidValue(Vehicle.manufactured_on),
+            exceptions.UnknownValue(Vehicle.id),
         ]
     ),
     description=(
@@ -256,7 +254,7 @@ async def create_vehicle_executive(
             - Requires a valid access token.    
             - Logged-in executive must have `company.vehicle.update` permission.    
             - Manufactured date cannot be in the future.    
-            - Empty patch request are allowed and will result in no changes.    
+            - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
 )
@@ -298,7 +296,7 @@ async def update_vehicle_executive(
         [
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
-            exceptions.UnknownValue(Vehicle.manufactured_on),
+            exceptions.InvalidValue(Vehicle.manufactured_on),
         ]
     ),
     description=(
@@ -343,7 +341,8 @@ async def create_vehicle_operator(
         [
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
-            exceptions.UnknownValue(Vehicle.manufactured_on),
+            exceptions.InvalidValue(Vehicle.manufactured_on),
+            exceptions.UnknownValue(Vehicle.id),
         ]
     ),
     description=(
@@ -352,7 +351,7 @@ async def create_vehicle_operator(
             - Requires a valid access token.    
             - Logged-in operator must have `company.vehicle.update` permission.    
             - Manufactured date cannot be in the future.    
-            - Empty patch request are allowed and will result in no changes.    
+            - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
 )
