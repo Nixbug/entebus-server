@@ -248,7 +248,7 @@ def search_image(session: Session, query_params: QueryParams) -> list[OperatorIm
 
 
 def download_image(
-    operator_image: OperatorImage | None, query_params: ImageQueryParams
+    operator_image: OperatorImage, query_params: ImageQueryParams
 ) -> StreamingResponse:
     """
     Download an operator image by its ID.
@@ -257,7 +257,7 @@ def download_image(
     then fetches the corresponding image file from the MinIO bucket.
 
     Args:
-        operator_image (OperatorImage | None): The OperatorImage instance to download.
+        operator_image (OperatorImage): The OperatorImage instance to download.
         query_params (ImageQueryParams): Query parameters for image resizing.
 
     Returns:
