@@ -87,7 +87,7 @@ class CreateFormForOP(BaseModel):
     gender: GenderType = Field(
         description=enum_str(GenderType), default=GenderType.OTHER
     )
-    description: str | None = Field(min_length=1, max_length=32, default=None)
+    description: str | None = Field(min_length=1, max_length=1024, default=None)
     type: OperatorType = Field(
         description=enum_str(OperatorType),
         default=OperatorType.NORMAL,
@@ -117,7 +117,7 @@ class UpdateForm(BaseModel):
         default=None, min_length=8, max_length=32, pattern=PASSWORD_PATTERN
     )
     gender: GenderType = Field(description=enum_str(GenderType), default=None)
-    description: str | None = Field(min_length=1, max_length=32, default=None)
+    description: str | None = Field(min_length=1, max_length=1024, default=None)
     type: OperatorType = Field(
         description=enum_str(OperatorType),
         default=None,
