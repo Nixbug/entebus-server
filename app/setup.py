@@ -3,9 +3,35 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
 from alembic.script import ScriptDirectory
+from app.src.enums import (
+    CompanyStatus,
+    GenderType,
+    OperatorType,
+    AccountStatus,
+    VendorType,
+    BusinessStatus,
+)
 
 from app.src import buckets, minio
-from app.src.db import get_db_url, engine, ORMbase, SessionLocal
+from app.src.db import (
+    CompanyWallet,
+    ORMbase,
+    Executive,
+    ExecutiveRole,
+    ExecutiveRoleMap,
+    Wallet,
+    get_db_url,
+    engine,
+    SessionLocal,
+    Company,
+    Operator,
+    OperatorRole,
+    OperatorRoleMap,
+    Business,
+    Vendor,
+    VendorRole,
+    VendorRoleMap,
+)
 
 
 def _alembic_cfg() -> Config:
@@ -84,25 +110,370 @@ def delete_tables():
     session.close()
 
 
-# ---- Argparse setup ----
+def initialize():
+    """Initialize the database with default users with default permissions."""
+    session = SessionLocal()
+
+    admin = Executive(
+        username="admin",
+        password="password",
+        full_name="Entebus admin",
+        designation="Administrator",
+    )
+    guest = Executive(
+        username="guest",
+        password="password",
+        full_name="Entebus guest",
+        designation="Guest",
+    )
+
+    session.add_all([admin, guest])
+    session.flush()
+
+    admin_permissions = {
+        "landmark": {
+            "create": True,
+            "update": True,
+            "delete": True,
+            "bus_stop": {"create": True, "update": True, "delete": True},
+        },
+        "fare": {"create": True, "update": True, "delete": True},
+        "executive": {
+            "create": True,
+            "update": True,
+            "delete": True,
+            "role": {"create": True, "update": True, "delete": True},
+            "token": {"fetch": True, "delete": True},
+        },
+        "business": {
+            "create": True,
+            "update": True,
+            "delete": True,
+            "vendor": {
+                "create": True,
+                "update": True,
+                "delete": True,
+                "role": {"create": True, "update": True, "delete": True},
+                "token": {"fetch": True, "delete": True},
+            },
+        },
+        "company": {
+            "create": True,
+            "update": True,
+            "delete": True,
+            "vehicle": {"create": True, "update": True, "delete": True},
+            "fare": {"create": True, "update": True, "delete": True},
+            "route": {"create": True, "update": True, "delete": True},
+            "operator": {
+                "create": True,
+                "update": True,
+                "delete": True,
+                "role": {"create": True, "update": True, "delete": True},
+                "token": {"fetch": True, "delete": True},
+            },
+            "service": {
+                "create": True,
+                "update": True,
+                "delete": True,
+                "duty": {"create": True, "update": True, "delete": True},
+            },
+            "schedule": {"create": True, "update": True, "delete": True},
+        },
+    }
+
+    guest_permissions = {
+        "landmark": {
+            "create": False,
+            "update": False,
+            "delete": False,
+            "bus_stop": {"create": False, "update": False, "delete": False},
+        },
+        "fare": {"create": False, "update": False, "delete": False},
+        "executive": {
+            "create": False,
+            "update": False,
+            "delete": False,
+            "role": {"create": False, "update": False, "delete": False},
+            "token": {"fetch": False, "delete": False},
+        },
+        "business": {
+            "create": False,
+            "update": False,
+            "delete": False,
+            "vendor": {
+                "create": False,
+                "update": False,
+                "delete": False,
+                "role": {"create": False, "update": False, "delete": False},
+                "token": {"fetch": False, "delete": False},
+            },
+        },
+        "company": {
+            "create": False,
+            "update": False,
+            "delete": False,
+            "vehicle": {"create": False, "update": False, "delete": False},
+            "fare": {"create": False, "update": False, "delete": False},
+            "route": {"create": False, "update": False, "delete": False},
+            "operator": {
+                "create": False,
+                "update": False,
+                "delete": False,
+                "role": {"create": False, "update": False, "delete": False},
+                "token": {"fetch": False, "delete": False},
+            },
+            "service": {
+                "create": False,
+                "update": False,
+                "delete": False,
+                "duty": {"create": False, "update": False, "delete": False},
+            },
+            "schedule": {"create": False, "update": False, "delete": False},
+        },
+    }
+
+    admin_role = ExecutiveRole(name="Admin", permissions=admin_permissions)
+    guest_role = ExecutiveRole(name="Guest", permissions=guest_permissions)
+
+    session.add_all([admin_role, guest_role])
+    session.flush()
+
+    admin_role_map = ExecutiveRoleMap(role_id=admin_role.id, executive_id=admin.id)
+    guest_role_map = ExecutiveRoleMap(role_id=guest_role.id, executive_id=guest.id)
+    session.add_all([admin_role_map, guest_role_map])
+
+    company = Company(
+        name="Nixbug Softwares OPC Pvt Ltd",
+        status=CompanyStatus.VERIFIED,
+        address="Edava, Thiruvananthapuram, Kerala 695311",
+        location="POINT(76.68899711264336 8.761725176790257)",
+    )
+    session.add(company)
+    session.flush()
+    wallet = Wallet(balance=0.0, name=company.name)
+    session.add(wallet)
+    session.flush()
+    company_wallet_map = CompanyWallet(company_id=company.id, wallet_id=wallet.id)
+    session.add(company_wallet_map)
+    session.flush()
+
+    operator = Operator(
+        company_id=company.id,
+        username="admin",
+        password="password",
+        gender=GenderType.OTHER,
+        type=OperatorType.ADMIN,
+        full_name="Admin",
+        status=AccountStatus.ACTIVE,
+        phone_number="+91-9496801157",
+        email_id="contact@nixbug.com",
+    )
+    session.add(operator)
+    session.flush()
+
+    admin_permissions = {
+        "company": {
+            "update": True,
+            "vehicle": {"create": True, "update": True, "delete": True},
+            "fare": {"create": True, "update": True, "delete": True},
+            "route": {"create": True, "update": True, "delete": True},
+            "operator": {
+                "create": True,
+                "update": True,
+                "delete": True,
+                "role": {"create": True, "update": True, "delete": True},
+                "token": {"fetch": True, "delete": True},
+            },
+            "service": {
+                "create": True,
+                "update": True,
+                "delete": True,
+                "duty": {"create": True, "update": True, "delete": True},
+            },
+            "schedule": {"create": True, "update": True, "delete": True},
+        },
+    }
+
+    guest = Operator(
+        company_id=company.id,
+        username="guest",
+        password="password",
+        gender=GenderType.OTHER,
+        type=OperatorType.NORMAL,
+        full_name="Guest",
+        status=AccountStatus.ACTIVE,
+        phone_number="+91-9496801111",
+        email_id="contact@nixbug.com",
+    )
+    session.add(guest)
+    session.flush()
+
+    guest_permissions = {
+        "company": {
+            "update": False,
+            "vehicle": {"create": False, "update": False, "delete": False},
+            "fare": {"create": False, "update": False, "delete": False},
+            "route": {"create": False, "update": False, "delete": False},
+            "operator": {
+                "create": False,
+                "update": False,
+                "delete": False,
+                "role": {"create": False, "update": False, "delete": False},
+                "token": {"fetch": False, "delete": False},
+            },
+            "service": {
+                "create": False,
+                "update": False,
+                "delete": False,
+                "duty": {"create": False, "update": False, "delete": False},
+            },
+            "schedule": {"create": False, "update": False, "delete": False},
+        },
+    }
+
+    admin_role = OperatorRole(
+        company_id=company.id, name="Admin", permissions=admin_permissions
+    )
+    guest_role = OperatorRole(
+        company_id=company.id, name="Guest", permissions=guest_permissions
+    )
+
+    session.add_all([admin_role, guest_role])
+    session.flush()
+
+    admin_role_map = OperatorRoleMap(
+        company_id=company.id, role_id=admin_role.id, operator_id=operator.id
+    )
+    session.add_all([admin_role_map])
+
+    guest_role_map = OperatorRoleMap(
+        company_id=company.id, role_id=guest_role.id, operator_id=guest.id
+    )
+    session.add_all([guest_role_map])
+
+    business = Business(
+        name="Nixbug Softwares OPC Pvt Ltd",
+        status=BusinessStatus.ACTIVE,
+        address="Edava, Thiruvananthapuram, Kerala 695311",
+        location="POINT(76.69065175172149 8.761272913919761)",
+    )
+    session.add(business)
+    session.flush()
+
+    admin_vendor = Vendor(
+        business_id=business.id,
+        username="admin",
+        password="password",
+        gender=GenderType.OTHER,
+        type=VendorType.ADMIN,
+        full_name="Admin",
+        status=AccountStatus.ACTIVE,
+        phone_number="+91-9496801157",
+        email_id="contact@nixbug.com",
+    )
+    session.add(admin_vendor)
+    session.flush()
+
+    guest_vendor = Vendor(
+        business_id=business.id,
+        username="guest",
+        password="password",
+        gender=GenderType.OTHER,
+        type=VendorType.NORMAL,
+        full_name="Guest",
+        status=AccountStatus.ACTIVE,
+        phone_number="+91-9496801111",
+        email_id="contacthr@nixbug.com",
+    )
+    session.add(guest_vendor)
+    session.flush()
+
+    admin_permissions = {
+        "business": {
+            "update": True,
+            "vendor": {
+                "create": True,
+                "update": True,
+                "delete": True,
+                "role": {
+                    "create": True,
+                    "update": True,
+                    "delete": True,
+                },
+                "token": {
+                    "fetch": True,
+                    "delete": True,
+                },
+            },
+        }
+    }
+
+    guest_permissions = {
+        "business": {
+            "update": False,
+            "vendor": {
+                "create": False,
+                "update": False,
+                "delete": False,
+                "role": {
+                    "create": False,
+                    "update": False,
+                    "delete": False,
+                },
+                "token": {
+                    "fetch": False,
+                    "delete": False,
+                },
+            },
+        }
+    }
+
+    admin_role = VendorRole(
+        business_id=business.id, name="Admin", permissions=admin_permissions
+    )
+    guest_role = VendorRole(
+        business_id=business.id, name="Guest", permissions=guest_permissions
+    )
+
+    session.add_all([admin_role, guest_role])
+    session.flush()
+
+    admin_role_map = VendorRoleMap(
+        business_id=business.id, role_id=admin_role.id, vendor_id=admin_vendor.id
+    )
+    session.add_all([admin_role_map])
+
+    guest_role_map = VendorRoleMap(
+        business_id=business.id, role_id=guest_role.id, vendor_id=guest_vendor.id
+    )
+    session.add_all([guest_role_map])
+
+    session.commit()
+    print("* Initialization completed")
+    session.close()
+
+
+# ---------------------------------------------------------------------------
+## Setup main entry point
+# ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(
         description="Database migration and management tool"
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # downgrade
-    p_downgrade = subparsers.add_parser("downgrade", help="Downgrade the schema")
-    p_downgrade.add_argument(
+    # Downgrade
+    downgrade_sp = subparsers.add_parser("downgrade", help="Downgrade the schema")
+    downgrade_sp.add_argument(
         "steps",
         nargs="?",
         default="-1",
         help="Number of steps to downgrade (default: -1)",
     )
 
-    # revise
-    p_revise = subparsers.add_parser("revise", help="Create a new migration revision")
-    p_revise.add_argument(
+    # Revise
+    revise_sp = subparsers.add_parser("revise", help="Create a new migration revision")
+    revise_sp.add_argument(
         "message", nargs="?", default="auto revise", help="Revision message"
     )
 
@@ -112,6 +483,7 @@ def main():
     subparsers.add_parser("delete_tables", help="Delete all tables")
     subparsers.add_parser("create_buckets", help="Create storage buckets")
     subparsers.add_parser("delete_buckets", help="Delete storage buckets")
+    subparsers.add_parser("initialize", help="Initialize the server environment")
     args = parser.parse_args()
 
     if args.command == "downgrade":
@@ -130,6 +502,8 @@ def main():
         create_buckets()
     elif args.command == "delete_buckets":
         delete_buckets()
+    if args.command == "initialize":
+        initialize()
 
 
 if __name__ == "__main__":

@@ -138,6 +138,12 @@ python -m app.setup create_buckets
 
 # Delete all MinIO buckets
 python -m app.setup delete_buckets
+
+# Initialize the server environment
+python3 -m app.setup initialize
+
+# To run the tests (Make sure the server is running)
+python3 -m tests.setup test_endpoints
 ```
 
 
@@ -178,6 +184,33 @@ docker push <registry>/<namespace>/entebus-server:<branch>-<commit-id>
 # Pull the docker image from nexus repository
 docker pull <registry>/<namespace>/entebus-server:<branch>-<commit-id>
 ```
+
+## 🧹 Code Formatting & CI
+
+This project enforces Python code formatting using [Black](https://black.readthedocs.io/).
+
+- All code must be formatted with Black before merging.
+- A GitHub Actions workflow automatically checks formatting on every pull request.
+- If any file is not properly formatted, the PR will fail the check and cannot be merged until fixed.
+
+**How to check and fix formatting locally (without Black Formatter extension in VS Code):**
+
+```bash
+# Install black (once)
+pip install black==25.1.0
+
+# Check formatting (shows files that need changes)
+black --check .
+
+# Auto-format all files in place
+black .
+```
+
+**CI Workflow:**
+- The workflow runs on every PR and uses `black==25.1.0` (the same version shown in the local install example above).
+- To pass the check, ensure you run Black 25.1.0 locally (via CLI or your editor/VS Code `ms-python.black-formatter` extension configured to use this version) before pushing your changes.
+
+See `.github/workflows/black-format.yaml` for details.
 
 ## 🤝 Contributing
 

@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: entebus-ingress
+  namespace: entebus
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - "api.entebus.com"
+      secretName: cloudflare-origin-cert
+  rules:
+    - host: "api.entebus.com"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: entebus-server-svc
+                port:
+                  number: 80
