@@ -23,10 +23,10 @@ from app.api import (
     operator_role_map,
     operator_token,
     vendor_account,
+    vendor_image,
     vendor_token,
 )
 from app.src.enums import AppID
-
 
 # ------------------------------------------------------
 # Create separate FastAPI apps for each user domain
@@ -61,6 +61,7 @@ app_executive.include_router(vendor_account.route_executive)
 app_executive.include_router(operator_role.route_executive)
 app_executive.include_router(operator_role_map.route_executive)
 app_executive.include_router(operator_image.route_executive)
+app_executive.include_router(vendor_image.route_executive)
 
 
 # ------------------------------------------------------
@@ -68,6 +69,7 @@ app_executive.include_router(operator_image.route_executive)
 # ------------------------------------------------------
 app_vendor.include_router(vendor_token.route_vendor)
 app_vendor.include_router(vendor_account.route_vendor)
+app_vendor.include_router(vendor_image.route_vendor)
 app_vendor.include_router(landmark.route_vendor)
 app_vendor.include_router(bus_stop.route_vendor)
 
