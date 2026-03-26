@@ -1,7 +1,7 @@
 """
-Operator Account API Router for EnteBus.
+Vendor Account API Router for EnteBus.
 
-Provides endpoints for managing operator accounts, including creation,
+Provides endpoints for managing vendor accounts, including creation,
 update, deletion, and retrieval. Uses Pydantic schemas for
 input validation and structured output.
 """
@@ -16,15 +16,15 @@ from sqlalchemy import String, or_
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm.session import Session
 
-from app.api.bearer import oauth2_executive, bearer_operator
+from app.api.bearer import oauth2_executive, bearer_vendor
 from app.src.db import (
     ExecutiveToken,
-    OperatorToken,
+    VendorToken,
     SessionLocal,
-    Operator,
-    OperatorImage,
+    Vendor,
+    VendorImage,
 )
-from app.src.enums import AccountStatus, GenderType, OperatorType, OrderIn
+from app.src.enums import AccountStatus, GenderType, VendorType, OrderIn
 from app.src.filters import (
     AccountDataFilter,
     CreatedOnFilter,
@@ -33,12 +33,12 @@ from app.src.filters import (
     UpdatedOnFilter,
 )
 from app.src.minio import delete_file
-from app.src.buckets import OPERATOR_IMAGES
+from app.src.buckets import VENDOR_IMAGES
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
-from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
+from app.src.permissions.vendor import PermissionPath as VendorPermissionPath
 from app.src import exceptions
 from app.src.regex import PASSWORD_PATTERN, USERNAME_PATTERN
-from app.src.urls import URL_OPERATOR_ACCOUNT
+from app.src.urls import URL_VENDOR_ACCOUNT
 from app.src.openobserve import log_event
 from app.src.validators import verify_permission, verify_token, validate_id
 from app.src.functions import (
@@ -49,7 +49,7 @@ from app.src.functions import (
     enum_str,
     fuse_exception_responses,
     get_executive_roles,
-    get_operator_roles,
+    get_vendor_roles,
     get_request_info,
     update_if_changed,
     apply_status_filters,
@@ -57,15 +57,15 @@ from app.src.functions import (
 )
 
 route_executive = APIRouter()
-route_operator = APIRouter()
+route_vendor = APIRouter()
 
 
 ## Output Schema
-class OperatorSchema(BaseModel):
-    """Schema for operator account response."""
+class VendorSchema(BaseModel):
+    """Schema for vendor account response."""
 
     id: int
-    company_id: int
+    business_id: int
     username: str
     gender: int
     description: str | None
@@ -79,8 +79,8 @@ class OperatorSchema(BaseModel):
 
 
 ## Input Forms
-class CreateFormForOP(BaseModel):
-    """Form data for creating a new operator account for an operator."""
+class CreateFormForVE(BaseModel):
+    """Form data for creating a new vendor account for a vendor."""
 
     username: str = Field(min_length=4, max_length=32, pattern=USERNAME_PATTERN)
     password: str = Field(min_length=8, max_length=32, pattern=PASSWORD_PATTERN)
@@ -88,9 +88,9 @@ class CreateFormForOP(BaseModel):
         description=enum_str(GenderType), default=GenderType.OTHER
     )
     description: str | None = Field(min_length=1, max_length=1024, default=None)
-    type: OperatorType = Field(
-        description=enum_str(OperatorType),
-        default=OperatorType.NORMAL,
+    type: VendorType = Field(
+        description=enum_str(VendorType),
+        default=VendorType.NORMAL,
     )
     full_name: str | None = Field(min_length=1, max_length=32, default=None)
     status: AccountStatus = Field(
@@ -104,22 +104,22 @@ class CreateFormForOP(BaseModel):
     )
 
 
-class CreateFormForEX(CreateFormForOP):
-    """Form data for creating a new operator account for an executive."""
+class CreateFormForEX(CreateFormForVE):
+    """Form data for creating a new vendor account for an executive."""
 
-    company_id: int = Field()
+    business_id: int = Field()
 
 
 class UpdateForm(BaseModel):
-    """Form data for updating an operator account."""
+    """Form data for updating a vendor account."""
 
     password: str = Field(
         default=None, min_length=8, max_length=32, pattern=PASSWORD_PATTERN
     )
     gender: GenderType = Field(description=enum_str(GenderType), default=None)
     description: str | None = Field(min_length=1, max_length=1024, default=None)
-    type: OperatorType = Field(
-        description=enum_str(OperatorType),
+    type: VendorType = Field(
+        description=enum_str(VendorType),
         default=None,
     )
     full_name: str | None = Field(min_length=1, max_length=32, default=None)
@@ -141,19 +141,19 @@ class OrderBy(StrEnum):
     UPDATED_ON = "updated_on"
 
 
-class QueryParamsForOP(
+class QueryParamsForVE(
     AccountDataFilter,
     UpdatedOnFilter,
     CreatedOnFilter,
     IDFilter,
     PaginationFilter,
 ):
-    """Query parameters for operators."""
+    """Query parameters for vendors."""
 
     search: str | None = Field(Query(default=None))
     description: str | None = Field(Query(default=None))
-    type_list: List[OperatorType] | None = Field(
-        Query(default=None, description=enum_str(OperatorType))
+    type_list: List[VendorType] | None = Field(
+        Query(default=None, description=enum_str(VendorType))
     )
     status_list: List[AccountStatus] | None = Field(
         Query(default=None, description=enum_str(AccountStatus))
@@ -164,10 +164,10 @@ class QueryParamsForOP(
     )
 
 
-class QueryParamsForEX(QueryParamsForOP):
+class QueryParamsForEX(QueryParamsForVE):
     """Query parameters for executives."""
 
-    company_id: int | None = Field(Query(default=None))
+    business_id: int | None = Field(Query(default=None))
 
 
 class QueryParams(QueryParamsForEX):
@@ -177,91 +177,89 @@ class QueryParams(QueryParamsForEX):
 
 
 ## Functions
-def update_operator(
-    session: Session, operator: Operator, form_param: UpdateForm
+def update_vendor(
+    session: Session, vendor: Vendor, form_param: UpdateForm
 ) -> Tuple[bool, dict]:
     """
-    Updates an operator account with the provided form data.
+    Updates a vendor account with the provided form data.
 
     Args:
         session (Session): SQLAlchemy database session.
-        operator (Operator): Operator to update.
-        form_param (UpdateForm): Form data for updating the operator.
+        vendor (Vendor): Vendor to update.
+        form_param (UpdateForm): Form data for updating the vendor.
 
     Returns:
     Tuple[bool, dict]:
-            - bool: True if the operator was modified and the changes were committed.
-            - dict: JSON-encoded representation of the updated operator.
+            - bool: True if the vendor was modified and the changes were committed.
+            - dict: JSON-encoded representation of the updated vendor.
     """
     update_data = form_param.model_dump(exclude_unset=True)
     tokens_revoked = False
     if form_param.status == AccountStatus.SUSPENDED:
         tokens_revoked = (
-            session.query(OperatorToken)
+            session.query(VendorToken)
             .filter(
-                OperatorToken.operator_id == operator.id,
-                OperatorToken.is_revoked.is_(False),
+                VendorToken.vendor_id == vendor.id,
+                VendorToken.is_revoked.is_(False),
             )
-            .update({OperatorToken.is_revoked: True})
+            .update({VendorToken.is_revoked: True})
             > 0
         )
 
-    update_if_changed(operator, update_data)
-    have_updates = session.is_modified(operator) or tokens_revoked
+    update_if_changed(vendor, update_data)
+    have_updates = session.is_modified(vendor) or tokens_revoked
     if have_updates:
         session.commit()
-        session.refresh(operator)
+        session.refresh(vendor)
 
-    operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
-    return have_updates, operator_data
+    vendor_data = jsonable_encoder(vendor, exclude={Vendor.password.name})
+    return have_updates, vendor_data
 
 
-def search_operator(session: Session, query_params: QueryParams) -> List[Operator]:
+def search_vendor(session: Session, query_params: QueryParams) -> List[Vendor]:
     """
-    Search for Operators based on provided query parameters.
+    Search for Vendors based on provided query parameters.
 
     This function supports multiple filtering, searching, ordering, and
-    pagination capabilities to retrieve operators that match various criteria.
+    pagination capabilities to retrieve vendors that match various criteria.
 
     Args:
         session (Session): SQLAlchemy database session.
         query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
-        List[Operator]: List of Operators that match the search criteria.
+        List[Vendor]: List of Vendors that match the search criteria.
     """
-    query = session.query(Operator)
-    if query_params.company_id is not None:
-        query = query.filter(Operator.company_id == query_params.company_id)
+    query = session.query(Vendor)
+    if query_params.business_id is not None:
+        query = query.filter(Vendor.business_id == query_params.business_id)
     if query_params.description is not None:
-        query = query.filter(
-            Operator.description.ilike(f"%{query_params.description}%")
-        )
+        query = query.filter(Vendor.description.ilike(f"%{query_params.description}%"))
 
     # Common search
     if query_params.search:
         search = f"%{query_params.search}%"
         query = query.filter(
             or_(
-                Operator.id.cast(String).ilike(search),
-                Operator.username.ilike(search),
-                Operator.full_name.ilike(search),
-                Operator.description.ilike(search),
-                Operator.phone_number.ilike(search),
-                Operator.email_id.ilike(search),
+                Vendor.id.cast(String).ilike(search),
+                Vendor.username.ilike(search),
+                Vendor.full_name.ilike(search),
+                Vendor.description.ilike(search),
+                Vendor.phone_number.ilike(search),
+                Vendor.email_id.ilike(search),
             )
         )
 
     # Generalized filters
-    query = apply_id_filters(query, Operator, query_params)
-    query = apply_created_on_filters(query, Operator, query_params)
-    query = apply_updated_on_filters(query, Operator, query_params)
-    query = apply_account_filters(query, Operator, query_params)
-    query = apply_status_filters(query, Operator, query_params)
-    query = apply_type_filters(query, Operator, query_params)
+    query = apply_id_filters(query, Vendor, query_params)
+    query = apply_created_on_filters(query, Vendor, query_params)
+    query = apply_updated_on_filters(query, Vendor, query_params)
+    query = apply_account_filters(query, Vendor, query_params)
+    query = apply_status_filters(query, Vendor, query_params)
+    query = apply_type_filters(query, Vendor, query_params)
 
     # Ordering and pagination
-    ordering_attr = getattr(Operator, query_params.order_by.value)
+    ordering_attr = getattr(Vendor, query_params.order_by.value)
     ordering_func = (
         ordering_attr.asc
         if query_params.order_in == OrderIn.ASCENDING
@@ -270,52 +268,50 @@ def search_operator(session: Session, query_params: QueryParams) -> List[Operato
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    operators = query.all()
-    return operators
+    vendors = query.all()
+    return vendors
 
 
-def delete_operator(session: Session, operator: Operator) -> dict:
+def delete_vendor(session: Session, vendor: Vendor) -> dict:
     """
-    Delete an Operator and its associated image.
+    Delete a Vendor and its associated image.
 
     Args:
         session (Session): SQLAlchemy database session.
-        operator (Operator): Operator to delete.
+        vendor (Vendor): Vendor to delete.
 
     Returns:
-        dict: deleted operator data for logging purposes.
+        dict: deleted vendor data for logging purposes.
     """
-    operator_image = (
-        session.query(OperatorImage)
-        .filter(OperatorImage.operator_id == operator.id)
-        .first()
+    vendor_image = (
+        session.query(VendorImage).filter(VendorImage.vendor_id == vendor.id).first()
     )
-    operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
-    session.delete(operator)
+    vendor_data = jsonable_encoder(vendor, exclude={Vendor.password.name})
+    session.delete(vendor)
     session.commit()
 
-    if operator_image is not None:
-        delete_file(OPERATOR_IMAGES, str(operator_image.id))
-    return operator_data
+    if vendor_image is not None:
+        delete_file(VENDOR_IMAGES, str(vendor_image.id))
+    return vendor_data
 
 
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
-    URL_OPERATOR_ACCOUNT,
-    tags=["Operator Account"],
-    response_model=OperatorSchema,
+    URL_VENDOR_ACCOUNT,
+    tags=["Vendor Account"],
+    response_model=VendorSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
     description=(
         """
-            **Creates a new operator account.**    
+            **Creates a new vendor account.**    
             - Executive must have a valid access token.    
-            - Logged-in executive must have `company.operator.create` permission.    
-            - Duplicate usernames are not allowed.    
+            - Logged-in executive must have `business.vendor.create` permission.    
+            - Duplicate usernames within the same business are not allowed.    
             - By default the user is created in active status.     
         """
     ),
@@ -329,10 +325,10 @@ async def create_account_executive(
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY_OPERATOR)
+        verify_permission(roles, ExecutivePermissionPath.CREATE_BUSINESS_VENDOR)
 
-        operator = Operator(
-            company_id=form_param.company_id,
+        vendor = Vendor(
+            business_id=form_param.business_id,
             username=form_param.username,
             password=form_param.password,
             gender=form_param.gender,
@@ -343,13 +339,13 @@ async def create_account_executive(
             phone_number=form_param.phone_number,
             email_id=form_param.email_id,
         )
-        session.add(operator)
+        session.add(vendor)
         session.commit()
-        session.refresh(operator)
+        session.refresh(vendor)
 
-        operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
-        log_event(token, request_info, operator_data)
-        return operator_data
+        vendor_data = jsonable_encoder(vendor, exclude={Vendor.password.name})
+        log_event(token, request_info, vendor_data)
+        return vendor_data
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -357,21 +353,21 @@ async def create_account_executive(
 
 
 @route_executive.patch(
-    f"{URL_OPERATOR_ACCOUNT}/{{id}}",
-    tags=["Operator Account"],
-    response_model=OperatorSchema,
+    f"{URL_VENDOR_ACCOUNT}/{{id}}",
+    tags=["Vendor Account"],
+    response_model=VendorSchema,
     responses=fuse_exception_responses(
         [
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
-            exceptions.UnknownValue(Operator.id),
+            exceptions.UnknownValue(Vendor.id),
         ]
     ),
     description=(
         """
-            **Updates an existing operator account.**    
+            **Updates an existing vendor account.**    
             - Requires a valid access token.    
-            - Logged-in executive must have `company.operator.update` permission to update other operators.    
+            - Logged-in executive must have `business.vendor.update` permission to update vendors.    
             - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
@@ -386,13 +382,13 @@ async def update_account_executive(
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR)
+        verify_permission(roles, ExecutivePermissionPath.UPDATE_BUSINESS_VENDOR)
 
-        operator = validate_id(session, Operator, id, Operator.id)
-        have_updates, operator_data = update_operator(session, operator, form_param)
+        vendor = validate_id(session, Vendor, id, Vendor.id)
+        have_updates, vendor_data = update_vendor(session, vendor, form_param)
         if have_updates:
-            log_event(token, request_info, operator_data)
-        return operator_data
+            log_event(token, request_info, vendor_data)
+        return vendor_data
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -400,13 +396,13 @@ async def update_account_executive(
 
 
 @route_executive.get(
-    URL_OPERATOR_ACCOUNT,
-    tags=["Operator Account"],
-    response_model=List[OperatorSchema],
+    URL_VENDOR_ACCOUNT,
+    tags=["Vendor Account"],
+    response_model=List[VendorSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
     description=(
         """
-            **Fetches a list of operators.**    
+            **Fetches a list of vendors.**    
             - Requires a valid access token for authentication.    
             - Common search supports searching by id, username, full_name, description, phone_number, and email_id.    
         """
@@ -419,7 +415,7 @@ async def fetch_account_executive(
         session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
 
-        return search_operator(
+        return search_vendor(
             session,
             QueryParams(**query_params.model_dump()),
         )
@@ -430,17 +426,17 @@ async def fetch_account_executive(
 
 
 @route_executive.delete(
-    f"{URL_OPERATOR_ACCOUNT}/{{id}}",
-    tags=["Operator Account"],
+    f"{URL_VENDOR_ACCOUNT}/{{id}}",
+    tags=["Vendor Account"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
     description=(
         """
-            **Deletes an existing operator account.**    
+            **Deletes an existing vendor account.**    
             - Requires a valid access token for authentication.    
-            - The logged-in executive must have the `company.operator.delete` permission.    
+            - The logged-in executive must have the `business.vendor.delete` permission.    
             - Returns 204 No Content even if the specified account does not exist.    
         """
     ),
@@ -454,12 +450,12 @@ async def delete_account_executive(
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_OPERATOR)
+        verify_permission(roles, ExecutivePermissionPath.DELETE_BUSINESS_VENDOR)
 
-        operator = session.query(Operator).filter(Operator.id == id).first()
-        if operator is not None:
-            operator_data = delete_operator(session, operator)
-            log_event(token, request_info, operator_data)
+        vendor = session.query(Vendor).filter(Vendor.id == id).first()
+        if vendor is not None:
+            vendor_data = delete_vendor(session, vendor)
+            log_event(token, request_info, vendor_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
@@ -468,39 +464,39 @@ async def delete_account_executive(
 
 
 # ---------------------------------------------------------------------------
-## API endpoints [Operator]
+## API endpoints [Vendor]
 # ---------------------------------------------------------------------------
-@route_operator.post(
-    URL_OPERATOR_ACCOUNT,
+@route_vendor.post(
+    URL_VENDOR_ACCOUNT,
     tags=["Account"],
-    response_model=OperatorSchema,
+    response_model=VendorSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
     description=(
         """
-            **Creates a new operator account.**    
-            - Operator must have a valid access token.    
-            - Logged-in operator must have `company.operator.create` permission.    
-            - Duplicate usernames are not allowed.    
+            **Creates a new vendor account.**    
+            - Vendor must have a valid access token.    
+            - Logged-in vendor must have `business.vendor.create` permission.    
+            - Duplicate usernames within the same business are not allowed.    
             - By default the user is created in active status.    
         """
     ),
 )
-async def create_account_operator(
-    form_param: CreateFormForOP,
-    access_token=Depends(bearer_operator),
+async def create_account_vendor(
+    form_param: CreateFormForVE,
+    access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_OPERATOR)
+        token = verify_token(session, VendorToken, access_token.credentials)
+        roles = get_vendor_roles(session, token)
+        verify_permission(roles, VendorPermissionPath.CREATE_BUSINESS_VENDOR)
 
-        operator = Operator(
-            company_id=token.company_id,
+        vendor = Vendor(
+            business_id=token.business_id,
             username=form_param.username,
             password=form_param.password,
             gender=form_param.gender,
@@ -511,99 +507,99 @@ async def create_account_operator(
             phone_number=form_param.phone_number,
             email_id=form_param.email_id,
         )
-        session.add(operator)
+        session.add(vendor)
         session.commit()
-        session.refresh(operator)
+        session.refresh(vendor)
 
-        operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
-        log_event(token, request_info, operator_data)
-        return operator_data
+        vendor_data = jsonable_encoder(vendor, exclude={Vendor.password.name})
+        log_event(token, request_info, vendor_data)
+        return vendor_data
     except Exception as e:
         exceptions.handle(e)
     finally:
         session.close()
 
 
-@route_operator.patch(
-    f"{URL_OPERATOR_ACCOUNT}/{{id}}",
+@route_vendor.patch(
+    f"{URL_VENDOR_ACCOUNT}/{{id}}",
     tags=["Account"],
-    response_model=OperatorSchema,
+    response_model=VendorSchema,
     responses=fuse_exception_responses(
         [
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
-            exceptions.UnknownValue(Operator.id),
+            exceptions.UnknownValue(Vendor.id),
         ]
     ),
     description=(
         """
-            **Updates an existing operator account.**    
+            **Updates an existing vendor account.**    
             - Requires a valid access token.    
-            - Logged-in operator must have `company.operator.update` permission to update other operators.    
-            - Operator can update their own account except status.    
+            - Logged-in vendor must have `business.vendor.update` permission to update other vendors.    
+            - Vendor can update their own account except status.    
             - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
 )
-async def update_account_operator(
+async def update_account_vendor(
     id: int,
     form_param: UpdateForm,
-    access_token=Depends(bearer_operator),
+    access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
+        token = verify_token(session, VendorToken, access_token.credentials)
 
-        is_self_update = id == token.operator_id
+        is_self_update = id == token.vendor_id
         if not is_self_update:
-            roles = get_operator_roles(session, token)
-            verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR)
+            roles = get_vendor_roles(session, token)
+            verify_permission(roles, VendorPermissionPath.UPDATE_BUSINESS_VENDOR)
 
-        operator = validate_id(
+        vendor = validate_id(
             session,
-            Operator,
+            Vendor,
             id,
-            Operator.id,
-            extra_filter=(Operator.company_id == token.company_id),
+            Vendor.id,
+            extra_filter=(Vendor.business_id == token.business_id),
         )
         if is_self_update and form_param.status is not None:
             raise exceptions.NoPermission()
 
-        have_updates, operator_data = update_operator(session, operator, form_param)
+        have_updates, vendor_data = update_vendor(session, vendor, form_param)
         if have_updates:
-            log_event(token, request_info, operator_data)
-        return operator_data
+            log_event(token, request_info, vendor_data)
+        return vendor_data
     except Exception as e:
         exceptions.handle(e)
     finally:
         session.close()
 
 
-@route_operator.get(
-    URL_OPERATOR_ACCOUNT,
+@route_vendor.get(
+    URL_VENDOR_ACCOUNT,
     tags=["Account"],
-    response_model=List[OperatorSchema],
+    response_model=List[VendorSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
     description=(
         """
-            **Fetches a list of operators.**    
+            **Fetches a list of vendors.**    
             - Requires a valid access token for authentication.    
-            - Only operators belonging to the same company as the logged-in operator will be returned.    
+            - Only vendors belonging to the same business as the logged-in vendor will be returned.    
             - Common search supports searching by id, username, full_name, description, phone_number, and email_id.    
         """
     ),
 )
-async def fetch_account_operator(
-    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+async def fetch_account_vendor(
+    query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
+        token = verify_token(session, VendorToken, access_token.credentials)
 
-        return search_operator(
+        return search_vendor(
             session,
-            QueryParams(**query_params.model_dump(), company_id=token.company_id),
+            QueryParams(**query_params.model_dump(), business_id=token.business_id),
         )
     except Exception as e:
         exceptions.handle(e)
@@ -611,8 +607,8 @@ async def fetch_account_operator(
         session.close()
 
 
-@route_operator.delete(
-    f"{URL_OPERATOR_ACCOUNT}/{{id}}",
+@route_vendor.delete(
+    f"{URL_VENDOR_ACCOUNT}/{{id}}",
     tags=["Account"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -620,35 +616,35 @@ async def fetch_account_operator(
     ),
     description=(
         """
-            **Deletes an existing operator account.**    
+            **Deletes an existing vendor account.**    
             - Requires a valid access token for authentication.    
-            - The logged-in operator must have the `company.operator.delete` permission.    
+            - The logged-in vendor must have the `business.vendor.delete` permission.    
             - Self-deletion is not allowed for safety reasons.    
             - Returns 204 No Content even if the specified account does not exist.    
         """
     ),
 )
-async def delete_account_operator(
+async def delete_account_vendor(
     id: int,
-    access_token=Depends(bearer_operator),
+    access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_OPERATOR)
+        token = verify_token(session, VendorToken, access_token.credentials)
+        roles = get_vendor_roles(session, token)
+        verify_permission(roles, VendorPermissionPath.DELETE_BUSINESS_VENDOR)
 
-        if token.operator_id == id:
+        if token.vendor_id == id:
             raise exceptions.NoPermission()
-        operator = (
-            session.query(Operator)
-            .filter(Operator.id == id, Operator.company_id == token.company_id)
+        vendor = (
+            session.query(Vendor)
+            .filter(Vendor.id == id, Vendor.business_id == token.business_id)
             .first()
         )
-        if operator is not None:
-            operator_data = delete_operator(session, operator)
-            log_event(token, request_info, operator_data)
+        if vendor is not None:
+            vendor_data = delete_vendor(session, vendor)
+            log_event(token, request_info, vendor_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
