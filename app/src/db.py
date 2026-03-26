@@ -56,6 +56,7 @@ from app.src.enums import (
     OperatorType,
     VendorType,
     BankAccountType,
+    VehicleStatus,
 )
 
 
@@ -1748,6 +1749,86 @@ class BusinessBankAccount(ORMbase):
         nullable=False,
         index=True,
     )
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class Vehicle(ORMbase):
+    """
+    Represents a Vehicle that is part of a company's fleet.
+
+    This table stores registration and operational details and is uniquely
+    identified by a combination of its registration number and company ID.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the bus.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id` to whom this bus belongs.
+            Cascades on delete — if the company is removed, related bus is deleted.
+
+        registration_number (String(16), not null):
+            This should be an immutable value.
+            Vehicle registration number.
+            Must be unique per company and non-null.
+            Indexed for fast lookup.
+
+        name (String(32),  not null):
+            Name or model of the bus.
+            Required.
+            Maximum 32 characters long.
+
+        capacity (Integer, not null):
+            Seating or passenger capacity of the bus.
+            Required.
+
+        manufactured_on (DateTime, not null):
+            Manufacture date of the bus.
+            Required.
+
+        insurance_upto (DateTime, nullable):
+            Date until which the bus is insured.
+
+        pollution_upto (DateTime, nullable):
+            Date until which the pollution certificate is valid
+
+        fitness_upto (DateTime, nullable):
+            Date until which the fitness certificate is valid.
+
+        road_tax_upto (DateTime, nullable):
+            Date until which road tax is paid.
+
+        status (Integer, not null, default=VehicleStatus.ACTIVE):
+            Verification status of the vehicle. Mapped from the `VehicleStatus` enum.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the vehicle record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the vehicle record was created.
+    """
+
+    __tablename__ = "vehicle"
+    __table_args__ = (UniqueConstraint("registration_number", "company_id"),)
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    registration_number = Column(String(16), nullable=False, index=True)
+    name = Column(String(32), nullable=False, index=True)
+    capacity = Column(Integer, nullable=False)
+    manufactured_on = Column(DateTime(timezone=True), nullable=False)
+    insurance_upto = Column(DateTime(timezone=True))
+    pollution_upto = Column(DateTime(timezone=True))
+    fitness_upto = Column(DateTime(timezone=True))
+    road_tax_upto = Column(DateTime(timezone=True))
+    status = Column(Integer, nullable=False, default=VehicleStatus.ACTIVE)
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
