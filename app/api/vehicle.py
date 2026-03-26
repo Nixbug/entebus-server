@@ -1,9 +1,9 @@
 """
 Vehicle API Router for EnteBus.
 
-Provides endpoints for managing vehicles, including creation, and update.
+Provides endpoints for managing vehicles, including creation, update and deletion.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion and retrieval are planned for future implementation.
+Endpoints for retrieval are planned for future implementation.
 """
 
 from typing import Optional
@@ -17,6 +17,7 @@ from app.api.bearer import oauth2_executive, bearer_operator
 from app.src.db import (
     Company,
     ExecutiveToken,
+    Operator,
     OperatorToken,
     SessionLocal,
     Vehicle,
@@ -282,6 +283,44 @@ async def update_vehicle_executive(
         if have_updates:
             log_event(token, request_info, vehicle_data)
         return vehicle_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.delete(
+    f"{URL_VEHICLE}/{{id}}",
+    tags=["Vehicle"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing vehicle.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in executive must have the `company.vehicle.delete` permission.    
+            - Returns 204 No Content even if the specified vehicle does not exist.    
+        """
+    ),
+)
+async def delete_vehicle_executive(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_VEHICLE)
+
+        vehicle = session.query(Vehicle).filter(Vehicle.id == id).first()
+        if vehicle is not None:
+            vehicle_data = delete_vehicle(session, vehicle)
+            log_event(token, request_info, vehicle_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
