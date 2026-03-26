@@ -194,3 +194,11 @@ class VendorType(IntEnum):
     LEGAL = 5
     ADMIN = 6
     BOT = 7
+
+
+class VehicleStatus(IntEnum):
+    """Operational status of a vehicle."""
+
+    ACTIVE = 1
+    MAINTENANCE = 2
+    SUSPENDED = 3
