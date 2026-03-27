@@ -1,14 +1,14 @@
 """
 Vehicle API Router for EnteBus.
 
-Provides endpoints for managing vehicles, including creation and update.
+Provides endpoints for managing vehicles, including creation, update and deletion.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion and retrieval are planned for future implementation.
+Endpoints for retrieval are planned for future implementation.
 """
 
 from typing import Optional
 from datetime import datetime
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, status, Depends, Response
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
@@ -193,6 +193,23 @@ def update_vehicle(session: Session, vehicle: Vehicle, form_param: UpdateForm):
     return have_updates, vehicle_data
 
 
+def delete_vehicle(session: Session, vehicle: Vehicle) -> dict:
+    """
+    Deletes a vehicle from the database.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        vehicle (Vehicle): Vehicle to delete.
+
+    Returns:
+        dict: JSON-encoded representation of the deleted vehicle.
+    """
+    vehicle_data = jsonable_encoder(vehicle)
+    session.delete(vehicle)
+    session.commit()
+    return vehicle_data
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -290,6 +307,44 @@ async def update_vehicle_executive(
         session.close()
 
 
+@route_executive.delete(
+    f"{URL_VEHICLE}/{{id}}",
+    tags=["Vehicle"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing vehicle.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in executive must have the `company.vehicle.delete` permission.    
+            - Returns 204 No Content even if the specified vehicle does not exist.    
+        """
+    ),
+)
+async def delete_vehicle_executive(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_VEHICLE)
+
+        vehicle = session.query(Vehicle).filter(Vehicle.id == id).first()
+        if vehicle is not None:
+            vehicle_data = delete_vehicle(session, vehicle)
+            log_event(token, request_info, vehicle_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Operator]
 # ---------------------------------------------------------------------------
@@ -381,6 +436,48 @@ async def update_vehicle_operator(
         if have_updates:
             log_event(token, request_info, vehicle_data)
         return vehicle_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.delete(
+    f"{URL_VEHICLE}/{{id}}",
+    tags=["Vehicle"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing vehicle.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in operator must have the `company.vehicle.delete` permission.    
+            - Returns 204 No Content even if the specified vehicle does not exist.    
+        """
+    ),
+)
+async def delete_vehicle_operator(
+    id: int,
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+        roles = get_operator_roles(session, token)
+        verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_VEHICLE)
+
+        vehicle = (
+            session.query(Vehicle)
+            .filter(Vehicle.id == id, Vehicle.company_id == token.company_id)
+            .first()
+        )
+        if vehicle is not None:
+            vehicle_data = delete_vehicle(session, vehicle)
+            log_event(token, request_info, vehicle_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
