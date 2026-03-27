@@ -99,7 +99,7 @@ class CreateForm(CreateFormForEX):
 
 
 class UpdateForm(BaseModel):
-    """Form data for updating an vehicle."""
+    """Form data for updating a vehicle."""
 
     name: str = Field(default=None, min_length=1, max_length=32, pattern=NAME_PATTERN)
     capacity: int = Field(ge=1, le=120, default=None)
