@@ -48,7 +48,7 @@ route_operator = APIRouter()
 
 ## Output Schema
 class MaskedVehicleSchema(BaseModel):
-    """Schema for vehicle response for vendor without revealing all details."""
+    """Schema for masked vehicle responses without revealing all details."""
 
     id: int
     company_id: int
@@ -62,7 +62,7 @@ class MaskedVehicleSchema(BaseModel):
 class VehicleSchema(MaskedVehicleSchema):
     """Schema for vehicle response."""
 
-    manufactured_on: datetime
+    manufactured_on: Optional[datetime]
     insurance_upto: Optional[datetime]
     pollution_upto: Optional[datetime]
     fitness_upto: Optional[datetime]
@@ -77,7 +77,7 @@ class CreateFormForOP(BaseModel):
     registration_number: str = Field(pattern=VEHICLE_NUMBER_PATTERN, max_length=16)
     name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN)
     capacity: int = Field(ge=1, le=120)
-    manufactured_on: datetime = Field()
+    manufactured_on: datetime | None = Field(default=None)
     insurance_upto: datetime | None = Field(default=None)
     pollution_upto: datetime | None = Field(default=None)
     fitness_upto: datetime | None = Field(default=None)
@@ -100,11 +100,11 @@ class CreateForm(CreateFormForEX):
 
 
 class UpdateForm(BaseModel):
-    """Form data for updating an vehicle."""
+    """Form data for updating a vehicle."""
 
     name: str = Field(default=None, min_length=1, max_length=32, pattern=NAME_PATTERN)
     capacity: int = Field(ge=1, le=120, default=None)
-    manufactured_on: datetime = Field(default=None)
+    manufactured_on: datetime | None = Field(default=None)
     insurance_upto: datetime | None = Field(default=None)
     pollution_upto: datetime | None = Field(default=None)
     fitness_upto: datetime | None = Field(default=None)
@@ -125,16 +125,18 @@ def validate_manufactured_on(
     Raises:
         exceptions.InvalidValue: If the manufactured_on date is in the future.
     """
-    if form_param.manufactured_on is not None:
-        manufactured_on = form_param.manufactured_on
+    manufactured_on = form_param.manufactured_on
+    if manufactured_on is None:
+        return None
+
     if manufactured_on.tzinfo is None:
         manufactured_on = manufactured_on.replace(tzinfo=TMZ_PRIMARY)
     else:
         manufactured_on = manufactured_on.astimezone(TMZ_PRIMARY)
-    form_param.manufactured_on = manufactured_on
 
-    if form_param.manufactured_on > datetime.now(tz=TMZ_PRIMARY):
+    if manufactured_on > datetime.now(tz=TMZ_PRIMARY):
         raise exceptions.InvalidValue(Vehicle.manufactured_on)
+    return manufactured_on
 
 
 def create_vehicle(session: Session, form_param: CreateForm) -> dict:
@@ -148,6 +150,7 @@ def create_vehicle(session: Session, form_param: CreateForm) -> dict:
     Returns:
         dict: The created vehicle data.
     """
+    validate_manufactured_on(form_param)
     vehicle = Vehicle(
         company_id=form_param.company_id,
         registration_number=form_param.registration_number,
@@ -247,7 +250,6 @@ async def create_vehicle_executive(
         verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY_VEHICLE)
 
         validate_id(session, Company, form_param.company_id, Vehicle.company_id)
-        validate_manufactured_on(form_param)
         vehicle_data = create_vehicle(session, CreateForm(**form_param.model_dump()))
 
         log_event(token, request_info, vehicle_data)
@@ -381,7 +383,6 @@ async def create_vehicle_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_VEHICLE)
 
-        validate_manufactured_on(form_param)
         vehicle_data = create_vehicle(
             session, CreateForm(**form_param.model_dump(), company_id=token.company_id)
         )

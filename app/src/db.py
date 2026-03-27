@@ -1767,7 +1767,7 @@ class Vehicle(ORMbase):
 
         company_id (Integer, not null):
             Foreign key referencing `company.id` to whom this vehicle belongs.
-            Cascades on delete — if the company is removed, related vehicle is deleted.
+            Cascades on delete — if the company is removed, related vehicles are deleted.
 
         registration_number (String(16), not null):
             This should be an immutable value.
@@ -1777,16 +1777,13 @@ class Vehicle(ORMbase):
 
         name (String(32),  not null):
             Name or model of the vehicle.
-            Required.
             Maximum 32 characters long.
 
         capacity (Integer, not null):
             Seating or passenger capacity of the vehicle.
-            Required.
 
-        manufactured_on (DateTime, not null):
+        manufactured_on (DateTime, nullable):
             Manufacture date of the vehicle.
-            Required.
 
         insurance_upto (DateTime, nullable):
             Date until which the vehicle is insured.
@@ -1823,7 +1820,7 @@ class Vehicle(ORMbase):
     registration_number = Column(String(16), nullable=False, index=True)
     name = Column(String(32), nullable=False, index=True)
     capacity = Column(Integer, nullable=False)
-    manufactured_on = Column(DateTime(timezone=True), nullable=False)
+    manufactured_on = Column(DateTime(timezone=True))
     insurance_upto = Column(DateTime(timezone=True))
     pollution_upto = Column(DateTime(timezone=True))
     fitness_upto = Column(DateTime(timezone=True))
