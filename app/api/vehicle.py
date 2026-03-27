@@ -149,6 +149,7 @@ def create_vehicle(session: Session, form_param: CreateForm) -> dict:
     Returns:
         dict: The created vehicle data.
     """
+    validate_manufactured_on(form_param)
     vehicle = Vehicle(
         company_id=form_param.company_id,
         registration_number=form_param.registration_number,
@@ -231,7 +232,6 @@ async def create_vehicle_executive(
         verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY_VEHICLE)
 
         validate_id(session, Company, form_param.company_id, Vehicle.company_id)
-        validate_manufactured_on(form_param)
         vehicle_data = create_vehicle(session, CreateForm(**form_param.model_dump()))
 
         log_event(token, request_info, vehicle_data)
@@ -327,7 +327,6 @@ async def create_vehicle_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_VEHICLE)
 
-        validate_manufactured_on(form_param)
         vehicle_data = create_vehicle(
             session, CreateForm(**form_param.model_dump(), company_id=token.company_id)
         )
