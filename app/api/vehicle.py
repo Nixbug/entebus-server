@@ -47,7 +47,7 @@ route_operator = APIRouter()
 
 ## Output Schema
 class MaskedVehicleSchema(BaseModel):
-    """Schema for vehicle response for vendor without revealing all details."""
+    """Schema for masked vehicle responses without revealing all details."""
 
     id: int
     company_id: int
