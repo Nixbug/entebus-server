@@ -1777,12 +1777,10 @@ class Vehicle(ORMbase):
 
         name (String(32),  not null):
             Name or model of the vehicle.
-            Required.
             Maximum 32 characters long.
 
         capacity (Integer, not null):
             Seating or passenger capacity of the vehicle.
-            Required.
 
         manufactured_on (DateTime, nullable):
             Manufacture date of the vehicle.
