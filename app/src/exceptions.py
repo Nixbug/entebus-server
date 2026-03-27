@@ -236,6 +236,19 @@ class InvalidAssociation(APIException):
         super().__init__(detail=detail)
 
 
+class InvalidValue(APIException):
+    """
+    Raised when an invalid id or value is provided.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    headers = {"X-Error": "InvalidValue"}
+
+    def __init__(self, column: InstrumentedAttribute):
+        detail = f"Invalid {column.name} is provided"
+        super().__init__(detail=detail)
+
+
 class NoPermission(APIException):
     """
     Raised when a user does not have permission to perform an action.
