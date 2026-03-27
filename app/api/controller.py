@@ -28,6 +28,7 @@ from app.api import (
 )
 from app.src.enums import AppID
 
+
 # ------------------------------------------------------
 # Create separate FastAPI apps for each user domain
 # ------------------------------------------------------
