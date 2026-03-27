@@ -474,7 +474,7 @@ async def download_operator_image_executive(
         """
     ),
 )
-async def upload_operator_image(
+async def upload_operator_image_operator(
     form_param: CreateFormForOP = Depends(),
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
@@ -530,7 +530,7 @@ async def upload_operator_image(
         """
     ),
 )
-async def delete_operator_image(
+async def delete_operator_image_operator(
     id: int,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),

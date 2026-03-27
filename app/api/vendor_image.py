@@ -470,7 +470,7 @@ async def download_vendor_image_executive(
         """
     ),
 )
-async def upload_vendor_image(
+async def upload_vendor_image_vendor(
     form_param: CreateFormForVE = Depends(),
     access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),
@@ -526,7 +526,7 @@ async def upload_vendor_image(
         """
     ),
 )
-async def delete_vendor_image(
+async def delete_vendor_image_vendor(
     id: int,
     access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),
