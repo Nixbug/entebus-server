@@ -17,7 +17,6 @@ from app.api.bearer import oauth2_executive, bearer_operator
 from app.src.db import (
     Company,
     ExecutiveToken,
-    Operator,
     OperatorToken,
     SessionLocal,
     Vehicle,
