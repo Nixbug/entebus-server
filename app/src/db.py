@@ -1763,11 +1763,11 @@ class Vehicle(ORMbase):
 
     Columns:
         id (Integer, unique, not null):
-            Primary identifier for the bus.
+            Primary identifier for the vehicle.
 
         company_id (Integer, not null):
-            Foreign key referencing `company.id` to whom this bus belongs.
-            Cascades on delete — if the company is removed, related bus is deleted.
+            Foreign key referencing `company.id` to whom this vehicle belongs.
+            Cascades on delete — if the company is removed, related vehicle is deleted.
 
         registration_number (String(16), not null):
             This should be an immutable value.
@@ -1776,29 +1776,29 @@ class Vehicle(ORMbase):
             Indexed for fast lookup.
 
         name (String(32),  not null):
-            Name or model of the bus.
+            Name or model of the vehicle.
             Required.
             Maximum 32 characters long.
 
         capacity (Integer, not null):
-            Seating or passenger capacity of the bus.
+            Seating or passenger capacity of the vehicle.
             Required.
 
         manufactured_on (DateTime, not null):
-            Manufacture date of the bus.
+            Manufacture date of the vehicle.
             Required.
 
         insurance_upto (DateTime, nullable):
-            Date until which the bus is insured.
+            Date until which the vehicle is insured.
 
         pollution_upto (DateTime, nullable):
-            Date until which the pollution certificate is valid
+            Date until which the vehicle's pollution certificate is valid
 
         fitness_upto (DateTime, nullable):
-            Date until which the fitness certificate is valid.
+            Date until which the vehicle's fitness certificate is valid.
 
         road_tax_upto (DateTime, nullable):
-            Date until which road tax is paid.
+            Date until which the vehicle's road tax is paid.
 
         status (Integer, not null, default=VehicleStatus.ACTIVE):
             Verification status of the vehicle. Mapped from the `VehicleStatus` enum.
