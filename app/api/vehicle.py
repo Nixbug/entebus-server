@@ -8,9 +8,8 @@ input validation and structured output.
 
 from typing import Optional, List
 from enum import StrEnum
-from fastapi import APIRouter, Query, status, Depends
 from datetime import datetime
-from fastapi import APIRouter, status, Depends, Response
+from fastapi import APIRouter, status, Depends, Response, Query
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import String, or_
 from pydantic import BaseModel, Field
@@ -138,7 +137,6 @@ class OrderBy(StrEnum):
     ID = "id"
     CREATED_ON = "created_on"
     UPDATED_ON = "updated_on"
-    LOCATION = "location"
 
 
 class QueryParamsForPU(
@@ -690,7 +688,7 @@ async def delete_vehicle_operator(
         """
     ),
 )
-async def fetch_vehicle_executive(
+async def fetch_vehicle_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
 ):
     try:
@@ -746,7 +744,6 @@ async def fetch_vehicle_vendor(
     URL_VEHICLE,
     tags=["Vehicle"],
     response_model=List[MaskedVehicleSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
     description=(
         """
             **Fetches a list of vehicles for public users.**    
