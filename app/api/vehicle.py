@@ -1,27 +1,33 @@
 """
 Vehicle API Router for EnteBus.
 
-Provides endpoints for managing vehicles, including creation and update.
+Provides endpoints for managing vehicles, including creation, update and retrieval.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion and retrieval are planned for future implementation.
+Endpoints for deletion are planned for future implementation.
 """
 
-from typing import Optional
+from typing import Optional, List
+from enum import StrEnum
+from fastapi import APIRouter, Query, status, Depends
 from datetime import datetime
 from fastapi import APIRouter, status, Depends
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy import String, or_
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
 
-from app.api.bearer import oauth2_executive, bearer_operator
+from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
+from app.api.operator_role import search_role
 from app.src.db import (
     Company,
     ExecutiveToken,
     OperatorToken,
     SessionLocal,
     Vehicle,
+    VendorToken,
 )
 from app.src.enums import (
+    OrderIn,
     VehicleStatus,
 )
 from app.src.constants import TMZ_PRIMARY
@@ -39,10 +45,25 @@ from app.src.functions import (
     get_operator_roles,
     get_request_info,
     update_if_changed,
+    apply_id_filters,
+    apply_created_on_filters,
+    apply_updated_on_filters,
+    apply_status_filters,
+    apply_name_filters,
+    resolve_model_defaults,
+)
+from app.src.filters import (
+    IDFilter,
+    CreatedOnFilter,
+    UpdatedOnFilter,
+    PaginationFilter,
+    NameFilter,
 )
 
 route_executive = APIRouter()
 route_operator = APIRouter()
+route_vendor = APIRouter()
+route_public = APIRouter()
 
 
 ## Output Schema
@@ -109,6 +130,67 @@ class UpdateForm(BaseModel):
     fitness_upto: datetime | None = Field(default=None)
     road_tax_upto: datetime | None = Field(default=None)
     status: VehicleStatus = Field(description=enum_str(VehicleStatus), default=None)
+
+
+## Query Parameters
+class OrderBy(StrEnum):
+    """Enum for ordering company results."""
+
+    ID = "id"
+    CREATED_ON = "created_on"
+    UPDATED_ON = "updated_on"
+    LOCATION = "location"
+
+
+class QueryParamsForPU(
+    IDFilter, CreatedOnFilter, UpdatedOnFilter, NameFilter, PaginationFilter
+):
+    """Query parameters for public users."""
+
+    search: str | None = Field(Query(default=None))
+    registration_number: str | None = Field(Query(default=None))
+    capacity_ge: int | None = Field(Query(default=None))
+    capacity_le: int | None = Field(Query(default=None))
+    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
+    order_in: OrderIn = Field(
+        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
+    )
+
+
+class QueryParamsForOP(QueryParamsForPU):
+    """Query parameters for operators users."""
+
+    manufactured_on_ge: datetime | None = Field(Query(default=None))
+    manufactured_on_le: datetime | None = Field(Query(default=None))
+    insurance_upto_ge: datetime | None = Field(Query(default=None))
+    insurance_upto_le: datetime | None = Field(Query(default=None))
+    pollution_upto_ge: datetime | None = Field(Query(default=None))
+    pollution_upto_le: datetime | None = Field(Query(default=None))
+    fitness_upto_ge: datetime | None = Field(Query(default=None))
+    fitness_upto_le: datetime | None = Field(Query(default=None))
+    road_tax_upto_ge: datetime | None = Field(Query(default=None))
+    road_tax_upto_le: datetime | None = Field(Query(default=None))
+    status_list: List[VehicleStatus] | None = Field(
+        Query(default=None, description=enum_str(VehicleStatus))
+    )
+
+
+class QueryParamsForEX(QueryParamsForOP):
+    """Query parameters for executives users."""
+
+    company_id: int | None = Field(Query(default=None))
+
+
+class QueryParamsForVE(QueryParamsForEX):
+    """Query parameters for vendor users."""
+
+    pass
+
+
+class QueryParams(QueryParamsForEX):
+    """Generic combined query parameters for vehicles."""
+
+    pass
 
 
 ## Functions
@@ -191,6 +273,88 @@ def update_vehicle(session: Session, vehicle: Vehicle, form_param: UpdateForm):
 
     vehicle_data = jsonable_encoder(vehicle)
     return have_updates, vehicle_data
+
+
+def search_vehicle(session: Session, query_params: QueryParams) -> List[Vehicle]:
+    """
+    Search for Vehicles based on provided query parameters.
+
+    This function supports multiple filtering, searching, ordering, and
+    pagination capabilities to retrieve vehicles that match various criteria.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        query_params (QueryParams): Query parameters containing search criteria.
+
+    Returns:
+        List[Vehicle]: List of Vehicles that match the search criteria.
+    """
+    query = session.query(Vehicle)
+    if query_params.company_id is not None:
+        query = query.filter(Vehicle.company_id == query_params.company_id)
+    if query_params.registration_number is not None:
+        query = query.filter(Vehicle.registration_number.ilike(f"%{query_params.registration_number}%"))
+    if query_params.capacity_ge is not None:
+        query = query.filter(Vehicle.capacity >= query_params.capacity_ge)
+    if query_params.capacity_le is not None:
+        query = query.filter(Vehicle.capacity <= query_params.capacity_le)
+    if query_params.manufactured_on_ge is not None:
+        query = query.filter(Vehicle.manufactured_on >= query_params.manufactured_on_ge)
+    if query_params.manufactured_on_le is not None:
+        query = query.filter(Vehicle.manufactured_on <= query_params.manufactured_on_le)
+    if query_params.insurance_upto_ge is not None:
+        query = query.filter(Vehicle.insurance_upto >= query_params.insurance_upto_ge)
+    if query_params.insurance_upto_le is not None:
+        query = query.filter(Vehicle.insurance_upto <= query_params.insurance_upto_le)
+    if query_params.pollution_upto_ge is not None:
+        query = query.filter(Vehicle.pollution_upto >= query_params.pollution_upto_ge)
+    if query_params.pollution_upto_le is not None:
+        query = query.filter(Vehicle.pollution_upto <= query_params.pollution_upto_le)
+    if query_params.fitness_upto_ge is not None:
+        query = query.filter(Vehicle.fitness_upto >= query_params.fitness_upto_ge)
+    if query_params.fitness_upto_le is not None:
+        query = query.filter(Vehicle.fitness_upto <= query_params.fitness_upto_le)
+    if query_params.road_tax_upto_ge is not None:
+        query = query.filter(Vehicle.road_tax_upto >= query_params.road_tax_upto_ge)
+    if query_params.road_tax_upto_le is not None:
+        query = query.filter(Vehicle.road_tax_upto <= query_params.road_tax_upto_le)
+
+    # Common search
+    if query_params.search:
+        search = f"%{query_params.search}%"
+        query = query.filter(
+            or_(
+                Vehicle.id.cast(String).ilike(search),
+                Vehicle.registration_number.ilike(search),
+                Vehicle.name.ilike(search),
+                Vehicle.capacity.cast(String).ilike(search),
+                Vehicle.manufactured_on.cast(String).ilike(search),
+                Vehicle.insurance_upto.cast(String).ilike(search),
+                Vehicle.pollution_upto.cast(String).ilike(search),
+                Vehicle.fitness_upto.cast(String).ilike(search),
+                Vehicle.road_tax_upto.cast(String).ilike(search),
+            )
+        )
+
+    # Generalized filters
+    query = apply_id_filters(query, Vehicle, query_params)
+    query = apply_name_filters(query, Vehicle, query_params)
+    query = apply_created_on_filters(query, Vehicle, query_params)
+    query = apply_updated_on_filters(query, Vehicle, query_params)
+    query = apply_status_filters(query, Vehicle, query_params)
+
+    # Ordering and pagination
+    ordering_attr = getattr(Vehicle, query_params.order_by.value)
+    ordering_func = (
+        ordering_attr.asc
+        if query_params.order_in == OrderIn.ASCENDING
+        else ordering_attr.desc
+    )
+    query = query.order_by(ordering_func())
+    query = query.offset(query_params.offset).limit(query_params.limit)
+
+    vehicles = query.all()
+    return vehicles
 
 
 # ---------------------------------------------------------------------------
@@ -290,6 +454,35 @@ async def update_vehicle_executive(
         session.close()
 
 
+@route_executive.get(
+    URL_VEHICLE,
+    tags=["Vehicle"],
+    response_model=List[VehicleSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches a list of vehicles.**    
+            - Requires a valid access token for authentication.    
+        """
+    ),
+)
+async def fetch_vehicle_executive(
+    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+):
+    try:
+        session = SessionLocal()
+        verify_token(session, ExecutiveToken, access_token)
+
+        return search_vehicle(
+            session,
+            QueryParams(**query_params.model_dump()),
+        )
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Operator]
 # ---------------------------------------------------------------------------
@@ -381,6 +574,94 @@ async def update_vehicle_operator(
         if have_updates:
             log_event(token, request_info, vehicle_data)
         return vehicle_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.get(
+    URL_VEHICLE,
+    tags=["Vehicle"],
+    response_model=List[VehicleSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches a list of vehicles.**    
+            - Requires a valid access token for authentication.    
+        """
+    ),
+)
+async def fetch_vehicle_executive(
+    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+
+        return search_vehicle(
+            session,
+            QueryParams(**query_params.model_dump(), company_id=token.company_id),
+        )
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Vendor]
+# ---------------------------------------------------------------------------
+@route_vendor.get(
+    URL_VEHICLE,
+    tags=["Vehicle"],
+    response_model=List[VehicleSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches a list of vehicles.**    
+            - Requires a valid access token for authentication.    
+        """
+    ),
+)
+async def fetch_vehicle_vendor(
+    query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, VendorToken, access_token.credentials)
+
+        return search_vehicle(
+            session,
+            QueryParams(**query_params.model_dump()),
+        )
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_public.get(
+    URL_VEHICLE,
+    tags=["Vehicle"],
+    response_model=List[MaskedVehicleSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches a list of vehicles for public users.**    
+            - Only masked fields are returned.    
+            - By default only active vehicles are returned.    
+        """
+    ),
+)
+async def fetch_vehicle_public(query_params: QueryParamsForPU = Depends()):
+    try:
+        session = SessionLocal()
+
+        search_params = resolve_model_defaults(
+            QueryParams, **query_params.model_dump(), status_list=[VehicleStatus.ACTIVE]
+        )
+        return search_vehicle(session, search_params)
     except Exception as e:
         exceptions.handle(e)
     finally:
