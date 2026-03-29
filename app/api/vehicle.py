@@ -17,7 +17,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
-from app.api.operator_role import search_role
 from app.src.db import (
     Company,
     ExecutiveToken,
@@ -660,10 +659,10 @@ async def fetch_vehicle_public(query_params: QueryParamsForPU = Depends()):
     try:
         session = SessionLocal()
 
-        search_params = resolve_model_defaults(
+        query_params = resolve_model_defaults(
             QueryParams, **query_params.model_dump(), status_list=[VehicleStatus.ACTIVE]
         )
-        return search_vehicle(session, search_params)
+        return search_vehicle(session, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:
