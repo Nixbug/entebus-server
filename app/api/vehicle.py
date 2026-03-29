@@ -293,7 +293,9 @@ def search_vehicle(session: Session, query_params: QueryParams) -> List[Vehicle]
     if query_params.company_id is not None:
         query = query.filter(Vehicle.company_id == query_params.company_id)
     if query_params.registration_number is not None:
-        query = query.filter(Vehicle.registration_number.ilike(f"%{query_params.registration_number}%"))
+        query = query.filter(
+            Vehicle.registration_number.ilike(f"%{query_params.registration_number}%")
+        )
     if query_params.capacity_ge is not None:
         query = query.filter(Vehicle.capacity >= query_params.capacity_ge)
     if query_params.capacity_le is not None:
