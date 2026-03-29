@@ -4,11 +4,6 @@ Business API Router for EnteBus.
 Provides endpoints for managing businesses, including creation,
 update, deletion, and retrieval. Uses Pydantic schemas for
 input validation and structured output.
-
-Vendor-specific deviations from company.py:
-- Vendors cannot create or delete businesses.
-- Vendor PATCH is scoped to the vendor's own business only.
-- Vendor GET returns only the business associated with the token.
 """
 
 from datetime import datetime
@@ -70,15 +65,21 @@ from app.src.functions import (
 
 route_executive = APIRouter()
 route_vendor = APIRouter()
+route_public = APIRouter()
 
 
 ## Output Schema
-class BusinessSchema(BaseModel):
-    """Schema for business response."""
+class MaskedBusinessSchema(BaseModel):
+    """Schema for business response for public users without revealing all details."""
 
     id: int
     name: str
     type: int
+
+
+class BusinessSchema(BaseModel):
+    """Schema for business response."""
+
     status: int
     description: str | None
     address: str
@@ -152,10 +153,10 @@ class OrderBy(StrEnum):
     LOCATION = "location"
 
 
-class QueryParamsForVE(
+class QueryParamsForPU(
     IDFilter, CreatedOnFilter, NameFilter, PaginationFilter, UpdatedOnFilter
 ):
-    """Query parameters for vendors."""
+    """Query parameters for public users."""
 
     search: str | None = Field(Query(default=None))
     location: str | None = Field(
@@ -175,7 +176,7 @@ class QueryParamsForVE(
     )
 
 
-class QueryParamsForEX(QueryParamsForVE):
+class QueryParamsForEX(QueryParamsForPU):
     """Query parameters for executives."""
 
     status_list: List[BusinessStatus] | None = Field(
@@ -291,7 +292,9 @@ def search_business(session: Session, query_params: QueryParams) -> List[Busines
     if query_params.address is not None:
         query = query.filter(Business.address.ilike(f"%{query_params.address}%"))
     if query_params.description is not None:
-        query = query.filter(Business.description.ilike(f"%{query_params.description}%"))
+        query = query.filter(
+            Business.description.ilike(f"%{query_params.description}%")
+        )
 
     # Common search
     if query_params.search:
@@ -402,9 +405,7 @@ async def create_business(
         session.flush()
 
         # Link Business to Wallet
-        business_wallet = BusinessWallet(
-            business_id=business.id, wallet_id=wallet.id
-        )
+        business_wallet = BusinessWallet(business_id=business.id, wallet_id=wallet.id)
         session.add(business_wallet)
         session.commit()
         session.refresh(business)
@@ -542,9 +543,7 @@ async def delete_business_executive(
         business = session.query(Business).filter(Business.id == id).first()
         if business is not None:
             vendor_images = (
-                session.query(VendorImage)
-                .filter(VendorImage.business_id == id)
-                .all()
+                session.query(VendorImage).filter(VendorImage.business_id == id).all()
             )
             business_data = jsonable_encoder(
                 business,
@@ -646,6 +645,47 @@ async def fetch_business_vendor(access_token=Depends(bearer_vendor)):
             QueryParams, id_list=[token.business_id], offset=0, limit=1
         )
         return search_business(session, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Public]
+# ---------------------------------------------------------------------------
+@route_public.get(
+    URL_BUSINESS,
+    tags=["Business"],
+    response_model=List[MaskedBusinessSchema],
+    responses=fuse_exception_responses(
+        [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
+    ),
+    description=(
+        """
+            **Fetches a list of businesses.**    
+            - Only active businesses are returned.    
+            - Only id, name, type are returned.    
+            - Common search supports searching by id, name and address.    
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.       
+        """
+    ),
+)
+async def fetch_business_public(
+    query_params: QueryParamsForPU = Depends(),
+):
+    try:
+        session = SessionLocal()
+
+        return search_business(
+            session,
+            QueryParams(
+                **query_params.model_dump(),
+                status_list=[BusinessStatus.ACTIVE],
+                address=None,
+                description=None,
+            ),
+        )
     except Exception as e:
         exceptions.handle(e)
     finally:
