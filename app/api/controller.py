@@ -23,6 +23,7 @@ from app.api import (
     operator_role,
     operator_role_map,
     operator_token,
+    route,
     vehicle,
     vendor_account,
     vendor_image,
@@ -67,7 +68,7 @@ app_executive.include_router(operator_role_map.route_executive)
 app_executive.include_router(operator_image.route_executive)
 app_executive.include_router(vendor_image.route_executive)
 app_executive.include_router(vehicle.route_executive)
-
+app_executive.include_router(route.route_executive)
 
 # ------------------------------------------------------
 # Vendor routers
@@ -93,6 +94,7 @@ app_operator.include_router(operator_role.route_operator)
 app_operator.include_router(operator_role_map.route_operator)
 app_operator.include_router(operator_image.route_operator)
 app_operator.include_router(vehicle.route_operator)
+app_operator.include_router(route.route_operator)
 
 
 # ------------------------------------------------------
