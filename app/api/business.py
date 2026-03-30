@@ -585,12 +585,13 @@ async def delete_business_executive(
     ),
     description=(
         """
-            **Updates an existing business.**
-            - Requires a valid access token.
-            - Logged-in vendor must have `business.update` permission.
-            - Vendor can only update the business they belong to.
-            - Empty PATCH requests are allowed and will result in no changes.
-            - When updating `location`, it must be a valid SRID 4326 WKT POINT.
+            **Updates an existing business.**   
+            - Requires a valid access token.    
+            - Logged-in vendor must have `business.update` permission.    
+            - Vendor can only update the business they belong to.    
+            - Empty PATCH requests are allowed and will result in no changes.    
+            - When updating `location`, it must be a valid SRID 4326 WKT POINT.    
+            - Returns the updated business.    
         """
     ),
 )
@@ -633,6 +634,7 @@ async def update_business_vendor(
         """
             **Fetches the vendor's business.**    
             - Only the business associated with the vendor will be returned.    
+            - Requires a valid access token for authentication.    
         """
     ),
 )
