@@ -1,9 +1,9 @@
 """
 Route API Router for EnteBus.
 
-Provides endpoints for managing routes, including creation.
+Provides endpoints for managing routes, including creation and update.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for update, deletion, and retrieval are planned for future implementation.
+Endpoints for deletion and retrieval are planned for future implementation.
 """
 
 from datetime import datetime, time
@@ -139,7 +139,11 @@ def update_route(session: Session, route: Route, form_param: UpdateForm):
     response_model=RouteSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(Route.company_id),
+        ]
     ),
     description=(
         """

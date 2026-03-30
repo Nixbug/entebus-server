@@ -1837,8 +1837,9 @@ class Route(ORMbase):
     """
     Represents a route associated with a company.
 
-    This table defines a path that begins at a specific landmark and ends at another landmark.
-    It is used for transportation or logistics operations.
+    This table stores high-level metadata about a route, such as its name,
+    owning company, scheduled start time, and status. Relationships to
+    specific landmarks or stops, if any, are managed outside this model.
 
     Columns:
         id (Integer, unique, not null):
@@ -1857,7 +1858,8 @@ class Route(ORMbase):
             Used for scheduling and time-based operations.
 
         status (Integer, not null, default=RouteStatus.INVALID):
-            Type/category of the route. Mapped from the `RouteStatus` enum.
+            Route validation/status. Mapped from the `RouteStatus` enum.
+
 
         updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp automatically updated whenever the route record is modified.
@@ -1871,7 +1873,10 @@ class Route(ORMbase):
 
     id = Column(Integer, primary_key=True)
     company_id = Column(
-        Integer, ForeignKey("company.id", ondelete="CASCADE"), nullable=False
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     name = Column(String(4096), nullable=False)
     start_time = Column(Time(timezone=True), nullable=False)
