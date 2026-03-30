@@ -28,6 +28,7 @@ from sqlalchemy import (
     Connection,
     func,
     inspect,
+    Time,
 )
 from sqlalchemy.orm import sessionmaker, DeclarativeBase, Mapper
 from secrets import token_hex
@@ -57,6 +58,7 @@ from app.src.enums import (
     VendorType,
     BankAccountType,
     VehicleStatus,
+    RouteStatus,
 )
 
 
@@ -1826,6 +1828,54 @@ class Vehicle(ORMbase):
     fitness_upto = Column(DateTime(timezone=True))
     road_tax_upto = Column(DateTime(timezone=True))
     status = Column(Integer, nullable=False, default=VehicleStatus.ACTIVE)
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class Route(ORMbase):
+    """
+    Represents a route associated with a company.
+
+    This table defines a path that begins at a specific landmark and ends at another landmark.
+    It is used for transportation or logistics operations.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the route.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id` to whom this route belongs.
+            Cascades on delete — if the company is removed, related routes are deleted.
+
+        name (String(4096), not null):
+            Name of the route.
+            Maximum 4096 characters long.
+
+        start_time (Time, not null):
+            The time of day when the route operation starts.
+            Used for scheduling and time-based operations.
+
+        status (Integer, not null, default=RouteStatus.INVALID):
+            Type/category of the route. Mapped from the `RouteStatus` enum.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the route record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the route record was created.
+    """
+
+    __tablename__ = "route"
+    __table_args__ = (UniqueConstraint("name", "company_id"),)
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer, ForeignKey("company.id", ondelete="CASCADE"), nullable=False
+    )
+    name = Column(String(4096), nullable=False)
+    start_time = Column(Time(timezone=True), nullable=False)
+    status = Column(Integer, nullable=False, default=RouteStatus.INVALID)
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
