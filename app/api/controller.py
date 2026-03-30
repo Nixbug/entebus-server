@@ -75,6 +75,7 @@ app_vendor.include_router(vendor_account.route_vendor)
 app_vendor.include_router(vendor_image.route_vendor)
 app_vendor.include_router(landmark.route_vendor)
 app_vendor.include_router(bus_stop.route_vendor)
+app_vendor.include_router(vehicle.route_vendor)
 
 
 # ------------------------------------------------------
@@ -97,3 +98,4 @@ app_operator.include_router(vehicle.route_operator)
 app_public.include_router(landmark.route_public)
 app_public.include_router(bus_stop.route_public)
 app_public.include_router(company.route_public)
+app_public.include_router(vehicle.route_public)
