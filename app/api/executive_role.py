@@ -11,6 +11,7 @@ from enum import StrEnum
 from fastapi import APIRouter, Query, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from sqlalchemy import or_, String
 
 from app.api.bearer import oauth2_executive
 from app.src.db import ExecutiveRole, ExecutiveToken, SessionLocal
@@ -83,6 +84,7 @@ class QueryParams(
 ):
     """Query parameters for fetching executive roles."""
 
+    search: str | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
@@ -248,6 +250,16 @@ async def fetch_role(
         verify_token(session, ExecutiveToken, access_token)
 
         query = session.query(ExecutiveRole)
+
+        # Common search
+        if query_params.search:
+            search = f"%{query_params.search}%"
+            query = query.filter(
+                or_(
+                    ExecutiveRole.id.cast(String).ilike(search),
+                    ExecutiveRole.name.ilike(search),
+                )
+            )
 
         # Generalized filters
         query = apply_id_filters(query, ExecutiveRole, query_params)

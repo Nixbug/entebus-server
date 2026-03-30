@@ -12,6 +12,7 @@ from fastapi import APIRouter, Response, status, Depends, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
+from sqlalchemy import or_, String
 from enum import StrEnum
 
 from app.api.bearer import oauth2_executive, bearer_operator
@@ -103,6 +104,7 @@ class QueryParamsForOP(
 ):
     """Query parameters for operators."""
 
+    search: str | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
@@ -168,6 +170,16 @@ def search_role(session: Session, query_params: QueryParams) -> List[OperatorRol
     query = session.query(OperatorRole)
     if query_params.company_id is not None:
         query = query.filter(OperatorRole.company_id == query_params.company_id)
+
+    # Common search
+    if query_params.search:
+        search = f"%{query_params.search}%"
+        query = query.filter(
+            or_(
+                OperatorRole.id.cast(String).ilike(search),
+                OperatorRole.name.ilike(search),
+            )
+        )
 
     # Generalized filters
     query = apply_id_filters(query, OperatorRole, query_params)
