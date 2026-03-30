@@ -77,7 +77,7 @@ class MaskedBusinessSchema(BaseModel):
     type: int
 
 
-class BusinessSchema(BaseModel):
+class BusinessSchema(MaskedBusinessSchema):
     """Schema for business response."""
 
     status: int
