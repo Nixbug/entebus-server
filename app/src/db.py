@@ -1833,6 +1833,61 @@ class Vehicle(ORMbase):
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
 
 
+class VehicleImage(ORMbase):
+    """
+    Represents an uploaded image associated with a specific vehicle.
+
+    Each record stores metadata about an image file uploaded for a vehicle,
+    allowing for management, retrieval, and storage of vehicle photos.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the vehicle image.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id` to whom this image belongs.
+            Cascades on delete — if the company is removed, related images are deleted.
+
+        vehicle_id (Integer, not null):
+            Foreign key referencing `vehicle.id` to whom this image belongs.
+            Cascades on delete — if the vehicle is removed, related images are deleted.
+
+        file_name (String(128), not null):
+            Original name of the uploaded image file, including extension.
+
+        file_size (Integer, not null):
+            Size of the uploaded file in bytes.
+
+        file_type (String(128), not null):
+            MIME type of the uploaded file (e.g., "image/jpeg", "image/png").
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the image record was initially created.
+    """
+
+    __tablename__ = "vehicle_image"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    vehicle_id = Column(
+        Integer,
+        ForeignKey("vehicle.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # File metadata
+    file_name = Column(String(128), nullable=False)
+    file_size = Column(Integer, nullable=False)
+    file_type = Column(String(128), nullable=False)
+    # Metadata
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
 class Route(ORMbase):
     """
     Represents a route associated with a company.
