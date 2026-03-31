@@ -1904,17 +1904,14 @@ class LandmarkInRoute(ORMbase):
         route_id (Integer, not null):
             Foreign key referencing `route.id` that this landmark is part of.
             Cascades on delete — if the route is removed, related landmarks in routes are deleted.
-            Indexed for performance.
 
         landmark_id (Integer, not null):
-            Foreign key referencing the physical landmark.
-            Indicates the location this entry refers to.
-            Landmarks referenced here cannot be removed.
+            Foreign key referencing `landmark.id` that this landmark is part of.
+            Cascades on delete — if the landmark is removed, related landmarks in routes are deleted.
 
-        distance_from_start (Integer):
+        distance_from_start (Integer, unique, not null):
             Distance in meters from the starting landmark of the route.
-            Must be non-null. Used to determine ordering and physical spacing.
-            Must be unique per route.
+            Used to determine ordering and physical spacing.
 
         arrival_delta (Integer):
             Time in minutes expected to arrive at this landmark from the start of the route.
@@ -1924,13 +1921,11 @@ class LandmarkInRoute(ORMbase):
             Time in minutes expected to depart from this landmark after the route starts.
             Used to define dwell times or stop durations.
 
-        updated_on (DateTime):
-            Timestamp automatically updated whenever the record is modified.
-            Useful for auditing and syncing operations.
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the landmark in route record is modified.
 
-        created_on (DateTime):
-            Timestamp indicating when this record was created.
-            Must be non-null. Defaults to the current timestamp.
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the landmark in route record was created..
     """
 
     __tablename__ = "landmark_in_route"
