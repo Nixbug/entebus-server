@@ -2,9 +2,8 @@
 Route API Router for EnteBus.
 
 Provides endpoints for managing routes, including creation,
-update, deletion, and retrieval. Uses Pydantic schemas for
+update, and retrieval. Uses Pydantic schemas for
 input validation and structured output.
-
 """
 
 from datetime import datetime, time
@@ -17,7 +16,6 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
 from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
-from app.api.vehicle import search_vehicle
 from app.src.db import (
     Route,
     ExecutiveToken,
@@ -108,7 +106,7 @@ class UpdateForm(BaseModel):
 
 ## Query Parameters
 class OrderBy(StrEnum):
-    """Enum for ordering company results."""
+    """Enum for ordering route results."""
 
     ID = "id"
     CREATED_ON = "created_on"
@@ -537,7 +535,6 @@ async def fetch_route_vendor(
     description=(
         """
             **Fetches a list of routes for public users.**    
-            - Only masked fields are returned.    
             - By default only valid routes are returned.    
         """
     ),
