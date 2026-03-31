@@ -314,7 +314,7 @@ def download_image(
         """
     ),
 )
-async def upload_operator_image_executive(
+async def upload_operator_image_for_executive(
     form_param: CreateFormForEX = Depends(),
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -364,7 +364,7 @@ async def upload_operator_image_executive(
         """
     ),
 )
-async def delete_operator_image_executive(
+async def delete_operator_image_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -400,7 +400,7 @@ async def delete_operator_image_executive(
         """
     ),
 )
-async def fetch_operator_image_executive(
+async def fetch_operator_image_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
 ):
     try:
@@ -430,7 +430,7 @@ async def fetch_operator_image_executive(
         """
     ),
 )
-async def download_operator_image_executive(
+async def download_operator_image_for_executive(
     id: int,
     query_params: ImageQueryParams = Depends(),
     access_token=Depends(oauth2_executive),
@@ -474,7 +474,7 @@ async def download_operator_image_executive(
         """
     ),
 )
-async def upload_operator_image_operator(
+async def upload_operator_image_for_operator(
     form_param: CreateFormForOP = Depends(),
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
@@ -530,7 +530,7 @@ async def upload_operator_image_operator(
         """
     ),
 )
-async def delete_operator_image_operator(
+async def delete_operator_image_for_operator(
     id: int,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
@@ -573,7 +573,7 @@ async def delete_operator_image_operator(
         """
     ),
 )
-async def fetch_operator_image_operator(
+async def fetch_operator_image_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
 ):
     try:
@@ -603,7 +603,7 @@ async def fetch_operator_image_operator(
         """
     ),
 )
-async def download_operator_image_operator(
+async def download_operator_image_for_operator(
     id: int,
     query_params: ImageQueryParams = Depends(),
     access_token=Depends(bearer_operator),

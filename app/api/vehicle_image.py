@@ -61,6 +61,7 @@ from app.src.filters import (
 
 route_executive = APIRouter()
 route_operator = APIRouter()
+route_public = APIRouter()
 
 
 ## Output Schema
@@ -92,17 +93,16 @@ class ImageUploadForm(BaseModel):
     )
 
 
-class CreateFormForEX(ImageUploadForm):
-    """Form data for creating a new vehicle image for an executive."""
-
-    company_id: int = Field(Form())
-    vehicle_id: int = Field(Form())
-
-
 class CreateFormForOP(ImageUploadForm):
     """Form data for creating a new vehicle image for an operator."""
 
     vehicle_id: int = Field(Form())
+
+
+class CreateFormForEX(CreateFormForOP):
+    """Form data for creating a new vehicle image for an executive."""
+
+    company_id: int = Field(Form())
 
 
 class CreateForm(CreateFormForEX):
@@ -120,7 +120,7 @@ class OrderBy(StrEnum):
     FILE_SIZE = "file_size"
 
 
-class QueryParamsForOP(PictureFilter, CreatedOnFilter, IDFilter, PaginationFilter):
+class QueryParamsForPU(PictureFilter, CreatedOnFilter, IDFilter, PaginationFilter):
     """Query parameters for operators."""
 
     vehicle_id: int | None = Field(Query(default=None))
@@ -128,6 +128,12 @@ class QueryParamsForOP(PictureFilter, CreatedOnFilter, IDFilter, PaginationFilte
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
     )
+
+
+class QueryParamsForOP(QueryParamsForPU):
+    """Query parameters for operators."""
+
+    pass
 
 
 class QueryParamsForEX(QueryParamsForOP):
@@ -314,7 +320,7 @@ def download_image(
         """
     ),
 )
-async def upload_vehicle_image_executive(
+async def upload_vehicle_image_for_executive(
     form_param: CreateFormForEX = Depends(),
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -364,7 +370,7 @@ async def upload_vehicle_image_executive(
         """
     ),
 )
-async def delete_vehicle_image_executive(
+async def delete_vehicle_image_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -400,7 +406,7 @@ async def delete_vehicle_image_executive(
         """
     ),
 )
-async def fetch_vehicle_image_executive(
+async def fetch_vehicle_image_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
 ):
     try:
@@ -430,7 +436,7 @@ async def fetch_vehicle_image_executive(
         """
     ),
 )
-async def download_vehicle_image_executive(
+async def download_vehicle_image_for_executive(
     id: int,
     query_params: ImageQueryParams = Depends(),
     access_token=Depends(oauth2_executive),
@@ -473,7 +479,7 @@ async def download_vehicle_image_executive(
         """
     ),
 )
-async def upload_vehicle_image_operator(
+async def upload_vehicle_image_for_operator(
     form_param: CreateFormForOP = Depends(),
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
@@ -523,7 +529,7 @@ async def upload_vehicle_image_operator(
         """
     ),
 )
-async def delete_vehicle_image_operator(
+async def delete_vehicle_image_for_operator(
     id: int,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
@@ -536,9 +542,7 @@ async def delete_vehicle_image_operator(
 
         vehicle_image = (
             session.query(VehicleImage)
-            .filter(
-                VehicleImage.id == id, VehicleImage.company_id == token.company_id
-            )
+            .filter(VehicleImage.id == id, VehicleImage.company_id == token.company_id)
             .first()
         )
         if vehicle_image is not None:
@@ -564,7 +568,7 @@ async def delete_vehicle_image_operator(
         """
     ),
 )
-async def fetch_vehicle_image_operator(
+async def fetch_vehicle_image_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
 ):
     try:
@@ -594,7 +598,7 @@ async def fetch_vehicle_image_operator(
         """
     ),
 )
-async def download_vehicle_image_operator(
+async def download_vehicle_image_for_operator(
     id: int,
     query_params: ImageQueryParams = Depends(),
     access_token=Depends(bearer_operator),
@@ -605,10 +609,61 @@ async def download_vehicle_image_operator(
 
         vehicle_image = (
             session.query(VehicleImage)
-            .filter(
-                VehicleImage.id == id, VehicleImage.company_id == token.company_id
-            )
+            .filter(VehicleImage.id == id, VehicleImage.company_id == token.company_id)
             .first()
+        )
+        return download_image(vehicle_image, query_params)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Public]
+# ---------------------------------------------------------------------------
+@route_public.get(
+    URL_VEHICLE_PICTURE,
+    tags=["Vehicle Image"],
+    response_model=List[VehicleImageSchema],
+    description=(
+        """
+            **Fetches a list of vehicle images.**    
+        """
+    ),
+)
+async def fetch_vehicle_image_for_public(query_params: QueryParamsForPU = Depends()):
+    try:
+        session = SessionLocal()
+
+        return search_image(
+            session,
+            QueryParams(**query_params.model_dump(), company_id=None),
+        )
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_public.get(
+    f"{URL_VEHICLE_PICTURE}/{{id}}",
+    tags=["Vehicle Image"],
+    description=(
+        """
+            **Download vehicle image in original or resized resolution.**    
+        """
+    ),
+)
+async def download_vehicle_image_for_public(
+    id: int,
+    query_params: ImageQueryParams = Depends(),
+):
+    try:
+        session = SessionLocal()
+
+        vehicle_image = (
+            session.query(VehicleImage).filter(VehicleImage.id == id).first()
         )
         return download_image(vehicle_image, query_params)
     except Exception as e:
