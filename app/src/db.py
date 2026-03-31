@@ -1878,6 +1878,7 @@ class VehicleImage(ORMbase):
         Integer,
         ForeignKey("vehicle.id", ondelete="CASCADE"),
         nullable=False,
+        unique=True,
         index=True,
     )
     # File metadata
