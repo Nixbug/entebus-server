@@ -640,10 +640,14 @@ async def fetch_route_public(query_params: QueryParamsForPU = Depends()):
     try:
         session = SessionLocal()
 
-        query_params = resolve_model_defaults(
-            QueryParams, **query_params.model_dump(), status_list=[RouteStatus.VALID]
+        return search_route(
+            session,
+            QueryParams(
+                **query_params.model_dump(),
+                status_list=[RouteStatus.VALID],
+                company_id=None,
+            ),
         )
-        return search_route(session, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:
