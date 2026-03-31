@@ -1884,3 +1884,72 @@ class Route(ORMbase):
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class LandmarkInRoute(ORMbase):
+    """
+    Represents a landmark positioned within a specific route.
+
+    This table defines the sequence and timing metadata of landmarks along a route.
+    It helps determine the structure and scheduling of transportation or logistics operations.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the landmark-in-route
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id` that operates on the route.
+            Cascades on delete — if the company is removed, related landmark in routes are deleted.
+
+        route_id (Integer, not null):
+            Foreign key referencing `route.id` that this landmark is part of.
+            Cascades on delete — if the route is removed, related landmarks in routes are deleted.
+            Indexed for performance.
+
+        landmark_id (Integer, not null):
+            Foreign key referencing the physical landmark.
+            Indicates the location this entry refers to.
+            Landmarks referenced here cannot be removed.
+
+        distance_from_start (Integer):
+            Distance in meters from the starting landmark of the route.
+            Must be non-null. Used to determine ordering and physical spacing.
+            Must be unique per route.
+
+        arrival_delta (Integer):
+            Time in minutes expected to arrive at this landmark from the start of the route.
+            Helps in estimating arrival schedules for route traversal.
+
+        departure_delta (Integer):
+            Time in minutes expected to depart from this landmark after the route starts.
+            Used to define dwell times or stop durations.
+
+        updated_on (DateTime):
+            Timestamp automatically updated whenever the record is modified.
+            Useful for auditing and syncing operations.
+
+        created_on (DateTime):
+            Timestamp indicating when this record was created.
+            Must be non-null. Defaults to the current timestamp.
+    """
+
+    __tablename__ = "landmark_in_route"
+    __table_args__ = (UniqueConstraint("route_id", "distance_from_start"),)
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    route_id = Column(
+        Integer, ForeignKey("route.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    landmark_id = Column(Integer, ForeignKey("landmark.id"))
+    distance_from_start = Column(Integer, nullable=False)
+    arrival_delta = Column(Integer, nullable=False)
+    departure_delta = Column(Integer, nullable=False)
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
