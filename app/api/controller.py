@@ -68,6 +68,7 @@ app_executive.include_router(vendor_image.route_executive)
 app_executive.include_router(vehicle.route_executive)
 app_executive.include_router(route.route_executive)
 
+
 # ------------------------------------------------------
 # Vendor routers
 # ------------------------------------------------------
