@@ -314,7 +314,7 @@ def download_image(
         """
     ),
 )
-async def upload_vendor_image_executive(
+async def upload_vendor_image_for_executive(
     form_param: CreateFormForEX = Depends(),
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -364,7 +364,7 @@ async def upload_vendor_image_executive(
         """
     ),
 )
-async def delete_vendor_image_executive(
+async def delete_vendor_image_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -398,7 +398,7 @@ async def delete_vendor_image_executive(
         """
     ),
 )
-async def fetch_vendor_image_executive(
+async def fetch_vendor_image_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
 ):
     try:
@@ -428,7 +428,7 @@ async def fetch_vendor_image_executive(
         """
     ),
 )
-async def download_vendor_image_executive(
+async def download_vendor_image_for_executive(
     id: int,
     query_params: ImageQueryParams = Depends(),
     access_token=Depends(oauth2_executive),
@@ -470,7 +470,7 @@ async def download_vendor_image_executive(
         """
     ),
 )
-async def upload_vendor_image_vendor(
+async def upload_vendor_image_for_vendor(
     form_param: CreateFormForVE = Depends(),
     access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),
@@ -526,7 +526,7 @@ async def upload_vendor_image_vendor(
         """
     ),
 )
-async def delete_vendor_image_vendor(
+async def delete_vendor_image_for_vendor(
     id: int,
     access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),
@@ -567,7 +567,7 @@ async def delete_vendor_image_vendor(
         """
     ),
 )
-async def fetch_vendor_image_vendor(
+async def fetch_vendor_image_for_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
 ):
     try:
@@ -597,7 +597,7 @@ async def fetch_vendor_image_vendor(
         """
     ),
 )
-async def download_vendor_image_vendor(
+async def download_vendor_image_for_vendor(
     id: int,
     query_params: ImageQueryParams = Depends(),
     access_token=Depends(bearer_vendor),
