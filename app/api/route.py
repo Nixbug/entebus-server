@@ -1,15 +1,15 @@
 """
 Route API Router for EnteBus.
 
-Provides endpoints for managing routes, including creation,
-update, and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing routes, including creation, update, and deletion.
+Uses Pydantic schemas for input validation and structured output.
+Endpoints for retrieval are planned for future implementation.
 """
 
 from datetime import datetime, time
 from enum import StrEnum
 from typing import List
-from fastapi import APIRouter, status, Depends, Query
+from fastapi import APIRouter, status, Depends, Query, Response
 from sqlalchemy.orm.session import Session
 from sqlalchemy import or_, String
 from fastapi.encoders import jsonable_encoder
@@ -200,6 +200,23 @@ def update_route(session: Session, route: Route, form_param: UpdateForm):
     return have_updates, route_data
 
 
+def delete_route(session: Session, route: Route) -> dict:
+    """
+    Deletes a route from the database.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        route (Route): Route to delete.
+
+    Returns:
+        dict: JSON-encoded representation of the deleted route.
+    """
+    route_data = jsonable_encoder(route)
+    session.delete(route)
+    session.commit()
+    return route_data
+
+
 def search_route(session: Session, query_params: QueryParams) -> List[Route]:
     """
     Search for Routes based on provided query parameters.
@@ -346,6 +363,44 @@ async def update_route_executive(
         session.close()
 
 
+@route_executive.delete(
+    f"{URL_ROUTE}/{{id}}",
+    tags=["Route"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing route.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in executive must have the `company.route.delete` permission.    
+            - Returns 204 No Content even if the specified route does not exist.    
+        """
+    ),
+)
+async def delete_route_executive(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_ROUTE)
+
+        route = session.query(Route).filter(Route.id == id).first()
+        if route is not None:
+            route_data = delete_route(session, route)
+            log_event(token, request_info, route_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 @route_executive.get(
     URL_ROUTE,
     tags=["Route"],
@@ -458,6 +513,48 @@ async def update_route_operator(
         if have_updates:
             log_event(token, request_info, route_data)
         return route_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.delete(
+    f"{URL_ROUTE}/{{id}}",
+    tags=["Route"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing route.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in operator must have the `company.route.delete` permission.    
+            - Returns 204 No Content even if the specified route does not exist.    
+        """
+    ),
+)
+async def delete_route_operator(
+    id: int,
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+        roles = get_operator_roles(session, token)
+        verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_ROUTE)
+
+        route = (
+            session.query(Route)
+            .filter(Route.id == id, Route.company_id == token.company_id)
+            .first()
+        )
+        if route is not None:
+            route_data = delete_route(session, route)
+            log_event(token, request_info, route_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
