@@ -1,9 +1,9 @@
 """
 Route API Router for EnteBus.
 
-Provides endpoints for managing routes, including creation, update, and deletion.
-Uses Pydantic schemas for input validation and structured output.
-Endpoints for retrieval are planned for future implementation.
+Provides endpoints for managing routes, including creation,
+update, deletion and retrieval. Uses Pydantic schemas for
+input validation and structured output.
 """
 
 from datetime import datetime, time
