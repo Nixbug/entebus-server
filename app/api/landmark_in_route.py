@@ -137,9 +137,23 @@ def update_landmark_in_route(
     Returns:
         Tuple[bool, dict]: A tuple containing a boolean indicating if updates were made and the updated landmark in route data.
     """
-    if form_param.arrival_delta is not None and form_param.departure_delta is not None:
-        if form_param.arrival_delta > form_param.departure_delta:
-            raise exceptions.InvalidValue(LandmarkInRoute.arrival_delta)
+    arrival_delta = (
+        form_param.arrival_delta
+        if form_param.arrival_delta is not None
+        else landmark_route.arrival_delta
+    )
+    departure_delta = (
+        form_param.departure_delta
+        if form_param.departure_delta is not None
+        else landmark_route.departure_delta
+    )
+
+    if (
+        arrival_delta is not None
+        and departure_delta is not None
+        and arrival_delta > departure_delta
+    ):
+        raise exceptions.InvalidValue(LandmarkInRoute.arrival_delta)
 
     route = validate_id(
         session, Route, landmark_route.route_id, LandmarkInRoute.route_id
@@ -147,13 +161,11 @@ def update_landmark_in_route(
 
     update_data = form_param.model_dump(exclude_unset=True)
     update_if_changed(landmark_route, update_data)
+
     have_updates = session.is_modified(landmark_route)
     if have_updates:
         is_valid = landmark_in_route(route.id, session)
-        if is_valid:
-            route.status = RouteStatus.VALID
-        else:
-            route.status = RouteStatus.INVALID
+        route.status = RouteStatus.VALID if is_valid else RouteStatus.INVALID
 
         session.commit()
         session.refresh(landmark_route)
