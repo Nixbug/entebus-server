@@ -182,7 +182,7 @@ def update_landmark_in_route(
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_LANDMARK_IN_ROUTE,
-    tags=["LandmarkInRoute"],
+    tags=["Landmark In Route"],
     response_model=LandmarkInRouteSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
@@ -237,7 +237,7 @@ async def create_landmark_in_route_for_executive(
 
 @route_executive.patch(
     f"{URL_LANDMARK_IN_ROUTE}/{{id}}",
-    tags=["LandmarkInRoute"],
+    tags=["Landmark In Route"],
     response_model=LandmarkInRouteSchema,
     responses=fuse_exception_responses(
         [
@@ -297,7 +297,7 @@ async def update_landmark_in_route_for_executive(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_LANDMARK_IN_ROUTE,
-    tags=["LandmarkInRoute"],
+    tags=["Landmark In Route"],
     response_model=LandmarkInRouteSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
@@ -357,7 +357,7 @@ async def create_landmark_in_route_for_operator(
 
 @route_operator.patch(
     f"{URL_LANDMARK_IN_ROUTE}/{{id}}",
-    tags=["LandmarkInRoute"],
+    tags=["Landmark In Route"],
     response_model=LandmarkInRouteSchema,
     responses=fuse_exception_responses(
         [
