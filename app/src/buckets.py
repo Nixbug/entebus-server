@@ -13,6 +13,7 @@ OPERATOR_IMAGES = "operator-images"  # Stores profile pictures of operators
 VENDOR_IMAGES = "vendor-images"  # Stores profile pictures of vendors
 COMPANY_IMAGES = "company-images"  # Stores the logo of the company
 BUSINESS_IMAGES = "business-images"  # Stores the logo of the business
+VEHICLE_IMAGES = "vehicle-images"  # Stores pictures of vehicles
 
 ALL = [
     BUS_IMAGES,
@@ -20,5 +21,6 @@ ALL = [
     COMPANY_IMAGES,
     EXECUTIVE_IMAGES,
     OPERATOR_IMAGES,
+    VEHICLE_IMAGES,
     VENDOR_IMAGES,
 ]
