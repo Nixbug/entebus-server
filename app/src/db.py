@@ -1968,6 +1968,7 @@ class LandmarkInRoute(ORMbase):
         distance_from_start (Integer, unique, not null):
             Distance in meters from the starting landmark of the route.
             Used to determine ordering and physical spacing.
+            Must be unique within the route.
 
         arrival_delta (Integer):
             Time in minutes expected to arrive at this landmark from the start of the route.
@@ -1997,7 +1998,7 @@ class LandmarkInRoute(ORMbase):
     route_id = Column(
         Integer, ForeignKey("route.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    landmark_id = Column(Integer, ForeignKey("landmark.id"))
+    landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False, index=True)
     distance_from_start = Column(Integer, nullable=False)
     arrival_delta = Column(Integer, nullable=False)
     departure_delta = Column(Integer, nullable=False)

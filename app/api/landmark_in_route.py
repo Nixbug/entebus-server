@@ -229,7 +229,7 @@ async def create_landmark_in_route_for_executive(
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.InvalidValue(LandmarkInRoute.arrival_delta),
-            exceptions.UnknownValue(LandmarkInRoute.route_id),
+            exceptions.UnknownValue(LandmarkInRoute.id),
         ]
     ),
     description=(
@@ -320,7 +320,7 @@ async def create_landmark_in_route_for_operator(
         has_update = verify_permission(
             roles, OperatorPermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
         )
-        if not (has_create | has_update):
+        if not (has_create or has_update):
             raise exceptions.NoPermission()
 
         route = validate_id(
@@ -329,9 +329,6 @@ async def create_landmark_in_route_for_operator(
             form_param.route_id,
             LandmarkInRoute.route_id,
             extra_filter=(Route.company_id == token.company_id),
-        )
-        validate_id(
-            session, Landmark, form_param.landmark_id, LandmarkInRoute.landmark_id
         )
         landmark_route_data = create_landmark_in_route(session, route, form_param)
 
@@ -352,7 +349,7 @@ async def create_landmark_in_route_for_operator(
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.InvalidValue(LandmarkInRoute.arrival_delta),
-            exceptions.UnknownValue(LandmarkInRoute.route_id),
+            exceptions.UnknownValue(LandmarkInRoute.id),
         ]
     ),
     description=(
