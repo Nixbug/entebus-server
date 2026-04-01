@@ -216,7 +216,7 @@ async def create_landmark_in_route_for_executive(
         has_update = verify_permission(
             roles, ExecutivePermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
         )
-        if not (has_create or has_update):
+        if not (has_create | has_update):
             raise exceptions.NoPermission()
 
         route = validate_id(
@@ -270,7 +270,7 @@ async def update_landmark_in_route_for_executive(
         has_update = verify_permission(
             roles, ExecutivePermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
         )
-        if not (has_create or has_update):
+        if not (has_create | has_update):
             raise exceptions.NoPermission()
 
         landmark_route = validate_id(session, LandmarkInRoute, id, LandmarkInRoute.id)
@@ -332,7 +332,7 @@ async def create_landmark_in_route_for_operator(
         has_update = verify_permission(
             roles, OperatorPermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
         )
-        if not (has_create or has_update):
+        if not (has_create | has_update):
             raise exceptions.NoPermission()
 
         route = validate_id(
@@ -390,7 +390,7 @@ async def update_landmark_in_route_for_operator(
         has_update = verify_permission(
             roles, OperatorPermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
         )
-        if not (has_create or has_update):
+        if not (has_create | has_update):
             raise exceptions.NoPermission()
 
         landmark_route = validate_id(
