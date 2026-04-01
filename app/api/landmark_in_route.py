@@ -165,7 +165,10 @@ def update_landmark_in_route(
     have_updates = session.is_modified(landmark_route)
     if have_updates:
         is_valid = landmark_in_route(route.id, session)
-        route.status = RouteStatus.VALID if is_valid else RouteStatus.INVALID
+        if is_valid:
+            route.status = RouteStatus.VALID
+        else:
+            route.status = RouteStatus.INVALID
 
         session.commit()
         session.refresh(landmark_route)
