@@ -26,7 +26,7 @@ from app.src.validators import (
     validate_id,
     verify_token,
     verify_permission,
-    landmark_in_route,
+    validate_route,
 )
 from app.src.functions import (
     fuse_exception_responses,
@@ -100,7 +100,7 @@ def create_landmark_in_route(
     if form_param.arrival_delta > form_param.departure_delta:
         raise exceptions.InvalidValue(LandmarkInRoute.arrival_delta)
 
-    landmark_route = LandmarkInRoute(
+    landmark_in_route = LandmarkInRoute(
         company_id=route.company_id,
         route_id=form_param.route_id,
         landmark_id=form_param.landmark_id,
@@ -108,29 +108,29 @@ def create_landmark_in_route(
         arrival_delta=form_param.arrival_delta,
         departure_delta=form_param.departure_delta,
     )
-    session.add(landmark_route)
+    session.add(landmark_in_route)
 
-    is_valid = landmark_in_route(route.id, session)
+    is_valid = validate_route(route.id, session)
     if is_valid:
         route.status = RouteStatus.VALID
     else:
         route.status = RouteStatus.INVALID
 
     session.commit()
-    session.refresh(landmark_route)
-    landmark_route_data = jsonable_encoder(landmark_route)
-    return landmark_route_data
+    session.refresh(landmark_in_route)
+    landmark_in_route_data = jsonable_encoder(landmark_in_route)
+    return landmark_in_route_data
 
 
 def update_landmark_in_route(
-    session: Session, landmark_route: LandmarkInRoute, form_param: UpdateForm
+    session: Session, landmark_in_route: LandmarkInRoute, form_param: UpdateForm
 ) -> Tuple[bool, dict]:
     """
     Updates an existing landmark in route record in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
-        landmark_route (LandmarkInRoute): The existing landmark in route record to be updated.
+        landmark_in_route (LandmarkInRoute): The existing landmark in route record to be updated.
         form_param (UpdateForm): Form data for updating the landmark in route.
 
 
@@ -140,12 +140,12 @@ def update_landmark_in_route(
     arrival_delta = (
         form_param.arrival_delta
         if form_param.arrival_delta is not None
-        else landmark_route.arrival_delta
+        else landmark_in_route.arrival_delta
     )
     departure_delta = (
         form_param.departure_delta
         if form_param.departure_delta is not None
-        else landmark_route.departure_delta
+        else landmark_in_route.departure_delta
     )
 
     if (
@@ -156,25 +156,25 @@ def update_landmark_in_route(
         raise exceptions.InvalidValue(LandmarkInRoute.arrival_delta)
 
     route = validate_id(
-        session, Route, landmark_route.route_id, LandmarkInRoute.route_id
+        session, Route, landmark_in_route.route_id, LandmarkInRoute.route_id
     )
 
     update_data = form_param.model_dump(exclude_unset=True)
-    update_if_changed(landmark_route, update_data)
+    update_if_changed(landmark_in_route, update_data)
 
-    have_updates = session.is_modified(landmark_route)
+    have_updates = session.is_modified(landmark_in_route)
     if have_updates:
-        is_valid = landmark_in_route(route.id, session)
+        is_valid = validate_route(route.id, session)
         if is_valid:
             route.status = RouteStatus.VALID
         else:
             route.status = RouteStatus.INVALID
 
         session.commit()
-        session.refresh(landmark_route)
+        session.refresh(landmark_in_route)
 
-    landmark_route_data = jsonable_encoder(landmark_route)
-    return have_updates, landmark_route_data
+    landmark_in_route_data = jsonable_encoder(landmark_in_route)
+    return have_updates, landmark_in_route_data
 
 
 # ---------------------------------------------------------------------------
@@ -225,10 +225,10 @@ async def create_landmark_in_route_for_executive(
         route = validate_id(
             session, Route, form_param.route_id, LandmarkInRoute.route_id
         )
-        landmark_route_data = create_landmark_in_route(session, route, form_param)
+        landmark_in_route_data = create_landmark_in_route(session, route, form_param)
 
-        log_event(token, request_info, landmark_route_data)
-        return landmark_route_data
+        log_event(token, request_info, landmark_in_route_data)
+        return landmark_in_route_data
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -276,16 +276,18 @@ async def update_landmark_in_route_for_executive(
         if not (has_create | has_update):
             raise exceptions.NoPermission()
 
-        landmark_route = validate_id(session, LandmarkInRoute, id, LandmarkInRoute.id)
-        have_updates, landmark_route_data = update_landmark_in_route(
+        landmark_in_route = validate_id(
+            session, LandmarkInRoute, id, LandmarkInRoute.id
+        )
+        have_updates, landmark_in_route_data = update_landmark_in_route(
             session,
-            landmark_route,
+            landmark_in_route,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
         )
 
         if have_updates:
-            log_event(token, request_info, landmark_route_data)
-        return landmark_route_data
+            log_event(token, request_info, landmark_in_route_data)
+        return landmark_in_route_data
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -345,10 +347,10 @@ async def create_landmark_in_route_for_operator(
             LandmarkInRoute.route_id,
             extra_filter=(Route.company_id == token.company_id),
         )
-        landmark_route_data = create_landmark_in_route(session, route, form_param)
+        landmark_in_route_data = create_landmark_in_route(session, route, form_param)
 
-        log_event(token, request_info, landmark_route_data)
-        return landmark_route_data
+        log_event(token, request_info, landmark_in_route_data)
+        return landmark_in_route_data
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -396,22 +398,22 @@ async def update_landmark_in_route_for_operator(
         if not (has_create | has_update):
             raise exceptions.NoPermission()
 
-        landmark_route = validate_id(
+        landmark_in_route = validate_id(
             session,
             LandmarkInRoute,
             id,
             LandmarkInRoute.id,
             extra_filter=(LandmarkInRoute.company_id == token.company_id),
         )
-        have_updates, landmark_route_data = update_landmark_in_route(
+        have_updates, landmark_in_route_data = update_landmark_in_route(
             session,
-            landmark_route,
+            landmark_in_route,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
         )
 
         if have_updates:
-            log_event(token, request_info, landmark_route_data)
-        return landmark_route_data
+            log_event(token, request_info, landmark_in_route_data)
+        return landmark_in_route_data
     except Exception as e:
         exceptions.handle(e)
     finally:
