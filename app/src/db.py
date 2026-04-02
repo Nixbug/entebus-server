@@ -1963,7 +1963,7 @@ class LandmarkInRoute(ORMbase):
 
         landmark_id (Integer, not null):
             Foreign key referencing `landmark.id` that this landmark is part of.
-            Cascades on delete — if the landmark is removed, related landmarks in routes are deleted.
+            Landmarks referenced here cannot be removed.
 
         distance_from_start (Integer, not null):
             Distance in meters from the starting landmark of the route.
