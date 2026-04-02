@@ -109,6 +109,7 @@ def create_landmark_in_route(
         departure_delta=form_param.departure_delta,
     )
     session.add(landmark_in_route)
+    session.flush()
 
     is_valid = validate_route(route.id, session)
     if is_valid:
