@@ -1970,11 +1970,11 @@ class LandmarkInRoute(ORMbase):
             Used to determine ordering and physical spacing.
             Must be unique within the route.
 
-        arrival_delta (Integer):
+        arrival_delta (Integer, not null):
             Time in minutes expected to arrive at this landmark from the start of the route.
             Helps in estimating arrival schedules for route traversal.
 
-        departure_delta (Integer):
+        departure_delta (Integer, not null):
             Time in minutes expected to depart from this landmark after the route starts.
             Used to define dwell times or stop durations.
 
@@ -1982,7 +1982,7 @@ class LandmarkInRoute(ORMbase):
             Timestamp automatically updated whenever the landmark in route record is modified.
 
         created_on (DateTime, not null, default=func.now()):
-            Timestamp indicating when the landmark in route record was created..
+            Timestamp indicating when the landmark in route record was created.
     """
 
     __tablename__ = "landmark_in_route"
