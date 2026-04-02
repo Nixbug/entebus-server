@@ -214,13 +214,13 @@ async def create_landmark_in_route_for_executive(
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
-        has_create = verify_permission(
+        can_create = verify_permission(
             roles, ExecutivePermissionPath.CREATE_COMPANY_ROUTE, raise_exception=False
         )
-        has_update = verify_permission(
+        can_update = verify_permission(
             roles, ExecutivePermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
         )
-        if not (has_create | has_update):
+        if not (can_create | can_update):
             raise exceptions.NoPermission()
 
         route = validate_id(
@@ -268,13 +268,13 @@ async def update_landmark_in_route_for_executive(
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
-        has_create = verify_permission(
+        can_create = verify_permission(
             roles, ExecutivePermissionPath.CREATE_COMPANY_ROUTE, raise_exception=False
         )
-        has_update = verify_permission(
+        can_update = verify_permission(
             roles, ExecutivePermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
         )
-        if not (has_create | has_update):
+        if not (can_create | can_update):
             raise exceptions.NoPermission()
 
         landmark_in_route = validate_id(
@@ -332,13 +332,13 @@ async def create_landmark_in_route_for_operator(
         session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
         roles = get_operator_roles(session, token)
-        has_create = verify_permission(
+        can_create = verify_permission(
             roles, OperatorPermissionPath.CREATE_COMPANY_ROUTE, raise_exception=False
         )
-        has_update = verify_permission(
+        can_update = verify_permission(
             roles, OperatorPermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
         )
-        if not (has_create | has_update):
+        if not (can_create | can_update):
             raise exceptions.NoPermission()
 
         route = validate_id(
@@ -390,13 +390,13 @@ async def update_landmark_in_route_for_operator(
         session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
         roles = get_operator_roles(session, token)
-        has_create = verify_permission(
+        can_create = verify_permission(
             roles, OperatorPermissionPath.CREATE_COMPANY_ROUTE, raise_exception=False
         )
-        has_update = verify_permission(
+        can_update = verify_permission(
             roles, OperatorPermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
         )
-        if not (has_create | has_update):
+        if not (can_create | can_update):
             raise exceptions.NoPermission()
 
         landmark_in_route = validate_id(
