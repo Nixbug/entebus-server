@@ -29,7 +29,9 @@ from app.src.db import (
     VendorRole,
     Company,
     Business,
+    LandmarkInRoute,
 )
+from app.src.constants import MIN_LANDMARK_IN_ROUTE
 
 
 def user_credentials(
@@ -317,3 +319,61 @@ def validate_id(
     if result is None:
         raise exceptions.UnknownValue(column)
     return result
+
+
+def validate_route(route_id: int, session: Session) -> bool:
+    """
+    Validate that a route has a correct sequence of landmarks.
+
+    Conditions:
+        - Must contain at least MIN_LANDMARK_IN_ROUTE landmarks.
+        - The first landmark must start at distance 0.
+        - The first landmark cannot have arrival/departure deltas set.
+        - The last landmark must have matching arrival and departure deltas.
+        - Arrival deltas must be non-decreasing and unique.
+        - Departure deltas must be unique.
+
+    Args:
+        route_id (int): The route ID to validate.
+        session (Session): Active SQLAlchemy session.
+
+    Returns:
+        bool: True if the route passes validation, False otherwise.
+    """
+    landmarks = (
+        session.query(LandmarkInRoute)
+        .filter(LandmarkInRoute.route_id == route_id)
+        .order_by(LandmarkInRoute.distance_from_start.asc())
+        .all()
+    )
+
+    # Minimum landmarks & must start at 0
+    if len(landmarks) < MIN_LANDMARK_IN_ROUTE or landmarks[0].distance_from_start != 0:
+        return False
+
+    # First landmark must not have deltas
+    # The last landmark must have matching arrival and departure deltas.
+    if (
+        landmarks[0].arrival_delta
+        or landmarks[0].departure_delta
+        or landmarks[-1].arrival_delta != landmarks[-1].departure_delta
+    ):
+        return False
+
+    seen_arrivals, seen_departures = set(), set()
+
+    for i in range(1, len(landmarks)):
+        # Arrival must not be earlier than previous departure
+        if landmarks[i].arrival_delta < landmarks[i - 1].departure_delta:
+            return False
+
+        # Arrival and departure deltas must be unique
+        if landmarks[i].arrival_delta in seen_arrivals:
+            return False
+        if landmarks[i].departure_delta in seen_departures:
+            return False
+
+        seen_arrivals.add(landmarks[i].arrival_delta)
+        seen_departures.add(landmarks[i].departure_delta)
+
+    return True

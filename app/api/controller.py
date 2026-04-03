@@ -29,6 +29,7 @@ from app.api import (
     vendor_account,
     vendor_image,
     vendor_token,
+    landmark_in_route,
 )
 from app.src.enums import AppID
 
@@ -71,6 +72,7 @@ app_executive.include_router(vendor_image.route_executive)
 app_executive.include_router(vehicle.route_executive)
 app_executive.include_router(vehicle_image.route_executive)
 app_executive.include_router(route.route_executive)
+app_executive.include_router(landmark_in_route.route_executive)
 
 
 # ------------------------------------------------------
@@ -100,6 +102,7 @@ app_operator.include_router(operator_image.route_operator)
 app_operator.include_router(vehicle.route_operator)
 app_operator.include_router(vehicle_image.route_operator)
 app_operator.include_router(route.route_operator)
+app_operator.include_router(landmark_in_route.route_operator)
 
 
 # ------------------------------------------------------
