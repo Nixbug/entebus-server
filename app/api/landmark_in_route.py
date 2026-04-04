@@ -33,12 +33,14 @@ from app.src.validators import (
 )
 from app.src.functions import (
     enum_str,
-    enum_str,
     fuse_exception_responses,
     get_executive_roles,
     get_operator_roles,
     get_request_info,
     update_if_changed,
+    apply_id_filters,
+    apply_created_on_filters,
+    apply_updated_on_filters,
 )
 from app.src.enums import RouteStatus
 from app.src.filters import (
@@ -46,17 +48,12 @@ from app.src.filters import (
     CreatedOnFilter,
     UpdatedOnFilter,
     PaginationFilter,
-    NameFilter,
 )
 from app.src.openobserve import log_event
 from app.src import exceptions
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
-from app.src.functions import (
-    apply_id_filters,
-    apply_created_on_filters,
-    apply_updated_on_filters,
-)
+
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -108,9 +105,7 @@ class OrderBy(StrEnum):
     DISTANCE_FROM_START = "distance_from_start"
 
 
-class QueryParamsForPU(
-    IDFilter, CreatedOnFilter, UpdatedOnFilter, NameFilter, PaginationFilter
-):
+class QueryParamsForPU(IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFilter):
     """Query parameters for public users."""
 
     route_id: int | None = Field(Query(default=None))
@@ -338,7 +333,7 @@ def search_landmark_in_route(
             - Executive must have a valid access token.    
             - Logged-in executive must have `create.company.route` or `update.company.route` permission.    
             - Departure delta must be greater than arrival delta.    
-            - Duplicate landmarks in the same route are not allowed.    
+            - When creating a new landmark in a route, the route will be validated and status of the route will be updated.      
         """
     ),
 )
@@ -391,7 +386,7 @@ async def create_landmark_in_route_for_executive(
             - Executive must have a valid access token.    
             - Logged-in executive must have `create.company.route` or `update.company.route` permission.    
             - Departure delta must be greater than arrival delta.    
-            - Duplicate landmarks in the same route are not allowed.    
+            - When updating a landmark in a route, the route will be validated and status of the route will be updated.    
         """
     ),
 )
@@ -485,7 +480,7 @@ async def fetch_landmark_in_route_for_executive(
             - Logged-in operator must have `create.company.route` or `update.company.route` permission.    
             - Logged-in operator can only add landmarks to routes belonging to their company.    
             - Departure delta must be greater than arrival delta.    
-            - Duplicate landmarks in the same route are not allowed.    
+            - When creating a landmark in a route, the route will be validated and status of the route will be updated.    
         """
     ),
 )
@@ -541,8 +536,9 @@ async def create_landmark_in_route_for_operator(
             **Updates an existing landmark in route.**    
             - Operator must have a valid access token.    
             - Logged-in operator must have `create.company.route` or `update.company.route` permission.    
+            - Logged-in operator can only update landmarks in routes belonging to their company.    
             - Departure delta must be greater than arrival delta.    
-            - Duplicate landmarks in the same route are not allowed.    
+            - When updating a landmark in a route, the route will be validated and status of the route will be updated.    
         """
     ),
 )
@@ -657,7 +653,7 @@ async def fetch_landmark_in_route_for_vendor(
     response_model=List[LandmarkInRouteSchema],
     description=(
         """
-            **Fetches a list of landmarks in route for public users.**      
+            **Fetches a list of landmarks in route for public users.**    
         """
     ),
 )
