@@ -178,31 +178,33 @@ def update_landmark_in_route(
     return have_updates, landmark_in_route_data
 
 
-def delete_landmark_in_route(session: Session, landmark_route: LandmarkInRoute) -> dict:
+def delete_landmark_in_route(
+    session: Session, landmark_in_route: LandmarkInRoute
+) -> dict:
     """
     Deletes a landmark in route record from the database.
 
     Args:
         session (Session): SQLAlchemy database session.
-        landmark_route (LandmarkInRoute): The landmark in route record to be deleted.
+        landmark_in_route (LandmarkInRoute): The landmark in route record to be deleted.
 
     Returns:
         dict: The deleted landmark in route data.
     """
     route = validate_id(
-        session, Route, landmark_route.route_id, LandmarkInRoute.route_id
+        session, Route, landmark_in_route.route_id, LandmarkInRoute.route_id
     )
-    landmark_route_data = jsonable_encoder(landmark_route)
-    session.delete(landmark_route)
+    landmark_in_route_data = jsonable_encoder(landmark_in_route)
+    session.delete(landmark_in_route)
     session.flush()
-    is_valid = landmark_in_route(route.id, session)
+    is_valid = validate_route(route.id, session)
     if is_valid:
         route.status = RouteStatus.VALID
     else:
         route.status = RouteStatus.INVALID
 
     session.commit()
-    return landmark_route_data
+    return landmark_in_route_data
 
 
 # ---------------------------------------------------------------------------
@@ -351,21 +353,23 @@ async def delete_landmark_in_route_for_executive(
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
-        has_create = verify_permission(
+        can_create = verify_permission(
             roles, ExecutivePermissionPath.CREATE_COMPANY_ROUTE, raise_exception=False
         )
-        has_update = verify_permission(
+        can_update = verify_permission(
             roles, ExecutivePermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
         )
-        if not (has_create | has_update):
+        if not (can_create | can_update):
             raise exceptions.NoPermission()
 
-        landmark_route = (
+        landmark_in_route = (
             session.query(LandmarkInRoute).filter(LandmarkInRoute.id == id).first()
         )
-        if landmark_route is not None:
-            landmark_route_data = delete_landmark_in_route(session, landmark_route)
-            log_event(token, request_info, landmark_route_data)
+        if landmark_in_route is not None:
+            landmark_in_route_data = delete_landmark_in_route(
+                session, landmark_in_route
+            )
+            log_event(token, request_info, landmark_in_route_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
@@ -529,25 +533,27 @@ async def delete_landmark_in_route_for_operator(
         session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
         roles = get_operator_roles(session, token)
-        has_create = verify_permission(
+        can_create = verify_permission(
             roles, OperatorPermissionPath.CREATE_COMPANY_ROUTE, raise_exception=False
         )
-        has_update = verify_permission(
+        can_update = verify_permission(
             roles, OperatorPermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
         )
-        if not (has_create | has_update):
+        if not (can_create | can_update):
             raise exceptions.NoPermission()
 
-        landmark_route = (
+        landmark_in_route = (
             session.query(LandmarkInRoute)
             .filter(
                 LandmarkInRoute.id == id, LandmarkInRoute.company_id == token.company_id
             )
             .first()
         )
-        if landmark_route is not None:
-            landmark_route_data = delete_landmark_in_route(session, landmark_route)
-            log_event(token, request_info, landmark_route_data)
+        if landmark_in_route is not None:
+            landmark_in_route_data = delete_landmark_in_route(
+                session, landmark_in_route
+            )
+            log_event(token, request_info, landmark_in_route_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
