@@ -321,7 +321,7 @@ def validate_id(
     return result
 
 
-def landmark_in_route(route_id: int, session: Session) -> bool:
+def validate_route(route_id: int, session: Session) -> bool:
     """
     Validate that a route has a correct sequence of landmarks.
 
