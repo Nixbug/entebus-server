@@ -228,7 +228,7 @@ def delete_landmark_in_route(
         """
             **Creates a new landmark in route.**    
             - Executive must have a valid access token.    
-            - Logged-in executive must have `create.company.route` or `update.company.route` permission.    
+            - Logged-in executive must have `company.route.create` or `company.route.update` permission.    
             - Departure delta must be greater than arrival delta.    
             - Duplicate landmarks in the same route are not allowed.    
         """
@@ -281,7 +281,7 @@ async def create_landmark_in_route_for_executive(
         """
             **Updates an existing landmark in route.**    
             - Executive must have a valid access token.    
-            - Logged-in executive must have `create.company.route` or `update.company.route` permission.    
+            - Logged-in executive must have `company.route.create` or `company.route.update` permission.    
             - Departure delta must be greater than arrival delta.    
             - Duplicate landmarks in the same route are not allowed.    
         """
@@ -338,7 +338,7 @@ async def update_landmark_in_route_for_executive(
         """
             **Deletes a specific landmark assigned to a route.**    
             - Executive must have a valid access token.    
-            - Logged-in executive must have `create.company.route` or `update.company.route` permission.    
+            - Logged-in executive must have `company.route.create` or `company.route.update` permission.    
             - When deleting a landmark in a route, the route will be validated and status will be updated.    
             - Returns 204 No Content even if the specified landmark in route does not exist.    
         """
@@ -398,7 +398,7 @@ async def delete_landmark_in_route_for_executive(
         """
             **Creates a new landmark in route.**    
             - Operator must have a valid access token.    
-            - Logged-in operator must have `create.company.route` or `update.company.route` permission.    
+            - Logged-in operator must have `company.route.create` or `company.route.update` permission.    
             - Logged-in operator can only add landmarks to routes belonging to their company.    
             - Departure delta must be greater than arrival delta.    
             - Duplicate landmarks in the same route are not allowed.    
@@ -456,7 +456,7 @@ async def create_landmark_in_route_for_operator(
         """
             **Updates an existing landmark in route.**    
             - Operator must have a valid access token.    
-            - Logged-in operator must have `create.company.route` or `update.company.route` permission.    
+            - Logged-in operator must have `company.route.create` or `company.route.update` permission.    
             - Departure delta must be greater than arrival delta.    
             - Duplicate landmarks in the same route are not allowed.    
         """
@@ -517,7 +517,7 @@ async def update_landmark_in_route_for_operator(
         """
             **Deletes a specific landmark assigned to a route.**    
             - Operator must have a valid access token.    
-            - Logged-in operator must have `create.company.route` or `update.company.route` permission.    
+            - Logged-in operator must have `company.route.create` or `company.route.update` permission.    
             - Logged-in operator can only delete landmarks from routes belonging to their company.    
             - When deleting a landmark in a route, the route will be validated and status will be updated.    
             - Returns 204 No Content even if the specified landmark in route does not exist.    
