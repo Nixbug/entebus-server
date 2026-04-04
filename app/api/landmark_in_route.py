@@ -1,9 +1,9 @@
 """
 Landmark in Route API Router for EnteBus.
 
-Provides endpoints for managing landmarks in routes, including creation and update.
+Provides endpoints for managing landmarks in routes, including creation, update and retrieval.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion and retrieval are planned for future implementation.
+Endpoints for deletion are planned for future implementation.
 """
 
 from datetime import datetime
@@ -661,7 +661,9 @@ async def fetch_landmark_in_route_for_vendor(
         """
     ),
 )
-async def fetch_landmark_in_route_for_public(query_params: QueryParamsForPU = Depends()):
+async def fetch_landmark_in_route_for_public(
+    query_params: QueryParamsForPU = Depends(),
+):
     try:
         session = SessionLocal()
 
