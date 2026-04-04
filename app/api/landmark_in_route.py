@@ -617,7 +617,7 @@ async def create_landmark_in_route_for_operator(
         """
             **Updates an existing landmark in route.**    
             - Operator must have a valid access token.    
-            - Logged-in operator must have `create.company.route` or `update.company.route` permission.    
+            - Logged-in operator must have `company.route.create` or `company.route.update` permission.    
             - Logged-in operator can only update landmarks in routes belonging to their company.    
             - Departure delta must be greater than arrival delta.    
             - When updating a landmark in a route, the route will be validated and status of the route will be updated.    
@@ -772,7 +772,7 @@ async def fetch_landmark_in_route_for_vendor(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, VendorToken, access_token.credentials)
+        verify_token(session, VendorToken, access_token.credentials)
 
         return search_landmark_in_route(
             session,

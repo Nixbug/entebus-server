@@ -725,7 +725,7 @@ async def fetch_vehicle_vendor(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, VendorToken, access_token.credentials)
+        verify_token(session, VendorToken, access_token.credentials)
 
         return search_vehicle(
             session,
