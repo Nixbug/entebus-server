@@ -326,7 +326,7 @@ async def update_landmark_in_route_for_executive(
 
 @route_executive.delete(
     f"{URL_LANDMARK_IN_ROUTE}/{{id}}",
-    tags=["LandmarkInRoute"],
+    tags=["Landmark In Route"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
         [
@@ -338,7 +338,7 @@ async def update_landmark_in_route_for_executive(
         """
             **Deletes a specific landmark assigned to a route.**    
             - Executive must have a valid access token.    
-            - Logged-in executive must have `create.company.route` or `update.company.route` permission.      
+            - Logged-in executive must have `create.company.route` or `update.company.route` permission.    
             - When deleting a landmark in a route, the route will be validated and status will be updated.    
             - Returns 204 No Content even if the specified landmark in route does not exist.    
         """
@@ -505,7 +505,7 @@ async def update_landmark_in_route_for_operator(
 
 @route_operator.delete(
     f"{URL_LANDMARK_IN_ROUTE}/{{id}}",
-    tags=["LandmarkInRoute"],
+    tags=["Landmark In Route"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
         [
