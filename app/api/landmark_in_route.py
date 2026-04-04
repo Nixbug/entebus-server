@@ -1,13 +1,13 @@
 """
 Landmark in Route API Router for EnteBus.
 
-Provides endpoints for managing landmarks in routes, including creation and update.
+Provides endpoints for managing landmarks in routes, including creation, update and deletion.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion and retrieval are planned for future implementation.
+Endpoints for retrieval are planned for future implementation.
 """
 
 from datetime import datetime
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Response
 from typing import Tuple
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm.session import Session
@@ -178,6 +178,35 @@ def update_landmark_in_route(
     return have_updates, landmark_in_route_data
 
 
+def delete_landmark_in_route(
+    session: Session, landmark_in_route: LandmarkInRoute
+) -> dict:
+    """
+    Deletes a landmark in route record from the database.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        landmark_in_route (LandmarkInRoute): The landmark in route record to be deleted.
+
+    Returns:
+        dict: The deleted landmark in route data.
+    """
+    route = validate_id(
+        session, Route, landmark_in_route.route_id, LandmarkInRoute.route_id
+    )
+    landmark_in_route_data = jsonable_encoder(landmark_in_route)
+    session.delete(landmark_in_route)
+    session.flush()
+    is_valid = validate_route(route.id, session)
+    if is_valid:
+        route.status = RouteStatus.VALID
+    else:
+        route.status = RouteStatus.INVALID
+
+    session.commit()
+    return landmark_in_route_data
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -199,7 +228,7 @@ def update_landmark_in_route(
         """
             **Creates a new landmark in route.**    
             - Executive must have a valid access token.    
-            - Logged-in executive must have `create.company.route` or `update.company.route` permission.    
+            - Logged-in executive must have `company.route.create` or `company.route.update` permission.    
             - Departure delta must be greater than arrival delta.    
             - Duplicate landmarks in the same route are not allowed.    
         """
@@ -252,7 +281,7 @@ async def create_landmark_in_route_for_executive(
         """
             **Updates an existing landmark in route.**    
             - Executive must have a valid access token.    
-            - Logged-in executive must have `create.company.route` or `update.company.route` permission.    
+            - Logged-in executive must have `company.route.create` or `company.route.update` permission.    
             - Departure delta must be greater than arrival delta.    
             - Duplicate landmarks in the same route are not allowed.    
         """
@@ -295,6 +324,59 @@ async def update_landmark_in_route_for_executive(
         session.close()
 
 
+@route_executive.delete(
+    f"{URL_LANDMARK_IN_ROUTE}/{{id}}",
+    tags=["Landmark In Route"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+        ]
+    ),
+    description=(
+        """
+            **Deletes a specific landmark assigned to a route.**    
+            - Executive must have a valid access token.    
+            - Logged-in executive must have `company.route.create` or `company.route.update` permission.    
+            - When deleting a landmark in a route, the route will be validated and status will be updated.    
+            - Returns 204 No Content even if the specified landmark in route does not exist.    
+        """
+    ),
+)
+async def delete_landmark_in_route_for_executive(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        can_create = verify_permission(
+            roles, ExecutivePermissionPath.CREATE_COMPANY_ROUTE, raise_exception=False
+        )
+        can_update = verify_permission(
+            roles, ExecutivePermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
+        )
+        if not (can_create | can_update):
+            raise exceptions.NoPermission()
+
+        landmark_in_route = (
+            session.query(LandmarkInRoute).filter(LandmarkInRoute.id == id).first()
+        )
+        if landmark_in_route is not None:
+            landmark_in_route_data = delete_landmark_in_route(
+                session, landmark_in_route
+            )
+            log_event(token, request_info, landmark_in_route_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Operator]
 # ---------------------------------------------------------------------------
@@ -316,7 +398,7 @@ async def update_landmark_in_route_for_executive(
         """
             **Creates a new landmark in route.**    
             - Operator must have a valid access token.    
-            - Logged-in operator must have `create.company.route` or `update.company.route` permission.    
+            - Logged-in operator must have `company.route.create` or `company.route.update` permission.    
             - Logged-in operator can only add landmarks to routes belonging to their company.    
             - Departure delta must be greater than arrival delta.    
             - Duplicate landmarks in the same route are not allowed.    
@@ -374,7 +456,7 @@ async def create_landmark_in_route_for_operator(
         """
             **Updates an existing landmark in route.**    
             - Operator must have a valid access token.    
-            - Logged-in operator must have `create.company.route` or `update.company.route` permission.    
+            - Logged-in operator must have `company.route.create` or `company.route.update` permission.    
             - Departure delta must be greater than arrival delta.    
             - Duplicate landmarks in the same route are not allowed.    
         """
@@ -415,6 +497,64 @@ async def update_landmark_in_route_for_operator(
         if have_updates:
             log_event(token, request_info, landmark_in_route_data)
         return landmark_in_route_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.delete(
+    f"{URL_LANDMARK_IN_ROUTE}/{{id}}",
+    tags=["Landmark In Route"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+        ]
+    ),
+    description=(
+        """
+            **Deletes a specific landmark assigned to a route.**    
+            - Operator must have a valid access token.    
+            - Logged-in operator must have `company.route.create` or `company.route.update` permission.    
+            - Logged-in operator can only delete landmarks from routes belonging to their company.    
+            - When deleting a landmark in a route, the route will be validated and status will be updated.    
+            - Returns 204 No Content even if the specified landmark in route does not exist.    
+        """
+    ),
+)
+async def delete_landmark_in_route_for_operator(
+    id: int,
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+        roles = get_operator_roles(session, token)
+        can_create = verify_permission(
+            roles, OperatorPermissionPath.CREATE_COMPANY_ROUTE, raise_exception=False
+        )
+        can_update = verify_permission(
+            roles, OperatorPermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
+        )
+        if not (can_create | can_update):
+            raise exceptions.NoPermission()
+
+        landmark_in_route = (
+            session.query(LandmarkInRoute)
+            .filter(
+                LandmarkInRoute.id == id, LandmarkInRoute.company_id == token.company_id
+            )
+            .first()
+        )
+        if landmark_in_route is not None:
+            landmark_in_route_data = delete_landmark_in_route(
+                session, landmark_in_route
+            )
+            log_event(token, request_info, landmark_in_route_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
