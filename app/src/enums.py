@@ -194,3 +194,10 @@ class VendorType(IntEnum):
     LEGAL = 5
     ADMIN = 6
     BOT = 7
+
+
+class FareScope(IntEnum):
+    """Scope of fare applicability."""
+
+    GLOBAL = 1
+    LOCAL = 2

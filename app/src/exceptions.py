@@ -249,6 +249,30 @@ class InvalidValue(APIException):
         super().__init__(detail=detail)
 
 
+class MissingParameter(APIException):
+    """
+    Raised when a required parameter is missing from the request.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    headers = {"X-Error": "MissingParameter"}
+
+    def __init__(self, column: InstrumentedAttribute):
+        detail = f"The {column.name} is missing"
+        super().__init__(detail=detail)
+
+
+class UnexpectedParameter(APIException):
+    """Raised when an unexpected parameter is provided in the request."""
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    headers = {"X-Error": "UnexpectedParameter"}
+
+    def __init__(self, column: InstrumentedAttribute):
+        detail = f"Unexpected parameter {column.name} is provided"
+        super().__init__(detail=detail)
+
+
 class NoPermission(APIException):
     """
     Raised when a user does not have permission to perform an action.
@@ -347,3 +371,53 @@ class LandmarkDistanceLimitExceeded(APIException):
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "Landmark centroid movement exceeds allowed limit"
     headers = {"X-Error": "LandmarkDistanceLimitExceeded"}
+
+
+class InvalidFareVersion(APIException):
+    """
+    Raised when an invalid fare version is provided.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    detail = "Invalid dynamic fare version"
+    headers = {"X-Error": "InvalidFareVersion"}
+
+
+class InvalidFareFunction(APIException):
+    """
+    Raised when an invalid fare function is provided.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    detail = "Invalid fare function"
+    headers = {"X-Error": "InvalidFareFunction"}
+
+
+class JSTimeLimitExceeded(APIException):
+    """
+    Raised when JavaScript execution exceeds the time limit.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    detail = "JavaScript execution timed out"
+    headers = {"X-Error": "JSTimeout"}
+
+
+class JSMemoryLimitExceeded(APIException):
+    """
+    Raised when JavaScript execution exceeds the memory limit.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    detail = "JavaScript memory limit exceeded"
+    headers = {"X-Error": "JSMemoryLimitExceeded"}
+
+
+class UnknownTicketType(APIException):
+    """
+    Raised when an unknown ticket type is provided to the fare function.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    detail = "Unknown ticket type"
+    headers = {"X-Error": "UnknownTicketType"}

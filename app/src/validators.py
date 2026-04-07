@@ -31,7 +31,8 @@ from app.src.db import (
     Business,
     LandmarkInRoute,
 )
-from app.src.constants import MIN_LANDMARK_IN_ROUTE
+from app.src.constants import DYNAMIC_FARE_VERSION, MIN_LANDMARK_IN_ROUTE
+from app.src.dynamic_fare.v1 import DynamicFare
 
 
 def user_credentials(
@@ -377,3 +378,45 @@ def validate_route(route_id: int, session: Session) -> bool:
         seen_departures.add(landmarks[i].departure_delta)
 
     return True
+
+
+def validate_fare_function(function: str, attributes: dict) -> DynamicFare:
+    """
+    Validate and build a dynamic fare function against system rules.
+
+    Validation rules:
+        - The fare function must use the current dynamic fare version.
+        - It must return valid (>= 0) fares for all known ticket types.
+        - It must return -1.0 when evaluated with an unknown ticket type.
+
+    Args:
+        function (str): String expression of the fare function.
+        attributes (dict): Fare configuration, expected keys:
+            - "df_version" (int): Dynamic fare version.
+            - "ticket_types" (list[dict]): List of ticket types with "name" fields.
+
+    Returns:
+        DynamicFare: A validated `DynamicFare` object that can be used
+        to compute fares at runtime.
+
+    Raises:
+        exceptions.InvalidFareVersion: If the dynamic fare version is unsupported.
+        exceptions.UnknownTicketType: If a known ticket type produces invalid fares.
+    """
+    if attributes["df_version"] != DYNAMIC_FARE_VERSION:
+        raise exceptions.InvalidFareVersion()
+
+    extra = attributes.get("extra", {})
+    ticket_types = attributes.get("ticket_types", [])
+
+    fare_function = DynamicFare(function)
+
+    for ticket_type in ticket_types:
+        name = ticket_type.get("name")
+        result = fare_function.evaluate(name, 1, extra)
+        if not isinstance(result, (int, float)) or result < 0:
+            raise exceptions.UnknownTicketType(
+                detail=f"Ticket type '{name}' cannot be validated using the function"
+            )
+
+    return fare_function
