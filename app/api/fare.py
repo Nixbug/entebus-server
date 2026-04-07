@@ -95,9 +95,11 @@ class CreateFormForEX(CreateFormForOP):
 class UpdateForm(BaseModel):
     """Form data for updating a fare."""
 
-    name: str | None = Field(default=None, max_length=32)
+    name: str | None = Field(
+        default=None, min_length=1, max_length=32, pattern=NAME_PATTERN
+    )
     attributes: FareAttributes | None = Field(default=None)
-    function: str | None = Field(default=None, max_length=32768)
+    function: str | None = Field(default=None, min_length=1, max_length=32768)
 
 
 ## Functions
@@ -114,8 +116,10 @@ def update_fare(session: Session, fare: Fare, form_param: UpdateForm):
         dict: The updated fare data.
     """
     update_data = form_param.model_dump(exclude_unset=True)
-    if form_param.attributes is not None and form_param.attributes != fare.attributes:
-        fare.attributes = form_param.attributes.model_dump()
+    if form_param.attributes is not None:
+        attribute_data = form_param.attributes.model_dump()
+        if attribute_data != fare.attributes:
+            fare.attributes = attribute_data
     update_if_changed(fare, update_data)
     validate_fare_function(fare.function, fare.attributes)
     have_updates = session.is_modified(fare)
@@ -147,6 +151,7 @@ def update_fare(session: Session, fare: Fare, form_param: UpdateForm):
             exceptions.InvalidFareFunction(),
             exceptions.JSTimeLimitExceeded(),
             exceptions.JSMemoryLimitExceeded(),
+            exceptions.UnknownTicketType(),
         ]
     ),
     description=(
@@ -156,7 +161,7 @@ def update_fare(session: Session, fare: Fare, form_param: UpdateForm):
             - Logged-in executive must have `company.fare.create` permission.    
             - If scope is GLOBAL, company_id must be null. If scope is LOCAL, company_id must be provided.    
             - The fare function is validated against the provided attributes.    
-            - Enforces function size is 10 MB or less and execution time is 1 second or less.    
+            - The maximum allowed size for the fare function is 10 MB and maximum execution time is 1 second.    
         """
     ),
 )
@@ -171,13 +176,14 @@ async def create_fare_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY_FARE)
 
-        validate_id(session, Company, form_param.company_id, Fare.company_id)
-        form_param.attributes = form_param.attributes.model_dump()
-        validate_fare_function(form_param.function, form_param.attributes)
         if form_param.scope == FareScope.GLOBAL and form_param.company_id is not None:
             raise exceptions.UnexpectedParameter(Fare.company_id)
         if form_param.scope == FareScope.LOCAL and form_param.company_id is None:
             raise exceptions.MissingParameter(Fare.company_id)
+        if form_param.company_id is not None:
+            validate_id(session, Company, form_param.company_id, Fare.company_id)
+        form_param.attributes = form_param.attributes.model_dump()
+        validate_fare_function(form_param.function, form_param.attributes)
         fare = Fare(
             company_id=form_param.company_id,
             name=form_param.name,
@@ -211,6 +217,7 @@ async def create_fare_executive(
             exceptions.InvalidFareFunction(),
             exceptions.JSTimeLimitExceeded(),
             exceptions.JSMemoryLimitExceeded(),
+            exceptions.UnknownTicketType(),
         ]
     ),
     description=(
@@ -266,6 +273,7 @@ async def update_fare_executive(
             exceptions.InvalidFareFunction(),
             exceptions.JSTimeLimitExceeded(),
             exceptions.JSMemoryLimitExceeded(),
+            exceptions.UnknownTicketType(),
         ]
     ),
     description=(
@@ -324,6 +332,7 @@ async def create_fare_operator(
             exceptions.InvalidFareFunction(),
             exceptions.JSTimeLimitExceeded(),
             exceptions.JSMemoryLimitExceeded(),
+            exceptions.UnknownTicketType(),
             exceptions.UnknownValue(Fare.id),
         ]
     ),

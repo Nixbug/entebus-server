@@ -387,7 +387,6 @@ def validate_fare_function(function: str, attributes: dict) -> DynamicFare:
     Validation rules:
         - The fare function must use the current dynamic fare version.
         - It must return valid (>= 0) fares for all known ticket types.
-        - It must return -1.0 when evaluated with an unknown ticket type.
 
     Args:
         function (str): String expression of the fare function.

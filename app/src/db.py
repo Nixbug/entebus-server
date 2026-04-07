@@ -2021,9 +2021,10 @@ class Fare(ORMbase):
         id (Integer, unique, not null):
             Primary identifier for the fare.
 
-        company_id (Integer, not null):
+        company_id (Integer, nullable):
             Foreign key referencing `company.id` that fare is associated with.
             Cascades on delete — if the company is removed, related fares are deleted.
+            nullable to allow for global fares that are not tied to a specific company.
 
         version (Integer, not null, default=1):
             Version number incremented on updates
@@ -2033,14 +2034,14 @@ class Fare(ORMbase):
             Official name of the fare.
             Maximum 32 characters long.
 
-        attributes (JSONB):
+        attributes (JSONB, not null):
             A structured set of parameters that define how the fare behaves.
             Stored as binary JSON for efficient querying and indexing in PostgreSQL.
 
-        function (TEXT):
+        function (TEXT, not null):
             The implementation logic for the fare, often expressed as a code block or formula.
             This function interprets the `attributes` to calculate fares dynamically.
-            Unlimited size (`TEXT`), but should be validated for security/syntax at the application layer.
+            Maximum 32768 characters long.
 
         scope (Integer, not null, default=FareScope.GLOBAL):
             Indicates the applicability of the fare.
