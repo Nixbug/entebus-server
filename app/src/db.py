@@ -2057,7 +2057,7 @@ class Fare(ORMbase):
     __table_args__ = (UniqueConstraint("name", "company_id"),)
 
     id = Column(Integer, primary_key=True)
-    company_id = Column(Integer, ForeignKey("company.id", ondelete="CASCADE"))
+    company_id = Column(Integer, ForeignKey("company.id", ondelete="CASCADE"), index=True)
     version = Column(Integer, nullable=False, default=1)
     name = Column(String(32), nullable=False, index=True)
     attributes = Column(JSONB, nullable=False)
