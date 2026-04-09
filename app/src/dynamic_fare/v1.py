@@ -3,32 +3,37 @@ from app.src.constants import JSX_TIMEOUT_MS, JSX_MAX_MEMORY_BYTES
 from app.src import exceptions
 
 
-# Load the JS function into memory
-# This can also be used to check if the JS code is proper
+# Load the JS function into a V8 context.
 class DynamicFare:
     def __init__(
-        self, jsCode, timeOutLimit=JSX_TIMEOUT_MS, maxMemorySize=JSX_MAX_MEMORY_BYTES
+        self, js_code, time_out_limit=JSX_TIMEOUT_MS, max_memory_size=JSX_MAX_MEMORY_BYTES
     ):
         try:
-            self.jsContext = MiniRacer()
-            self.timeOutLimit = timeOutLimit
-            self.maxMemorySize = maxMemorySize
-            getFare = self.jsContext.eval(f"{jsCode}; typeof getFare === 'function';")
-            if not getFare:
+            self.js_context = MiniRacer()
+            self.time_out_limit = time_out_limit
+            self.max_memory_size = max_memory_size
+            get_fare = self.js_context.eval(f"{js_code}; typeof getFare === 'function';")
+            if not get_fare:
                 raise exceptions.InvalidFareFunction()
-        except Exception:
+        except Exception :
             raise exceptions.InvalidFareFunction()
 
-    def evaluate(self, ticketType, totalDistance, extra):
+    def evaluate(self, ticket_type, total_distance, extra):
         try:
-            return self.jsContext.call(
+            return self.js_context.call(
                 "getFare",
-                ticketType,
-                totalDistance,
+                ticket_type,
+                total_distance,
                 extra,
-                timeout=self.timeOutLimit,
-                max_memory=self.maxMemorySize,
+                timeout=self.time_out_limit,
+                max_memory=self.max_memory_size,
             )
+        except (
+            py_mini_racer.JSParseException,
+            py_mini_racer.JSEvalException,
+            py_mini_racer.JSConversionException,
+        ) as e:
+            raise exceptions.InvalidFareFunction(detail=str(e))
         except py_mini_racer.JSTimeoutException:
             raise exceptions.JSTimeLimitExceeded()
         except py_mini_racer.JSOOMException:
