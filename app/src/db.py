@@ -2055,8 +2055,21 @@ class Fare(ORMbase):
     """
 
     __tablename__ = "fare"
-    __table_args__ = (UniqueConstraint("name", "company_id"),)
-
+    __table_args__ = (
+        Index(
+            "ix_fare_name_company_unique",
+            "name",
+            "company_id",
+            unique=True,
+            postgresql_where=(Column("company_id").isnot(None)),
+        ),
+        Index(
+            "ix_fare_name_global_unique",
+            "name",
+            unique=True,
+            postgresql_where=(Column("company_id").is_(None)),
+        ),
+    )
     id = Column(Integer, primary_key=True)
     company_id = Column(
         Integer, ForeignKey("company.id", ondelete="CASCADE"), index=True
