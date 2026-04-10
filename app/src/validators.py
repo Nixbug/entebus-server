@@ -415,7 +415,12 @@ def validate_fare_function(function: str, attributes: dict) -> DynamicFare:
     for ticket_type in ticket_types:
         name = ticket_type.get("name")
         result = fare_function.evaluate(name, 1, extra)
-        if not isinstance(result, (int, float)) or isinstance(result, bool) or not math.isfinite(result) or result < 0:
+        if (
+            not isinstance(result, (int, float))
+            or isinstance(result, bool)
+            or not math.isfinite(result)
+            or result < 0
+        ):
             raise exceptions.UnknownTicketType(
                 detail=f"Ticket type '{name}' cannot be validated using the function"
             )
