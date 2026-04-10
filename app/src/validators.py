@@ -11,7 +11,6 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.orm.session import Session
 from sqlalchemy.sql.elements import ClauseElement
-from app.src.functions import get_by_path
 import math
 
 from app.src.functions import get_by_path
