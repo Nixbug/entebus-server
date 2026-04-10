@@ -1,27 +1,30 @@
 """
 Fare API Router for EnteBus.
 
-Provides endpoints for managing fares, including creation and update.
+Provides endpoints for managing fares, including creation, update and retrieval.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion and retrieval are planned for future implementation.
+Endpoints for deletion are planned for future implementation.
 """
 
 from datetime import datetime
+from enum import StrEnum
 from typing import List, Dict, Any
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, status, Depends, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
+from sqlalchemy import or_, String
 
-from app.api.bearer import oauth2_executive, bearer_operator
+from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
 from app.src.db import (
     Company,
     ExecutiveToken,
     OperatorToken,
     SessionLocal,
     Fare,
+    VendorToken,
 )
-from app.src.enums import FareScope
+from app.src.enums import FareScope, OrderIn
 from app.src.functions import (
     fuse_exception_responses,
     get_executive_roles,
@@ -29,6 +32,10 @@ from app.src.functions import (
     get_request_info,
     enum_str,
     update_if_changed,
+    apply_id_filters,
+    apply_created_on_filters,
+    apply_updated_on_filters,
+    apply_name_filters,
 )
 from app.src.openobserve import log_event
 from app.src.regex import NAME_PATTERN
@@ -38,10 +45,11 @@ from app.src.permissions.executive import PermissionPath as ExecutivePermissionP
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src import exceptions
 from app.src.validators import validate_fare_function, validate_id
-
+from app.src.filters import PaginationFilter, CreatedOnFilter, UpdatedOnFilter, IDFilter
 
 route_executive = APIRouter()
 route_operator = APIRouter()
+route_vendor = APIRouter()
 
 
 ## Output Schema
@@ -102,6 +110,51 @@ class UpdateForm(BaseModel):
     function: str | None = Field(default=None, min_length=1, max_length=32768)
 
 
+## Query Parameters
+class OrderBy(StrEnum):
+    """Enum for ordering fare results."""
+
+    ID = "id"
+    CREATED_ON = "created_on"
+    UPDATED_ON = "updated_on"
+    VERSION = "version"
+
+
+class QueryParamsForOP(IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFilter):
+    """Query parameters for operator users."""
+    
+    search: str | None = Field(Query(default=None))
+    name: str | None = Field(Query(default=None))
+    scope: FareScope | None = Field(
+        Query(default=None, description=enum_str(FareScope))
+    )
+    version: int | None = Field(Query(default=None))
+    version_ge: int | None = Field(Query(default=None))
+    version_le: int | None = Field(Query(default=None))
+    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
+    order_in: OrderIn = Field(
+        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
+    )
+
+
+class QueryParamsForEX(QueryParamsForOP):
+    """Query parameters for executives users."""
+
+    company_id: int | None = Field(Query(default=None))
+
+
+class QueryParamsForVE(QueryParamsForEX):
+    """Query parameters for vendors."""
+
+    pass
+
+
+class QueryParams(QueryParamsForEX):
+    """Generic query parameters."""
+
+    pass
+
+
 ## Functions
 def update_fare(session: Session, fare: Fare, form_param: UpdateForm):
     """
@@ -131,6 +184,62 @@ def update_fare(session: Session, fare: Fare, form_param: UpdateForm):
 
     fare_data = jsonable_encoder(fare)
     return have_updates, fare_data
+
+
+def search_fare(session: Session, query_params: QueryParams) -> List[Fare]:
+    """
+    Search for Fares based on provided query parameters.
+
+    This function supports multiple filtering, searching, ordering, and
+    pagination capabilities to retrieve fares that match various criteria.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        query_params (QueryParams): Query parameters containing search criteria.
+
+    Returns:
+        List[Fare]: List of Fares that match the search criteria.
+    """
+    query = session.query(Fare)
+    if query_params.company_id is not None:
+        query = query.filter(or_(Fare.company_id == query_params.company_id, Fare.company_id == None))
+    if query_params.scope is not None:
+        query = query.filter(Fare.scope == query_params.scope)
+    if query_params.version is not None:
+        query = query.filter(Fare.version == query_params.version)
+    if query_params.version_ge is not None:
+        query = query.filter(Fare.version >= query_params.version_ge)
+    if query_params.version_le is not None:
+        query = query.filter(Fare.version <= query_params.version_le)
+
+    # Common search
+    if query_params.search:
+        search = f"%{query_params.search}%"
+        query = query.filter(
+            or_(
+                Fare.id.cast(String).ilike(search),
+                Fare.name.ilike(search),
+            )
+        )
+
+    # Generalized filters
+    query = apply_id_filters(query, Fare, query_params)
+    query = apply_name_filters(query, Fare, query_params)
+    query = apply_created_on_filters(query, Fare, query_params)
+    query = apply_updated_on_filters(query, Fare, query_params)
+
+    # Ordering and pagination
+    ordering_attr = getattr(Fare, query_params.order_by.value)
+    ordering_func = (
+        ordering_attr.asc
+        if query_params.order_in == OrderIn.ASCENDING
+        else ordering_attr.desc
+    )
+    query = query.order_by(ordering_func())
+    query = query.offset(query_params.offset).limit(query_params.limit)
+
+    fares = query.all()
+    return fares
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +367,35 @@ async def update_fare_executive(
         session.close()
 
 
+@route_executive.get(
+    URL_FARE,
+    tags=["Fare"],
+    response_model=List[FareSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches a list of fares.**    
+            - Requires a valid access token for authentication.    
+        """
+    ),
+)
+async def fetch_fare_executive(
+    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+):
+    try:
+        session = SessionLocal()
+        verify_token(session, ExecutiveToken, access_token)
+
+        return search_fare(
+            session,
+            QueryParams(**query_params.model_dump()),
+        )
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Operator]
 # ---------------------------------------------------------------------------
@@ -371,6 +509,67 @@ async def update_fare_operator(
         if have_updates:
             log_event(token, request_info, fare_data)
         return fare_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.get(
+    URL_FARE,
+    tags=["Fare"],
+    response_model=List[FareSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches a list of fares.**    
+            - Requires a valid access token for authentication.    
+        """
+    ),
+)
+async def fetch_fare_operator(
+    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+
+        return search_fare(
+            session,
+            QueryParams(**query_params.model_dump(), company_id=token.company_id),
+        )
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Vendor]
+# ---------------------------------------------------------------------------
+@route_vendor.get(
+    URL_FARE,
+    tags=["Fare"],
+    response_model=List[FareSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches a list of fares.**    
+            - Requires a valid access token for authentication.    
+        """
+    ),
+)
+async def fetch_fare_vendor(
+    query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
+):
+    try:
+        session = SessionLocal()
+        verify_token(session, VendorToken, access_token.credentials)
+
+        return search_fare(
+            session,
+            QueryParams(**query_params.model_dump()),
+        )
     except Exception as e:
         exceptions.handle(e)
     finally:
