@@ -122,7 +122,7 @@ class OrderBy(StrEnum):
 
 class QueryParamsForOP(IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFilter):
     """Query parameters for operator users."""
-    
+
     search: str | None = Field(Query(default=None))
     name: str | None = Field(Query(default=None))
     scope: FareScope | None = Field(
@@ -202,7 +202,9 @@ def search_fare(session: Session, query_params: QueryParams) -> List[Fare]:
     """
     query = session.query(Fare)
     if query_params.company_id is not None:
-        query = query.filter(or_(Fare.company_id == query_params.company_id, Fare.company_id == None))
+        query = query.filter(
+            or_(Fare.company_id == query_params.company_id, Fare.company_id == None)
+        )
     if query_params.scope is not None:
         query = query.filter(Fare.scope == query_params.scope)
     if query_params.version is not None:
