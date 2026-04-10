@@ -402,7 +402,8 @@ def validate_fare_function(function: str, attributes: dict) -> DynamicFare:
         exceptions.InvalidFareVersion: If the dynamic fare version is unsupported.
         exceptions.UnknownTicketType: If a known ticket type produces invalid fares.
     """
-    if attributes["df_version"] != DYNAMIC_FARE_VERSION:
+    df_version = attributes.get("df_version")
+    if df_version != DYNAMIC_FARE_VERSION:
         raise exceptions.InvalidFareVersion()
 
     extra = attributes.get("extra", {})

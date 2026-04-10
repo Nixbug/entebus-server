@@ -18,6 +18,7 @@ class DynamicFare:
             get_fare = self.js_context.eval(
                 f"{js_code}; typeof getFare === 'function';",
                 timeout=self.time_out_limit,
+                max_memory=self.max_memory_size,
             )
             if not get_fare:
                 raise exceptions.InvalidFareFunction()

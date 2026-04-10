@@ -95,11 +95,9 @@ class CreateFormForEX(CreateFormForOP):
 class UpdateForm(BaseModel):
     """Form data for updating a fare."""
 
-    name: str | None = Field(
-        default=None, min_length=1, max_length=32, pattern=NAME_PATTERN
-    )
-    attributes: FareAttributes | None = Field(default=None)
-    function: str | None = Field(default=None, min_length=1, max_length=32768)
+    name: str = Field(default=None, min_length=1, max_length=32, pattern=NAME_PATTERN)
+    attributes: FareAttributes = Field(default=None)
+    function: str = Field(default=None, min_length=1, max_length=32768)
 
 
 ## Functions
