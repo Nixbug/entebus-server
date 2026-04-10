@@ -229,8 +229,8 @@ async def create_fare_executive(
             - Logged-in executive must have `company.fare.update` permission.    
             - DF function and attributes are validated together.    
             - Empty PATCH requests are allowed and will result in no changes.    
-            - preferable dynamic fare version is 1.    
-            - preferable distance unit is meter and currency is INR.    
+            - Preferable dynamic fare version is 1.    
+            - Preferable distance unit is meter and currency is INR.    
         """
     ),
 )
