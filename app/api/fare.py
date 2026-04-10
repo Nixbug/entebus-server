@@ -93,7 +93,7 @@ class CreateFormForEX(CreateFormForOP):
 
 
 class CreateForm(CreateFormForEX):
-    """Generic combined form data for creating a new route."""
+    """Generic combined form data for creating a new fare."""
 
     pass
 

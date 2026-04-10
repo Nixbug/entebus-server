@@ -400,7 +400,7 @@ class JSTimeLimitExceeded(APIException):
 
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "JavaScript execution timed out"
-    headers = {"X-Error": "JSTimeout"}
+    headers = {"X-Error": "JSTimeLimitExceeded"}
 
 
 class JSMemoryLimitExceeded(APIException):
