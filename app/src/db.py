@@ -59,6 +59,7 @@ from app.src.enums import (
     BankAccountType,
     VehicleStatus,
     RouteStatus,
+    FareScope,
 )
 
 
@@ -2002,6 +2003,81 @@ class LandmarkInRoute(ORMbase):
     distance_from_start = Column(Integer, nullable=False)
     arrival_delta = Column(Integer, nullable=False)
     departure_delta = Column(Integer, nullable=False)
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class Fare(ORMbase):
+    """
+    Represents a fare configuration used by a transport company to determine ticket pricing.
+
+    Each fare defines pricing logic and metadata, optionally scoped by applicability.
+    Fares are versioned and uniquely named per company, supporting fare updates, seasonal changes,
+    or experimental pricing models. The fare logic is stored as text, and attributes define input
+    parameters or configuration details.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the fare.
+
+        company_id (Integer, nullable):
+            Foreign key referencing `company.id` that fare is associated with.
+            Cascades on delete — if the company is removed, related fares are deleted.
+            nullable to allow for global fares that are not tied to a specific company.
+
+        version (Integer, not null, default=1):
+            Version number incremented on updates
+            Useful for tracking changes and synchronizing fare updates.
+
+        name (String(32), not null):
+            Official name of the fare.
+            Maximum 32 characters long.
+
+        attributes (JSONB, not null):
+            A structured set of parameters that define how the fare behaves.
+            Stored as binary JSON for efficient querying and indexing in PostgreSQL.
+
+        function (TEXT, not null):
+            The implementation logic for the fare, often expressed as a code block or formula.
+            This function interprets the `attributes` to calculate fares dynamically.
+            Maximum 32768 characters long.
+
+        scope (Integer, not null, default=FareScope.GLOBAL):
+            Indicates the applicability of the fare.
+            Mapped from the `FareScope` enum.
+
+         updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the fare record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp of when the fare record was created.
+    """
+
+    __tablename__ = "fare"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("company.id", ondelete="CASCADE"))
+    version = Column(Integer, nullable=False, default=1)
+    name = Column(String(32), nullable=False)
+    attributes = Column(JSONB, nullable=False)
+    function = Column(TEXT, nullable=False)
+    scope = Column(Integer, nullable=False, default=FareScope.GLOBAL)
+    __table_args__ = (
+        Index(
+            "ix_fare_name_company_unique",
+            name,
+            company_id,
+            unique=True,
+            postgresql_where=company_id.isnot(None),
+        ),
+        Index(
+            "ix_fare_name_global_unique",
+            name,
+            unique=True,
+            postgresql_where=company_id.is_(None),
+        ),
+    )
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
