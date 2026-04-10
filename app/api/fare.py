@@ -120,8 +120,8 @@ def update_fare(session: Session, fare: Fare, form_param: UpdateForm):
             fare.attributes = attribute_data
         update_data.pop("attributes")
     update_if_changed(fare, update_data)
-
     validate_fare_function(fare.function, fare.attributes)
+
     have_updates = session.is_modified(fare)
     if have_updates:
         fare.version += 1
