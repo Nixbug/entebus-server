@@ -92,6 +92,12 @@ class CreateFormForEX(CreateFormForOP):
     scope: FareScope = Field(description=enum_str(FareScope), default=FareScope.GLOBAL)
 
 
+class CreateForm(CreateFormForEX):
+    """Generic combined form data for creating a new route."""
+
+    pass
+
+
 class UpdateForm(BaseModel):
     """Form data for updating a fare."""
 
@@ -101,6 +107,33 @@ class UpdateForm(BaseModel):
 
 
 ## Functions
+def create_fare(session: Session, form_param: CreateForm) -> dict:
+    """
+    Creates a new fare record in the database.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        form_param (CreateForm): Form data for creating a fare.
+
+    Returns:
+        dict: The created fare data.
+    """
+    form_param.attributes = form_param.attributes.model_dump()
+    validate_fare_function(form_param.function, form_param.attributes)
+    fare = Fare(
+        company_id=form_param.company_id,
+        name=form_param.name,
+        attributes=form_param.attributes,
+        function=form_param.function,
+        scope=form_param.scope,
+    )
+    session.add(fare)
+    session.commit()
+    session.refresh(fare)
+    fare_data = jsonable_encoder(fare)
+    return fare_data
+
+
 def update_fare(session: Session, fare: Fare, form_param: UpdateForm):
     """
     Updates an existing fare record in the database.
@@ -121,7 +154,6 @@ def update_fare(session: Session, fare: Fare, form_param: UpdateForm):
         update_data.pop("attributes")
     update_if_changed(fare, update_data)
     validate_fare_function(fare.function, fare.attributes)
-
     have_updates = session.is_modified(fare)
     if have_updates:
         fare.version += 1
@@ -184,19 +216,7 @@ async def create_fare_executive(
             raise exceptions.MissingParameter(Fare.company_id)
         if form_param.company_id is not None:
             validate_id(session, Company, form_param.company_id, Fare.company_id)
-        form_param.attributes = form_param.attributes.model_dump()
-        validate_fare_function(form_param.function, form_param.attributes)
-        fare = Fare(
-            company_id=form_param.company_id,
-            name=form_param.name,
-            attributes=form_param.attributes,
-            function=form_param.function,
-            scope=form_param.scope,
-        )
-        session.add(fare)
-        session.commit()
-        session.refresh(fare)
-        fare_data = jsonable_encoder(fare)
+        fare_data = create_fare(session, CreateForm(**form_param.model_dump()))
 
         log_event(token, request_info, fare_data)
         return fare_data
@@ -304,19 +324,14 @@ async def create_fare_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_FARE)
 
-        form_param.attributes = form_param.attributes.model_dump()
-        validate_fare_function(form_param.function, form_param.attributes)
-        fare = Fare(
-            company_id=token.company_id,
-            name=form_param.name,
-            attributes=form_param.attributes,
-            function=form_param.function,
-            scope=FareScope.LOCAL,
+        fare_data = create_fare(
+            session,
+            CreateForm(
+                **form_param.model_dump(),
+                company_id=token.company_id,
+                scope=FareScope.LOCAL,
+            ),
         )
-        session.add(fare)
-        session.commit()
-        session.refresh(fare)
-        fare_data = jsonable_encoder(fare)
 
         log_event(token, request_info, fare_data)
         return fare_data
