@@ -2057,11 +2057,9 @@ class Fare(ORMbase):
     __tablename__ = "fare"
 
     id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer, ForeignKey("company.id", ondelete="CASCADE"), index=True
-    )
+    company_id = Column(Integer, ForeignKey("company.id", ondelete="CASCADE"))
     version = Column(Integer, nullable=False, default=1)
-    name = Column(String(32), nullable=False, index=True)
+    name = Column(String(32), nullable=False)
     attributes = Column(JSONB, nullable=False)
     function = Column(TEXT, nullable=False)
     scope = Column(Integer, nullable=False, default=FareScope.GLOBAL)
