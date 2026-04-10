@@ -122,6 +122,7 @@ def update_fare(session: Session, fare: Fare, form_param: UpdateForm):
             fare.attributes = attribute_data
         update_data.pop("attributes")
     update_if_changed(fare, update_data)
+
     validate_fare_function(fare.function, fare.attributes)
     have_updates = session.is_modified(fare)
     if have_updates:
@@ -163,6 +164,8 @@ def update_fare(session: Session, fare: Fare, form_param: UpdateForm):
             - If scope is GLOBAL, company_id must be null. If scope is LOCAL, company_id must be provided.    
             - The fare function is validated against the provided attributes.    
             - The maximum allowed size for the fare function is 10 MB and maximum execution time is 1 second.    
+            - Preferable dynamic fare version is 1.    
+            - Preferable distance unit is meter and currency is INR.    
         """
     ),
 )
@@ -228,6 +231,8 @@ async def create_fare_executive(
             - Logged-in executive must have `company.fare.update` permission.    
             - DF function and attributes are validated together.    
             - Empty PATCH requests are allowed and will result in no changes.    
+            - preferable dynamic fare version is 1.    
+            - preferable distance unit is meter and currency is INR.    
         """
     ),
 )
@@ -285,6 +290,8 @@ async def update_fare_executive(
             - Operators can only create fares with LOCAL scope for their own company.    
             - The fare function is validated against the provided attributes.    
             - Enforces function size is 10 MB or less and execution time is 1 second or less.    
+            - Preferable dynamic fare version is 1.    
+            - Preferable distance unit is meter and currency is INR.    
         """
     ),
 )
@@ -345,6 +352,8 @@ async def create_fare_operator(
             - DF function and attributes are validated together.    
             - Only fares belonging to the operator's company can be updated.    
             - Empty PATCH requests are allowed and will result in no changes.    
+            - Preferable dynamic fare version is 1.    
+            - Preferable distance unit is meter and currency is INR.    
         """
     ),
 )
