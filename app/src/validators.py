@@ -11,7 +11,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.orm.session import Session
 from sqlalchemy.sql.elements import ClauseElement
-
+import math
 
 from app.src.functions import get_by_path
 from app.src import argon2, exceptions
@@ -402,7 +402,8 @@ def validate_fare_function(function: str, attributes: dict) -> DynamicFare:
         exceptions.InvalidFareVersion: If the dynamic fare version is unsupported.
         exceptions.UnknownTicketType: If a known ticket type produces invalid fares.
     """
-    if attributes["df_version"] != DYNAMIC_FARE_VERSION:
+    df_version = attributes.get("df_version")
+    if df_version != DYNAMIC_FARE_VERSION:
         raise exceptions.InvalidFareVersion()
 
     extra = attributes.get("extra", {})
@@ -413,7 +414,12 @@ def validate_fare_function(function: str, attributes: dict) -> DynamicFare:
     for ticket_type in ticket_types:
         name = ticket_type.get("name")
         result = fare_function.evaluate(name, 1, extra)
-        if not isinstance(result, (int, float)) or result < 0:
+        if (
+            not isinstance(result, (int, float))
+            or isinstance(result, bool)
+            or not math.isfinite(result)
+            or result < 0
+        ):
             raise exceptions.UnknownTicketType(
                 detail=f"Ticket type '{name}' cannot be validated using the function"
             )
