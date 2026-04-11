@@ -1,15 +1,15 @@
 """
 Fare API Router for EnteBus.
 
-Provides endpoints for managing fares, including creation, update and retrieval.
-Uses Pydantic schemas for input validation and structured output.
-Endpoints for deletion are planned for future implementation.
+Provides endpoints for managing fares, including creation,
+update, deletion, and retrieval. Uses Pydantic schemas for
+input validation and structured output.
 """
 
 from datetime import datetime
 from enum import StrEnum
 from typing import List, Dict, Any
-from fastapi import APIRouter, status, Depends, Query
+from fastapi import APIRouter, status, Depends, Response, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
@@ -217,6 +217,23 @@ def update_fare(session: Session, fare: Fare, form_param: UpdateForm):
     return have_updates, fare_data
 
 
+def delete_fare(session: Session, fare: Fare) -> dict:
+    """
+    Deletes a fare from the database.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        fare (Fare): Fare to delete.
+
+    Returns:
+        dict: JSON-encoded representation of the deleted fare.
+    """
+    fare_data = jsonable_encoder(fare)
+    session.delete(fare)
+    session.commit()
+    return fare_data
+
+
 def search_fare(session: Session, query_params: QueryParams) -> List[Fare]:
     """
     Search for Fares based on provided query parameters.
@@ -392,6 +409,44 @@ async def update_fare_executive(
         session.close()
 
 
+@route_executive.delete(
+    f"{URL_FARE}/{{id}}",
+    tags=["Fare"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing fare.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in executive must have the `company.fare.delete` permission.    
+            - Returns 204 No Content even if the specified fare does not exist.    
+        """
+    ),
+)
+async def delete_fare_executive(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_FARE)
+
+        fare = session.query(Fare).filter(Fare.id == id).first()
+        if fare is not None:
+            fare_data = delete_fare(session, fare)
+            log_event(token, request_info, fare_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 @route_executive.get(
     URL_FARE,
     tags=["Fare"],
@@ -533,6 +588,48 @@ async def update_fare_operator(
         if have_updates:
             log_event(token, request_info, fare_data)
         return fare_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.delete(
+    f"{URL_FARE}/{{id}}",
+    tags=["Fare"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing fare.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in operator must have the `company.fare.delete` permission.    
+            - Returns 204 No Content even if the specified fare does not exist.    
+        """
+    ),
+)
+async def delete_fare_operator(
+    id: int,
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+        roles = get_operator_roles(session, token)
+        verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_FARE)
+
+        fare = (
+            session.query(Fare)
+            .filter(Fare.id == id, Fare.company_id == token.company_id)
+            .first()
+        )
+        if fare is not None:
+            fare_data = delete_fare(session, fare)
+            log_event(token, request_info, fare_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
