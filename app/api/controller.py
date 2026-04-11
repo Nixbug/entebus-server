@@ -89,6 +89,7 @@ app_vendor.include_router(bus_stop.route_vendor)
 app_vendor.include_router(vehicle.route_vendor)
 app_vendor.include_router(route.route_vendor)
 app_vendor.include_router(landmark_in_route.route_vendor)
+app_vendor.include_router(fare.route_vendor)
 
 
 # ------------------------------------------------------
