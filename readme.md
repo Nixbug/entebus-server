@@ -112,38 +112,38 @@ Run the following commands from the project root:
 
 ```bash
 # Create a new migration (revision) from model changes
-python -m app.setup revise "added new table"
+python -m app.setup tables revise "added new table"
 
 # Apply migrations (bring DB schema to latest head)
-python -m app.setup migrate
+python -m app.setup tables migrate
 
 # Reset the database (drop + recreate schema)
 # Note: Reinstall PostGIS extension when you do so
-python -m app.setup reset_db
+python -m app.setup tables reset
 
 # Downgrade the database by one step (use -N for multiple steps)
-python -m app.setup downgrade
-python -m app.setup downgrade -2
+python -m app.setup tables downgrade
+python -m app.setup tables downgrade -2
 
 # Create all tables directly (without migrations)
 # Note: Use with caution (not for production)
-python -m app.setup create_tables
+python -m app.setup tables create
 
 # Delete all tables (without migrations)
 # Note: Use with caution (not for production)
-python -m app.setup delete_tables
+python -m app.setup tables delete
+
+# Initialize the database with default data
+python -m app.setup tables init
 
 # Create all MinIO buckets (defined in app/src/buckets.py)
-python -m app.setup create_buckets
+python -m app.setup buckets create
 
 # Delete all MinIO buckets
-python -m app.setup delete_buckets
-
-# Initialize the server environment
-python3 -m app.setup initialize
+python -m app.setup buckets delete
 
 # To run the tests (Make sure the server is running)
-python3 -m tests.setup test_endpoints
+python -m tests.setup test api
 ```
 
 

@@ -27,11 +27,18 @@ def run_db_migration_test(base_url: str):
 # ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(description="Testing utilities.")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(
+        dest="group", required=True, help="Command group"
+    )
 
-    # Endpoint tests
-    endpoint_sp = subparsers.add_parser("test_endpoints", help="Run endpoint tests")
-    endpoint_sp.add_argument(
+    test_parser = subparsers.add_parser("test", help="Test commands")
+    test_subparsers = test_parser.add_subparsers(
+        dest="command", required=True, help="Test command"
+    )
+
+    # API endpoint tests
+    api_sp = test_subparsers.add_parser("api", help="Run API endpoint tests")
+    api_sp.add_argument(
         "--base-url",
         type=str,
         default="http://localhost:8080",
@@ -39,8 +46,8 @@ def main():
     )
 
     # Migration tests
-    migration_sp = subparsers.add_parser(
-        "test_migration", help="Run DB migration tests"
+    migration_sp = test_subparsers.add_parser(
+        "migration", help="Run DB migration tests"
     )
     migration_sp.add_argument(
         "--base-url",
@@ -48,12 +55,14 @@ def main():
         default="http://localhost:8000",
         help="Base URL for API endpoints",
     )
+
     args = parser.parse_args()
 
-    if args.command == "test_endpoints":
-        run_endpoint_test(args.base_url)
-    elif args.command == "test_migration":
-        run_db_migration_test(args.base_url)
+    if args.group == "test":
+        if args.command == "api":
+            run_endpoint_test(args.base_url)
+        elif args.command == "migration":
+            run_db_migration_test(args.base_url)
 
 
 if __name__ == "__main__":
