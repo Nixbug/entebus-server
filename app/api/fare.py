@@ -234,7 +234,7 @@ def search_fare(session: Session, query_params: QueryParams) -> List[Fare]:
     query = session.query(Fare)
     if query_params.company_id is not None:
         query = query.filter(
-            or_(Fare.company_id == query_params.company_id, Fare.company_id == None)
+            or_(Fare.company_id == query_params.company_id, Fare.company_id.is_(None))
         )
     if query_params.scope is not None:
         query = query.filter(Fare.scope == query_params.scope)
