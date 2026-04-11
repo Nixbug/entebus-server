@@ -100,14 +100,18 @@ class CreateFormForEX(CreateFormForOP):
     scope: FareScope = Field(description=enum_str(FareScope), default=FareScope.GLOBAL)
 
 
+class CreateForm(CreateFormForEX):
+    """Generic combined form data for creating a new fare."""
+
+    pass
+
+
 class UpdateForm(BaseModel):
     """Form data for updating a fare."""
 
-    name: str | None = Field(
-        default=None, min_length=1, max_length=32, pattern=NAME_PATTERN
-    )
-    attributes: FareAttributes | None = Field(default=None)
-    function: str | None = Field(default=None, min_length=1, max_length=32768)
+    name: str = Field(default=None, min_length=1, max_length=32, pattern=NAME_PATTERN)
+    attributes: FareAttributes = Field(default=None)
+    function: str = Field(default=None, min_length=1, max_length=32768)
 
 
 ## Query Parameters
@@ -156,6 +160,33 @@ class QueryParams(QueryParamsForEX):
 
 
 ## Functions
+def create_fare(session: Session, form_param: CreateForm) -> dict:
+    """
+    Creates a new fare record in the database.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        form_param (CreateForm): Form data for creating a fare.
+
+    Returns:
+        dict: The created fare data.
+    """
+    form_param.attributes = form_param.attributes.model_dump()
+    validate_fare_function(form_param.function, form_param.attributes)
+    fare = Fare(
+        company_id=form_param.company_id,
+        name=form_param.name,
+        attributes=form_param.attributes,
+        function=form_param.function,
+        scope=form_param.scope,
+    )
+    session.add(fare)
+    session.commit()
+    session.refresh(fare)
+    fare_data = jsonable_encoder(fare)
+    return fare_data
+
+
 def update_fare(session: Session, fare: Fare, form_param: UpdateForm):
     """
     Updates an existing fare record in the database.
@@ -274,6 +305,8 @@ def search_fare(session: Session, query_params: QueryParams) -> List[Fare]:
             - If scope is GLOBAL, company_id must be null. If scope is LOCAL, company_id must be provided.    
             - The fare function is validated against the provided attributes.    
             - The maximum allowed size for the fare function is 10 MB and maximum execution time is 1 second.    
+            - Preferable dynamic fare version is 1.    
+            - Preferable distance unit is meter and currency is INR.    
         """
     ),
 )
@@ -294,19 +327,7 @@ async def create_fare_executive(
             raise exceptions.MissingParameter(Fare.company_id)
         if form_param.company_id is not None:
             validate_id(session, Company, form_param.company_id, Fare.company_id)
-        form_param.attributes = form_param.attributes.model_dump()
-        validate_fare_function(form_param.function, form_param.attributes)
-        fare = Fare(
-            company_id=form_param.company_id,
-            name=form_param.name,
-            attributes=form_param.attributes,
-            function=form_param.function,
-            scope=form_param.scope,
-        )
-        session.add(fare)
-        session.commit()
-        session.refresh(fare)
-        fare_data = jsonable_encoder(fare)
+        fare_data = create_fare(session, CreateForm(**form_param.model_dump()))
 
         log_event(token, request_info, fare_data)
         return fare_data
@@ -339,6 +360,8 @@ async def create_fare_executive(
             - Logged-in executive must have `company.fare.update` permission.    
             - DF function and attributes are validated together.    
             - Empty PATCH requests are allowed and will result in no changes.    
+            - Preferable dynamic fare version is 1.    
+            - Preferable distance unit is meter and currency is INR.    
         """
     ),
 )
@@ -425,6 +448,8 @@ async def fetch_fare_executive(
             - Operators can only create fares with LOCAL scope for their own company.    
             - The fare function is validated against the provided attributes.    
             - Enforces function size is 10 MB or less and execution time is 1 second or less.    
+            - Preferable dynamic fare version is 1.    
+            - Preferable distance unit is meter and currency is INR.    
         """
     ),
 )
@@ -439,19 +464,14 @@ async def create_fare_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_FARE)
 
-        form_param.attributes = form_param.attributes.model_dump()
-        validate_fare_function(form_param.function, form_param.attributes)
-        fare = Fare(
-            company_id=token.company_id,
-            name=form_param.name,
-            attributes=form_param.attributes,
-            function=form_param.function,
-            scope=FareScope.LOCAL,
+        fare_data = create_fare(
+            session,
+            CreateForm(
+                **form_param.model_dump(),
+                company_id=token.company_id,
+                scope=FareScope.LOCAL,
+            ),
         )
-        session.add(fare)
-        session.commit()
-        session.refresh(fare)
-        fare_data = jsonable_encoder(fare)
 
         log_event(token, request_info, fare_data)
         return fare_data
@@ -485,6 +505,8 @@ async def create_fare_operator(
             - DF function and attributes are validated together.    
             - Only fares belonging to the operator's company can be updated.    
             - Empty PATCH requests are allowed and will result in no changes.    
+            - Preferable dynamic fare version is 1.    
+            - Preferable distance unit is meter and currency is INR.    
         """
     ),
 )

@@ -2055,30 +2055,29 @@ class Fare(ORMbase):
     """
 
     __tablename__ = "fare"
-    __table_args__ = (
-        Index(
-            "ix_fare_name_company_unique",
-            "name",
-            "company_id",
-            unique=True,
-            postgresql_where=(Column("company_id").isnot(None)),
-        ),
-        Index(
-            "ix_fare_name_global_unique",
-            "name",
-            unique=True,
-            postgresql_where=(Column("company_id").is_(None)),
-        ),
-    )
+
     id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer, ForeignKey("company.id", ondelete="CASCADE"), index=True
-    )
+    company_id = Column(Integer, ForeignKey("company.id", ondelete="CASCADE"))
     version = Column(Integer, nullable=False, default=1)
-    name = Column(String(32), nullable=False, index=True)
+    name = Column(String(32), nullable=False)
     attributes = Column(JSONB, nullable=False)
     function = Column(TEXT, nullable=False)
     scope = Column(Integer, nullable=False, default=FareScope.GLOBAL)
+    __table_args__ = (
+        Index(
+            "ix_fare_name_company_unique",
+            name,
+            company_id,
+            unique=True,
+            postgresql_where=company_id.isnot(None),
+        ),
+        Index(
+            "ix_fare_name_global_unique",
+            name,
+            unique=True,
+            postgresql_where=company_id.is_(None),
+        ),
+    )
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
