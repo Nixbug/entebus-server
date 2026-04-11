@@ -460,10 +460,27 @@ def main():
     parser = argparse.ArgumentParser(
         description="Database migration and management tool"
     )
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(
+        dest="group", required=True, help="Command group"
+    )
 
-    # Downgrade
-    downgrade_sp = subparsers.add_parser("downgrade", help="Downgrade the schema")
+    tables_parser = subparsers.add_parser("tables", help="Table and migration commands")
+    tables_subparsers = tables_parser.add_subparsers(
+        dest="command", required=True, help="Table command"
+    )
+
+    tables_subparsers.add_parser("create", help="Create all tables")
+    tables_subparsers.add_parser("delete", help="Delete all tables")
+    tables_subparsers.add_parser(
+        "init", help="Initialize the database with default data"
+    )
+    tables_subparsers.add_parser("reset", help="Reset the database schema")
+    tables_subparsers.add_parser("migrate", help="Run migrations to head")
+
+    # Downgrade with optional steps
+    downgrade_sp = tables_subparsers.add_parser(
+        "downgrade", help="Downgrade the schema"
+    )
     downgrade_sp.add_argument(
         "steps",
         nargs="?",
@@ -471,39 +488,45 @@ def main():
         help="Number of steps to downgrade (default: -1)",
     )
 
-    # Revise
-    revise_sp = subparsers.add_parser("revise", help="Create a new migration revision")
+    # Revise with optional message
+    revise_sp = tables_subparsers.add_parser(
+        "revise", help="Create a new migration revision"
+    )
     revise_sp.add_argument(
         "message", nargs="?", default="auto revise", help="Revision message"
     )
 
-    subparsers.add_parser("reset_db", help="Reset the database")
-    subparsers.add_parser("migrate", help="Run migrations")
-    subparsers.add_parser("create_tables", help="Create all tables")
-    subparsers.add_parser("delete_tables", help="Delete all tables")
-    subparsers.add_parser("create_buckets", help="Create storage buckets")
-    subparsers.add_parser("delete_buckets", help="Delete storage buckets")
-    subparsers.add_parser("initialize", help="Initialize the server environment")
+    buckets_parser = subparsers.add_parser("buckets", help="Storage bucket commands")
+    buckets_subparsers = buckets_parser.add_subparsers(
+        dest="command", required=True, help="Bucket command"
+    )
+
+    buckets_subparsers.add_parser("create", help="Create storage buckets")
+    buckets_subparsers.add_parser("delete", help="Delete storage buckets")
+
     args = parser.parse_args()
 
-    if args.command == "downgrade":
-        downgrade(args.steps)
-    elif args.command == "reset_db":
-        reset_db()
-    elif args.command == "migrate":
-        migrate()
-    elif args.command == "revise":
-        revise(args.message)
-    elif args.command == "create_tables":
-        create_tables()
-    elif args.command == "delete_tables":
-        delete_tables()
-    elif args.command == "create_buckets":
-        create_buckets()
-    elif args.command == "delete_buckets":
-        delete_buckets()
-    if args.command == "initialize":
-        initialize()
+    # Dispatch based on group and command
+    if args.group == "tables":
+        if args.command == "create":
+            create_tables()
+        elif args.command == "delete":
+            delete_tables()
+        elif args.command == "init":
+            initialize()
+        elif args.command == "reset":
+            reset_db()
+        elif args.command == "migrate":
+            migrate()
+        elif args.command == "downgrade":
+            downgrade(args.steps)
+        elif args.command == "revise":
+            revise(args.message)
+    elif args.group == "buckets":
+        if args.command == "create":
+            create_buckets()
+        elif args.command == "delete":
+            delete_buckets()
 
 
 if __name__ == "__main__":
