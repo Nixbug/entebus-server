@@ -616,6 +616,7 @@ async def create_vehicle_operator(
             - Requires a valid access token.    
             - Logged-in operator must have `company.vehicle.update` permission.    
             - Manufactured date cannot be in the future.    
+            - Status transitions are only allowed between ACTIVE and MAINTENANCE.    
             - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
