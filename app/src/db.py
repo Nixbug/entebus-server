@@ -2136,7 +2136,7 @@ class FareInService(ORMbase):
     reference_count = Column(Integer, nullable=False, default=0)
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
-    
+
 
 class LandmarkInService(ORMbase):
     """
