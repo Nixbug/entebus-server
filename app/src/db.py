@@ -2125,6 +2125,7 @@ class FareInService(ORMbase):
     """
 
     __tablename__ = "fare_in_service"
+    __table_args__ = (UniqueConstraint("fare_id", "version"),)
 
     id = Column(Integer, primary_key=True)
     fare_id = Column(Integer, nullable=False, index=True)
@@ -2172,6 +2173,7 @@ class LandmarkInService(ORMbase):
     """
 
     __tablename__ = "landmark_in_service"
+    __table_args__ = (UniqueConstraint("service_id", "landmark_id"),)
 
     id = Column(Integer, primary_key=True)
     service_id = Column(Integer, nullable=False, index=True)
@@ -2224,7 +2226,8 @@ class VehicleInService(ORMbase):
     """
 
     __tablename__ = "vehicle_in_service"
-
+    __table_args__ = (UniqueConstraint("vehicle_id", "version"),)
+    
     id = Column(Integer, primary_key=True)
     vehicle_id = Column(Integer, nullable=False, index=True)
     version = Column(Integer, nullable=False)
