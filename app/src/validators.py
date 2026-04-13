@@ -428,7 +428,10 @@ def validate_fare_function(function: str, attributes: dict) -> DynamicFare:
 
 
 def validate_state_transition(
-    transitions: dict[Any, list[Any]], old_state: Any, new_state: Any, column: InstrumentedAttribute
+    transitions: dict[Any, list[Any]],
+    old_state: Any,
+    new_state: Any,
+    column: InstrumentedAttribute,
 ) -> bool:
     """
     Validate whether a state transition is allowed.
@@ -442,8 +445,8 @@ def validate_state_transition(
     Returns:
         bool: True if the transition is valid.
 
-    Raises
-        InvalidStateTransition: If the transition from old_state to new_state is not allowed.
+    Raises:
+        exceptions.InvalidStateTransition: If the transition from old_state to new_state is not allowed.
     """
     if not is_valid_transition(transitions, old_state, new_state):
         raise exceptions.InvalidStateTransition(column)
