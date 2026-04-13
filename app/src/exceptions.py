@@ -249,6 +249,19 @@ class InvalidValue(APIException):
         super().__init__(detail=detail)
 
 
+class InvalidStateTransition(APIException):
+    """
+    Raised when an attempted state transition is not permitted.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    headers = {"X-Error": "InvalidStateTransition"}
+
+    def __init__(self, column: InstrumentedAttribute):
+        detail = f"The {column.name} cannot be set to the provided value"
+        super().__init__(detail=detail)
+
+
 class MissingParameter(APIException):
     """
     Raised when a required parameter is missing from the request.

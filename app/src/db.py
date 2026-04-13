@@ -1800,7 +1800,7 @@ class Vehicle(ORMbase):
         road_tax_upto (DateTime, nullable):
             Date until which the vehicle's road tax is paid.
 
-        status (Integer, not null, default=VehicleStatus.ACTIVE):
+        status (Integer, not null, default=VehicleStatus.CREATED):
             Verification status of the vehicle. Mapped from the `VehicleStatus` enum.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
@@ -1823,12 +1823,13 @@ class Vehicle(ORMbase):
     registration_number = Column(String(16), nullable=False, index=True)
     name = Column(String(32), nullable=False, index=True)
     capacity = Column(Integer, nullable=False)
+    version = Column(Integer, nullable=False, default=1)
     manufactured_on = Column(DateTime(timezone=True))
     insurance_upto = Column(DateTime(timezone=True))
     pollution_upto = Column(DateTime(timezone=True))
     fitness_upto = Column(DateTime(timezone=True))
     road_tax_upto = Column(DateTime(timezone=True))
-    status = Column(Integer, nullable=False, default=VehicleStatus.ACTIVE)
+    status = Column(Integer, nullable=False, default=VehicleStatus.CREATED)
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())

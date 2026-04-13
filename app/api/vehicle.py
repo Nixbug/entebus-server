@@ -35,7 +35,12 @@ from app.src import exceptions
 from app.src.regex import VEHICLE_NUMBER_PATTERN, NAME_PATTERN
 from app.src.urls import URL_VEHICLE
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token, validate_id
+from app.src.validators import (
+    verify_permission,
+    verify_token,
+    validate_id,
+    validate_state_transition,
+)
 from app.src.functions import (
     enum_str,
     fuse_exception_responses,
@@ -86,6 +91,7 @@ class VehicleSchema(MaskedVehicleSchema):
     fitness_upto: Optional[datetime]
     road_tax_upto: Optional[datetime]
     status: int
+    version: int
 
 
 # Input Forms
@@ -100,15 +106,15 @@ class CreateFormForOP(BaseModel):
     pollution_upto: datetime | None = Field(default=None)
     fitness_upto: datetime | None = Field(default=None)
     road_tax_upto: datetime | None = Field(default=None)
-    status: VehicleStatus = Field(
-        description=enum_str(VehicleStatus), default=VehicleStatus.ACTIVE
-    )
 
 
 class CreateFormForEX(CreateFormForOP):
     """Form data for creating a new vehicle for an executive."""
 
     company_id: int = Field()
+    status: VehicleStatus = Field(
+        description=enum_str(VehicleStatus), default=VehicleStatus.CREATED
+    )
 
 
 class CreateForm(CreateFormForEX):
@@ -265,6 +271,7 @@ def update_vehicle(session: Session, vehicle: Vehicle, form_param: UpdateForm):
     update_if_changed(vehicle, update_data)
     have_updates = session.is_modified(vehicle)
     if have_updates:
+        vehicle.version += 1
         session.commit()
         session.refresh(vehicle)
 
@@ -396,7 +403,7 @@ def search_vehicle(session: Session, query_params: QueryParams) -> List[Vehicle]
             - Logged-in executive must have `company.vehicle.create` permission.    
             - Duplicate registration numbers are not allowed.   
             - Manufactured date cannot be in the future.    
-            - By default the vehicle is created in active status.    
+            - By default, the vehicle status is set to `CREATED`.    
         """
     ),
 )
@@ -559,7 +566,7 @@ async def fetch_vehicle_executive(
             - Logged-in operator must have `company.vehicle.create` permission.    
             - Duplicate registration numbers are not allowed.    
             - Manufactured date cannot be in the future.    
-            - By default the vehicle is created in active status.    
+            - By default, the vehicle status is set to `CREATED`.    
         """
     ),
 )
@@ -575,7 +582,12 @@ async def create_vehicle_operator(
         verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_VEHICLE)
 
         vehicle_data = create_vehicle(
-            session, CreateForm(**form_param.model_dump(), company_id=token.company_id)
+            session,
+            CreateForm(
+                **form_param.model_dump(),
+                company_id=token.company_id,
+                status=VehicleStatus.CREATED,
+            ),
         )
         log_event(token, request_info, vehicle_data)
         return vehicle_data
@@ -595,6 +607,7 @@ async def create_vehicle_operator(
             exceptions.NoPermission(),
             exceptions.InvalidValue(Vehicle.manufactured_on),
             exceptions.UnknownValue(Vehicle.id),
+            exceptions.InvalidStateTransition(Vehicle.status),
         ]
     ),
     description=(
@@ -603,6 +616,7 @@ async def create_vehicle_operator(
             - Requires a valid access token.    
             - Logged-in operator must have `company.vehicle.update` permission.    
             - Manufactured date cannot be in the future.    
+            - Status transitions are only allowed between ACTIVE and MAINTENANCE.    
             - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
@@ -619,11 +633,24 @@ async def update_vehicle_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_VEHICLE)
 
+        _allowed_vehicle_status_transitions = {
+            VehicleStatus.ACTIVE: [VehicleStatus.MAINTENANCE],
+            VehicleStatus.MAINTENANCE: [VehicleStatus.ACTIVE],
+        }
         vehicle = validate_id(
             session, Vehicle, id, Vehicle.id, (Vehicle.company_id == token.company_id)
         )
+        update_data = form_param.model_dump(exclude_unset=True)
+        if "status" in update_data:
+            validate_state_transition(
+                _allowed_vehicle_status_transitions,
+                vehicle.status,
+                update_data.get("status"),
+                Vehicle.status,
+            )
+
         have_updates, vehicle_data = update_vehicle(
-            session, vehicle, UpdateForm(**form_param.model_dump(exclude_unset=True))
+            session, vehicle, UpdateForm(**update_data)
         )
         if have_updates:
             log_event(token, request_info, vehicle_data)
