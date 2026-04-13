@@ -691,8 +691,8 @@ def is_valid_transition(
         old_state (Any): The current state before the transition.
         new_state (Any): The desired state after the transition.
 
-    Returns :
-     bool: True if the transition is valid.
+    Returns:
+        bool: True if the transition is valid.
     """
     if new_state is None or old_state == new_state:
         return True

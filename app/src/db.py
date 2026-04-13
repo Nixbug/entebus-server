@@ -1800,7 +1800,7 @@ class Vehicle(ORMbase):
         road_tax_upto (DateTime, nullable):
             Date until which the vehicle's road tax is paid.
 
-        status (Integer, not null, default=VehicleStatus.ACTIVE):
+        status (Integer, not null, default=VehicleStatus.CREATED):
             Verification status of the vehicle. Mapped from the `VehicleStatus` enum.
 
         updated_on (DateTime, nullable, onupdate=func.now()):

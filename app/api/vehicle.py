@@ -403,7 +403,7 @@ def search_vehicle(session: Session, query_params: QueryParams) -> List[Vehicle]
             - Logged-in executive must have `company.vehicle.create` permission.    
             - Duplicate registration numbers are not allowed.   
             - Manufactured date cannot be in the future.    
-            - By default the vehicle is created in active status.    
+            - By default, the vehicle status is set to `CREATED`.    
         """
     ),
 )
@@ -566,7 +566,7 @@ async def fetch_vehicle_executive(
             - Logged-in operator must have `company.vehicle.create` permission.    
             - Duplicate registration numbers are not allowed.    
             - Manufactured date cannot be in the future.    
-            - By default the vehicle is created in active status.    
+            - By default, the vehicle status is set to `CREATED`.    
         """
     ),
 )
@@ -607,6 +607,7 @@ async def create_vehicle_operator(
             exceptions.NoPermission(),
             exceptions.InvalidValue(Vehicle.manufactured_on),
             exceptions.UnknownValue(Vehicle.id),
+            exceptions.InvalidStateTransition(Vehicle.status),
         ]
     ),
     description=(
@@ -648,7 +649,7 @@ async def update_vehicle_operator(
             )
 
         have_updates, vehicle_data = update_vehicle(
-            session, vehicle, UpdateForm(**form_param.model_dump(exclude_unset=True))
+            session, vehicle, UpdateForm(**update_data)
         )
         if have_updates:
             log_event(token, request_info, vehicle_data)
