@@ -13,7 +13,7 @@ from sqlalchemy.orm.session import Session
 from sqlalchemy.sql.elements import ClauseElement
 import math
 
-from app.src.functions import get_by_path
+from app.src.functions import get_by_path, is_valid_transition
 from app.src import argon2, exceptions
 from app.src.enums import AccountStatus, BusinessStatus, CompanyStatus, GrantType
 from app.src.db import (
@@ -425,3 +425,26 @@ def validate_fare_function(function: str, attributes: dict) -> DynamicFare:
             )
 
     return fare_function
+
+
+def validate_state_transition(
+    transitions: dict[Any, list[Any]], old_state: Any, new_state: Any, column: InstrumentedAttribute
+) -> bool:
+    """
+    Validate whether a state transition is allowed.
+
+    Args:
+        transitions (dict[Any, list[Any]]): A mapping of valid state transitions.
+        old_state (Any): The current state before the transition.
+        new_state (Any): The desired state after the transition.
+        column (InstrumentedAttribute): The ORM column associated with the state, used for exception messages.
+
+    Returns:
+        bool: True if the transition is valid.
+
+    Raises
+        InvalidStateTransition: If the transition from old_state to new_state is not allowed.
+    """
+    if not is_valid_transition(transitions, old_state, new_state):
+        raise exceptions.InvalidStateTransition(column)
+    return True

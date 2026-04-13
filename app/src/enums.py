@@ -114,9 +114,10 @@ class BankAccountType(IntEnum):
 class VehicleStatus(IntEnum):
     """Operational status of a vehicle."""
 
-    ACTIVE = 1
-    MAINTENANCE = 2
-    SUSPENDED = 3
+    CREATED = 1
+    ACTIVE = 2
+    MAINTENANCE = 3
+    SUSPENDED = 4
 
 
 class TicketingMode(IntEnum):
