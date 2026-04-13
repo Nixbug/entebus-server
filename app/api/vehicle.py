@@ -632,7 +632,7 @@ async def update_vehicle_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_VEHICLE)
 
-        _vehicle_operator_status_transitions = {
+        _allowed_vehicle_status_transitions = {
             VehicleStatus.ACTIVE: [VehicleStatus.MAINTENANCE],
             VehicleStatus.MAINTENANCE: [VehicleStatus.ACTIVE],
         }
@@ -642,7 +642,7 @@ async def update_vehicle_operator(
         update_data = form_param.model_dump(exclude_unset=True)
         if "status" in update_data:
             validate_state_transition(
-                _vehicle_operator_status_transitions,
+                _allowed_vehicle_status_transitions,
                 vehicle.status,
                 update_data.get("status"),
                 Vehicle.status,
