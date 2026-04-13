@@ -2227,7 +2227,7 @@ class VehicleInService(ORMbase):
 
     __tablename__ = "vehicle_in_service"
     __table_args__ = (UniqueConstraint("vehicle_id", "version"),)
-    
+
     id = Column(Integer, primary_key=True)
     vehicle_id = Column(Integer, nullable=False, index=True)
     version = Column(Integer, nullable=False)
