@@ -678,3 +678,26 @@ def resolve_model_defaults(model_cls: Type[BaseModel], **overrides):
             else:
                 data[field_name] = default_val
     return model_cls(**data)
+
+
+def is_valid_transition(
+    transitions: dict[Any, list[Any]], old_state: Any, new_state: Any
+) -> bool:
+    """
+    Check if a state transition is valid.
+
+    Args:
+        transitions (dict[Any, list[Any]]): A mapping of valid state transitions.
+        old_state (Any): The current state before the transition.
+        new_state (Any): The desired state after the transition.
+
+    Returns:
+        bool: True if the transition is valid.
+    """
+    if new_state is None or old_state == new_state:
+        return True
+    if not transitions:
+        return False
+    if old_state not in transitions:
+        return False
+    return new_state in transitions[old_state]
