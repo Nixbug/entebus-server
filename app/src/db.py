@@ -2129,13 +2129,13 @@ class FareInService(ORMbase):
     __table_args__ = (UniqueConstraint("fare_id", "version"),)
 
     id = Column(Integer, primary_key=True)
-    fare_id = Column(Integer, nullable=False, index=True)
+    fare_id = Column(Integer,ForeignKey("fare.id"), nullable=False, index=True)
     version = Column(Integer, nullable=False)
     name = Column(String(32), nullable=False)
     attributes = Column(JSONB, nullable=False)
     function = Column(TEXT, nullable=False)
     # Metadata
-    reference_count = Column(Integer, nullable=False, default=0)
+    reference_count = Column(Integer, nullable=False, default=1)
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
 
@@ -2179,8 +2179,8 @@ class LandmarkInService(ORMbase):
     id = Column(Integer, primary_key=True)
     service_id = Column(Integer, nullable=False, index=True)
     landmark_id = Column(Integer, nullable=False, index=True)
-    arrival_at = Column(Integer, nullable=False)
-    departure_at = Column(Integer, nullable=False)
+    arrival_at = Column(Time(timezone=True), nullable=False)
+    departure_at = Column(Time(timezone=True), nullable=False)
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
@@ -2230,13 +2230,13 @@ class VehicleInService(ORMbase):
     __table_args__ = (UniqueConstraint("vehicle_id", "version"),)
 
     id = Column(Integer, primary_key=True)
-    vehicle_id = Column(Integer, nullable=False, index=True)
+    vehicle_id = Column(Integer,ForeignKey("vehicle.id"), nullable=False, index=True)
     version = Column(Integer, nullable=False)
     registration_number = Column(String(16), nullable=False)
     name = Column(String(32), nullable=False)
     capacity = Column(Integer, nullable=False)
 
     # Metadata
-    reference_count = Column(Integer, nullable=False, default=0)
+    reference_count = Column(Integer, nullable=False, default=1)
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
