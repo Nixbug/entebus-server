@@ -60,6 +60,8 @@ from app.src.enums import (
     VehicleStatus,
     RouteStatus,
     FareScope,
+    ServiceStatus,
+    TicketingMode,
 )
 
 
@@ -2048,7 +2050,7 @@ class Fare(ORMbase):
             Indicates the applicability of the fare.
             Mapped from the `FareScope` enum.
 
-         updated_on (DateTime, nullable, onupdate=func.now()):
+        updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp automatically updated whenever the fare record is modified.
 
         created_on (DateTime, not null, default=func.now()):
@@ -2079,6 +2081,98 @@ class Fare(ORMbase):
             postgresql_where=company_id.is_(None),
         ),
     )
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class Service(ORMbase):
+    """
+    Represents a transport service operated by a company.
+
+    This table stores details about individual service instances,
+    including their assigned route, fare, bus, and operational timeframes.
+    It also maintains cryptographic keys for secure ticketing
+    and records various states and modes related to the service.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the service.
+
+        company_id (Integer, nullable):
+            Foreign key referencing `company.id` that operates the service.
+
+        name (String(128), not null):
+            Name of the service.
+            Maximum 128 characters long.
+
+        route (JSONB, not null):
+            Stored as binary JSON object containing the route details for the service.
+            Route once set cannot be changed.
+
+        fare (JSONB, not null):
+            Stored as binary JSON object containing the fare details for the service.
+            Fare once set cannot be changed.
+
+        vehicle_id (Integer, nullable):
+            Foreign key referencing `vehicle.id`.
+            Specifies the vehicle assigned to this service.
+
+        ticket_mode (Integer, not null, default=TicketingMode.HYBRID):
+            Ticketing mode for the service. Mapped from the `TicketingMode` enum.
+
+        status (Integer, not null, default=ServiceStatus.CREATED):
+            Service status. Mapped from the `ServiceStatus` enum.
+            A service cannot be created before 24 hours from the `starting_at` time.
+
+        starting_at (DateTime, not null):
+            The time of the day when the service starts operation, based on route information.
+
+        ending_at (DateTime, not null):
+            The time of the day when the service ends operation, based on route information.
+
+        private_key (TEXT, not null):
+            Private cryptographic key for the service.
+            Used for secure ticket generation and validation.
+
+        public_key (TEXT, not null):
+            Public cryptographic key corresponding to the private key.
+            Shared for ticket verification.
+
+        remark (TEXT):
+            Optional text field for additional remarks or notes related to the service.
+            Maximum 1024 characters long.
+
+        started_on (DateTime):
+            Time at which the first operator joined the duty.
+
+        finished_on (DateTime):
+            Time at which the Service is ended by the operator or when the statement is generated.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the fare record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp of when the fare record was created.
+    """
+
+    __tablename__ = "service"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("company.id"), index=True)
+    name = Column(String(128), nullable=False)
+    route = Column(JSONB, nullable=False)
+    fare = Column(JSONB, nullable=False)
+    vehicle_id = Column(Integer, ForeignKey("vehicle.id"))
+    ticket_mode = Column(Integer, nullable=False, default=TicketingMode.HYBRID)
+    status = Column(Integer, nullable=False, default=ServiceStatus.CREATED)
+    starting_at = Column(DateTime(timezone=True), nullable=False)
+    ending_at = Column(DateTime(timezone=True), nullable=False)
+    private_key = Column(TEXT, nullable=False)
+    public_key = Column(TEXT, nullable=False)
+    remark = Column(TEXT)
+    started_on = Column(DateTime(timezone=True))
+    finished_on = Column(DateTime(timezone=True))
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
