@@ -11,13 +11,14 @@ It ensures consistent error responses across the API.
 
 from traceback import format_exception
 from logging import getLogger
+from typing import Type
 from fastapi import status, HTTPException
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
 from pydantic import ValidationError
 from redis.exceptions import RedisError
 from requests.exceptions import ConnectionError, Timeout
-from sqlalchemy.orm import InstrumentedAttribute
+from sqlalchemy.orm import DeclarativeMeta, InstrumentedAttribute
 
 
 # ---------------------------------------------------------------------------
@@ -284,6 +285,18 @@ class UnexpectedParameter(APIException):
     def __init__(self, column: InstrumentedAttribute):
         detail = f"Unexpected parameter {column.name} is provided"
         super().__init__(detail=detail)
+
+
+class InactiveResource(APIException):
+    status_code = status.HTTP_412_PRECONDITION_FAILED
+    headers = {"X-Error": "InactiveResource"}
+
+    def __init__(self, orm_class: Type[DeclarativeMeta]):
+        detail = (
+            f"The status of {orm_class.__name__} is not in an active or useful state"
+        )
+        super().__init__(detail=detail)
+
 
 
 class NoPermission(APIException):
