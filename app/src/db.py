@@ -2096,9 +2096,11 @@ class FareInService(ORMbase):
         id (Integer, unique, not null):
             Primary identifier for the fare snapshot.
 
-        fare_id (Integer, not null):
-            Identifier of the original fare.
-            Stored as a plain integer (not a foreign key) to preserve snapshot independence.
+        fare_id (Integer, nullable):
+            Identifier of the associated fare.
+            Defined as a foreign key to `fare.id` with `ondelete="SET NULL"`.
+            This field is nullable, and its value is set to NULL if the referenced
+            fare is deleted.
 
         version (Integer, not null):
             Version of the fare at the time of assignment.
@@ -2115,7 +2117,7 @@ class FareInService(ORMbase):
             Fare calculation logic captured at the time of assignment.
 
     Metadata:
-        reference_count (Integer, not null, default=0):
+        reference_count (Integer, not null, default=1):
             Tracks how many services reference this fare snapshot.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
@@ -2159,10 +2161,10 @@ class LandmarkInService(ORMbase):
             Identifier of the landmark.
             Stored without enforcing foreign key constraints to allow snapshot flexibility.
 
-        arrival_at (Integer, not null):
+        arrival_at (Time, not null):
             Scheduled arrival time at the landmark for the service.
 
-        departure_at (Integer, not null):
+        departure_at (Time, not null):
             Scheduled departure time from the landmark for the service.
 
     Metadata:
@@ -2198,9 +2200,11 @@ class VehicleInService(ORMbase):
         id (Integer, unique, not null):
             Primary identifier for the vehicle snapshot.
 
-        vehicle_id (Integer, not null):
+        vehicle_id (Integer, nullable):
             Identifier of the original vehicle.
-            Stored as a plain integer (not a foreign key) to preserve snapshot independence.
+            Defined as a foreign key to `vehicle.id` with `ondelete="SET NULL"`.
+            This field is nullable, and its value is set to NULL if the referenced
+            vehicle is deleted.
 
         version (Integer, not null):
             Version of the vehicle at the time of assignment.
@@ -2216,7 +2220,7 @@ class VehicleInService(ORMbase):
             Seating or passenger capacity captured at the time of snapshot.
 
     Metadata:
-        reference_count (Integer, not null, default=0):
+        reference_count (Integer, not null, default=1):
             Tracks how many services reference this vehicle snapshot.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
