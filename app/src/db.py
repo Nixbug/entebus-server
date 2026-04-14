@@ -2176,7 +2176,6 @@ class LandmarkInService(ORMbase):
     """
 
     __tablename__ = "landmark_in_service"
-    __table_args__ = (UniqueConstraint("service_id", "landmark_id"),)
 
     id = Column(Integer, primary_key=True)
     service_id = Column(Integer, nullable=False, index=True)
