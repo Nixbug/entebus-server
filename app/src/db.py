@@ -2129,7 +2129,7 @@ class FareInService(ORMbase):
     __table_args__ = (UniqueConstraint("fare_id", "version"),)
 
     id = Column(Integer, primary_key=True)
-    fare_id = Column(Integer, ForeignKey("fare.id"), nullable=False, index=True)
+    fare_id = Column(Integer, ForeignKey("fare.id"), index=True)
     version = Column(Integer, nullable=False)
     name = Column(String(32), nullable=False)
     attributes = Column(JSONB, nullable=False)
@@ -2230,7 +2230,7 @@ class VehicleInService(ORMbase):
     __table_args__ = (UniqueConstraint("vehicle_id", "version"),)
 
     id = Column(Integer, primary_key=True)
-    vehicle_id = Column(Integer, ForeignKey("vehicle.id"), nullable=False, index=True)
+    vehicle_id = Column(Integer, ForeignKey("vehicle.id"), index=True)
     version = Column(Integer, nullable=False)
     registration_number = Column(String(16), nullable=False)
     name = Column(String(32), nullable=False)
