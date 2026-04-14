@@ -2180,3 +2180,172 @@ class Service(ORMbase):
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class FareInService(ORMbase):
+    """
+    Represents a snapshot of fare data associated with a service.
+
+    This table stores a copy of fare details at the time it is assigned to a service.
+    It ensures that any future updates to the original fare do not affect existing services.
+    Each record captures the version of the fare along with its configuration and logic.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the fare snapshot.
+
+        fare_id (Integer, not null):
+            Identifier of the original fare.
+            Stored as a plain integer (not a foreign key) to preserve snapshot independence.
+            This field is non-nullable so snapshots remain traceable even if the
+            original fare row is removed; the unique constraint on
+            `(fare_id, version)` enforces a single snapshot per fare version.
+
+        version (Integer, not null):
+            Version of the fare at the time of assignment.
+            Used to track which version of the fare is applied to the service.
+
+        name (String(32), not null):
+            Name of the fare at the time of snapshot.
+
+        attributes (JSONB, not null):
+            Configuration parameters of the fare.
+            Stored as binary JSON for efficient querying.
+
+        function (TEXT, not null):
+            Fare calculation logic captured at the time of assignment.
+
+    Metadata:
+        reference_count (Integer, not null, default=1):
+            Tracks how many services reference this fare snapshot.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp updated when the record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp of when the snapshot was created.
+    """
+
+    __tablename__ = "fare_in_service"
+    __table_args__ = (UniqueConstraint("fare_id", "version"),)
+
+    id = Column(Integer, primary_key=True)
+    fare_id = Column(Integer, nullable=False, index=True)
+    version = Column(Integer, nullable=False)
+    name = Column(String(32), nullable=False)
+    attributes = Column(JSONB, nullable=False)
+    function = Column(TEXT, nullable=False)
+    # Metadata
+    reference_count = Column(Integer, nullable=False, default=1)
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class LandmarkInService(ORMbase):
+    """
+    Represents a snapshot of landmark timing within a service.
+
+    This table stores landmark details as they are used in a specific service.
+    It captures arrival and departure times independently of the route configuration,
+    ensuring that service schedules remain consistent even if the underlying route changes.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the landmark-in-service record.
+
+        service_id (Integer, not null):
+            Foreign key referencing `service.id` that the record is associated with.
+            Cascades on delete — if the referenced service is removed, this record is automatically deleted.
+
+        landmark_id (Integer, not null):
+            Identifier of the landmark.
+            Stored without enforcing foreign key constraints to allow snapshot flexibility.
+
+        arrival_at (Time, not null):
+            Scheduled arrival time at the landmark for the service.
+
+        departure_at (Time, not null):
+            Scheduled departure time from the landmark for the service.
+
+    Metadata:
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the record was created.
+    """
+
+    __tablename__ = "landmark_in_service"
+
+    id = Column(Integer, primary_key=True)
+    service_id = Column(
+        Integer,
+        ForeignKey("service.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    landmark_id = Column(Integer, nullable=False, index=True)
+    arrival_at = Column(Time(timezone=True), nullable=False)
+    departure_at = Column(Time(timezone=True), nullable=False)
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class VehicleInService(ORMbase):
+    """
+    Represents a snapshot of vehicle data associated with a service.
+
+    This table stores a copy of vehicle details at the time it is assigned to a service.
+    It ensures that any future updates to the original vehicle do not affect existing services.
+    Each record captures the version of the vehicle along with its core operational details.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the vehicle snapshot.
+
+        vehicle_id (Integer, not null):
+            Identifier of the original vehicle.
+            Stored as a plain integer (not a foreign key) to preserve snapshot independence.
+            This field is non-nullable so snapshots remain traceable even if the
+            original vehicle row is removed; the unique constraint on
+            `(vehicle_id, version)` enforces a single snapshot per vehicle version.
+
+        version (Integer, not null):
+            Version of the vehicle at the time of assignment.
+            Used to track which version of the vehicle is applied to the service.
+
+        registration_number (String(16), not null):
+            Vehicle registration number at the time of snapshot.
+
+        name (String(32), not null):
+            Name or model of the vehicle at the time of snapshot.
+
+        capacity (Integer, not null):
+            Seating or passenger capacity captured at the time of snapshot.
+
+    Metadata:
+        reference_count (Integer, not null, default=1):
+            Tracks how many services reference this vehicle snapshot.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the snapshot was created.
+    """
+
+    __tablename__ = "vehicle_in_service"
+    __table_args__ = (UniqueConstraint("vehicle_id", "version"),)
+
+    id = Column(Integer, primary_key=True)
+    vehicle_id = Column(Integer, nullable=False, index=True)
+    version = Column(Integer, nullable=False)
+    registration_number = Column(String(16), nullable=False)
+    name = Column(String(32), nullable=False)
+    capacity = Column(Integer, nullable=False)
+
+    # Metadata
+    reference_count = Column(Integer, nullable=False, default=1)
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
