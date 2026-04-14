@@ -2096,11 +2096,12 @@ class FareInService(ORMbase):
         id (Integer, unique, not null):
             Primary identifier for the fare snapshot.
 
-        fare_id (Integer, nullable):
-            Identifier of the associated fare.
-            Defined as a foreign key to `fare.id` with `ondelete="SET NULL"`.
-            This field is nullable, and its value is set to NULL if the referenced
-            fare is deleted.
+        fare_id (Integer, not null):
+            Identifier of the original fare.
+            Stored as a plain integer (not a foreign key) to preserve snapshot independence.
+            This field is non-nullable so snapshots remain traceable even if the
+            original fare row is removed; the unique constraint on
+            `(fare_id, version)` enforces a single snapshot per fare version.
 
         version (Integer, not null):
             Version of the fare at the time of assignment.
@@ -2131,7 +2132,7 @@ class FareInService(ORMbase):
     __table_args__ = (UniqueConstraint("fare_id", "version"),)
 
     id = Column(Integer, primary_key=True)
-    fare_id = Column(Integer, ForeignKey("fare.id", ondelete="SET NULL"), index=True)
+    fare_id = Column(Integer, nullable=False, index=True)
     version = Column(Integer, nullable=False)
     name = Column(String(32), nullable=False)
     attributes = Column(JSONB, nullable=False)
@@ -2155,7 +2156,8 @@ class LandmarkInService(ORMbase):
             Primary identifier for the landmark-in-service record.
 
         service_id (Integer, not null):
-            Identifier of the service this landmark is associated with.
+            Foreign key referencing `service.id` that the record is associated with.
+            Cascades on delete — if the referenced service is removed, this record is automatically deleted.
 
         landmark_id (Integer, not null):
             Identifier of the landmark.
@@ -2178,7 +2180,7 @@ class LandmarkInService(ORMbase):
     __tablename__ = "landmark_in_service"
 
     id = Column(Integer, primary_key=True)
-    service_id = Column(Integer, nullable=False, index=True)
+    service_id = Column(Integer,ForeignKey("service.id", ondelete="CASCADE"), nullable=False, index=True)
     landmark_id = Column(Integer, nullable=False, index=True)
     arrival_at = Column(Time(timezone=True), nullable=False)
     departure_at = Column(Time(timezone=True), nullable=False)
@@ -2199,11 +2201,12 @@ class VehicleInService(ORMbase):
         id (Integer, unique, not null):
             Primary identifier for the vehicle snapshot.
 
-        vehicle_id (Integer, nullable):
+        vehicle_id (Integer, not null):
             Identifier of the original vehicle.
-            Defined as a foreign key to `vehicle.id` with `ondelete="SET NULL"`.
-            This field is nullable, and its value is set to NULL if the referenced
-            vehicle is deleted.
+            Stored as a plain integer (not a foreign key) to preserve snapshot independence.
+            This field is non-nullable so snapshots remain traceable even if the
+            original vehicle row is removed; the unique constraint on
+            `(vehicle_id, version)` enforces a single snapshot per vehicle version.
 
         version (Integer, not null):
             Version of the vehicle at the time of assignment.
@@ -2233,9 +2236,7 @@ class VehicleInService(ORMbase):
     __table_args__ = (UniqueConstraint("vehicle_id", "version"),)
 
     id = Column(Integer, primary_key=True)
-    vehicle_id = Column(
-        Integer, ForeignKey("vehicle.id", ondelete="SET NULL"), index=True
-    )
+    vehicle_id = Column(Integer, nullable=False, index=True)
     version = Column(Integer, nullable=False)
     registration_number = Column(String(16), nullable=False)
     name = Column(String(32), nullable=False)
