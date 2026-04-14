@@ -2180,7 +2180,12 @@ class LandmarkInService(ORMbase):
     __tablename__ = "landmark_in_service"
 
     id = Column(Integer, primary_key=True)
-    service_id = Column(Integer,ForeignKey("service.id", ondelete="CASCADE"), nullable=False, index=True)
+    service_id = Column(
+        Integer,
+        ForeignKey("service.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     landmark_id = Column(Integer, nullable=False, index=True)
     arrival_at = Column(Time(timezone=True), nullable=False)
     departure_at = Column(Time(timezone=True), nullable=False)
