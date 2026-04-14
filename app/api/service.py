@@ -7,6 +7,7 @@ Endpoints for update, deletion, and retrieval are planned for future implementat
 """
 
 from datetime import datetime
+from alembic.environment import Any, Dict
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
@@ -24,5 +25,20 @@ class MaskedServiceSchema(BaseModel):
     company_id : int
     name : str
     status : int 
+    registration_number : str
     starting_at : datetime
     ending_at : datetime
+
+
+class ServiceSchema(MaskedServiceSchema):
+    """Detailed schema for service response."""
+
+    route : Dict[str, Any]
+    fare : Dict[str, Any]
+    vehicle_id : int
+    ticket_mode : int
+    remark : str | None
+    started_on : datetime | None
+    finished_on : datetime | None
+    updated_on : datetime | None
+    created_on : datetime
