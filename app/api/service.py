@@ -20,6 +20,9 @@ route_operator = APIRouter()
 class MaskedServiceSchema(BaseModel):
     """Schema for service response without revealing all details."""
 
-    
-
-    
+    id : int
+    company_id : int
+    name : str
+    status : int 
+    starting_at : datetime
+    ending_at : datetime
