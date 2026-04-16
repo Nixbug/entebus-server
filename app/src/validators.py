@@ -459,7 +459,7 @@ def validate_landmarks(landmarks: list) -> None:
     """
     Validate duplication rules for landmarks in a route or service.
 
-    Rules:
+    Conditions:
       - If fewer than 2 landmarks, nothing to validate.
       - If the route is circular (first == last) then the inner landmarks
         (excluding first and last) must all be unique and must not equal

@@ -2117,10 +2117,10 @@ class Service(ORMbase):
         vehicle_id (Integer, nullable):
             Foreign key referencing `vehicle.id`.
             Specifies the vehicle assigned to this service.
-        
+
         registration_number (String(16), not null):
             Registration number of the vehicle assigned to this service.
-            
+
         ticket_mode (Integer, not null, default=TicketingMode.HYBRID):
             Ticketing mode for the service. Mapped from the `TicketingMode` enum.
 
