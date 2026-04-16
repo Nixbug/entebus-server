@@ -118,7 +118,6 @@ class TicketCreator:
             pem_private_key (bytes, optional): PEM-encoded private key.
             pem_public_key (bytes, optional): PEM-encoded public key.
         """
-
         if pem_private_key and pem_public_key:
             self.privateKey = serialization.load_pem_private_key(
                 pem_private_key, password=None

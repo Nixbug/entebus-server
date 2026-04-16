@@ -237,6 +237,19 @@ class InvalidAssociation(APIException):
         super().__init__(detail=detail)
 
 
+class DuplicateLandmark(APIException):
+    """
+    Raised when duplicate landmarks are present in a route where they are not allowed.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    headers = {"X-Error": "DuplicateLandmark"}
+
+    def __init__(self, column: InstrumentedAttribute):
+        detail = f"Duplicate {column.name} is present in the route"
+        super().__init__(detail=detail)
+
+
 class InvalidValue(APIException):
     """
     Raised when an invalid id or value is provided.
@@ -288,6 +301,10 @@ class UnexpectedParameter(APIException):
 
 
 class InactiveResource(APIException):
+    """
+    Raised when a resource is not in an active or useful state.
+    """
+
     status_code = status.HTTP_412_PRECONDITION_FAILED
     headers = {"X-Error": "InactiveResource"}
 
@@ -296,7 +313,6 @@ class InactiveResource(APIException):
             f"The status of {orm_class.__name__} is not in an active or useful state"
         )
         super().__init__(detail=detail)
-
 
 
 class NoPermission(APIException):
@@ -367,6 +383,17 @@ class OverlappingLandmarkBoundary(APIException):
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "Boundary overlaps with another landmark's boundary"
     headers = {"X-Error": "OverlappingLandmarkBoundary"}
+
+
+class OverlappingService(APIException):
+    """
+    Raised when a vehicle is already assigned to another service
+    whose time window overlaps with the requested service time.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    detail = "Vehicle is already assigned to another service during the requested time"
+    headers = {"X-Error": "OverlappingService"}
 
 
 class InvalidBoundaryArea(APIException):

@@ -154,7 +154,7 @@ class ServiceStatus(IntEnum):
     CACHED = 2
     STARTED = 3
     ENDED = 4
-    RESTARTED = 5
+    AUDITED = 5
 
 
 class DutyStatus(IntEnum):

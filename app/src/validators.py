@@ -31,6 +31,7 @@ from app.src.db import (
     Company,
     Business,
     LandmarkInRoute,
+    Service,
 )
 from app.src.constants import DYNAMIC_FARE_VERSION, MIN_LANDMARK_IN_ROUTE
 from app.src.dynamic_fare.v1 import DynamicFare
@@ -452,3 +453,29 @@ def validate_state_transition(
     if not is_valid_transition(transitions, old_state, new_state):
         raise exceptions.InvalidStateTransition(column)
     return True
+
+
+def validate_landmarks(landmarks: list) -> None:
+    """
+    Validate duplication rules for landmarks in a route or service.
+
+    Rules:
+      - If fewer than 2 landmarks, nothing to validate.
+      - If the route is circular (first == last) then the inner landmarks
+        (excluding first and last) must all be unique and must not equal
+        the start/end landmark.
+      - If the route is not circular, all landmarks must be unique.
+
+    Raises:
+        exceptions.InvalidAssociation: if validation fails.
+    """
+    ids = [lm.landmark_id for lm in landmarks]
+    if len(ids) < 2:
+        return
+
+    is_circular = ids[0] == ids[-1]
+
+    core = ids[:-1] if is_circular else ids
+
+    if len(core) != len(set(core)):
+        raise exceptions.DuplicateLandmark(LandmarkInRoute.landmark_id)
