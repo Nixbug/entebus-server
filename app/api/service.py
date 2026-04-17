@@ -224,7 +224,7 @@ def create_service(
         .first()
     )
     if fare_snapshot:
-        fare_snapshot.reference_count = (fare_snapshot.reference_count or 0) + 1
+        fare_snapshot.reference_count += 1
         session.add(fare_snapshot)
     else:
         fare_snapshot = FareInService(
@@ -256,7 +256,7 @@ def create_service(
         .first()
     )
     if vehicle_snapshot:
-        vehicle_snapshot.reference_count = (vehicle_snapshot.reference_count or 0) + 1
+        vehicle_snapshot.reference_count += 1
         session.add(vehicle_snapshot)
     else:
         vehicle_snapshot = VehicleInService(
