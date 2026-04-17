@@ -171,7 +171,7 @@ def create_service(
     if not landmarksInRoute:
         raise exceptions.InvalidRoute()
     last_landmark = landmarksInRoute[0]
-    ending_at = form_param.starting_at + timedelta(minutes=last_landmark.arrival_delta)
+    ending_at = starting_at + timedelta(minutes=last_landmark.arrival_delta)
 
     first_landmark = (
         session.query(Landmark)
@@ -197,7 +197,7 @@ def create_service(
             Service.vehicle_id == vehicle.id,
             Service.status != ServiceStatus.ENDED,
             Service.starting_at < ending_at,
-            Service.ending_at > form_param.starting_at,
+            Service.ending_at > starting_at,
         )
         .with_for_update()
         .first()
@@ -273,7 +273,7 @@ def create_service(
         ticket_mode=form_param.ticket_mode,
         vehicle_id=vehicle.id,
         name=name,
-        starting_at=form_param.starting_at,
+        starting_at=starting_at,
         ending_at=ending_at,
         route=route_data,
         fare=fare_data,
