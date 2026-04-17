@@ -44,7 +44,6 @@ from app.src.validators import (
     validate_id,
     verify_token,
     verify_permission,
-    validate_landmarks,
 )
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.openobserve import log_event
@@ -57,7 +56,6 @@ from app.src.enums import (
     ServiceStatus,
     FareScope,
 )
-from app.src.regex import VEHICLE_NUMBER_PATTERN
 from app.src.constants import TMZ_PRIMARY
 from app.src.digital_ticket.v1 import TicketCreator
 
@@ -172,8 +170,6 @@ def create_service(
     )
     if not landmarksInRoute:
         raise exceptions.InvalidRoute()
-    # Validate landmarks sequence according to validators rules
-    validate_landmarks(landmarksInRoute)
     last_landmark = landmarksInRoute[0]
     ending_at = form_param.starting_at + timedelta(minutes=last_landmark.arrival_delta)
 
@@ -245,8 +241,8 @@ def create_service(
 
     # Generate keys
     ticket_creator = TicketCreator()
-    private_key = ticket_creator.get_pem_private_key_bytes()
-    public_key = ticket_creator.get_pem_public_key_bytes()
+    private_key = ticket_creator.get_pem_private_key_bytes().decode("utf-8")
+    public_key = ticket_creator.get_pem_public_key_bytes().decode("utf-8")
 
     # Ensure vehicle snapshot exists in vehicle_in_service (or increment reference_count)
     vehicle_snapshot = (
@@ -449,13 +445,7 @@ async def create_service_operator(
             Service.route,
             extra_filter=(Route.company_id == token.company_id),
         )
-        fare = validate_id(
-            session,
-            Fare,
-            form_param.fare,
-            Service.fare,
-            extra_filter=(Fare.company_id == token.company_id),
-        )
+        fare = validate_id(session, Fare, form_param.fare, Service.fare)
 
         if fare.scope != FareScope.GLOBAL:
             if fare.company_id != token.company_id:
