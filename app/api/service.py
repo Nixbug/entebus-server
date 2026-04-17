@@ -283,8 +283,7 @@ def create_service(
         registration_number=form_param.registration_number,
     )
     session.add(service)
-    session.commit()
-    session.refresh(service)
+    session.flush()
 
     # Create LandmarkInService entries for this service (snapshot timings)
     lis_rows = []
@@ -300,7 +299,8 @@ def create_service(
         lis_rows.append(landmark_snapshot)
     if lis_rows:
         session.add_all(lis_rows)
-        session.commit()
+    session.commit()
+    session.refresh(service)
 
     service_data = jsonable_encoder(service, exclude={"private_key"})
     return service_data
