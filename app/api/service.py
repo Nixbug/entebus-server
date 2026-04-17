@@ -153,8 +153,12 @@ def create_service(
     if route.status != RouteStatus.VALID:
         raise exceptions.InactiveResource(Route)
 
-    # Validate starting date
-    starting_at_ist = form_param.starting_at.astimezone(TMZ_PRIMARY)
+    # Validate starting date (treat naive datetimes as TMZ_PRIMARY)
+    starting_at = form_param.starting_at
+    if starting_at.tzinfo is None:
+        starting_at_ist = starting_at.replace(tzinfo=TMZ_PRIMARY)
+    else:
+        starting_at_ist = starting_at.astimezone(TMZ_PRIMARY)
     ist_date = starting_at_ist.date()
     current_date = datetime.now(TMZ_PRIMARY).date()
     if ist_date not in {current_date, current_date + timedelta(days=1)}:
@@ -242,8 +246,8 @@ def create_service(
 
     # Generate keys
     ticket_creator = TicketCreator()
-    private_key = ticket_creator.getPEMprivateKeyBytes()
-    public_key = ticket_creator.getPEMpublicKeyBytes()
+    private_key = ticket_creator.get_pem_private_key_bytes()
+    public_key = ticket_creator.get_pem_public_key_bytes()
 
     # Ensure vehicle snapshot exists in vehicle_in_service (or increment reference_count)
     vehicle_snapshot = (

@@ -6,6 +6,7 @@ from cryptography.hazmat.primitives.asymmetric.utils import (
     decode_dss_signature,
     encode_dss_signature,
 )
+from app.src.exceptions import InvalidTicketVersion, InvalidDigitalTicket
 
 
 class DigitalTicket:
@@ -20,9 +21,9 @@ class DigitalTicket:
     """
 
     def __init__(self, signature: bytes, body: bytes):
-        self.VERSION = 1
-        self.SIGNATURE = signature
-        self.BODY = body
+        self.version = 1
+        self.signature = signature
+        self.body = body
 
     def __str__(self) -> str:
         """
@@ -32,7 +33,7 @@ class DigitalTicket:
         Returns:
             str: Serialized digital ticket.
         """
-        return str(self.VERSION) + encode(self.SIGNATURE + self.BODY)
+        return str(self.version) + encode(self.signature + self.body)
 
     @staticmethod
     def load(digital_ticket: str) -> "DigitalTicket":
@@ -45,14 +46,17 @@ class DigitalTicket:
         Returns:
             DigitalTicket: The deserialized ticket object.
         """
+        if not digital_ticket:
+            raise InvalidDigitalTicket()
 
         VERSION = int(digital_ticket[0])
-        assert VERSION == 1, "Unsupported ticket version"
+        if VERSION != 1:
+            raise InvalidTicketVersion()
 
-        BODY_AND_SIGNATURE = decode(digital_ticket[1:])
-        TICKET_SIGNATURE = BODY_AND_SIGNATURE[: TicketCreator.SIGNATURE_SIZE]
-        TICKET_BODY = BODY_AND_SIGNATURE[TicketCreator.SIGNATURE_SIZE :]
-        return DigitalTicket(TICKET_SIGNATURE, TICKET_BODY)
+        body_and_signature = decode(digital_ticket[1:])
+        ticket_signature = body_and_signature[: TicketCreator.SIGNATURE_SIZE]
+        ticket_body = body_and_signature[TicketCreator.SIGNATURE_SIZE :]
+        return DigitalTicket(ticket_signature, ticket_body)
 
     def expand(self, ticket_attributes: dict) -> dict:
         """
@@ -64,33 +68,33 @@ class DigitalTicket:
         Returns:
             dict: Updated dictionary with extracted ticket details.
         """
-        FIXED_PART = self.BODY[: TicketCreator.FIXED_PART_SIZE]
-        VARIABLE_PART = self.BODY[TicketCreator.FIXED_PART_SIZE :]
+        fixed_part = self.body[: TicketCreator.FIXED_PART_SIZE]
+        variable_part = self.body[TicketCreator.FIXED_PART_SIZE :]
 
-        INT_32_ticketID = FIXED_PART[:4]
-        INT_32_pickupPoint = FIXED_PART[4:8]
-        INT_32_droppingPoint = FIXED_PART[8:]
+        ticket_id_bytes = fixed_part[:4]
+        pickup_point_bytes = fixed_part[4:8]
+        dropping_point_bytes = fixed_part[8:]
 
-        ticketID = int.from_bytes(INT_32_ticketID, byteorder="big", signed=False)
-        pickupPoint = int.from_bytes(INT_32_pickupPoint, byteorder="big", signed=False)
-        droppingPoint = int.from_bytes(
-            INT_32_droppingPoint, byteorder="big", signed=False
+        ticket_id = int.from_bytes(ticket_id_bytes, byteorder="big", signed=False)
+        pickup_point = int.from_bytes(pickup_point_bytes, byteorder="big", signed=False)
+        dropping_point = int.from_bytes(
+            dropping_point_bytes, byteorder="big", signed=False
         )
 
-        ticketData = ticket_attributes
-        ticketData["id"] = ticketID
-        ticketData["pickup_point"] = pickupPoint
-        ticketData["dropping_point"] = droppingPoint
+        ticket_data = ticket_attributes
+        ticket_data["id"] = ticket_id
+        ticket_data["pickup_point"] = pickup_point
+        ticket_data["dropping_point"] = dropping_point
 
-        # Parse ticket types: pairs of (ticketTypeID, count)
-        for i in range(0, len(VARIABLE_PART), 2):
-            ticketTypeID = VARIABLE_PART[i]
-            ticketCount = VARIABLE_PART[i + 1]
+        # Parse ticket types: pairs of (ticket_type_id, count)
+        for i in range(0, len(variable_part), 2):
+            ticket_type_id = variable_part[i]
+            ticket_count = variable_part[i + 1]
 
-            for ticketType in ticketData["ticket_types"]:
-                if ticketType["id"] == ticketTypeID:
-                    ticketType["count"] = ticketCount
-        return ticketData
+            for ticket_type in ticket_data["ticket_types"]:
+                if ticket_type["id"] == ticket_type_id:
+                    ticket_type["count"] = ticket_count
+        return ticket_data
 
 
 class TicketCreator:
@@ -119,15 +123,15 @@ class TicketCreator:
             pem_public_key (bytes, optional): PEM-encoded public key.
         """
         if pem_private_key and pem_public_key:
-            self.privateKey = serialization.load_pem_private_key(
+            self.private_key = serialization.load_pem_private_key(
                 pem_private_key, password=None
             )
-            self.publicKey = serialization.load_pem_public_key(pem_public_key)
+            self.public_key = serialization.load_pem_public_key(pem_public_key)
         else:
-            self.privateKey = ec.generate_private_key(ec.SECT163K1())
-            self.publicKey = self.privateKey.public_key()
+            self.private_key = ec.generate_private_key(ec.SECT163K1())
+            self.public_key = self.private_key.public_key()
 
-    def createTicket(
+    def create_ticket(
         self,
         id: int,
         pickup_landmark_id: int,
@@ -146,42 +150,42 @@ class TicketCreator:
         Returns:
             DigitalTicket: The created digital ticket.
         """
-        INT_32_ticketID = id.to_bytes(4, byteorder="big", signed=False)
-        INT_32_pickupPoint = pickup_landmark_id.to_bytes(
+        ticket_id_bytes = id.to_bytes(4, byteorder="big", signed=False)
+        pickup_point_bytes = pickup_landmark_id.to_bytes(
             4, byteorder="big", signed=False
         )
-        INT_32_droppingPoint = dropping_landmark_id.to_bytes(
+        dropping_point_bytes = dropping_landmark_id.to_bytes(
             4, byteorder="big", signed=False
         )
-        FIXED_PART = INT_32_ticketID + INT_32_pickupPoint + INT_32_droppingPoint
+        fixed_part = ticket_id_bytes + pickup_point_bytes + dropping_point_bytes
 
         # Create the variable part of the ticket
-        VARIABLE_PART = bytearray()
+        variable_part = bytearray()
         # Loop through the ticket types and add them to the variable part
-        # (1 byte ticketTypeID + 1 byte ticketTypeCount)
-        for ticketType in ticket_types:
-            if ticketType["count"] > 0:
-                ticketTypeID: int = ticketType["id"]
-                INT_8_ticketTypeID = ticketTypeID.to_bytes(
+        # (1 byte ticket_type_id + 1 byte ticket_count)
+        for ticket_type in ticket_types:
+            if ticket_type["count"] > 0:
+                ticket_type_id: int = ticket_type["id"]
+                ticket_type_id_byte = ticket_type_id.to_bytes(
                     1, byteorder="big", signed=False
                 )
-                ticketCount: int = ticketType["count"]
-                INT_8_ticketCount = ticketCount.to_bytes(
+                ticket_count: int = ticket_type["count"]
+                ticket_count_byte = ticket_count.to_bytes(
                     1, byteorder="big", signed=False
                 )
-                VARIABLE_PART += INT_8_ticketTypeID + INT_8_ticketCount
-        TICKET_BODY = FIXED_PART + VARIABLE_PART
+                variable_part += ticket_type_id_byte + ticket_count_byte
+        ticket_body = fixed_part + variable_part
 
         # Create the digital signature and construct the digital ticket
-        ENCODED_TICKET_SIGNATURE = self.privateKey.sign(
-            TICKET_BODY, ec.ECDSA(hashes.SHA256())
+        encoded_ticket_signature = self.private_key.sign(
+            ticket_body, ec.ECDSA(hashes.SHA256())
         )
         # Decode DER signature to get r and s
-        r, s = decode_dss_signature(ENCODED_TICKET_SIGNATURE)
-        TICKET_SIGNATURE = r.to_bytes(
+        r, s = decode_dss_signature(encoded_ticket_signature)
+        ticket_signature = r.to_bytes(
             self.R_COMPONENT_SIZE, byteorder="big"
         ) + s.to_bytes(self.S_COMPONENT_SIZE, byteorder="big")
-        return DigitalTicket(TICKET_SIGNATURE, TICKET_BODY)
+        return DigitalTicket(ticket_signature, ticket_body)
 
     def verify(self, digital_ticket: DigitalTicket) -> bool:
         """
@@ -195,79 +199,79 @@ class TicketCreator:
         """
         # Use r and s to generate a DER-encoded signature
         r = int.from_bytes(
-            digital_ticket.SIGNATURE[: self.R_COMPONENT_SIZE], byteorder="big"
+            digital_ticket.signature[: self.R_COMPONENT_SIZE], byteorder="big"
         )
         s = int.from_bytes(
-            digital_ticket.SIGNATURE[self.S_COMPONENT_SIZE :], byteorder="big"
+            digital_ticket.signature[self.S_COMPONENT_SIZE :], byteorder="big"
         )
-        ENCODED_TICKET_SIGNATURE = encode_dss_signature(r, s)
+        encoded_ticket_signature = encode_dss_signature(r, s)
 
         # Verify the signature with the public key
         try:
-            self.publicKey.verify(
-                ENCODED_TICKET_SIGNATURE, digital_ticket.BODY, ec.ECDSA(hashes.SHA256())
+            self.public_key.verify(
+                encoded_ticket_signature, digital_ticket.body, ec.ECDSA(hashes.SHA256())
             )
             return True
         except Exception:
             return False
 
-    def getPEMprivateKeyBytes(self) -> bytes:
+    def get_pem_private_key_bytes(self) -> bytes:
         """
         Serializes the private key to PEM format.
 
         Returns:
             bytes: PEM-encoded private key.
         """
-        return self.privateKey.private_bytes(
+        return self.private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.NoEncryption(),
         )
 
-    def getPEMpublicKeyBytes(self) -> bytes:
+    def get_pem_public_key_bytes(self) -> bytes:
         """
         Serializes the public key to PEM format.
 
         Returns:
             bytes: PEM-encoded public key.
         """
-        return self.publicKey.public_bytes(
+        return self.public_key.public_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo,
         )
 
-    def getPEMprivateKeyString(self) -> str:
+    def get_pem_private_key_string(self) -> str:
         """
         Serializes the private key to PEM format.
 
         Returns:
             str: PEM-encoded private key.
         """
-        return self.getPEMprivateKeyBytes().decode("utf-8")
+        return self.get_pem_private_key_bytes().decode("utf-8")
 
-    def getPEMpublicKeyString(self) -> str:
+    def get_pem_public_key_string(self) -> str:
         """
         Serializes the public key to PEM format.
 
         Returns:
             str: PEM-encoded public key.
         """
-        return self.getPEMpublicKeyBytes().decode("utf-8")
+        return self.get_pem_public_key_bytes().decode("utf-8")
 
-    def getPrivateKey(self) -> ec.EllipticCurvePrivateKey:
+    def get_private_key(self) -> ec.EllipticCurvePrivateKey:
         """
         Returns the private key object.
 
         Returns:
             ec.EllipticCurvePrivateKey: The private key.
         """
-        return self.privateKey
+        return self.private_key
 
-    def getPublicKey(self) -> ec.EllipticCurvePublicKey:
+    def get_public_key(self) -> ec.EllipticCurvePublicKey:
         """
         Returns the public key object.
 
         Returns:
             ec.EllipticCurvePublicKey: The public key.
         """
-        return self.publicKey
+        return self.public_key

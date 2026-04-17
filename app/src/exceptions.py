@@ -446,6 +446,26 @@ class InvalidFareFunction(APIException):
     headers = {"X-Error": "InvalidFareFunction"}
 
 
+class InvalidTicketVersion(APIException):
+    """
+    Raised when an invalid ticket version is provided.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    detail = "Invalid ticket version"
+    headers = {"X-Error": "InvalidTicketVersion"}
+
+
+class InvalidDigitalTicket(APIException):
+    """
+    Raised when an invalid digital ticket is provided.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    detail = "Invalid digital ticket"
+    headers = {"X-Error": "InvalidDigitalTicket"}
+
+
 class JSTimeLimitExceeded(APIException):
     """
     Raised when JavaScript execution exceeds the time limit.
