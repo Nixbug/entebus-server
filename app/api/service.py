@@ -172,7 +172,7 @@ def create_service(
     # Validate landmarks sequence according to validators rules
     validate_landmarks(landmarksInRoute)
     last_landmark = landmarksInRoute[0]
-    ending_at = form_param.starting_at + timedelta(seconds=last_landmark.arrival_delta)
+    ending_at = form_param.starting_at + timedelta(minutes=last_landmark.arrival_delta)
 
     first_landmark = (
         session.query(Landmark)
@@ -365,10 +365,10 @@ async def create_service_executive(
         if vehicle.company_id != company.id:
             raise exceptions.InvalidAssociation(Service.vehicle_id, Service.company_id)
         if route.company_id != company.id:
-            raise exceptions.InvalidAssociation(Service.route_id, Service.company_id)
+            raise exceptions.InvalidAssociation(Service.route, Service.company_id)
         if fare.scope != FareScope.GLOBAL:
             if fare.company_id != company.id:
-                raise exceptions.InvalidAssociation(Service.fare_id, Service.company_id)
+                raise exceptions.InvalidAssociation(Service.fare, Service.company_id)
 
         service_data = create_service(
             session,

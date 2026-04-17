@@ -31,7 +31,6 @@ from app.src.db import (
     Company,
     Business,
     LandmarkInRoute,
-    Service,
 )
 from app.src.constants import DYNAMIC_FARE_VERSION, MIN_LANDMARK_IN_ROUTE
 from app.src.dynamic_fare.v1 import DynamicFare
@@ -467,7 +466,7 @@ def validate_landmarks(landmarks: list) -> None:
       - If the route is not circular, all landmarks must be unique.
 
     Raises:
-        exceptions.InvalidAssociation: if validation fails.
+        exceptions.DuplicateLandmark: if duplicate landmarks are found.
     """
     ids = [lm.landmark_id for lm in landmarks]
     if len(ids) < 2:
