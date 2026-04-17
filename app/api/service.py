@@ -194,7 +194,7 @@ def create_service(
     overlapping_service = (
         session.query(Service)
         .filter(
-            Service.vehicle_id == vehicle.id,
+            Service.registration_number == vehicle.registration_number,
             Service.status != ServiceStatus.ENDED,
             Service.starting_at < ending_at,
             Service.ending_at > starting_at,
