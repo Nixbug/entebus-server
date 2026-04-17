@@ -102,7 +102,6 @@ class CreateFormForOP(BaseModel):
     ticket_mode: TicketingMode = Field(
         description=enum_str(TicketingMode), default=TicketingMode.HYBRID
     )
-    registration_number: str = Field(pattern=VEHICLE_NUMBER_PATTERN, max_length=16)
     starting_at: datetime = Field()
 
 
@@ -274,9 +273,9 @@ def create_service(
         session.add(vehicle_snapshot)
     session.flush()
     service = Service(
-        company_id=form_param.company_id,
+        company_id=company.id,
         ticket_mode=form_param.ticket_mode,
-        vehicle_id=form_param.vehicle_id,
+        vehicle_id=vehicle.id,
         name=name,
         starting_at=form_param.starting_at,
         ending_at=ending_at,
@@ -284,7 +283,7 @@ def create_service(
         fare=fare_data,
         private_key=private_key,
         public_key=public_key,
-        registration_number=form_param.registration_number,
+        registration_number=vehicle.registration_number,
     )
     session.add(service)
     session.flush()
@@ -292,8 +291,8 @@ def create_service(
     # Create LandmarkInService entries for this service (snapshot timings)
     lis_rows = []
     for lm in landmarksInRoute:
-        arrival_at = form_param.starting_at + timedelta(seconds=lm.arrival_delta)
-        departure_at = form_param.starting_at + timedelta(seconds=lm.departure_delta)
+        arrival_at = (starting_at + timedelta(seconds=lm.arrival_delta)).timetz()
+        departure_at = (starting_at + timedelta(seconds=lm.departure_delta)).timetz()
         landmark_snapshot = LandmarkInService(
             service_id=service.id,
             landmark_id=lm.landmark_id,
