@@ -321,7 +321,7 @@ def validate_id(
     if result is None:
         if isinstance(column, str):
             column = type("Column", (), {"name": column})()
-            raise exceptions.UnknownValue(column)
+        raise exceptions.UnknownValue(column)
     return result
 
 
