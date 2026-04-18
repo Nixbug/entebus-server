@@ -56,7 +56,8 @@ from app.src.enums import (
     ServiceStatus,
     FareScope,
 )
-from app.src.constants import TMZ_PRIMARY
+from app.src.regex import NAME_PATTERN
+from app.src.constants import TMZ_PRIMARY, TMZ_SECONDARY
 from app.src.digital_ticket.v1 import TicketCreator
 
 route_executive = APIRouter()
@@ -79,8 +80,8 @@ class MaskedServiceSchema(BaseModel):
 class ServiceSchema(MaskedServiceSchema):
     """Detailed schema for service response."""
 
-    route: Dict[str, Any]
-    fare: Dict[str, Any]
+    route_id: int
+    fare_id: int
     vehicle_id: int
     ticket_mode: int
     remark: str | None
@@ -94,9 +95,12 @@ class ServiceSchema(MaskedServiceSchema):
 class CreateFormForOP(BaseModel):
     """Form data  for creating a new service by an operator."""
 
-    route: int = Field()
-    fare: int = Field()
+    route_id: int = Field()
+    fare_id: int = Field()
     vehicle_id: int = Field()
+    name: str | None = Field(
+        default=None, min_length=1, max_length=128, pattern=NAME_PATTERN
+    )
     ticket_mode: TicketingMode = Field(
         description=enum_str(TicketingMode), default=TicketingMode.HYBRID
     )
@@ -153,73 +157,64 @@ def create_service(
     # Validate starting date (treat naive datetimes as TMZ_PRIMARY)
     starting_at = form_param.starting_at
     if starting_at.tzinfo is None:
-        starting_at_ist = starting_at.replace(tzinfo=TMZ_PRIMARY)
+        starting_at_local = starting_at.replace(tzinfo=TMZ_SECONDARY)
     else:
-        starting_at_ist = starting_at.astimezone(TMZ_PRIMARY)
-    ist_date = starting_at_ist.date()
-    current_date = datetime.now(TMZ_PRIMARY).date()
-    if ist_date not in {current_date, current_date + timedelta(days=1)}:
+        starting_at_local = starting_at.astimezone(TMZ_SECONDARY)
+    local_date = starting_at_local.date()
+    current_date = datetime.now(TMZ_SECONDARY).date()
+    if local_date not in {current_date, current_date + timedelta(days=1)}:
         raise exceptions.InvalidValue(Service.starting_at)
 
-    # Get starting_at and ending_at
+    # Fetch all landmarks for the route ordered by distance from start.
+    # Use the first/last entries to determine display names and ending_at.
     landmarksInRoute = (
         session.query(LandmarkInRoute)
         .filter(LandmarkInRoute.route_id == route.id)
-        .order_by(LandmarkInRoute.distance_from_start.desc())
+        .order_by(LandmarkInRoute.distance_from_start.asc())
         .all()
     )
     if not landmarksInRoute:
         raise exceptions.InvalidRoute()
-    last_landmark = landmarksInRoute[0]
-    ending_at = starting_at + timedelta(minutes=last_landmark.arrival_delta)
+
+    first_landmark_in_route = landmarksInRoute[0]
+    last_landmark_in_route = landmarksInRoute[-1]
+    ending_at = starting_at + timedelta(minutes=last_landmark_in_route.arrival_delta)
 
     first_landmark = (
         session.query(Landmark)
-        .join(LandmarkInRoute, Landmark.id == LandmarkInRoute.landmark_id)
-        .filter(LandmarkInRoute.route_id == route.id)
-        .order_by(LandmarkInRoute.distance_from_start.asc())
+        .filter(Landmark.id == first_landmark_in_route.landmark_id)
         .first()
     )
-    last_landmark_obj = (
+    last_landmark = (
         session.query(Landmark)
-        .join(LandmarkInRoute, Landmark.id == LandmarkInRoute.landmark_id)
-        .filter(LandmarkInRoute.route_id == route.id)
-        .order_by(LandmarkInRoute.distance_from_start.desc())
+        .filter(Landmark.id == last_landmark_in_route.landmark_id)
         .first()
     )
-    if not first_landmark or not last_landmark_obj:
-        raise exceptions.InvalidAssociation(LandmarkInRoute.landmark_id, Service.route)
 
     # Prevent assigning the same vehicle to overlapping services (any company)
     overlapping_service = (
         session.query(Service)
         .filter(
             Service.registration_number == vehicle.registration_number,
-            Service.status != ServiceStatus.ENDED,
             Service.starting_at < ending_at,
             Service.ending_at > starting_at,
         )
-        .with_for_update()
         .first()
     )
     if overlapping_service:
         raise exceptions.OverlappingService()
 
-    # Create service name using TMZ_PRIMARY time for display
-    starting_at_str = starting_at_ist.strftime("%Y-%m-%d %-I:%M %p")
-    name = f"{starting_at_str} {first_landmark.name} -> {last_landmark_obj.name} ({vehicle.registration_number})"
-
-    # Generate route data
-    route_data = jsonable_encoder(route)
-    route_data["landmark"] = []
-    for lm in landmarksInRoute:
-        route_data["landmark"].append(jsonable_encoder(lm))
+    # Use provided name if present, otherwise create service name for display
+    if form_param.name is not None:
+        name = form_param.name
+    else:
+        starting_at_str = starting_at_local.strftime("%Y-%m-%d %-I:%M %p")
+        name = f"{starting_at_str} {first_landmark.name} -> {last_landmark.name} ({vehicle.registration_number})"
 
     # Ensure fare snapshot exists in fare_in_service (or increment reference_count)
     fare_snapshot = (
         session.query(FareInService)
         .filter(FareInService.fare_id == fare.id, FareInService.version == fare.version)
-        .with_for_update(of=FareInService)
         .first()
     )
     if fare_snapshot:
@@ -237,12 +232,10 @@ def create_service(
         session.add(fare_snapshot)
     session.flush()
 
-    fare_data = jsonable_encoder(fare)
-
     # Generate keys
     ticket_creator = TicketCreator()
-    private_key = ticket_creator.get_pem_private_key_bytes().decode("utf-8")
-    public_key = ticket_creator.get_pem_public_key_bytes().decode("utf-8")
+    private_key = ticket_creator.get_pem_private_key_string()
+    public_key = ticket_creator.get_pem_public_key_string()
 
     # Ensure vehicle snapshot exists in vehicle_in_service (or increment reference_count)
     vehicle_snapshot = (
@@ -251,7 +244,6 @@ def create_service(
             VehicleInService.vehicle_id == vehicle.id,
             VehicleInService.version == vehicle.version,
         )
-        .with_for_update(of=VehicleInService)
         .first()
     )
     if vehicle_snapshot:
@@ -270,16 +262,19 @@ def create_service(
     session.flush()
     service = Service(
         company_id=company.id,
-        ticket_mode=form_param.ticket_mode,
-        vehicle_id=vehicle.id,
         name=name,
+        route_id=route.id,
+        fare_id=fare.id,
+        vehicle_id=vehicle.id,
+        fare_in_service_id=fare_snapshot.id,
+        vehicle_in_service_id=vehicle_snapshot.id,
+        registration_number=vehicle.registration_number,
+        ticket_mode=form_param.ticket_mode,
+        status=ServiceStatus.CREATED,
         starting_at=starting_at,
         ending_at=ending_at,
-        route=route_data,
-        fare=fare_data,
         private_key=private_key,
         public_key=public_key,
-        registration_number=vehicle.registration_number,
     )
     session.add(service)
     session.flush()
@@ -287,8 +282,8 @@ def create_service(
     # Create LandmarkInService entries for this service (snapshot timings)
     lis_rows = []
     for lm in landmarksInRoute:
-        arrival_at = (starting_at + timedelta(seconds=lm.arrival_delta)).timetz()
-        departure_at = (starting_at + timedelta(seconds=lm.departure_delta)).timetz()
+        arrival_at = (starting_at + timedelta(minutes=lm.arrival_delta)).timetz()
+        departure_at = (starting_at + timedelta(minutes=lm.departure_delta)).timetz()
         landmark_snapshot = LandmarkInService(
             service_id=service.id,
             landmark_id=lm.landmark_id,
@@ -318,8 +313,8 @@ def create_service(
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.InvalidAssociation(Service.vehicle_id, Service.company_id),
-            exceptions.InvalidAssociation(Service.route, Service.company_id),
-            exceptions.InvalidAssociation(Service.fare, Service.company_id),
+            exceptions.InvalidAssociation(Service.route_id, Service.company_id),
+            exceptions.InvalidAssociation(Service.fare_id, Service.company_id),
             exceptions.UnknownValue(Service.id),
             exceptions.InactiveResource(Vehicle),
             exceptions.InactiveResource(Company),
@@ -358,16 +353,16 @@ async def create_service_executive(
         vehicle = validate_id(
             session, Vehicle, form_param.vehicle_id, Service.vehicle_id
         )
-        route = validate_id(session, Route, form_param.route, Service.route)
-        fare = validate_id(session, Fare, form_param.fare, Service.fare)
+        route = validate_id(session, Route, form_param.route_id, Service.route_id)
+        fare = validate_id(session, Fare, form_param.fare_id, Service.fare_id)
 
         if vehicle.company_id != company.id:
             raise exceptions.InvalidAssociation(Service.vehicle_id, Service.company_id)
         if route.company_id != company.id:
-            raise exceptions.InvalidAssociation(Service.route, Service.company_id)
+            raise exceptions.InvalidAssociation(Service.route_id, Service.company_id)
         if fare.scope != FareScope.GLOBAL:
             if fare.company_id != company.id:
-                raise exceptions.InvalidAssociation(Service.fare, Service.company_id)
+                raise exceptions.InvalidAssociation(Service.fare_id, Service.company_id)
 
         service_data = create_service(
             session,
@@ -399,7 +394,7 @@ async def create_service_executive(
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.UnknownValue(Service.vehicle_id),
-            exceptions.InvalidAssociation(Service.fare, Service.company_id),
+            exceptions.InvalidAssociation(Service.fare_id, Service.company_id),
             exceptions.InactiveResource(Vehicle),
             exceptions.OverlappingService(),
             exceptions.InvalidValue(Service.starting_at),
@@ -441,15 +436,15 @@ async def create_service_operator(
         route = validate_id(
             session,
             Route,
-            form_param.route,
-            Service.route,
+            form_param.route_id,
+            Service.route_id,
             extra_filter=(Route.company_id == token.company_id),
         )
-        fare = validate_id(session, Fare, form_param.fare, Service.fare)
+        fare = validate_id(session, Fare, form_param.fare_id, Service.fare_id)
 
         if fare.scope != FareScope.GLOBAL:
             if fare.company_id != token.company_id:
-                raise exceptions.InvalidAssociation(Service.fare, Service.company_id)
+                raise exceptions.InvalidAssociation(Service.fare_id, Service.company_id)
 
         service_data = create_service(
             session,

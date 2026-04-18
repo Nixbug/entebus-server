@@ -2099,24 +2099,32 @@ class Service(ORMbase):
         id (Integer, unique, not null):
             Primary identifier for the service.
 
-        company_id (Integer, nullable):
+        company_id (Integer, not null):
             Foreign key referencing `company.id` that operates the service.
 
         name (String(128), not null):
             Name of the service.
             Maximum 128 characters long.
 
-        route (JSONB, not null):
-            Stored as binary JSON object containing the route details for the service.
+        route_id (Integer, not null):
+            Foreign key referencing `route.id` that defines the route for the service.
             Route once set cannot be changed.
 
-        fare (JSONB, not null):
-            Stored as binary JSON object containing the fare details for the service.
+        fare_id (Integer, not null):
+            Foreign key referencing `fare.id` that defines the fare for the service.
             Fare once set cannot be changed.
 
         vehicle_id (Integer, nullable):
             Foreign key referencing `vehicle.id`.
             Specifies the vehicle assigned to this service.
+        
+        vehicle_in_service_id (Integer, nullable):
+            Foreign key referencing `vehicle_in_service.id`.
+            Specifies the snapshot of the vehicle details at the time of service creation.
+
+        fare_in_service_id (Integer, nullable):
+            Foreign key referencing `fare_in_service.id`.
+            Specifies the snapshot of the fare details at the time of service creation.
 
         registration_number (String(16), not null):
             Registration number of the vehicle assigned to this service.
@@ -2162,11 +2170,13 @@ class Service(ORMbase):
     __tablename__ = "service"
 
     id = Column(Integer, primary_key=True)
-    company_id = Column(Integer, ForeignKey("company.id"), index=True)
+    company_id = Column(Integer, ForeignKey("company.id"),nullable=False, index=True)
     name = Column(String(128), nullable=False)
-    route = Column(JSONB, nullable=False)
-    fare = Column(JSONB, nullable=False)
-    vehicle_id = Column(Integer, ForeignKey("vehicle.id"))
+    route_id = Column(Integer, ForeignKey("route.id"), nullable=False)
+    fare_id = Column(Integer, ForeignKey("fare.id"), nullable=False)
+    vehicle_id = Column(Integer, ForeignKey("vehicle.id"), nullable=False)
+    fare_in_service_id = Column(Integer, ForeignKey("fare_in_service.id"), nullable=False)
+    vehicle_in_service_id = Column(Integer, ForeignKey("vehicle_in_service.id"), nullable=False)
     registration_number = Column(String(16), nullable=False)
     ticket_mode = Column(Integer, nullable=False, default=TicketingMode.HYBRID)
     status = Column(Integer, nullable=False, default=ServiceStatus.CREATED)

@@ -237,19 +237,6 @@ class InvalidAssociation(APIException):
         super().__init__(detail=detail)
 
 
-class DuplicateLandmark(APIException):
-    """
-    Raised when duplicate landmarks are present in a route where they are not allowed.
-    """
-
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
-    headers = {"X-Error": "DuplicateLandmark"}
-
-    def __init__(self, column: InstrumentedAttribute):
-        detail = f"Duplicate {column.name} is present in the route"
-        super().__init__(detail=detail)
-
-
 class InvalidValue(APIException):
     """
     Raised when an invalid id or value is provided.
