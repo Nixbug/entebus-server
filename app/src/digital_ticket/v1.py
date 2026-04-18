@@ -123,13 +123,13 @@ class TicketCreator:
             pem_public_key (bytes, optional): PEM-encoded public key.
         """
         if pem_private_key and pem_public_key:
-            self.private_key = serialization.load_pem_private_key(
+            self._private_key = serialization.load_pem_private_key(
                 pem_private_key, password=None
             )
-            self.public_key = serialization.load_pem_public_key(pem_public_key)
+            self._public_key = serialization.load_pem_public_key(pem_public_key)
         else:
-            self.private_key = ec.generate_private_key(ec.SECT163K1())
-            self.public_key = self.private_key.public_key()
+            self._private_key = ec.generate_private_key(ec.SECT163K1())
+            self._public_key = self._private_key.public_key()
 
     def create_ticket(
         self,
@@ -240,7 +240,8 @@ class TicketCreator:
             format=serialization.PublicFormat.SubjectPublicKeyInfo,
         )
 
-    def get_pem_private_key_string(self) -> str:
+    @property
+    def pem_private_key_string(self) -> str:
         """
         Serializes the private key to PEM format.
 
@@ -249,7 +250,8 @@ class TicketCreator:
         """
         return self.get_pem_private_key_bytes().decode("utf-8")
 
-    def get_pem_public_key_string(self) -> str:
+    @property
+    def pem_public_key_string(self) -> str:
         """
         Serializes the public key to PEM format.
 
@@ -258,20 +260,22 @@ class TicketCreator:
         """
         return self.get_pem_public_key_bytes().decode("utf-8")
 
-    def get_private_key(self) -> ec.EllipticCurvePrivateKey:
+    @property
+    def private_key(self) -> ec.EllipticCurvePrivateKey:
         """
         Returns the private key object.
 
         Returns:
             ec.EllipticCurvePrivateKey: The private key.
         """
-        return self.private_key
+        return self._private_key
 
-    def get_public_key(self) -> ec.EllipticCurvePublicKey:
+    @property
+    def public_key(self) -> ec.EllipticCurvePublicKey:
         """
         Returns the public key object.
 
         Returns:
             ec.EllipticCurvePublicKey: The public key.
         """
-        return self.public_key
+        return self._public_key

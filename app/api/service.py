@@ -7,7 +7,6 @@ Endpoints for update, deletion, and retrieval are planned for future implementat
 """
 
 from datetime import datetime
-from typing import Any, Dict
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from datetime import timedelta
@@ -65,7 +64,7 @@ route_operator = APIRouter()
 
 
 ## Output Schema
-class MaskedServiceSchema(BaseModel):
+class ServiceSchema(BaseModel):
     """Schema for service response without revealing all details."""
 
     id: int
@@ -73,18 +72,12 @@ class MaskedServiceSchema(BaseModel):
     name: str
     status: int
     registration_number: str
-    starting_at: datetime
-    ending_at: datetime
-
-
-class ServiceSchema(MaskedServiceSchema):
-    """Detailed schema for service response."""
-
-    route_id: int
-    fare_id: int
-    vehicle_id: int
+    starting_landmark_id: int | None
+    ending_landmark_id: int | None
     ticket_mode: int
     remark: str | None
+    starting_at: datetime
+    ending_at: datetime
     started_on: datetime | None
     finished_on: datetime | None
     updated_on: datetime | None
@@ -173,9 +166,6 @@ def create_service(
         .order_by(LandmarkInRoute.distance_from_start.asc())
         .all()
     )
-    if not landmarksInRoute:
-        raise exceptions.InvalidRoute()
-
     first_landmark_in_route = landmarksInRoute[0]
     last_landmark_in_route = landmarksInRoute[-1]
     ending_at = starting_at + timedelta(minutes=last_landmark_in_route.arrival_delta)
@@ -234,8 +224,8 @@ def create_service(
 
     # Generate keys
     ticket_creator = TicketCreator()
-    private_key = ticket_creator.get_pem_private_key_string()
-    public_key = ticket_creator.get_pem_public_key_string()
+    private_key = ticket_creator.pem_private_key_string
+    public_key = ticket_creator.pem_public_key_string
 
     # Ensure vehicle snapshot exists in vehicle_in_service (or increment reference_count)
     vehicle_snapshot = (
@@ -263,9 +253,6 @@ def create_service(
     service = Service(
         company_id=company.id,
         name=name,
-        route_id=route.id,
-        fare_id=fare.id,
-        vehicle_id=vehicle.id,
         fare_in_service_id=fare_snapshot.id,
         vehicle_in_service_id=vehicle_snapshot.id,
         registration_number=vehicle.registration_number,
@@ -280,7 +267,7 @@ def create_service(
     session.flush()
 
     # Create LandmarkInService entries for this service (snapshot timings)
-    lis_rows = []
+    landmarks_in_service = []
     for lm in landmarksInRoute:
         arrival_at = (starting_at + timedelta(minutes=lm.arrival_delta)).timetz()
         departure_at = (starting_at + timedelta(minutes=lm.departure_delta)).timetz()
@@ -290,12 +277,15 @@ def create_service(
             arrival_at=arrival_at,
             departure_at=departure_at,
         )
-        lis_rows.append(landmark_snapshot)
-    if lis_rows:
-        session.add_all(lis_rows)
+        landmarks_in_service.append(landmark_snapshot)
+    first_landmark = landmarks_in_service[0]
+    last_landmark = landmarks_in_service[-1]
+    service.starting_landmark_id = first_landmark.landmark_id
+    service.ending_landmark_id = last_landmark.landmark_id
+    session.add_all(landmarks_in_service)
+
     session.commit()
     session.refresh(service)
-
     service_data = jsonable_encoder(service, exclude={"private_key"})
     return service_data
 
@@ -312,9 +302,9 @@ def create_service(
         [
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
-            exceptions.InvalidAssociation(Service.vehicle_id, Service.company_id),
-            exceptions.InvalidAssociation(Service.route_id, Service.company_id),
-            exceptions.InvalidAssociation(Service.fare_id, Service.company_id),
+            exceptions.InvalidAssociation(Vehicle.company_id, Service.company_id),
+            exceptions.InvalidAssociation(Route.company_id, Service.company_id),
+            exceptions.InvalidAssociation(Fare.company_id, Service.company_id),
             exceptions.UnknownValue(Service.id),
             exceptions.InactiveResource(Vehicle),
             exceptions.InactiveResource(Company),
@@ -350,19 +340,23 @@ async def create_service_executive(
         company = validate_id(
             session, Company, form_param.company_id, Service.company_id
         )
-        vehicle = validate_id(
-            session, Vehicle, form_param.vehicle_id, Service.vehicle_id
-        )
-        route = validate_id(session, Route, form_param.route_id, Service.route_id)
-        fare = validate_id(session, Fare, form_param.fare_id, Service.fare_id)
+        vehicle = validate_id(session, Vehicle, form_param.vehicle_id, "vehicle_id")
+        route = validate_id(session, Route, form_param.route_id, "route_id")
+        fare = validate_id(session, Fare, form_param.fare_id, "fare_id")
 
         if vehicle.company_id != company.id:
-            raise exceptions.InvalidAssociation(Service.vehicle_id, Service.company_id)
+            raise exceptions.InvalidAssociation(
+                VehicleInService.vehicle_id, Service.company_id
+            )
         if route.company_id != company.id:
-            raise exceptions.InvalidAssociation(Service.route_id, Service.company_id)
+            raise exceptions.InvalidAssociation(
+                LandmarkInRoute.route_id, Service.company_id
+            )
         if fare.scope != FareScope.GLOBAL:
             if fare.company_id != company.id:
-                raise exceptions.InvalidAssociation(Service.fare_id, Service.company_id)
+                raise exceptions.InvalidAssociation(
+                    FareInService.fare_id, Service.company_id
+                )
 
         service_data = create_service(
             session,
@@ -393,8 +387,8 @@ async def create_service_executive(
         [
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
-            exceptions.UnknownValue(Service.vehicle_id),
-            exceptions.InvalidAssociation(Service.fare_id, Service.company_id),
+            exceptions.UnknownValue(Vehicle.id),
+            exceptions.InvalidAssociation(Fare.company_id, Service.company_id),
             exceptions.InactiveResource(Vehicle),
             exceptions.OverlappingService(),
             exceptions.InvalidValue(Service.starting_at),
@@ -430,21 +424,23 @@ async def create_service_operator(
             session,
             Vehicle,
             form_param.vehicle_id,
-            Service.vehicle_id,
+            "vehicle_id",
             extra_filter=(Vehicle.company_id == token.company_id),
         )
         route = validate_id(
             session,
             Route,
             form_param.route_id,
-            Service.route_id,
+            "route_id",
             extra_filter=(Route.company_id == token.company_id),
         )
-        fare = validate_id(session, Fare, form_param.fare_id, Service.fare_id)
+        fare = validate_id(session, Fare, form_param.fare_id, "fare_id")
 
         if fare.scope != FareScope.GLOBAL:
             if fare.company_id != token.company_id:
-                raise exceptions.InvalidAssociation(Service.fare_id, Service.company_id)
+                raise exceptions.InvalidAssociation(
+                    FareInService.fare_id, Service.company_id
+                )
 
         service_data = create_service(
             session,

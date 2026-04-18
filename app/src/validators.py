@@ -294,7 +294,7 @@ def validate_id(
     session: Session,
     model_cls: Type[ORMbase],
     unique_id: int,
-    column: InstrumentedAttribute,
+    column: Union[InstrumentedAttribute, str],
     extra_filter: ClauseElement[bool] | None = None,
 ) -> Any:
     """
@@ -304,7 +304,7 @@ def validate_id(
         session (Session): Active SQLAlchemy session.
         model_cls (Type[ORMbase]): The ORM model class.
         unique_id (int): The ID of the record to fetch.
-        column (InstrumentedAttribute): The ORM column (e.g., Model.id) used for the exception message.
+        column (InstrumentedAttribute | str): ORM column or field name for error messages.
         extra_filter (ClauseElement[bool] | None): Additional filters to apply, defaults to None.
 
     Returns:
@@ -319,7 +319,9 @@ def validate_id(
     result = query.first()
 
     if result is None:
-        raise exceptions.UnknownValue(column)
+        if isinstance(column, str):
+            column = type("Column", (), {"name": column})()
+            raise exceptions.UnknownValue(column)
     return result
 
 

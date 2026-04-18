@@ -2172,20 +2172,19 @@ class Service(ORMbase):
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("company.id"), nullable=False, index=True)
     name = Column(String(128), nullable=False)
-    route_id = Column(Integer, ForeignKey("route.id"), nullable=False)
-    fare_id = Column(Integer, ForeignKey("fare.id"), nullable=False)
-    vehicle_id = Column(Integer, ForeignKey("vehicle.id"), nullable=False)
     fare_in_service_id = Column(
         Integer, ForeignKey("fare_in_service.id"), nullable=False
     )
     vehicle_in_service_id = Column(
         Integer, ForeignKey("vehicle_in_service.id"), nullable=False
     )
-    registration_number = Column(String(16), nullable=False)
+    registration_number = Column(String(16), nullable=False, index=True)
     ticket_mode = Column(Integer, nullable=False, default=TicketingMode.HYBRID)
     status = Column(Integer, nullable=False, default=ServiceStatus.CREATED)
     starting_at = Column(DateTime(timezone=True), nullable=False)
     ending_at = Column(DateTime(timezone=True), nullable=False)
+    starting_landmark_id = Column(Integer, ForeignKey("landmark.id"))
+    ending_landmark_id = Column(Integer, ForeignKey("landmark.id"))
     private_key = Column(TEXT, nullable=False)
     public_key = Column(TEXT, nullable=False)
     remark = Column(TEXT)
