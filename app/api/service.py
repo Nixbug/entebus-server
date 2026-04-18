@@ -170,17 +170,6 @@ def create_service(
     last_landmark_in_route = landmarksInRoute[-1]
     ending_at = starting_at + timedelta(minutes=last_landmark_in_route.arrival_delta)
 
-    first_landmark = (
-        session.query(Landmark)
-        .filter(Landmark.id == first_landmark_in_route.landmark_id)
-        .first()
-    )
-    last_landmark = (
-        session.query(Landmark)
-        .filter(Landmark.id == last_landmark_in_route.landmark_id)
-        .first()
-    )
-
     # Prevent assigning the same vehicle to overlapping services (any company)
     overlapping_service = (
         session.query(Service)
@@ -198,6 +187,16 @@ def create_service(
     if form_param.name is not None:
         name = form_param.name
     else:
+        first_landmark = (
+            session.query(Landmark)
+            .filter(Landmark.id == first_landmark_in_route.landmark_id)
+            .first()
+        )
+        last_landmark = (
+            session.query(Landmark)
+            .filter(Landmark.id == last_landmark_in_route.landmark_id)
+            .first()
+        )
         starting_at_str = starting_at_local.strftime("%Y-%m-%d %-I:%M %p")
         name = f"{starting_at_str} {first_landmark.name} -> {last_landmark.name} ({vehicle.registration_number})"
 
@@ -209,7 +208,6 @@ def create_service(
     )
     if fare_snapshot:
         fare_snapshot.reference_count += 1
-        session.add(fare_snapshot)
     else:
         fare_snapshot = FareInService(
             fare_id=fare.id,
@@ -238,7 +236,6 @@ def create_service(
     )
     if vehicle_snapshot:
         vehicle_snapshot.reference_count += 1
-        session.add(vehicle_snapshot)
     else:
         vehicle_snapshot = VehicleInService(
             vehicle_id=vehicle.id,
