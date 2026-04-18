@@ -2117,7 +2117,7 @@ class Service(ORMbase):
         vehicle_id (Integer, nullable):
             Foreign key referencing `vehicle.id`.
             Specifies the vehicle assigned to this service.
-        
+
         vehicle_in_service_id (Integer, nullable):
             Foreign key referencing `vehicle_in_service.id`.
             Specifies the snapshot of the vehicle details at the time of service creation.
@@ -2170,13 +2170,17 @@ class Service(ORMbase):
     __tablename__ = "service"
 
     id = Column(Integer, primary_key=True)
-    company_id = Column(Integer, ForeignKey("company.id"),nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("company.id"), nullable=False, index=True)
     name = Column(String(128), nullable=False)
     route_id = Column(Integer, ForeignKey("route.id"), nullable=False)
     fare_id = Column(Integer, ForeignKey("fare.id"), nullable=False)
     vehicle_id = Column(Integer, ForeignKey("vehicle.id"), nullable=False)
-    fare_in_service_id = Column(Integer, ForeignKey("fare_in_service.id"), nullable=False)
-    vehicle_in_service_id = Column(Integer, ForeignKey("vehicle_in_service.id"), nullable=False)
+    fare_in_service_id = Column(
+        Integer, ForeignKey("fare_in_service.id"), nullable=False
+    )
+    vehicle_in_service_id = Column(
+        Integer, ForeignKey("vehicle_in_service.id"), nullable=False
+    )
     registration_number = Column(String(16), nullable=False)
     ticket_mode = Column(Integer, nullable=False, default=TicketingMode.HYBRID)
     status = Column(Integer, nullable=False, default=ServiceStatus.CREATED)
