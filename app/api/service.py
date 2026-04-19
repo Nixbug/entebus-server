@@ -56,7 +56,7 @@ from app.src.enums import (
     FareScope,
 )
 from app.src.regex import NAME_PATTERN
-from app.src.constants import TMZ_PRIMARY, TMZ_SECONDARY
+from app.src.constants import TMZ_SECONDARY
 from app.src.digital_ticket.v1 import TicketCreator
 
 route_executive = APIRouter()
@@ -147,7 +147,7 @@ def create_service(
     if route.status != RouteStatus.VALID:
         raise exceptions.InactiveResource(Route)
 
-    # Validate starting date (treat naive datetimes as TMZ_PRIMARY)
+    # Validate starting date (treat naive datetimes as TMZ_SECONDARY)
     starting_at = form_param.starting_at
     if starting_at.tzinfo is None:
         starting_at_local = starting_at.replace(tzinfo=TMZ_SECONDARY)
@@ -160,14 +160,14 @@ def create_service(
 
     # Fetch all landmarks for the route ordered by distance from start.
     # Use the first/last entries to determine display names and ending_at.
-    landmarksInRoute = (
+    landmarks_in_route = (
         session.query(LandmarkInRoute)
         .filter(LandmarkInRoute.route_id == route.id)
         .order_by(LandmarkInRoute.distance_from_start.asc())
         .all()
     )
-    first_landmark_in_route = landmarksInRoute[0]
-    last_landmark_in_route = landmarksInRoute[-1]
+    first_landmark_in_route = landmarks_in_route[0]
+    last_landmark_in_route = landmarks_in_route[-1]
     ending_at = starting_at + timedelta(minutes=last_landmark_in_route.arrival_delta)
 
     # Prevent assigning the same vehicle to overlapping services (any company)
@@ -265,7 +265,7 @@ def create_service(
 
     # Create LandmarkInService entries for this service (snapshot timings)
     landmarks_in_service = []
-    for lm in landmarksInRoute:
+    for lm in landmarks_in_route:
         arrival_at = (starting_at + timedelta(minutes=lm.arrival_delta)).timetz()
         departure_at = (starting_at + timedelta(minutes=lm.departure_delta)).timetz()
         landmark_snapshot = LandmarkInService(
@@ -299,10 +299,15 @@ def create_service(
         [
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
-            exceptions.InvalidAssociation(Vehicle.company_id, Service.company_id),
-            exceptions.InvalidAssociation(Route.company_id, Service.company_id),
-            exceptions.InvalidAssociation(Fare.company_id, Service.company_id),
-            exceptions.UnknownValue(Service.id),
+            exceptions.InvalidAssociation(
+                VehicleInService.vehicle_id, Service.company_id
+            ),
+            exceptions.InvalidAssociation(LandmarkInRoute.route_id, Service.company_id),
+            exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id),
+            exceptions.UnknownValue(Service.company_id),
+            exceptions.UnknownValue(Vehicle.id),
+            exceptions.UnknownValue(Route.id),
+            exceptions.UnknownValue(Fare.id),
             exceptions.InactiveResource(Vehicle),
             exceptions.InactiveResource(Company),
             exceptions.InactiveResource(Route),
@@ -385,7 +390,9 @@ async def create_service_executive(
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.UnknownValue(Vehicle.id),
-            exceptions.InvalidAssociation(Fare.company_id, Service.company_id),
+            exceptions.UnknownValue(Route.id),
+            exceptions.UnknownValue(Fare.id),
+            exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id),
             exceptions.InactiveResource(Vehicle),
             exceptions.OverlappingService(),
             exceptions.InvalidValue(Service.starting_at),

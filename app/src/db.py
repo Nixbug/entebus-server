@@ -2106,23 +2106,11 @@ class Service(ORMbase):
             Name of the service.
             Maximum 128 characters long.
 
-        route_id (Integer, not null):
-            Foreign key referencing `route.id` that defines the route for the service.
-            Route once set cannot be changed.
-
-        fare_id (Integer, not null):
-            Foreign key referencing `fare.id` that defines the fare for the service.
-            Fare once set cannot be changed.
-
-        vehicle_id (Integer, nullable):
-            Foreign key referencing `vehicle.id`.
-            Specifies the vehicle assigned to this service.
-
-        vehicle_in_service_id (Integer, nullable):
+        vehicle_in_service_id (Integer, not null):
             Foreign key referencing `vehicle_in_service.id`.
             Specifies the snapshot of the vehicle details at the time of service creation.
 
-        fare_in_service_id (Integer, nullable):
+        fare_in_service_id (Integer, not null):
             Foreign key referencing `fare_in_service.id`.
             Specifies the snapshot of the fare details at the time of service creation.
 
