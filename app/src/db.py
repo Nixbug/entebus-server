@@ -2254,6 +2254,9 @@ class LandmarkInService(ORMbase):
             Identifier of the landmark.
             Stored without enforcing foreign key constraints to allow snapshot flexibility.
 
+        distance_from_start (Integer, not null):
+            Distance in meters from the starting landmark of the route.
+        
         arrival_at (Time, not null):
             Scheduled arrival time at the landmark for the service.
 

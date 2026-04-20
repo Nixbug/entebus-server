@@ -11,7 +11,7 @@ It ensures consistent error responses across the API.
 
 from traceback import format_exception
 from logging import getLogger
-from typing import Type, Union
+from typing import  Union
 from fastapi import status, HTTPException
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
