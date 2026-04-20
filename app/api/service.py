@@ -9,7 +9,7 @@ Endpoints for update, deletion, and retrieval are planned for future implementat
 from datetime import datetime
 from enum import StrEnum
 from fastapi.encoders import jsonable_encoder
-from typing import List
+from typing import Any, Dict, List
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 from datetime import timedelta
@@ -100,6 +100,18 @@ class ServiceSchema(BaseModel):
     finished_on: datetime | None
     updated_on: datetime | None
     created_on: datetime
+
+class MaskedServiceSchema(BaseModel):
+    """Schema for service response with detailed information."""
+
+    fare_in_service_id: Dict[str, Any]
+    vehicle_in_service_id: Dict[str, Any]
+    landmark_in_service_id: Dict[str, Any]
+
+class ServiceDetailSchema(MaskedServiceSchema):
+    """Schema for service response with detailed information."""
+
+    public_key : str
 
 
 # Input Forms
@@ -435,6 +447,53 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
     return services
 
 
+def get_service_related_entities(session: Session, service: Service) -> Dict[str, Any]:
+    """
+    Returns related snapshots for a given service id: landmarks in service,
+    fare snapshot in service, and vehicle snapshot in service.
+
+    Args:
+        session (Session): SQLAlchemy session.
+        service (Service): Service object to lookup.
+
+    Returns:
+        Dict[str, Any]: Dict containing `service`, `landmarks_in_service`,
+        `fare_in_service`, and `vehicle_in_service` serialized for JSON.
+    """
+    if service is None:
+        raise exceptions.UnknownValue(Service.id)
+
+    # Fetch landmarks snapshots and include landmark details
+    landmarks_snapshots = (
+        session.query(LandmarkInService)
+        .filter(LandmarkInService.service_id == service.id)
+        .order_by(LandmarkInService.arrival_at.asc())
+        .all()
+    )
+    landmarks_snapshots_data = jsonable_encoder(landmarks_snapshots)
+
+    # Fetch fare and vehicle snapshots
+    fare_snapshot = (
+            session.query(FareInService)
+            .filter(FareInService.id == service.fare_in_service_id)
+            .first()
+        )
+
+    fare_snapshots_data = jsonable_encoder(fare_snapshot)
+
+    vehicle_snapshot = (
+            session.query(VehicleInService)
+            .filter(VehicleInService.id == service.vehicle_in_service_id)
+            .first()
+        )
+    vehicle_snapshots_data = jsonable_encoder(vehicle_snapshot)
+
+    return {
+        "landmarks_in_service": landmarks_snapshots_data,
+        "fare_in_service": fare_snapshots_data,
+        "vehicle_in_service": vehicle_snapshots_data,
+    }
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -548,6 +607,36 @@ async def fetch_service_executive(
             session,
             QueryParams(**query_params.model_dump()),
         )
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.get(
+    f"{URL_SERVICE}/{{id}}",
+    tags=["Service"],
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.UnknownValue(Service.id)]
+    ),
+    description=(
+        """
+            **Fetch a service by its ID.**    
+            - Requires a valid access token for authentication.    
+        """
+    ),
+)
+async def fetch_service_details_for_executive(
+    id: int,
+    access_token=Depends(oauth2_executive),
+):
+    try:
+        session = SessionLocal()
+        verify_token(session, ExecutiveToken, access_token)
+
+        service = validate_id(session, Service, id, Service.id)
+        service = get_service_related_entities(session, service)
+        return service
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -725,6 +814,26 @@ async def fetch_service_public(query_params: QueryParamsForPU = Depends()):
                 company_id=None,
             ),
         )
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_public.get(
+    f"{URL_SERVICE}/{{id}}/details",
+    tags=["Service"],
+    description=(
+        """
+            **Fetches related snapshots for a service.**
+            - Returns landmarks in the service, fare snapshot, and vehicle snapshot.
+        """
+    ),
+)
+async def fetch_service_details_public(id: int):
+    try:
+        session = SessionLocal()
+        return get_service_related_entities(session, id)
     except Exception as e:
         exceptions.handle(e)
     finally:
