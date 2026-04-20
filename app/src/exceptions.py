@@ -11,7 +11,7 @@ It ensures consistent error responses across the API.
 
 from traceback import format_exception
 from logging import getLogger
-from typing import Type
+from typing import Type, Union
 from fastapi import status, HTTPException
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
@@ -212,12 +212,17 @@ class InvalidToken(APIException):
 class UnknownValue(APIException):
     """
     Raised when an unknown id or value is provided.
+
+    Accepts either an ORM `InstrumentedAttribute` (preferred) or a plain
+    string column name for convenience when callers only have the name.
     """
 
     status_code = status.HTTP_404_NOT_FOUND
     headers = {"X-Error": "UnknownValue"}
 
-    def __init__(self, column: InstrumentedAttribute):
+    def __init__(self, column: Union[InstrumentedAttribute, str]):
+        if isinstance(column, str):
+            column = type("Column", (), {"name": column})()
         detail = f"Unknown {column.name} is provided"
         super().__init__(detail=detail)
 
