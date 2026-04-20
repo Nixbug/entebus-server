@@ -17,7 +17,7 @@ from fastapi import status, Depends
 from sqlalchemy import String, or_
 from sqlalchemy.orm.session import Session
 
-from app.api.bearer import oauth2_executive, bearer_operator
+from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
 from app.src.urls import URL_SERVICE
 from app.src.db import (
     SessionLocal,
@@ -33,6 +33,7 @@ from app.src.db import (
     VehicleInService,
     LandmarkInService,
     Company,
+    VendorToken,
 )
 from app.src import exceptions
 from app.src.functions import (
@@ -76,6 +77,8 @@ from app.src.digital_ticket.v1 import TicketCreator
 
 route_executive = APIRouter()
 route_operator = APIRouter()
+route_vendor = APIRouter()
+route_public = APIRouter()
 
 
 ## Output Schema
@@ -181,7 +184,7 @@ class QueryParamsForVE(QueryParamsForEX):
 
 
 class QueryParams(QueryParamsForEX):
-    """Generic combined query parameters for vehicles."""
+    """Generic combined query parameters for services."""
 
     pass
 
@@ -393,9 +396,13 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
     if query_params.ending_at_le is not None:
         query = query.filter(Service.ending_at <= query_params.ending_at_le)
     if query_params.starting_landmark_id is not None:
-        query = query.filter(Service.starting_landmark_id == query_params.starting_landmark_id)
+        query = query.filter(
+            Service.starting_landmark_id == query_params.starting_landmark_id
+        )
     if query_params.ending_landmark_id is not None:
-        query = query.filter(Service.ending_landmark_id == query_params.ending_landmark_id)
+        query = query.filter(
+            Service.ending_landmark_id == query_params.ending_landmark_id
+        )
     # Common search
     if query_params.search:
         search = f"%{query_params.search}%"
@@ -426,6 +433,7 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
 
     services = query.all()
     return services
+
 
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
@@ -517,6 +525,35 @@ async def create_service_executive(
         session.close()
 
 
+@route_executive.get(
+    URL_SERVICE,
+    tags=["Service"],
+    response_model=List[ServiceSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches a list of services.**    
+            - Requires a valid access token for authentication.    
+        """
+    ),
+)
+async def fetch_service_executive(
+    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+):
+    try:
+        session = SessionLocal()
+        verify_token(session, ExecutiveToken, access_token)
+
+        return search_service(
+            session,
+            QueryParams(**query_params.model_dump()),
+        )
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Operator]
 # ---------------------------------------------------------------------------
@@ -597,6 +634,97 @@ async def create_service_operator(
 
         log_event(token, request_info, service_data)
         return service_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.get(
+    URL_SERVICE,
+    tags=["Service"],
+    response_model=List[ServiceSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches a list of services.**    
+            - Requires a valid access token for authentication.    
+        """
+    ),
+)
+async def fetch_service_operator(
+    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+
+        return search_service(
+            session,
+            QueryParams(**query_params.model_dump(), company_id=token.company_id),
+        )
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Vendor]
+# ---------------------------------------------------------------------------
+@route_vendor.get(
+    URL_SERVICE,
+    tags=["Service"],
+    response_model=List[ServiceSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches a list of services.**    
+            - Requires a valid access token for authentication.    
+        """
+    ),
+)
+async def fetch_service_vendor(
+    query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
+):
+    try:
+        session = SessionLocal()
+        verify_token(session, VendorToken, access_token.credentials)
+
+        return search_service(
+            session,
+            QueryParams(**query_params.model_dump()),
+        )
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Public]
+# ---------------------------------------------------------------------------
+@route_public.get(
+    URL_SERVICE,
+    tags=["Service"],
+    response_model=List[ServiceSchema],
+    description=(
+        """
+            **Fetches a list of services for public users.**    
+        """
+    ),
+)
+async def fetch_service_public(query_params: QueryParamsForPU = Depends()):
+    try:
+        session = SessionLocal()
+
+        return search_service(
+            session,
+            QueryParams(
+                **query_params.model_dump(),
+                company_id=None,
+            ),
+        )
     except Exception as e:
         exceptions.handle(e)
     finally:
