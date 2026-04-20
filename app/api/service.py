@@ -78,8 +78,6 @@ class ServiceSchema(BaseModel):
     remark: str | None
     starting_at: datetime
     ending_at: datetime
-    started_on: datetime | None
-    finished_on: datetime | None
     updated_on: datetime | None
     created_on: datetime
 
@@ -271,6 +269,7 @@ def create_service(
         landmark_snapshot = LandmarkInService(
             service_id=service.id,
             landmark_id=lm.landmark_id,
+            distance_from_start=lm.distance_from_start,
             arrival_at=arrival_at,
             departure_at=departure_at,
         )
@@ -394,6 +393,8 @@ async def create_service_executive(
             exceptions.UnknownValue(Fare.id),
             exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id),
             exceptions.InactiveResource(Vehicle),
+            exceptions.InactiveResource(Company),
+            exceptions.InactiveResource(Route),
             exceptions.OverlappingService(),
             exceptions.InvalidValue(Service.starting_at),
         ]

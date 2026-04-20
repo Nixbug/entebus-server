@@ -295,7 +295,7 @@ class InactiveResource(APIException):
     status_code = status.HTTP_412_PRECONDITION_FAILED
     headers = {"X-Error": "InactiveResource"}
 
-    def __init__(self, orm_class: Type[DeclarativeMeta]):
+    def __init__(self, orm_class: DeclarativeMeta):
         detail = (
             f"The status of {orm_class.__name__} is not in an active or useful state"
         )

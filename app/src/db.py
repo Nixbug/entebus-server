@@ -2142,12 +2142,6 @@ class Service(ORMbase):
             Optional text field for additional remarks or notes related to the service.
             Maximum 1024 characters long.
 
-        started_on (DateTime):
-            Time at which the first operator joined the duty.
-
-        finished_on (DateTime):
-            Time at which the Service is ended by the operator or when the statement is generated.
-
         updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp automatically updated whenever the service record is modified.
 
@@ -2284,6 +2278,7 @@ class LandmarkInService(ORMbase):
         index=True,
     )
     landmark_id = Column(Integer, nullable=False, index=True)
+    distance_from_start = Column(Integer, nullable=False)
     arrival_at = Column(Time(timezone=True), nullable=False)
     departure_at = Column(Time(timezone=True), nullable=False)
     # Metadata
