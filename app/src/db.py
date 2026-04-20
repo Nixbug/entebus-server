@@ -2130,6 +2130,12 @@ class Service(ORMbase):
         ending_at (DateTime, not null):
             The time of the day when the service ends operation, based on route information.
 
+        starting_landmark_id (Integer, nullable):
+            Foreign key referencing `landmark.id` for the starting point of the service.
+
+        ending_landmark_id (Integer, nullable):
+            Foreign key referencing `landmark.id` for the ending point of the service.
+
         private_key (TEXT, not null):
             Private cryptographic key for the service.
             Used for secure ticket generation and validation.
