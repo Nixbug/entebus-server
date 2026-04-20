@@ -2176,8 +2176,6 @@ class Service(ORMbase):
     private_key = Column(TEXT, nullable=False)
     public_key = Column(TEXT, nullable=False)
     remark = Column(TEXT)
-    started_on = Column(DateTime(timezone=True))
-    finished_on = Column(DateTime(timezone=True))
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
