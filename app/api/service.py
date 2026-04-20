@@ -322,7 +322,7 @@ def create_service(
             - Logged in executive must have `company.service.create` permission.    
             - Validates that the vehicle, route, and fare belong to the specified company.    
             -  Status of vehicle must be ACTIVE, company must be VERIFIED, and route must be VALID.    
-            - Starting date must be either current date or next date in TMZ_PRIMARY timezone.    
+            - Starting date must be either current date or next date in TMZ_SECONDARY timezone.    
             - The service name is auto-generated based on the name of the route, vehicle, and starting date.    
             - By default the status of the service is set to CREATED.   
         """
@@ -406,7 +406,7 @@ async def create_service_executive(
             - Operator can only create services for the company they belong to.    
             - Validates that the vehicle, route, and fare belong to the specified company.    
             -  Status of vehicle must be ACTIVE, company must be VERIFIED, and route must be VALID.    
-            - Starting date must be either current date or next date in TMZ_PRIMARY timezone.    
+            - Starting date must be either current date or next date in TMZ_SECONDARY timezone.    
             - The service name is auto-generated based on the name of the route, vehicle, and starting date.    
             - By default the status of the service is set to CREATED.   
         """

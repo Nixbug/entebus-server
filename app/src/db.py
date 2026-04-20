@@ -2149,10 +2149,10 @@ class Service(ORMbase):
             Time at which the Service is ended by the operator or when the statement is generated.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
-            Timestamp automatically updated whenever the fare record is modified.
+            Timestamp automatically updated whenever the service record is modified.
 
         created_on (DateTime, not null, default=func.now()):
-            Timestamp of when the fare record was created.
+            Timestamp of when the service record was created.
     """
 
     __tablename__ = "service"
