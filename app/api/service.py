@@ -58,6 +58,7 @@ from app.src.enums import (
 from app.src.regex import NAME_PATTERN
 from app.src.constants import TMZ_SECONDARY
 from app.src.digital_ticket.v1 import TicketCreator
+from app.src.constants import SERVICE_CREATION_LEAD_TIME_DAYS
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -152,10 +153,8 @@ def create_service(
     else:
         starting_at = starting_at.astimezone(timezone.utc)
 
-    starting_at_local = starting_at.astimezone(TMZ_SECONDARY)
-    local_date = starting_at_local.date()
-    current_date = datetime.now(TMZ_SECONDARY).date()
-    if local_date not in {current_date, current_date + timedelta(days=1)}:
+    current_time = datetime.now(timezone.utc)
+    if starting_at > current_time + timedelta(days=SERVICE_CREATION_LEAD_TIME_DAYS):
         raise exceptions.InvalidValue(Service.starting_at)
 
     # Fetch all landmarks for the route ordered by distance from start.
@@ -187,6 +186,7 @@ def create_service(
     if form_param.name is not None:
         name = form_param.name
     else:
+        starting_at_local = starting_at.astimezone(TMZ_SECONDARY)
         first_landmark = (
             session.query(Landmark)
             .filter(Landmark.id == first_landmark_in_route.landmark_id)
