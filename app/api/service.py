@@ -6,7 +6,7 @@ Uses Pydantic schemas for input validation and structured output.
 Endpoints for update, deletion, and retrieval are planned for future implementation.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from datetime import timedelta
@@ -148,9 +148,11 @@ def create_service(
     # Validate starting date (treat naive datetimes as TMZ_SECONDARY)
     starting_at = form_param.starting_at
     if starting_at.tzinfo is None:
-        starting_at_local = starting_at.replace(tzinfo=TMZ_SECONDARY)
+        starting_at = starting_at.replace(tzinfo=timezone.utc)
     else:
-        starting_at_local = starting_at.astimezone(TMZ_SECONDARY)
+        starting_at = starting_at.astimezone(timezone.utc)
+
+    starting_at_local = starting_at.astimezone(TMZ_SECONDARY)
     local_date = starting_at_local.date()
     current_date = datetime.now(TMZ_SECONDARY).date()
     if local_date not in {current_date, current_date + timedelta(days=1)}:

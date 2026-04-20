@@ -2256,7 +2256,7 @@ class LandmarkInService(ORMbase):
 
         distance_from_start (Integer, not null):
             Distance in meters from the starting landmark of the route.
-        
+
         arrival_at (Time, not null):
             Scheduled arrival time at the landmark for the service.
 

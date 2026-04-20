@@ -129,14 +129,16 @@ class TicketCreator:
     R_COMPONENT_SIZE = int(SIGNATURE_SIZE / 2)
     S_COMPONENT_SIZE = int(SIGNATURE_SIZE / 2)
 
-    def __init__(self, pem_private_key: bytes = None, pem_public_key: bytes = None):
+    def __init__(
+        self, pem_private_key: bytes | None = None, pem_public_key: bytes | None = None
+    ):
         """
         Initializes the TicketCreator with optional PEM keys.
         If not provided, a new SECT163K1 key pair will be generated.
 
         Args:
-            pem_private_key (bytes, optional): PEM-encoded private key.
-            pem_public_key (bytes, optional): PEM-encoded public key.
+            pem_private_key (bytes | None, optional): PEM-encoded private key.
+            pem_public_key (bytes | None, optional): PEM-encoded public key.
         """
         if pem_private_key and pem_public_key:
             self._private_key = serialization.load_pem_private_key(
