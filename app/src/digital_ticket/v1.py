@@ -49,12 +49,23 @@ class DigitalTicket:
         if not digital_ticket:
             raise InvalidDigitalTicket()
 
-        VERSION = int(digital_ticket[0])
+        try:
+            VERSION = int(digital_ticket[0])
+        except (ValueError, TypeError):
+            raise InvalidDigitalTicket()
+
         if VERSION != 1:
             raise InvalidTicketVersion()
 
         body_and_signature = decode(digital_ticket[1:])
+        minimum_payload_size = (
+            TicketCreator.SIGNATURE_SIZE + TicketCreator.FIXED_PART_SIZE
+        )
+        if len(body_and_signature) < minimum_payload_size:
+            raise InvalidDigitalTicket()
         ticket_signature = body_and_signature[: TicketCreator.SIGNATURE_SIZE]
+        if len(ticket_signature) != TicketCreator.SIGNATURE_SIZE:
+            raise InvalidDigitalTicket()
         ticket_body = body_and_signature[TicketCreator.SIGNATURE_SIZE :]
         return DigitalTicket(ticket_signature, ticket_body)
 
@@ -70,6 +81,11 @@ class DigitalTicket:
         """
         fixed_part = self.body[: TicketCreator.FIXED_PART_SIZE]
         variable_part = self.body[TicketCreator.FIXED_PART_SIZE :]
+
+        # Validate variable_part encoding: it should be a sequence of 2-byte pairs
+        # (ticket_type_id, count). If it's not even-length, it's malformed.
+        if len(variable_part) % 2 != 0:
+            raise InvalidDigitalTicket()
 
         ticket_id_bytes = fixed_part[:4]
         pickup_point_bytes = fixed_part[4:8]
@@ -202,7 +218,7 @@ class TicketCreator:
             digital_ticket.signature[: self.R_COMPONENT_SIZE], byteorder="big"
         )
         s = int.from_bytes(
-            digital_ticket.signature[self.S_COMPONENT_SIZE :], byteorder="big"
+            digital_ticket.signature[self.R_COMPONENT_SIZE :], byteorder="big"
         )
         encoded_ticket_signature = encode_dss_signature(r, s)
 
