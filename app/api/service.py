@@ -7,11 +7,14 @@ Endpoints for update, deletion, and retrieval are planned for future implementat
 """
 
 from datetime import datetime
-from fastapi import APIRouter
+from enum import StrEnum
+from fastapi.encoders import jsonable_encoder
+from typing import List
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 from datetime import timedelta
 from fastapi import status, Depends
-from fastapi.encoders import jsonable_encoder
+from sqlalchemy import String, or_
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive, bearer_operator
@@ -33,11 +36,16 @@ from app.src.db import (
 )
 from app.src import exceptions
 from app.src.functions import (
+    apply_id_filters,
     get_request_info,
     get_executive_roles,
     get_operator_roles,
     fuse_exception_responses,
     enum_str,
+    apply_name_filters,
+    apply_created_on_filters,
+    apply_updated_on_filters,
+    apply_status_filters,
 )
 from app.src.validators import (
     validate_id,
@@ -48,12 +56,19 @@ from app.src.permissions.operator import PermissionPath as OperatorPermissionPat
 from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.enums import (
+    OrderIn,
     VehicleStatus,
     CompanyStatus,
     RouteStatus,
     TicketingMode,
     ServiceStatus,
     FareScope,
+)
+from app.src.filters import (
+    IDFilter,
+    CreatedOnFilter,
+    UpdatedOnFilter,
+    PaginationFilter,
 )
 from app.src.regex import NAME_PATTERN
 from app.src.constants import TMZ_SECONDARY
@@ -108,6 +123,65 @@ class CreateFormForEX(CreateFormForOP):
 
 class CreateForm(CreateFormForEX):
     """Generic combined form data for creating a new service."""
+
+    pass
+
+
+## Query Parameters
+class OrderBy(StrEnum):
+    """Enum for ordering fare results."""
+
+    ID = "id"
+    CREATED_ON = "created_on"
+    UPDATED_ON = "updated_on"
+    STARTING_AT = "starting_at"
+    ENDING_AT = "ending_at"
+
+
+class QueryParamsForPU(IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFilter):
+    """Query parameters for operator users."""
+
+    search: str | None = Field(Query(default=None))
+    name: str | None = Field(Query(default=None))
+    registration_number: str | None = Field(Query(default=None))
+    ticket_mode: TicketingMode | None = Field(
+        Query(default=None, description=enum_str(TicketingMode))
+    )
+    status_list: List[ServiceStatus] | None = Field(
+        Query(default=None, description=enum_str(ServiceStatus))
+    )
+    starting_at_ge: datetime | None = Field(Query(default=None))
+    starting_at_le: datetime | None = Field(Query(default=None))
+    ending_at_ge: datetime | None = Field(Query(default=None))
+    ending_at_le: datetime | None = Field(Query(default=None))
+    starting_landmark_id: int | None = Field(Query(default=None))
+    ending_landmark_id: int | None = Field(Query(default=None))
+    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
+    order_in: OrderIn = Field(
+        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
+    )
+
+
+class QueryParamsForOP(QueryParamsForPU):
+    """Query parameters for operator users."""
+
+    pass
+
+
+class QueryParamsForEX(QueryParamsForOP):
+    """Query parameters for executive users."""
+
+    company_id: int | None = Field(Query(default=None))
+
+
+class QueryParamsForVE(QueryParamsForEX):
+    """Query parameters for vendor users."""
+
+    pass
+
+
+class QueryParams(QueryParamsForEX):
+    """Generic combined query parameters for vehicles."""
 
     pass
 
@@ -286,6 +360,72 @@ def create_service(
     service_data = jsonable_encoder(service, exclude={"private_key"})
     return service_data
 
+
+def search_service(session: Session, query_params: QueryParams) -> List[Service]:
+    """
+    Search for Services based on provided query parameters.
+
+    This function supports multiple filtering, searching, ordering, and
+    pagination capabilities to retrieve services that match various criteria.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        query_params (QueryParams): Query parameters containing search criteria.
+
+    Returns:
+        List[Service]: List of Services that match the search criteria.
+    """
+    query = session.query(Service)
+    if query_params.company_id is not None:
+        query = query.filter(Service.company_id == query_params.company_id)
+    if query_params.registration_number is not None:
+        query = query.filter(
+            Vehicle.registration_number.ilike(f"%{query_params.registration_number}%")
+        )
+    if query_params.ticket_mode is not None:
+        query = query.filter(Service.ticket_mode == query_params.ticket_mode)
+    if query_params.starting_at_ge is not None:
+        query = query.filter(Service.starting_at >= query_params.starting_at_ge)
+    if query_params.starting_at_le is not None:
+        query = query.filter(Service.starting_at <= query_params.starting_at_le)
+    if query_params.ending_at_ge is not None:
+        query = query.filter(Service.ending_at >= query_params.ending_at_ge)
+    if query_params.ending_at_le is not None:
+        query = query.filter(Service.ending_at <= query_params.ending_at_le)
+    if query_params.starting_landmark_id is not None:
+        query = query.filter(Service.starting_landmark_id == query_params.starting_landmark_id)
+    if query_params.ending_landmark_id is not None:
+        query = query.filter(Service.ending_landmark_id == query_params.ending_landmark_id)
+    # Common search
+    if query_params.search:
+        search = f"%{query_params.search}%"
+        query = query.filter(
+            or_(
+                Service.id.cast(String).ilike(search),
+                Service.name.ilike(search),
+                Service.registration_number.ilike(search),
+            )
+        )
+
+    # Generalized filters
+    query = apply_id_filters(query, Service, query_params)
+    query = apply_name_filters(query, Service, query_params)
+    query = apply_created_on_filters(query, Service, query_params)
+    query = apply_updated_on_filters(query, Service, query_params)
+    query = apply_status_filters(query, Service, query_params)
+
+    # Ordering and pagination
+    ordering_attr = getattr(Service, query_params.order_by.value)
+    ordering_func = (
+        ordering_attr.asc
+        if query_params.order_in == OrderIn.ASCENDING
+        else ordering_attr.desc
+    )
+    query = query.order_by(ordering_func())
+    query = query.offset(query_params.offset).limit(query_params.limit)
+
+    services = query.all()
+    return services
 
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
