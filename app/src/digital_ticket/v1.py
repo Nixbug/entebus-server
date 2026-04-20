@@ -46,12 +46,9 @@ class DigitalTicket:
         Returns:
             DigitalTicket: The deserialized ticket object.
         """
-        if not digital_ticket:
-            raise InvalidDigitalTicket()
-
         try:
             VERSION = int(digital_ticket[0])
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, IndexError):
             raise InvalidDigitalTicket()
 
         if VERSION != 1:
@@ -63,9 +60,8 @@ class DigitalTicket:
         )
         if len(body_and_signature) < minimum_payload_size:
             raise InvalidDigitalTicket()
+
         ticket_signature = body_and_signature[: TicketCreator.SIGNATURE_SIZE]
-        if len(ticket_signature) != TicketCreator.SIGNATURE_SIZE:
-            raise InvalidDigitalTicket()
         ticket_body = body_and_signature[TicketCreator.SIGNATURE_SIZE :]
         return DigitalTicket(ticket_signature, ticket_body)
 
