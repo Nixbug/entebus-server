@@ -139,6 +139,7 @@ def create_service(
         exceptions.InvalidValue: If the starting date is not valid.
         exceptions.InvalidAssociation: If there are invalid associations between vehicle, route, fare, and company.
     """
+    # validations
     if vehicle.status != VehicleStatus.ACTIVE:
         raise exceptions.InactiveResource(Vehicle)
     if company.status != CompanyStatus.VERIFIED:
@@ -146,15 +147,17 @@ def create_service(
     if route.status != RouteStatus.VALID:
         raise exceptions.InactiveResource(Route)
 
-    # Validate starting date (treat naive datetimes as TMZ_SECONDARY)
+    # Normalize starting_at to UTC for consistent comparison and storage
     starting_at = form_param.starting_at
     if starting_at.tzinfo is None:
         starting_at = starting_at.replace(tzinfo=timezone.utc)
     else:
         starting_at = starting_at.astimezone(timezone.utc)
 
-    current_time = datetime.now(timezone.utc)
-    if starting_at > current_time + timedelta(days=SERVICE_CREATION_LEAD_TIME_DAYS):
+    # Service can only be created within SERVICE_CREATION_LEAD_TIME_DAYS days before the starting_at
+    if starting_at > (
+        datetime.now(timezone.utc) + timedelta(days=SERVICE_CREATION_LEAD_TIME_DAYS)
+    ):
         raise exceptions.InvalidValue(Service.starting_at)
 
     # Fetch all landmarks for the route ordered by distance from start.
@@ -186,7 +189,6 @@ def create_service(
     if form_param.name is not None:
         name = form_param.name
     else:
-        starting_at_local = starting_at.astimezone(TMZ_SECONDARY)
         first_landmark = (
             session.query(Landmark)
             .filter(Landmark.id == first_landmark_in_route.landmark_id)
@@ -197,19 +199,21 @@ def create_service(
             .filter(Landmark.id == last_landmark_in_route.landmark_id)
             .first()
         )
-        starting_at_str = starting_at_local.strftime("%Y-%m-%d %-I:%M %p")
+        starting_at_str = starting_at.astimezone(TMZ_SECONDARY).strftime(
+            "%Y-%m-%d %-I:%M %p"
+        )
         name = f"{starting_at_str} {first_landmark.name} -> {last_landmark.name} ({vehicle.registration_number})"
 
     # Ensure fare snapshot exists in fare_in_service (or increment reference_count)
-    fare_snapshot = (
+    fare_in_service = (
         session.query(FareInService)
         .filter(FareInService.fare_id == fare.id, FareInService.version == fare.version)
         .first()
     )
-    if fare_snapshot:
-        fare_snapshot.reference_count += 1
+    if fare_in_service:
+        fare_in_service.reference_count += 1
     else:
-        fare_snapshot = FareInService(
+        fare_in_service = FareInService(
             fare_id=fare.id,
             version=fare.version,
             name=fare.name,
@@ -217,16 +221,11 @@ def create_service(
             function=fare.function,
             reference_count=1,
         )
-        session.add(fare_snapshot)
+        session.add(fare_in_service)
     session.flush()
 
-    # Generate keys
-    ticket_creator = TicketCreator()
-    private_key = ticket_creator.pem_private_key_string
-    public_key = ticket_creator.pem_public_key_string
-
     # Ensure vehicle snapshot exists in vehicle_in_service (or increment reference_count)
-    vehicle_snapshot = (
+    vehicle_in_service = (
         session.query(VehicleInService)
         .filter(
             VehicleInService.vehicle_id == vehicle.id,
@@ -234,10 +233,10 @@ def create_service(
         )
         .first()
     )
-    if vehicle_snapshot:
-        vehicle_snapshot.reference_count += 1
+    if vehicle_in_service:
+        vehicle_in_service.reference_count += 1
     else:
-        vehicle_snapshot = VehicleInService(
+        vehicle_in_service = VehicleInService(
             vehicle_id=vehicle.id,
             version=vehicle.version,
             registration_number=vehicle.registration_number,
@@ -245,13 +244,19 @@ def create_service(
             capacity=vehicle.capacity,
             reference_count=1,
         )
-        session.add(vehicle_snapshot)
+        session.add(vehicle_in_service)
     session.flush()
+
+    # Generate keys
+    ticket_creator = TicketCreator()
+    private_key = ticket_creator.pem_private_key_string
+    public_key = ticket_creator.pem_public_key_string
+
     service = Service(
         company_id=company.id,
         name=name,
-        fare_in_service_id=fare_snapshot.id,
-        vehicle_in_service_id=vehicle_snapshot.id,
+        fare_in_service_id=fare_in_service.id,
+        vehicle_in_service_id=vehicle_in_service.id,
         registration_number=vehicle.registration_number,
         ticket_mode=form_param.ticket_mode,
         status=ServiceStatus.CREATED,
@@ -259,27 +264,30 @@ def create_service(
         ending_at=ending_at,
         private_key=private_key,
         public_key=public_key,
+        starting_landmark_id=first_landmark_in_route.landmark_id,
+        ending_landmark_id=last_landmark_in_route.landmark_id,
     )
     session.add(service)
     session.flush()
 
     # Create LandmarkInService entries for this service (snapshot timings)
     landmarks_in_service = []
-    for lm in landmarks_in_route:
-        arrival_at = (starting_at + timedelta(minutes=lm.arrival_delta)).timetz()
-        departure_at = (starting_at + timedelta(minutes=lm.departure_delta)).timetz()
-        landmark_snapshot = LandmarkInService(
+    for landmark_in_route in landmarks_in_route:
+        arrival_at = (
+            starting_at + timedelta(minutes=landmark_in_route.arrival_delta)
+        ).timetz()
+        departure_at = (
+            starting_at + timedelta(minutes=landmark_in_route.departure_delta)
+        ).timetz()
+
+        landmark_in_service = LandmarkInService(
             service_id=service.id,
-            landmark_id=lm.landmark_id,
-            distance_from_start=lm.distance_from_start,
+            landmark_id=landmark_in_route.landmark_id,
+            distance_from_start=landmark_in_route.distance_from_start,
             arrival_at=arrival_at,
             departure_at=departure_at,
         )
-        landmarks_in_service.append(landmark_snapshot)
-    first_landmark = landmarks_in_service[0]
-    last_landmark = landmarks_in_service[-1]
-    service.starting_landmark_id = first_landmark.landmark_id
-    service.ending_landmark_id = last_landmark.landmark_id
+        landmarks_in_service.append(landmark_in_service)
     session.add_all(landmarks_in_service)
 
     session.commit()
@@ -369,7 +377,6 @@ async def create_service_executive(
             company,
             CreateForm(**form_param.model_dump()),
         )
-
         log_event(token, request_info, service_data)
         return service_data
     except Exception as e:
@@ -457,7 +464,6 @@ async def create_service_operator(
             company,
             CreateForm(**form_param.model_dump(), company_id=token.company_id),
         )
-
         log_event(token, request_info, service_data)
         return service_data
     except Exception as e:

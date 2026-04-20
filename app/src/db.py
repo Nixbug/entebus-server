@@ -2130,10 +2130,10 @@ class Service(ORMbase):
         ending_at (DateTime, not null):
             The time of the day when the service ends operation, based on route information.
 
-        starting_landmark_id (Integer, nullable):
+        starting_landmark_id (Integer, not null):
             Foreign key referencing `landmark.id` for the starting point of the service.
 
-        ending_landmark_id (Integer, nullable):
+        ending_landmark_id (Integer, not null):
             Foreign key referencing `landmark.id` for the ending point of the service.
 
         private_key (TEXT, not null):
@@ -2171,8 +2171,8 @@ class Service(ORMbase):
     status = Column(Integer, nullable=False, default=ServiceStatus.CREATED)
     starting_at = Column(DateTime(timezone=True), nullable=False)
     ending_at = Column(DateTime(timezone=True), nullable=False)
-    starting_landmark_id = Column(Integer, ForeignKey("landmark.id"))
-    ending_landmark_id = Column(Integer, ForeignKey("landmark.id"))
+    starting_landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
+    ending_landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
     private_key = Column(TEXT, nullable=False)
     public_key = Column(TEXT, nullable=False)
     remark = Column(TEXT)
