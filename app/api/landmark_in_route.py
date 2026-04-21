@@ -537,6 +537,7 @@ async def fetch_landmark_in_route_for_executive(
     finally:
         session.close()
 
+
 # # ---------------------------------------------------------------------------
 # ## API endpoints [Operator]
 # # ---------------------------------------------------------------------------
@@ -601,7 +602,7 @@ async def create_landmark_in_route_for_operator(
 
         can_override_limit = verify_permission(
             roles,
-            OperatorPermissionPath.OVERRIDE_LANDMARK_LIMIT,  
+            OperatorPermissionPath.OVERRIDE_LANDMARK_LIMIT,
             raise_exception=False,
         )
 
@@ -621,6 +622,7 @@ async def create_landmark_in_route_for_operator(
         exceptions.handle(e)
     finally:
         session.close()
+
 
 @route_operator.patch(
     f"{URL_LANDMARK_IN_ROUTE}/{{id}}",
