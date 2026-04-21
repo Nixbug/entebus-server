@@ -312,13 +312,11 @@ def download_image(
             ),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Uploads a vehicle image.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.vehicle.update` permission to upload vehicle images.    
-        """
-    ),
+        """),
 )
 async def upload_vehicle_image_for_executive(
     form_param: CreateFormForEX = Depends(),
@@ -361,14 +359,12 @@ async def upload_vehicle_image_for_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Deletes a vehicle image.**    
             - Executive must have a valid access token.       
             - To delete a vehicle image, the `company.vehicle.update` permission is required.    
             - Returns 204 No Content even if the specified image does not exist.    
-        """
-    ),
+        """),
 )
 async def delete_vehicle_image_for_executive(
     id: int,
@@ -399,12 +395,10 @@ async def delete_vehicle_image_for_executive(
     tags=["Vehicle Image"],
     response_model=List[VehicleImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches a list of vehicle images.**    
             - Requires a valid access token for authentication.    
-        """
-    ),
+        """),
 )
 async def fetch_vehicle_image_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -429,12 +423,10 @@ async def fetch_vehicle_image_for_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(VehicleImage.id)]
     ),
-    description=(
-        """
+    description=("""
             **Download vehicle image in original or resized resolution.**    
             - Requires a valid access token for authentication.    
-        """
-    ),
+        """),
 )
 async def download_vehicle_image_for_executive(
     id: int,
@@ -471,13 +463,11 @@ async def download_vehicle_image_for_executive(
             exceptions.UnknownValue(VehicleImage.vehicle_id),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Uploads a vehicle image.**    
             - Operator must have a valid access token.    
             - Logged-in operator must have `company.vehicle.update` permission to upload vehicle images.    
-        """
-    ),
+        """),
 )
 async def upload_vehicle_image_for_operator(
     form_param: CreateFormForOP = Depends(),
@@ -520,14 +510,12 @@ async def upload_vehicle_image_for_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Deletes a vehicle image.**    
             - Operator must have a valid access token.    
             - The logged-in operator must have the `company.vehicle.update` permission.    
             - Returns 204 No Content even if the specified image does not exist.    
-        """
-    ),
+        """),
 )
 async def delete_vehicle_image_for_operator(
     id: int,
@@ -560,13 +548,11 @@ async def delete_vehicle_image_for_operator(
     tags=["Vehicle Image"],
     response_model=List[VehicleImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches a list of vehicle images.**    
             - Requires a valid access token for authentication.    
             - Only vehicle images belonging to the same company as the logged-in operator will be returned.    
-        """
-    ),
+        """),
 )
 async def fetch_vehicle_image_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
@@ -591,12 +577,10 @@ async def fetch_vehicle_image_for_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(VehicleImage.id)]
     ),
-    description=(
-        """
+    description=("""
             **Download vehicle image in original or resized resolution.**    
             - Requires a valid access token for authentication.    
-        """
-    ),
+        """),
 )
 async def download_vehicle_image_for_operator(
     id: int,
@@ -626,11 +610,9 @@ async def download_vehicle_image_for_operator(
     URL_VEHICLE_PICTURE,
     tags=["Vehicle Image"],
     response_model=List[VehicleImageSchema],
-    description=(
-        """
+    description=("""
             **Fetches a list of vehicle images.**    
-        """
-    ),
+        """),
 )
 async def fetch_vehicle_image_for_public(query_params: QueryParamsForPU = Depends()):
     try:
@@ -649,11 +631,9 @@ async def fetch_vehicle_image_for_public(query_params: QueryParamsForPU = Depend
 @route_public.get(
     f"{URL_VEHICLE_PICTURE}/{{id}}",
     tags=["Vehicle Image"],
-    description=(
-        """
+    description=("""
             **Download vehicle image in original or resized resolution.**    
-        """
-    ),
+        """),
 )
 async def download_vehicle_image_for_public(
     id: int,

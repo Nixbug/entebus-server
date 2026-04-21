@@ -396,16 +396,14 @@ def search_vehicle(session: Session, query_params: QueryParams) -> List[Vehicle]
             exceptions.UnknownValue(Vehicle.company_id),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Creates a new vehicle for a company.**    
             - Requires a valid access token.    
             - Logged-in executive must have `company.vehicle.create` permission.    
             - Duplicate registration numbers are not allowed.   
             - Manufactured date cannot be in the future.    
             - By default, the vehicle status is set to `CREATED`.    
-        """
-    ),
+        """),
 )
 async def create_vehicle_executive(
     form_param: CreateFormForEX,
@@ -441,15 +439,13 @@ async def create_vehicle_executive(
             exceptions.UnknownValue(Vehicle.id),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Updates an existing vehicle for a company.**    
             - Requires a valid access token.    
             - Logged-in executive must have `company.vehicle.update` permission.    
             - Manufactured date cannot be in the future.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+        """),
 )
 async def update_vehicle_executive(
     id: int,
@@ -484,14 +480,12 @@ async def update_vehicle_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Deletes an existing vehicle.**    
             - Requires a valid access token for authentication.    
             - The logged-in executive must have the `company.vehicle.delete` permission.    
             - Returns 204 No Content even if the specified vehicle does not exist.    
-        """
-    ),
+        """),
 )
 async def delete_vehicle_executive(
     id: int,
@@ -520,12 +514,10 @@ async def delete_vehicle_executive(
     tags=["Vehicle"],
     response_model=List[VehicleSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches a list of vehicles.**    
             - Requires a valid access token for authentication.    
-        """
-    ),
+        """),
 )
 async def fetch_vehicle_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -559,16 +551,14 @@ async def fetch_vehicle_executive(
             exceptions.InvalidValue(Vehicle.manufactured_on),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Creates a new vehicle for a company.**    
             - Requires a valid access token.    
             - Logged-in operator must have `company.vehicle.create` permission.    
             - Duplicate registration numbers are not allowed.    
             - Manufactured date cannot be in the future.    
             - By default, the vehicle status is set to `CREATED`.    
-        """
-    ),
+        """),
 )
 async def create_vehicle_operator(
     form_param: CreateFormForOP,
@@ -610,16 +600,14 @@ async def create_vehicle_operator(
             exceptions.InvalidStateTransition(Vehicle.status),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Updates an existing vehicle for a company.**    
             - Requires a valid access token.    
             - Logged-in operator must have `company.vehicle.update` permission.    
             - Manufactured date cannot be in the future.    
             - Status transitions are only allowed between ACTIVE and MAINTENANCE.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+        """),
 )
 async def update_vehicle_operator(
     id: int,
@@ -668,14 +656,12 @@ async def update_vehicle_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Deletes an existing vehicle.**    
             - Requires a valid access token for authentication.    
             - The logged-in operator must have the `company.vehicle.delete` permission.    
             - Returns 204 No Content even if the specified vehicle does not exist.    
-        """
-    ),
+        """),
 )
 async def delete_vehicle_operator(
     id: int,
@@ -708,12 +694,10 @@ async def delete_vehicle_operator(
     tags=["Vehicle"],
     response_model=List[VehicleSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches a list of vehicles.**    
             - Requires a valid access token for authentication.    
-        """
-    ),
+        """),
 )
 async def fetch_vehicle_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
@@ -740,12 +724,10 @@ async def fetch_vehicle_operator(
     tags=["Vehicle"],
     response_model=List[VehicleSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches a list of vehicles.**    
             - Requires a valid access token for authentication.    
-        """
-    ),
+        """),
 )
 async def fetch_vehicle_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
@@ -771,13 +753,11 @@ async def fetch_vehicle_vendor(
     URL_VEHICLE,
     tags=["Vehicle"],
     response_model=List[MaskedVehicleSchema],
-    description=(
-        """
+    description=("""
             **Fetches a list of vehicles for public users.**    
             - Only masked fields are returned.    
             - By default only active vehicles are returned.    
-        """
-    ),
+        """),
 )
 async def fetch_vehicle_public(query_params: QueryParamsForPU = Depends()):
     try:

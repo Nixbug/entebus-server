@@ -285,15 +285,13 @@ def search_route(session: Session, query_params: QueryParams) -> List[Route]:
             exceptions.UnknownValue(Route.company_id),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Creates a new route.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.route.create` permission.    
             - Duplicate route names are not allowed.       
             - By default the status of the route is INVALID.    
-        """
-    ),
+        """),
 )
 async def create_route_executive(
     form_param: CreateFormForEX,
@@ -328,14 +326,12 @@ async def create_route_executive(
             exceptions.UnknownValue(Route.id),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Updates an existing route for a company.**    
             - Requires a valid access token.    
             - Logged-in executive must have `company.route.update` permission.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+        """),
 )
 async def update_route_executive(
     id: int,
@@ -370,14 +366,12 @@ async def update_route_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Deletes an existing route.**    
             - Requires a valid access token for authentication.    
             - The logged-in executive must have the `company.route.delete` permission.    
             - Returns 204 No Content even if the specified route does not exist.    
-        """
-    ),
+        """),
 )
 async def delete_route_executive(
     id: int,
@@ -406,12 +400,10 @@ async def delete_route_executive(
     tags=["Route"],
     response_model=List[RouteSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches a list of routes.**    
             - Requires a valid access token for authentication.    
-        """
-    ),
+        """),
 )
 async def fetch_route_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -441,14 +433,12 @@ async def fetch_route_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Creates a new route.**    
             - Operator must have a valid access token.    
             - Logged-in operator must have `company.route.create` permission.    
             - Duplicate route names are not allowed.       
-        """
-    ),
+        """),
 )
 async def create_route_operator(
     form_param: CreateFormForOP,
@@ -483,14 +473,12 @@ async def create_route_operator(
             exceptions.UnknownValue(Route.id),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Updates an existing route for a company.**    
             - Requires a valid access token.    
             - Logged-in operator must have `company.route.update` permission.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+        """),
 )
 async def update_route_operator(
     id: int,
@@ -526,14 +514,12 @@ async def update_route_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Deletes an existing route.**    
             - Requires a valid access token for authentication.    
             - The logged-in operator must have the `company.route.delete` permission.    
             - Returns 204 No Content even if the specified route does not exist.    
-        """
-    ),
+        """),
 )
 async def delete_route_operator(
     id: int,
@@ -566,12 +552,10 @@ async def delete_route_operator(
     tags=["Route"],
     response_model=List[RouteSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches a list of routes.**    
             - Requires a valid access token for authentication.    
-        """
-    ),
+        """),
 )
 async def fetch_route_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
@@ -598,12 +582,10 @@ async def fetch_route_operator(
     tags=["Route"],
     response_model=List[RouteSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches a list of routes.**    
             - Requires a valid access token for authentication.    
-        """
-    ),
+        """),
 )
 async def fetch_route_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
@@ -629,12 +611,10 @@ async def fetch_route_vendor(
     URL_ROUTE,
     tags=["Route"],
     response_model=List[RouteSchema],
-    description=(
-        """
+    description=("""
             **Fetches a list of routes for public users.**    
             - By default only valid routes are returned.    
-        """
-    ),
+        """),
 )
 async def fetch_route_public(query_params: QueryParamsForPU = Depends()):
     try:

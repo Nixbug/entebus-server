@@ -4,7 +4,6 @@ This module provides input data for tests that are commonly used across FastAPI 
 
 from app.src.enums import GrantType, PlatformType
 
-
 VALID_EXECUTIVE_CREDENTIALS = {
     "admin": {
         "username": "admin",

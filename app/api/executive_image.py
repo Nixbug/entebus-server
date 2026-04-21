@@ -122,14 +122,12 @@ class ImageQueryParams(BaseModel):
             exceptions.UnknownValue(ExecutiveImage.executive_id),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Uploads an executive image.**    
             - Executive must have a valid access token.   
             - Logged-in executive must have `executive.update` permission to upload other executive images.   
             - Executive can update their own image without permission.    
-        """
-    ),
+        """),
 )
 async def upload_executive_image(
     form_param: CreateForm = Depends(),
@@ -188,15 +186,13 @@ async def upload_executive_image(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Deletes an executive image.**    
             - Executive must have a valid access token.    
             - Executives can delete their own image without additional permissions.    
             - To delete another executive's image, the `executive.update` permission is required.    
             - Returns 204 No Content even if the specified image does not exist.    
-        """
-    ),
+        """),
 )
 async def delete_executive_image(
     id: int,
@@ -237,12 +233,10 @@ async def delete_executive_image(
     tags=["Account Image"],
     response_model=list[ExecutiveImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches executive images.**    
             - Requires a valid access token for authentication.     
-        """
-    ),
+        """),
 )
 async def fetch_executive_image(
     query_params: QueryParams = Depends(),
@@ -287,12 +281,10 @@ async def fetch_executive_image(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(ExecutiveImage.id)]
     ),
-    description=(
-        """
+    description=("""
             **Download executive profile picture in original or resized resolution.**       
             - Requires a valid access token for authentication.     
-        """
-    ),
+        """),
 )
 async def download_executive_image(
     id: int,

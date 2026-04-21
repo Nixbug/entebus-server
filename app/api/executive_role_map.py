@@ -37,7 +37,6 @@ from app.src.functions import (
     apply_updated_on_filters,
 )
 
-
 route_executive = APIRouter()
 
 
@@ -97,14 +96,12 @@ class QueryParams(UpdatedOnFilter, CreatedOnFilter, IDFilter, PaginationFilter):
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Creates a new executive role mapping.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `executive.role.update` permission.    
             - Duplicate mappings are not allowed.    
-        """
-    ),
+        """),
 )
 async def create_role_map(
     form_param: CreateForm,
@@ -151,15 +148,13 @@ async def create_role_map(
             exceptions.UnknownValue(ExecutiveRoleMap.id),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Updates an existing executive role mapping.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `executive.role.update` permission.    
             - Duplicate mappings are not allowed.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+        """),
 )
 async def update_role_map(
     id: int,
@@ -202,14 +197,12 @@ async def update_role_map(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Deletes an existing executive role mapping.**    
             - Requires a valid access token for authentication.    
             - The logged-in executive must have the `executive.role.update` permission.    
             - Returns 204 No Content even if the specified role mapping does not exist.    
-        """
-    ),
+        """),
 )
 async def delete_role_map(
     id: int,
@@ -242,12 +235,10 @@ async def delete_role_map(
     tags=["Role Map"],
     response_model=list[ExecutiveRoleMapSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches all executive role mappings.**    
             - Requires a valid access token for authentication.    
-        """
-    ),
+        """),
 )
 async def fetch_role_map(
     query_params: QueryParams = Depends(),

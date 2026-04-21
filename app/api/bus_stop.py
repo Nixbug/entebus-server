@@ -251,8 +251,7 @@ def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusSto
             exceptions.BusStopOutsideLandmark(),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Create a new bus stop.**  
             - The executive must provide a valid access token.  
             - The authenticated executive must have `landmark.bus_stop.create` permission.  
@@ -260,8 +259,7 @@ def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusSto
             - The coordinates must be in `longitude/latitude` format.  
             - Use WGS84 compatible coordinates within `SRID 4326` bounds.  
             - The location must be within the boundary of the landmark.     
-        """
-    ),
+        """),
 )
 async def create_bus_stop(
     form_param: CreateForm,
@@ -315,15 +313,13 @@ async def create_bus_stop(
             exceptions.BusStopOutsideLandmark(),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Updates an existing bus stop.**    
             - Requires a valid access token.    
             - Logged-in executive must have `landmark.bus_stop.update` permission to update bus stops.    
             - Empty PATCH requests are allowed and will result in no changes.    
             - When updating the `location`, it must remain within the landmark boundary.    
-        """
-    ),
+        """),
 )
 async def update_bus_stop(
     id: int,
@@ -377,14 +373,12 @@ async def update_bus_stop(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
         **Deletes an existing bus stop.**  
         - Requires a valid access token for authentication.  
         - The logged-in executive must have `landmark.bus_stop.delete` permission.  
         - Returns 204 No Content even if the specified bus stop does not exist.  
-        """
-    ),
+        """),
 )
 async def delete_bus_stop(
     id: int,
@@ -424,14 +418,12 @@ async def delete_bus_stop(
             exceptions.InvalidToken(),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Fetches a list of Bus Stops.**    
             - Requires a valid access token for authentication.    
             - Common search supports searching by id and name.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """
-    ),
+        """),
 )
 async def fetch_bus_stop_executive(
     query_params: QueryParams = Depends(),
@@ -462,14 +454,12 @@ async def fetch_bus_stop_executive(
             exceptions.InvalidToken(),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Fetches a list of Bus Stops.**    
             - Requires a valid access token for authentication.    
             - Common search supports searching by id and name.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """
-    ),
+        """),
 )
 async def fetch_bus_stop_vendor(
     query_params: QueryParams = Depends(),
@@ -500,14 +490,12 @@ async def fetch_bus_stop_vendor(
             exceptions.InvalidToken(),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Fetches a list of Bus Stops.**    
             - Requires a valid access token for authentication.    
             - Common search supports searching by id and name.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """
-    ),
+        """),
 )
 async def fetch_bus_stop_operator(
     query_params: QueryParams = Depends(),
@@ -534,13 +522,11 @@ async def fetch_bus_stop_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
-    description=(
-        """
+    description=("""
             **Fetches a list of Bus Stops.**    
             - Common search supports searching by id and name.  
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """
-    ),
+        """),
 )
 async def fetch_bus_stop_public(query_params: QueryParams = Depends()):
     try:

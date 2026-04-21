@@ -310,15 +310,13 @@ def delete_operator(session: Session, operator: Operator) -> dict:
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Creates a new operator account.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.operator.create` permission.    
             - Duplicate usernames are not allowed.    
             - By default the user is created in active status.     
-        """
-    ),
+        """),
 )
 async def create_account_executive(
     form_param: CreateFormForEX,
@@ -367,14 +365,12 @@ async def create_account_executive(
             exceptions.UnknownValue(Operator.id),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Updates an existing operator account.**    
             - Requires a valid access token.    
             - Logged-in executive must have `company.operator.update` permission to update other operators.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+        """),
 )
 async def update_account_executive(
     id: int,
@@ -404,13 +400,11 @@ async def update_account_executive(
     tags=["Operator Account"],
     response_model=List[OperatorSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches a list of operators.**    
             - Requires a valid access token for authentication.    
             - Common search supports searching by id, username, full_name, description, phone_number, and email_id.    
-        """
-    ),
+        """),
 )
 async def fetch_account_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -436,14 +430,12 @@ async def fetch_account_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Deletes an existing operator account.**    
             - Requires a valid access token for authentication.    
             - The logged-in executive must have the `company.operator.delete` permission.    
             - Returns 204 No Content even if the specified account does not exist.    
-        """
-    ),
+        """),
 )
 async def delete_account_executive(
     id: int,
@@ -478,15 +470,13 @@ async def delete_account_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Creates a new operator account.**    
             - Operator must have a valid access token.    
             - Logged-in operator must have `company.operator.create` permission.    
             - Duplicate usernames are not allowed.    
             - By default the user is created in active status.    
-        """
-    ),
+        """),
 )
 async def create_account_operator(
     form_param: CreateFormForOP,
@@ -535,15 +525,13 @@ async def create_account_operator(
             exceptions.UnknownValue(Operator.id),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Updates an existing operator account.**    
             - Requires a valid access token.    
             - Logged-in operator must have `company.operator.update` permission to update other operators.    
             - Operator can update their own account except status.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+        """),
 )
 async def update_account_operator(
     id: int,
@@ -585,14 +573,12 @@ async def update_account_operator(
     tags=["Account"],
     response_model=List[OperatorSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches a list of operators.**    
             - Requires a valid access token for authentication.    
             - Only operators belonging to the same company as the logged-in operator will be returned.    
             - Common search supports searching by id, username, full_name, description, phone_number, and email_id.    
-        """
-    ),
+        """),
 )
 async def fetch_account_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
@@ -618,15 +604,13 @@ async def fetch_account_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Deletes an existing operator account.**    
             - Requires a valid access token for authentication.    
             - The logged-in operator must have the `company.operator.delete` permission.    
             - Self-deletion is not allowed for safety reasons.    
             - Returns 204 No Content even if the specified account does not exist.    
-        """
-    ),
+        """),
 )
 async def delete_account_operator(
     id: int,

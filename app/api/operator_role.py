@@ -229,14 +229,12 @@ def delete_role(session: Session, role: OperatorRole) -> dict:
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Creates a new operator role.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.operator.role.create` permission.    
             - Duplicate names are not allowed.    
-        """
-    ),
+        """),
 )
 async def create_role_executive(
     form_param: CreateFormForEX,
@@ -280,15 +278,13 @@ async def create_role_executive(
             exceptions.UnknownValue(OperatorRole.id),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Updates an existing operator role.**    
             - Requires a valid access token.    
             - Logged-in executive must have `company.operator.role.update` permission.    
             - Duplicate names are not allowed.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+        """),
 )
 async def update_role_executive(
     id: int,
@@ -325,14 +321,12 @@ async def update_role_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Deletes an existing operator role.**    
             - Requires a valid access token for authentication.    
             - The logged-in executive must have the `company.operator.role.delete` permission.    
             - Returns 204 No Content even if the specified role does not exist.    
-        """
-    ),
+        """),
 )
 async def delete_role_executive(
     id: int,
@@ -361,12 +355,10 @@ async def delete_role_executive(
     tags=["Operator Role"],
     response_model=List[OperatorRoleSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches a list of operator roles.**    
             - Requires a valid access token for authentication.    
-        """
-    ),
+        """),
 )
 async def fetch_role_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -396,14 +388,12 @@ async def fetch_role_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Creates a new operator role.**    
             - Operator must have a valid access token.    
             - Logged-in operator must have `company.operator.role.create` permission.    
             - Duplicate names are not allowed.    
-        """
-    ),
+        """),
 )
 async def create_role_operator(
     form_param: CreateFormForOP,
@@ -447,15 +437,13 @@ async def create_role_operator(
             exceptions.UnknownValue(OperatorRole.id),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Updates an existing operator role.**    
             - Requires a valid access token.    
             - Logged-in operator must have `company.operator.role.update` permission.    
             - Duplicate names are not allowed.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+        """),
 )
 async def update_role_operator(
     id: int,
@@ -493,14 +481,12 @@ async def update_role_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Deletes an existing operator role.**    
             - Requires a valid access token for authentication.    
             - The logged-in operator must have the `company.operator.role.delete` permission.    
             - Returns 204 No Content even if the specified role does not exist.    
-        """
-    ),
+        """),
 )
 async def delete_role_operator(
     id: int,
@@ -533,13 +519,11 @@ async def delete_role_operator(
     tags=["Role"],
     response_model=List[OperatorRoleSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches a list of operator roles.**    
             - Requires a valid access token for authentication.    
             - Only operator roles belonging to the same company as the logged-in operator will be returned.    
-        """
-    ),
+        """),
 )
 async def fetch_role_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)

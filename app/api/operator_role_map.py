@@ -184,14 +184,12 @@ def delete_role_map(session: Session, role_map: OperatorRoleMap) -> dict:
             ),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Creates a new operator role mapping.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.operator.role.update` permission.    
             - Duplicate mappings are not allowed.    
-        """
-    ),
+        """),
 )
 async def create_role_map_executive(
     form_param: CreateForm,
@@ -247,15 +245,13 @@ async def create_role_map_executive(
             ),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Updates an existing operator role mapping.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.operator.role.update` permission.    
             - Duplicate mappings are not allowed.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+        """),
 )
 async def update_role_map_executive(
     id: int,
@@ -310,14 +306,12 @@ async def update_role_map_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Deletes an existing operator role mapping.**    
             - Requires a valid access token for authentication.    
             - The logged-in executive must have the `company.operator.role.update` permission.    
             - Returns 204 No Content even if the specified role mapping does not exist.    
-        """
-    ),
+        """),
 )
 async def delete_role_map_executive(
     id: int,
@@ -348,12 +342,10 @@ async def delete_role_map_executive(
     tags=["Operator Role Map"],
     response_model=List[OperatorRoleMapSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches a list of operator role mappings.**    
             - Requires a valid access token for authentication.    
-        """
-    ),
+        """),
 )
 async def fetch_role_map_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -388,14 +380,12 @@ async def fetch_role_map_executive(
             exceptions.UnknownValue(OperatorRoleMap.role_id),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Creates a new operator role mapping.**    
             - Operator must have a valid access token.    
             - Logged-in operator must have `company.operator.role.update` permission.    
             - Duplicate mappings are not allowed.    
-        """
-    ),
+        """),
 )
 async def create_role_map_operator(
     form_param: CreateForm,
@@ -452,15 +442,13 @@ async def create_role_map_operator(
             exceptions.UnknownValue(OperatorRoleMap.role_id),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Updates an existing operator role mapping.**    
             - Operator must have a valid access token.    
             - Logged-in operator must have `company.operator.role.update` permission.    
             - Duplicate mappings are not allowed.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+        """),
 )
 async def update_role_map_operator(
     id: int,
@@ -514,14 +502,12 @@ async def update_role_map_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Deletes an existing operator role mapping.**    
             - Requires a valid access token for authentication.    
             - The logged-in operator must have the `company.operator.role.update` permission.    
             - Returns 204 No Content even if the specified role mapping does not exist.    
-        """
-    ),
+        """),
 )
 async def delete_role_map_operator(
     id: int,
@@ -556,13 +542,11 @@ async def delete_role_map_operator(
     tags=["Role Map"],
     response_model=List[OperatorRoleMapSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches a list of operator role mappings.**    
             - Requires a valid access token for authentication.    
             - Only operator role mappings belonging to the same company as the logged-in operator will be returned.    
-        """
-    ),
+        """),
 )
 async def fetch_role_map_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
