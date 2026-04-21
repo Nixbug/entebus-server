@@ -146,7 +146,7 @@ class OperatorPermissions(CRUDPermission):
 class DutyPermission(BaseModel):
     """Duty related permissions."""
 
-    update: bool = Field(description="Allow updating")
+    update: bool = Field(description="Allow updating duties")
 
 
 class CreatePermission(BaseModel):
