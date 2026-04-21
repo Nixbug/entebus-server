@@ -89,7 +89,7 @@ class PermissionPath(StrEnum):
     DELETE_COMPANY_SERVICE_ASSIGNMENT = "company.service.assignment.delete"
 
     CREATE_COMPANY_SERVICE_TICKET = "company.service.ticket.create"
-    
+
     CREATE_COMPANY_SERVICE_STATEMENT = "company.service.statement.create"
 
     CREATE_COMPANY_SCHEDULE = "company.schedule.create"
@@ -153,7 +153,7 @@ class DutyPermission(BaseModel):
 
 
 class CreatePermission(BaseModel):
-    """Single-action create permission."""
+    """Single action create permission."""
 
     create: bool = Field(description="Allow creation")
 
@@ -163,7 +163,6 @@ class ServicePermissions(CRUDPermission):
 
     duty: DutyPermission
     assignment: CRUDPermission
-    ticket: CreatePermission
     statement: CreatePermission
 
 
