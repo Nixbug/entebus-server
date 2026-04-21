@@ -102,12 +102,14 @@ class QueryParams(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=("""
+    description=(
+        """
             **Creates a new executive role.**    
             - Executive must have a valid access token.     
             - Logged-in executive must have `executive.role.create` permission.     
             - Duplicate names are not allowed.      
-        """),
+        """
+    ),
 )
 async def create_role(
     form_param: CreateForm,
@@ -147,13 +149,15 @@ async def create_role(
             exceptions.UnknownValue(ExecutiveRole.id),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Updates an existing executive role.**    
             - Requires a valid access token.    
             - Logged-in executive must have `executive.role.update` permission.       
             - Duplicate names are not allowed.     
             - Empty PATCH requests are allowed and will result in no changes.   
-        """),
+        """
+    ),
 )
 async def update_role(
     id: int,
@@ -192,12 +196,14 @@ async def update_role(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=("""
+    description=(
+        """
             **Deletes an existing executive role.**    
             - Requires a valid access token for authentication.     
             - The logged-in executive must have the `executive.role.delete` permission.     
             - Returns 204 No Content even if the specified role does not exist.     
-        """),
+        """
+    ),
 )
 async def delete_role(
     id: int,
@@ -228,10 +234,12 @@ async def delete_role(
     tags=["Role"],
     response_model=list[ExecutiveRoleSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches all executive roles.**    
             - Requires a valid access token for authentication.     
-        """),
+        """
+    ),
 )
 async def fetch_role(
     query_params: QueryParams = Depends(),

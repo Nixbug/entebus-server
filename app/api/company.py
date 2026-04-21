@@ -361,14 +361,16 @@ def search_company(session: Session, query_params: QueryParams) -> List[Company]
             exceptions.InvalidSRID4326(),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Creates a new company.**  
             - Executive must have a valid access token.     
             - Logged-in executive must have `company.create` permission.       
             - Duplicate names are not allowed.   
             - By default the company is created in `under verification` status.   
             - By default the company type is `other`.     
-        """),
+        """
+    ),
 )
 async def create_company(
     form_param: CreateForm,
@@ -431,14 +433,16 @@ async def create_company(
             exceptions.InvalidSRID4326(),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Updates an existing company.**    
             - Requires a valid access token.    
             - Logged-in executive must have `company.update` permission.    
             - Empty PATCH requests are allowed and will result in no changes.    
             - When updating `location`, it must be a valid SRID 4326 WKT POINT.    
             - If the company name is updated, the linked wallet name will also be updated to maintain consistency.    
-        """),
+        """
+    ),
 )
 async def update_company_executive(
     id: int,
@@ -477,12 +481,14 @@ async def update_company_executive(
             exceptions.InvalidToken(),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Fetches a list of companies.**    
             - Requires a valid access token for authentication.    
             - Common search supports searching by id, name and address.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """),
+        """
+    ),
 )
 async def fetch_company_executive(
     query_params: QueryParamsForEX = Depends(),
@@ -509,13 +515,15 @@ async def fetch_company_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=("""
+    description=(
+        """
             **Deletes a company.**    
             - Requires a valid access token for authentication.    
             - The logged-in executive must have `company.delete` permission.    
             - Returns 204 No Content even if the specified company does not exist.    
             - Deleting a company will delete all related records (operators, tokens, roles, images, wallets). Use with caution.    
-        """),
+        """
+    ),
 )
 async def delete_company_executive(
     id: int,
@@ -573,13 +581,15 @@ async def delete_company_executive(
             exceptions.InvalidSRID4326(),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Updates an existing company.**
             - Requires a valid access token.
             - Logged-in operator must have `company.update` permission.
             - Empty PATCH requests are allowed and will result in no changes.
             - When updating `location`, it must be a valid SRID 4326 WKT POINT.
-        """),
+        """
+    ),
 )
 async def update_company_operator(
     id: int,
@@ -614,10 +624,12 @@ async def update_company_operator(
     tags=["Company"],
     response_model=List[CompanySchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches the operator's company.**    
             - Only the company associated with the operator will be returned.    
-        """),
+        """
+    ),
 )
 async def fetch_company_operator(access_token=Depends(bearer_operator)):
     try:
@@ -644,13 +656,15 @@ async def fetch_company_operator(access_token=Depends(bearer_operator)):
     responses=fuse_exception_responses(
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
-    description=("""
+    description=(
+        """
             **Fetches a list of companies.**    
             - Only verified companies are returned.
             - Only id, name, type are returned.
             - Common search supports searching by id, name and address.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """),
+        """
+    ),
 )
 async def fetch_company_public(
     query_params: QueryParamsForPU = Depends(),

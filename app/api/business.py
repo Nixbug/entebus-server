@@ -363,14 +363,16 @@ def search_business(session: Session, query_params: QueryParams) -> List[Busines
             exceptions.InvalidSRID4326(),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Creates a new business.**  
             - Executive must have a valid access token.     
             - Logged-in executive must have `business.create` permission.       
             - Duplicate names are not allowed.   
             - By default the business is created in `active` status.   
             - By default the business type is `other`.     
-        """),
+        """
+    ),
 )
 async def create_business(
     form_param: CreateForm,
@@ -433,14 +435,16 @@ async def create_business(
             exceptions.InvalidSRID4326(),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Updates an existing business.**    
             - Requires a valid access token.    
             - Logged-in executive must have `business.update` permission.    
             - Empty PATCH requests are allowed and will result in no changes.    
             - When updating `location`, it must be a valid SRID 4326 WKT POINT.    
             - If the business name is updated, the linked wallet name will also be updated to maintain consistency.    
-        """),
+        """
+    ),
 )
 async def update_business_executive(
     id: int,
@@ -481,12 +485,14 @@ async def update_business_executive(
             exceptions.InvalidToken(),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Fetches a list of businesses.**    
             - Requires a valid access token for authentication.    
             - Common search supports searching by id, name and address.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """),
+        """
+    ),
 )
 async def fetch_business_executive(
     query_params: QueryParamsForEX = Depends(),
@@ -513,13 +519,15 @@ async def fetch_business_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=("""
+    description=(
+        """
             **Deletes a business.**    
             - Requires a valid access token for authentication.    
             - The logged-in executive must have `business.delete` permission.    
             - Returns 204 No Content even if the specified business does not exist.    
             - Deleting a business will delete all related records (vendors, tokens, roles, images, wallets). Use with caution.    
-        """),
+        """
+    ),
 )
 async def delete_business_executive(
     id: int,
@@ -575,7 +583,8 @@ async def delete_business_executive(
             exceptions.InvalidSRID4326(),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Updates an existing business.**   
             - Requires a valid access token.    
             - Logged-in vendor must have `business.update` permission.    
@@ -583,7 +592,8 @@ async def delete_business_executive(
             - Empty PATCH requests are allowed and will result in no changes.    
             - When updating `location`, it must be a valid SRID 4326 WKT POINT.    
             - Returns the updated business.    
-        """),
+        """
+    ),
 )
 async def update_business_vendor(
     id: int,
@@ -620,11 +630,13 @@ async def update_business_vendor(
     tags=["Business"],
     response_model=List[BusinessSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches the vendor's business.**    
             - Only the business associated with the vendor will be returned.    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def fetch_business_vendor(access_token=Depends(bearer_vendor)):
     try:
@@ -651,13 +663,15 @@ async def fetch_business_vendor(access_token=Depends(bearer_vendor)):
     responses=fuse_exception_responses(
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
-    description=("""
+    description=(
+        """
             **Fetches a list of businesses.**    
             - Only active businesses are returned.    
             - Only id, name, type are returned.    
             - Common search supports searching by id, name and address.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.       
-        """),
+        """
+    ),
 )
 async def fetch_business_public(
     query_params: QueryParamsForPU = Depends(),

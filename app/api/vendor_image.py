@@ -306,11 +306,13 @@ def download_image(
             ),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Uploads a vendor image.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `business.vendor.update` permission to upload other vendor images.    
-        """),
+        """
+    ),
 )
 async def upload_vendor_image_for_executive(
     form_param: CreateFormForEX = Depends(),
@@ -353,12 +355,14 @@ async def upload_vendor_image_for_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=("""
+    description=(
+        """
             **Deletes a vendor image.**    
             - Executive must have a valid access token.       
             - To delete a vendor's image, the `business.vendor.update` permission is required.    
             - Returns 204 No Content even if the specified image does not exist.    
-        """),
+        """
+    ),
 )
 async def delete_vendor_image_for_executive(
     id: int,
@@ -387,10 +391,12 @@ async def delete_vendor_image_for_executive(
     tags=["Vendor Account Image"],
     response_model=List[VendorImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches a list of vendor images.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def fetch_vendor_image_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -415,10 +421,12 @@ async def fetch_vendor_image_for_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(VendorImage.id)]
     ),
-    description=("""
+    description=(
+        """
             **Download vendor profile picture in original or resized resolution.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def download_vendor_image_for_executive(
     id: int,
@@ -453,12 +461,14 @@ async def download_vendor_image_for_executive(
             exceptions.UnknownValue(VendorImage.vendor_id),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Uploads a vendor image.**    
             - Vendor must have a valid access token.    
             - Logged-in vendor must have `business.vendor.update` permission to upload other vendor images.    
             - Vendor can update their own image without permission.    
-        """),
+        """
+    ),
 )
 async def upload_vendor_image_for_vendor(
     form_param: CreateFormForVE = Depends(),
@@ -506,13 +516,15 @@ async def upload_vendor_image_for_vendor(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=("""
+    description=(
+        """
             **Deletes a vendor image.**    
             - Vendor must have a valid access token.    
             - Vendors can delete their own image without additional permissions.    
             - To delete another vendor's image, the `business.vendor.update` permission is required.    
             - Returns 204 No Content even if the specified image does not exist.    
-        """),
+        """
+    ),
 )
 async def delete_vendor_image_for_vendor(
     id: int,
@@ -547,11 +559,13 @@ async def delete_vendor_image_for_vendor(
     tags=["Account Image"],
     response_model=List[VendorImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches a list of vendor images.**    
             - Requires a valid access token for authentication.    
             - Only vendor images belonging to the same business as the logged-in vendor will be returned.    
-        """),
+        """
+    ),
 )
 async def fetch_vendor_image_for_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
@@ -576,10 +590,12 @@ async def fetch_vendor_image_for_vendor(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(VendorImage.id)]
     ),
-    description=(""" 
+    description=(
+        """ 
             **Download vendor profile picture in original or resized resolution.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def download_vendor_image_for_vendor(
     id: int,

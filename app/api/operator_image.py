@@ -306,11 +306,13 @@ def download_image(
             ),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Uploads an operator image.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.operator.update` permission to upload other operator images.    
-        """),
+        """
+    ),
 )
 async def upload_operator_image_for_executive(
     form_param: CreateFormForEX = Depends(),
@@ -353,12 +355,14 @@ async def upload_operator_image_for_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=("""
+    description=(
+        """
             **Deletes an operator image.**    
             - Executive must have a valid access token.       
             - To delete operator's image, the `company.operator.update` permission is required.    
             - Returns 204 No Content even if the specified image does not exist.    
-        """),
+        """
+    ),
 )
 async def delete_operator_image_for_executive(
     id: int,
@@ -389,10 +393,12 @@ async def delete_operator_image_for_executive(
     tags=["Operator Account Image"],
     response_model=List[OperatorImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches a list of operator images.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def fetch_operator_image_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -417,10 +423,12 @@ async def fetch_operator_image_for_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(OperatorImage.id)]
     ),
-    description=("""
+    description=(
+        """
             **Download operator profile picture in original or resized resolution.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def download_operator_image_for_executive(
     id: int,
@@ -457,12 +465,14 @@ async def download_operator_image_for_executive(
             exceptions.UnknownValue(OperatorImage.operator_id),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Uploads an operator image.**    
             - Operator must have a valid access token.    
             - Logged-in operator must have `company.operator.update` permission to upload other operator images.    
             - Operator can update their own image without permission.    
-        """),
+        """
+    ),
 )
 async def upload_operator_image_for_operator(
     form_param: CreateFormForOP = Depends(),
@@ -510,13 +520,15 @@ async def upload_operator_image_for_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=("""
+    description=(
+        """
             **Deletes an operator image.**    
             - Operator must have a valid access token.    
             - Operators can delete their own image without additional permissions.    
             - To delete another operator's image, the `company.operator.update` permission is required.    
             - Returns 204 No Content even if the specified image does not exist.    
-        """),
+        """
+    ),
 )
 async def delete_operator_image_for_operator(
     id: int,
@@ -553,11 +565,13 @@ async def delete_operator_image_for_operator(
     tags=["Account Image"],
     response_model=List[OperatorImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches a list of operator images.**    
             - Requires a valid access token for authentication.    
             - Only operator images belonging to the same company as the logged-in operator will be returned.    
-        """),
+        """
+    ),
 )
 async def fetch_operator_image_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
@@ -582,10 +596,12 @@ async def fetch_operator_image_for_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(OperatorImage.id)]
     ),
-    description=(""" 
+    description=(
+        """ 
             **Download operator profile picture in original or resized resolution.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def download_operator_image_for_operator(
     id: int,

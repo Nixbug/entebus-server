@@ -294,7 +294,8 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
             exceptions.OverlappingLandmarkBoundary(),
         ]
     ),
-    description=(f"""
+    description=(
+        f"""
         **Create a new landmark.**       
         - The executive must provide a valid access token.  
         - The authenticated executive must have `landmark.create` permission.        
@@ -303,7 +304,8 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
         - Use WGS84 compatible coordinates within `SRID 4326` bounds.     
         - Form a valid Axis-Aligned Bounding Box (AABB).        
         - The boundary must not intersect or overlap with any existing landmark boundary.     
-    """),
+    """
+    ),
 )
 async def create_landmark(
     form_param: CreateForm,
@@ -360,14 +362,16 @@ async def create_landmark(
             exceptions.LandmarkDistanceLimitExceeded(),
         ]
     ),
-    description=(f"""
+    description=(
+        f"""
             **Updates an existing landmark.**   
             - Requires a valid access token.    
             - Logged-in executive must have `landmark.update` permission.   
             - Empty PATCH requests are allowed and will result in no changes.   
             - When updating the boundary, the new centroid cannot be more than `{MAX_LANDMARK_UPDATE_DISTANCE / 1000}` km from the original centroid.     
             - All bus stops associated with the landmark must remain within the updated boundary.   
-        """),
+        """
+    ),
 )
 async def update_landmark(
     id: int,
@@ -437,13 +441,15 @@ async def update_landmark(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(f"""
+    description=(
+        f"""
             **Deletes an existing landmark.**   
             - Requires a valid access token for authentication.         
             - The logged-in executive must have the `landmark.delete` permission.       
             - Returns 204 No Content even if the specified landmark does not exist.         
             - A foreign key constraint error will occur if the landmark is referenced in any other table.    
-        """),
+        """
+    ),
 )
 async def delete_landmark(
     id: int,
@@ -483,12 +489,14 @@ async def delete_landmark(
             exceptions.InvalidToken(),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Fetches a list of landmarks.**    
             - Requires a valid access token for authentication.    
             - Common search supports searching by id, name and alias_names.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """),
+        """
+    ),
 )
 async def fetch_landmark_executive(
     query_params: QueryParams = Depends(),
@@ -519,12 +527,14 @@ async def fetch_landmark_executive(
             exceptions.InvalidToken(),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Fetches a list of landmarks.**    
             - Requires a valid access token for authentication.    
             - Common search supports searching by id, name and alias_names.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """),
+        """
+    ),
 )
 async def fetch_landmark_vendor(
     query_params: QueryParams = Depends(),
@@ -555,12 +565,14 @@ async def fetch_landmark_vendor(
             exceptions.InvalidToken(),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Fetches a list of landmarks.**    
             - Requires a valid access token for authentication.    
             - Common search supports searching by id, name and alias_names.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """),
+        """
+    ),
 )
 async def fetch_landmark_operator(
     query_params: QueryParams = Depends(),
@@ -587,11 +599,13 @@ async def fetch_landmark_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
-    description=("""
+    description=(
+        """
             **Fetches a list of landmarks.**    
             - Common search supports searching by id, name and alias_names.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """),
+        """
+    ),
 )
 async def fetch_landmark_public(query_params: QueryParams = Depends()):
     try:

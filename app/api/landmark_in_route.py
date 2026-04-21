@@ -54,6 +54,7 @@ from app.src import exceptions
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 
+
 route_executive = APIRouter()
 route_operator = APIRouter()
 route_vendor = APIRouter()
@@ -355,13 +356,15 @@ def search_landmark_in_route(
             exceptions.UnknownValue(LandmarkInRoute.landmark_id),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Creates a new landmark in route.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.route.create` or `company.route.update` permission.    
             - Departure delta must be greater than arrival delta.    
             - When creating a new landmark in a route, the route will be validated and status of the route will be updated.      
-        """),
+        """
+    ),
 )
 async def create_landmark_in_route_for_executive(
     form_param: CreateForm,
@@ -406,13 +409,15 @@ async def create_landmark_in_route_for_executive(
             exceptions.UnknownValue(LandmarkInRoute.id),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Updates an existing landmark in route.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.route.create` or `company.route.update` permission.    
             - Departure delta must be greater than arrival delta.    
             - When updating a landmark in a route, the route will be validated and status of the route will be updated.    
-        """),
+        """
+    ),
 )
 async def update_landmark_in_route_for_executive(
     id: int,
@@ -461,13 +466,15 @@ async def update_landmark_in_route_for_executive(
             exceptions.NoPermission(),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Deletes a specific landmark assigned to a route.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.route.create` or `company.route.update` permission.    
             - When deleting a landmark in a route, the route will be validated and status will be updated.    
             - Returns 204 No Content even if the specified landmark in route does not exist.    
-        """),
+        """
+    ),
 )
 async def delete_landmark_in_route_for_executive(
     id: int,
@@ -507,10 +514,12 @@ async def delete_landmark_in_route_for_executive(
     tags=["Landmark In Route"],
     response_model=List[LandmarkInRouteSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches a list of landmarks in route.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def fetch_landmark_in_route_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -527,7 +536,6 @@ async def fetch_landmark_in_route_for_executive(
         exceptions.handle(e)
     finally:
         session.close()
-
 
 # # ---------------------------------------------------------------------------
 # ## API endpoints [Operator]
@@ -593,7 +601,7 @@ async def create_landmark_in_route_for_operator(
 
         can_override_limit = verify_permission(
             roles,
-            OperatorPermissionPath.OVERRIDE_LANDMARK_LIMIT,
+            OperatorPermissionPath.OVERRIDE_LANDMARK_LIMIT,  
             raise_exception=False,
         )
 
@@ -614,7 +622,6 @@ async def create_landmark_in_route_for_operator(
     finally:
         session.close()
 
-
 @route_operator.patch(
     f"{URL_LANDMARK_IN_ROUTE}/{{id}}",
     tags=["Landmark In Route"],
@@ -627,14 +634,16 @@ async def create_landmark_in_route_for_operator(
             exceptions.UnknownValue(LandmarkInRoute.id),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Updates an existing landmark in route.**    
             - Operator must have a valid access token.    
             - Logged-in operator must have `company.route.create` or `company.route.update` permission.    
             - Logged-in operator can only update landmarks in routes belonging to their company.    
             - Departure delta must be greater than arrival delta.    
             - When updating a landmark in a route, the route will be validated and status of the route will be updated.    
-        """),
+        """
+    ),
 )
 async def update_landmark_in_route_for_operator(
     id: int,
@@ -687,14 +696,16 @@ async def update_landmark_in_route_for_operator(
             exceptions.NoPermission(),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Deletes a specific landmark assigned to a route.**    
             - Operator must have a valid access token.    
             - Logged-in operator must have `company.route.create` or `company.route.update` permission.    
             - Logged-in operator can only delete landmarks from routes belonging to their company.    
             - When deleting a landmark in a route, the route will be validated and status will be updated.    
             - Returns 204 No Content even if the specified landmark in route does not exist.    
-        """),
+        """
+    ),
 )
 async def delete_landmark_in_route_for_operator(
     id: int,
@@ -738,10 +749,12 @@ async def delete_landmark_in_route_for_operator(
     tags=["Landmark In Route"],
     response_model=List[LandmarkInRouteSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches a list of landmarks in route.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def fetch_landmark_in_route_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
@@ -768,10 +781,12 @@ async def fetch_landmark_in_route_for_operator(
     tags=["Landmark In Route"],
     response_model=List[LandmarkInRouteSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches a list of landmarks in route.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def fetch_landmark_in_route_for_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
@@ -797,9 +812,11 @@ async def fetch_landmark_in_route_for_vendor(
     URL_LANDMARK_IN_ROUTE,
     tags=["Landmark In Route"],
     response_model=List[LandmarkInRouteSchema],
-    description=("""
+    description=(
+        """
             **Fetches a list of landmarks in route for public users.**    
-        """),
+        """
+    ),
 )
 async def fetch_landmark_in_route_for_public(
     query_params: QueryParamsForPU = Depends(),

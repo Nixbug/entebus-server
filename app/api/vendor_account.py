@@ -306,13 +306,15 @@ def delete_vendor(session: Session, vendor: Vendor) -> dict:
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=("""
+    description=(
+        """
             **Creates a new vendor account.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `business.vendor.create` permission.    
             - Duplicate usernames within the same business are not allowed.    
             - By default the user is created in active status.     
-        """),
+        """
+    ),
 )
 async def create_account_executive(
     form_param: CreateFormForEX,
@@ -361,12 +363,14 @@ async def create_account_executive(
             exceptions.UnknownValue(Vendor.id),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Updates an existing vendor account.**    
             - Requires a valid access token.    
             - Logged-in executive must have `business.vendor.update` permission to update vendors.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """),
+        """
+    ),
 )
 async def update_account_executive(
     id: int,
@@ -396,11 +400,13 @@ async def update_account_executive(
     tags=["Vendor Account"],
     response_model=List[VendorSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches a list of vendors.**    
             - Requires a valid access token for authentication.    
             - Common search supports searching by id, username, full_name, description, phone_number, and email_id.    
-        """),
+        """
+    ),
 )
 async def fetch_account_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -426,12 +432,14 @@ async def fetch_account_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=("""
+    description=(
+        """
             **Deletes an existing vendor account.**    
             - Requires a valid access token for authentication.    
             - The logged-in executive must have the `business.vendor.delete` permission.    
             - Returns 204 No Content even if the specified account does not exist.    
-        """),
+        """
+    ),
 )
 async def delete_account_executive(
     id: int,
@@ -466,13 +474,15 @@ async def delete_account_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=("""
+    description=(
+        """
             **Creates a new vendor account.**    
             - Vendor must have a valid access token.    
             - Logged-in vendor must have `business.vendor.create` permission.    
             - Duplicate usernames within the same business are not allowed.    
             - By default the user is created in active status.    
-        """),
+        """
+    ),
 )
 async def create_account_vendor(
     form_param: CreateFormForVE,
@@ -521,13 +531,15 @@ async def create_account_vendor(
             exceptions.UnknownValue(Vendor.id),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Updates an existing vendor account.**    
             - Requires a valid access token.    
             - Logged-in vendor must have `business.vendor.update` permission to update other vendors.    
             - Vendor can update their own account except status.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """),
+        """
+    ),
 )
 async def update_account_vendor(
     id: int,
@@ -569,12 +581,14 @@ async def update_account_vendor(
     tags=["Account"],
     response_model=List[VendorSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches a list of vendors.**    
             - Requires a valid access token for authentication.    
             - Only vendors belonging to the same business as the logged-in vendor will be returned.    
             - Common search supports searching by id, username, full_name, description, phone_number, and email_id.    
-        """),
+        """
+    ),
 )
 async def fetch_account_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
@@ -600,13 +614,15 @@ async def fetch_account_vendor(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=("""
+    description=(
+        """
             **Deletes an existing vendor account.**    
             - Requires a valid access token for authentication.    
             - The logged-in vendor must have the `business.vendor.delete` permission.    
             - Self-deletion is not allowed for safety reasons.    
             - Returns 204 No Content even if the specified account does not exist.    
-        """),
+        """
+    ),
 )
 async def delete_account_vendor(
     id: int,

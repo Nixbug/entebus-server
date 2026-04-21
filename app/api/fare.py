@@ -314,7 +314,8 @@ def search_fare(session: Session, query_params: QueryParams) -> List[Fare]:
             exceptions.UnknownTicketType(),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Creates a new fare for a company.**    
             - Requires a valid access token.    
             - Logged-in executive must have `company.fare.create` permission.    
@@ -323,7 +324,8 @@ def search_fare(session: Session, query_params: QueryParams) -> List[Fare]:
             - The maximum allowed size for the fare function is 10 MB and maximum execution time is 1 second.    
             - Preferable dynamic fare version is 1.    
             - Preferable distance unit is meter and currency is INR.    
-        """),
+        """
+    ),
 )
 async def create_fare_executive(
     form_param: CreateFormForEX,
@@ -368,7 +370,8 @@ async def create_fare_executive(
             exceptions.UnknownTicketType(),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Updates an existing fare for a company.**    
             - Requires a valid access token.    
             - Logged-in executive must have `company.fare.update` permission.    
@@ -376,7 +379,8 @@ async def create_fare_executive(
             - Empty PATCH requests are allowed and will result in no changes.    
             - Preferable dynamic fare version is 1.    
             - Preferable distance unit is meter and currency is INR.    
-        """),
+        """
+    ),
 )
 async def update_fare_executive(
     id: int,
@@ -412,12 +416,14 @@ async def update_fare_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=("""
+    description=(
+        """
             **Deletes an existing fare.**    
             - Requires a valid access token for authentication.    
             - The logged-in executive must have the `company.fare.delete` permission.    
             - Returns 204 No Content even if the specified fare does not exist.    
-        """),
+        """
+    ),
 )
 async def delete_fare_executive(
     id: int,
@@ -446,10 +452,12 @@ async def delete_fare_executive(
     tags=["Fare"],
     response_model=List[FareSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches a list of fares.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def fetch_fare_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -487,7 +495,8 @@ async def fetch_fare_executive(
             exceptions.UnknownTicketType(),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Creates a new fare for a company.**    
             - Requires a valid access token.    
             - Logged-in operator must have `company.fare.create` permission.    
@@ -496,7 +505,8 @@ async def fetch_fare_executive(
             - Enforces function size is 10 MB or less and execution time is 1 second or less.    
             - Preferable dynamic fare version is 1.    
             - Preferable distance unit is meter and currency is INR.    
-        """),
+        """
+    ),
 )
 async def create_fare_operator(
     form_param: CreateFormForOP,
@@ -542,7 +552,8 @@ async def create_fare_operator(
             exceptions.UnknownValue(Fare.id),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Updates an existing fare for a company.**    
             - Requires a valid access token.    
             - Logged-in operator must have `company.fare.update` permission.    
@@ -551,7 +562,8 @@ async def create_fare_operator(
             - Empty PATCH requests are allowed and will result in no changes.    
             - Preferable dynamic fare version is 1.    
             - Preferable distance unit is meter and currency is INR.    
-        """),
+        """
+    ),
 )
 async def update_fare_operator(
     id: int,
@@ -589,12 +601,14 @@ async def update_fare_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=("""
+    description=(
+        """
             **Deletes an existing fare.**    
             - Requires a valid access token for authentication.    
             - The logged-in operator must have the `company.fare.delete` permission.    
             - Returns 204 No Content even if the specified fare does not exist.    
-        """),
+        """
+    ),
 )
 async def delete_fare_operator(
     id: int,
@@ -627,10 +641,12 @@ async def delete_fare_operator(
     tags=["Fare"],
     response_model=List[FareSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches a list of fares.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def fetch_fare_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
@@ -657,10 +673,12 @@ async def fetch_fare_operator(
     tags=["Fare"],
     response_model=List[FareSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches a list of fares.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def fetch_fare_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)

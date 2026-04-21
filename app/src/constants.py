@@ -10,6 +10,7 @@ Configuration values can be overridden via environment variables.
 from os import environ
 from zoneinfo import ZoneInfo
 
+
 # ---------------------------------------------------------------------------
 # Application metadata
 # ---------------------------------------------------------------------------
