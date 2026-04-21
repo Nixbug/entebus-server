@@ -154,9 +154,11 @@ def create_service(
     else:
         starting_at = starting_at.astimezone(timezone.utc)
 
-    # Service can only be created within SERVICE_CREATION_LEAD_TIME_DAYS days before the starting_at
-    if starting_at > (
-        datetime.now(timezone.utc) + timedelta(days=SERVICE_CREATION_LEAD_TIME_DAYS)
+    # Service can only be created within a certain lead time before starting_at, and cannot be created in the past
+    utc_now = datetime.now(timezone.utc)
+    if (
+        starting_at > (utc_now + timedelta(days=SERVICE_CREATION_LEAD_TIME_DAYS))
+        or starting_at < utc_now
     ):
         raise exceptions.InvalidValue(Service.starting_at)
 
