@@ -50,6 +50,8 @@ class PermissionPath(StrEnum):
     UPDATE_COMPANY_SCHEDULE = "company.schedule.update"
     DELETE_COMPANY_SCHEDULE = "company.schedule.delete"
 
+    OVERRIDE_LANDMARK_LIMIT = "company.route.override_limit"
+
 
 class CRUDPermission(BaseModel):
     """Generic CRUD permission set — reused by most entities."""

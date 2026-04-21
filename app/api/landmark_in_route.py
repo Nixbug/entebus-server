@@ -537,10 +537,9 @@ async def fetch_landmark_in_route_for_executive(
     finally:
         session.close()
 
-
-# ---------------------------------------------------------------------------
-## API endpoints [Operator]
-# ---------------------------------------------------------------------------
+# # ---------------------------------------------------------------------------
+# ## API endpoints [Operator]
+# # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_LANDMARK_IN_ROUTE,
     tags=["Landmark In Route"],
@@ -555,33 +554,33 @@ async def fetch_landmark_in_route_for_executive(
             exceptions.UnknownValue(LandmarkInRoute.landmark_id),
         ]
     ),
-    description=(
-        """
-            **Creates a new landmark in route.**    
-            - Operator must have a valid access token.    
-            - Logged-in operator must have `company.route.create` or `company.route.update` permission.    
-            - Logged-in operator can only add landmarks to routes belonging to their company.    
-            - Departure delta must be greater than arrival delta.    
-            - When creating a landmark in a route, the route will be validated and status of the route will be updated.    
-        """
-    ),
+    description="""
+        Creates a new landmark in route.
+
+        - Operator must be logged in
+        - Operator must have create/update route permission
+        - Max 100 landmarks allowed per operator
+        - Limit can be bypassed only with special override permission
+    """,
 )
 async def create_landmark_in_route_for_operator(
     form_param: CreateForm,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
 ):
+    session = SessionLocal()
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
         roles = get_operator_roles(session, token)
+
         can_create = verify_permission(
             roles, OperatorPermissionPath.CREATE_COMPANY_ROUTE, raise_exception=False
         )
         can_update = verify_permission(
             roles, OperatorPermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
         )
-        if not (can_create | can_update):
+
+        if not (can_create or can_update):
             raise exceptions.NoPermission()
 
         route = validate_id(
@@ -591,15 +590,37 @@ async def create_landmark_in_route_for_operator(
             LandmarkInRoute.route_id,
             extra_filter=(Route.company_id == token.company_id),
         )
-        landmark_in_route_data = create_landmark_in_route(session, route, form_param)
 
-        log_event(token, request_info, landmark_in_route_data)
-        return landmark_in_route_data
+        MAX_LANDMARKS = 100
+
+        landmark_count = (
+            session.query(LandmarkInRoute)
+            .filter(LandmarkInRoute.operator_id == token.operator_id)
+            .count()
+        )
+
+        can_override_limit = verify_permission(
+            roles,
+            OperatorPermissionPath.OVERRIDE_LANDMARK_LIMIT,  
+            raise_exception=False,
+        )
+
+        if landmark_count >= MAX_LANDMARKS and not can_override_limit:
+            response = Response(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content='{"detail": "Landmark in route limit reached for operator"}',
+                media_type="application/json",
+            )
+            response.headers["X-Error"] = "LIMIT_EXCEEDED"
+            return response
+
+        landmark = create_landmark_in_route(session, route, form_param)
+        log_event(token, request_info, landmark)
+        return landmark
     except Exception as e:
         exceptions.handle(e)
     finally:
         session.close()
-
 
 @route_operator.patch(
     f"{URL_LANDMARK_IN_ROUTE}/{{id}}",
