@@ -88,8 +88,6 @@ class PermissionPath(StrEnum):
     UPDATE_COMPANY_SERVICE_ASSIGNMENT = "company.service.assignment.update"
     DELETE_COMPANY_SERVICE_ASSIGNMENT = "company.service.assignment.delete"
 
-    CREATE_COMPANY_SERVICE_TICKET = "company.service.ticket.create"
-
     CREATE_COMPANY_SERVICE_STATEMENT = "company.service.statement.create"
 
     CREATE_COMPANY_SCHEDULE = "company.schedule.create"
