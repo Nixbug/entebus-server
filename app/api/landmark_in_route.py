@@ -53,7 +53,7 @@ from app.src.openobserve import log_event
 from app.src import exceptions
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
-
+from app.constants import MAX_LANDMARKS_PER_ROUTE
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -556,13 +556,14 @@ async def fetch_landmark_in_route_for_executive(
         ]
     ),
     description="""
-        Creates a new landmark in route.
-
-        - Operator must be logged in
-        - Operator must have create/update route permission
-        - Max 100 landmarks allowed per operator
-        - Limit can be bypassed only with special override permission
-    """,
+            **Creates a new landmark in route.**    
+            - Operator must have a valid access token.    
+            - Logged-in operator must have `company.route.create` or `company.route.update` permission.    
+            - Logged-in operator can only add landmarks to routes belonging to their company.    
+            - Departure delta must be greater than arrival delta.    
+            - When creating a landmark in a route, the route will be validated and status of the route will be updated.  
+            - Max 100 landmarks allowed per operator  
+        """,
 )
 async def create_landmark_in_route_for_operator(
     form_param: CreateForm,
@@ -573,14 +574,12 @@ async def create_landmark_in_route_for_operator(
     try:
         token = verify_token(session, OperatorToken, access_token.credentials)
         roles = get_operator_roles(session, token)
-
         can_create = verify_permission(
             roles, OperatorPermissionPath.CREATE_COMPANY_ROUTE, raise_exception=False
         )
         can_update = verify_permission(
             roles, OperatorPermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
         )
-
         if not (can_create or can_update):
             raise exceptions.NoPermission()
 
@@ -592,21 +591,17 @@ async def create_landmark_in_route_for_operator(
             extra_filter=(Route.company_id == token.company_id),
         )
 
-        MAX_LANDMARKS = 100
-
         landmark_count = (
             session.query(LandmarkInRoute)
             .filter(LandmarkInRoute.operator_id == token.operator_id)
             .count()
         )
-
         can_override_limit = verify_permission(
             roles,
             OperatorPermissionPath.OVERRIDE_LANDMARK_LIMIT,
             raise_exception=False,
         )
-
-        if landmark_count >= MAX_LANDMARKS and not can_override_limit:
+        if landmark_count >= MAX_LANDMARKS_PER_ROUTE and not can_override_limit:
             response = Response(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content='{"detail": "Landmark in route limit reached for operator"}',
