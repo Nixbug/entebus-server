@@ -593,7 +593,7 @@ async def create_landmark_in_route_for_operator(
 
         landmark_count = (
             session.query(LandmarkInRoute)
-            .filter(LandmarkInRoute.company_id  == token.company_id)
+            .filter(LandmarkInRoute.company_id == token.company_id)
             .count()
         )
         can_override_limit = verify_permission(
