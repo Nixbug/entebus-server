@@ -60,6 +60,8 @@ from app.src.enums import (
     VehicleStatus,
     RouteStatus,
     FareScope,
+    ServiceStatus,
+    TicketingMode,
 )
 
 
@@ -2048,7 +2050,7 @@ class Fare(ORMbase):
             Indicates the applicability of the fare.
             Mapped from the `FareScope` enum.
 
-         updated_on (DateTime, nullable, onupdate=func.now()):
+        updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp automatically updated whenever the fare record is modified.
 
         created_on (DateTime, not null, default=func.now()):
@@ -2079,6 +2081,101 @@ class Fare(ORMbase):
             postgresql_where=company_id.is_(None),
         ),
     )
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class Service(ORMbase):
+    """
+    Represents a transport service operated by a company.
+
+    This table stores details about individual service instances,
+    including their assigned route, fare, bus, and operational timeframes.
+    It also maintains cryptographic keys for secure ticketing
+    and records various states and modes related to the service.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the service.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id` that operates the service.
+
+        name (String(128), not null):
+            Name of the service.
+            Maximum 128 characters long.
+
+        vehicle_in_service_id (Integer, not null):
+            Foreign key referencing `vehicle_in_service.id`.
+            Specifies the snapshot of the vehicle details at the time of service creation.
+
+        fare_in_service_id (Integer, not null):
+            Foreign key referencing `fare_in_service.id`.
+            Specifies the snapshot of the fare details at the time of service creation.
+
+        registration_number (String(16), not null):
+            Registration number of the vehicle assigned to this service.
+
+        ticket_mode (Integer, not null, default=TicketingMode.HYBRID):
+            Ticketing mode for the service. Mapped from the `TicketingMode` enum.
+
+        status (Integer, not null, default=ServiceStatus.CREATED):
+            Service status. Mapped from the `ServiceStatus` enum.
+            A service cannot be created before 24 hours from the `starting_at` time.
+
+        starting_at (DateTime, not null):
+            The time of the day when the service starts operation, based on route information.
+
+        ending_at (DateTime, not null):
+            The time of the day when the service ends operation, based on route information.
+
+        starting_landmark_id (Integer, not null):
+            Foreign key referencing `landmark.id` for the starting point of the service.
+
+        ending_landmark_id (Integer, not null):
+            Foreign key referencing `landmark.id` for the ending point of the service.
+
+        private_key (TEXT, not null):
+            Private cryptographic key for the service.
+            Used for secure ticket generation and validation.
+
+        public_key (TEXT, not null):
+            Public cryptographic key corresponding to the private key.
+            Shared for ticket verification.
+
+        remark (TEXT):
+            Optional text field for additional remarks or notes related to the service.
+            Maximum 1024 characters long.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the service record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp of when the service record was created.
+    """
+
+    __tablename__ = "service"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("company.id"), nullable=False, index=True)
+    name = Column(String(128), nullable=False)
+    fare_in_service_id = Column(
+        Integer, ForeignKey("fare_in_service.id"), nullable=False
+    )
+    vehicle_in_service_id = Column(
+        Integer, ForeignKey("vehicle_in_service.id"), nullable=False
+    )
+    registration_number = Column(String(16), nullable=False, index=True)
+    ticket_mode = Column(Integer, nullable=False, default=TicketingMode.HYBRID)
+    status = Column(Integer, nullable=False, default=ServiceStatus.CREATED)
+    starting_at = Column(DateTime(timezone=True), nullable=False)
+    ending_at = Column(DateTime(timezone=True), nullable=False)
+    starting_landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
+    ending_landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
+    private_key = Column(TEXT, nullable=False)
+    public_key = Column(TEXT, nullable=False)
+    remark = Column(TEXT)
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
@@ -2163,6 +2260,9 @@ class LandmarkInService(ORMbase):
             Identifier of the landmark.
             Stored without enforcing foreign key constraints to allow snapshot flexibility.
 
+        distance_from_start (Integer, not null):
+            Distance in meters from the starting landmark of the route.
+
         arrival_at (Time, not null):
             Scheduled arrival time at the landmark for the service.
 
@@ -2187,6 +2287,7 @@ class LandmarkInService(ORMbase):
         index=True,
     )
     landmark_id = Column(Integer, nullable=False, index=True)
+    distance_from_start = Column(Integer, nullable=False)
     arrival_at = Column(Time(timezone=True), nullable=False)
     departure_at = Column(Time(timezone=True), nullable=False)
     # Metadata

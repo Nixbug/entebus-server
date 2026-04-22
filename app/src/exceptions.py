@@ -11,13 +11,14 @@ It ensures consistent error responses across the API.
 
 from traceback import format_exception
 from logging import getLogger
+from typing import Union
 from fastapi import status, HTTPException
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
 from pydantic import ValidationError
 from redis.exceptions import RedisError
 from requests.exceptions import ConnectionError, Timeout
-from sqlalchemy.orm import InstrumentedAttribute
+from sqlalchemy.orm import DeclarativeMeta, InstrumentedAttribute
 
 
 # ---------------------------------------------------------------------------
@@ -211,12 +212,17 @@ class InvalidToken(APIException):
 class UnknownValue(APIException):
     """
     Raised when an unknown id or value is provided.
+
+    Accepts either an ORM `InstrumentedAttribute` (preferred) or a plain
+    string column name for convenience when callers only have the name.
     """
 
     status_code = status.HTTP_404_NOT_FOUND
     headers = {"X-Error": "UnknownValue"}
 
-    def __init__(self, column: InstrumentedAttribute):
+    def __init__(self, column: Union[InstrumentedAttribute, str]):
+        if isinstance(column, str):
+            column = type("Column", (), {"name": column})()
         detail = f"Unknown {column.name} is provided"
         super().__init__(detail=detail)
 
@@ -283,6 +289,21 @@ class UnexpectedParameter(APIException):
 
     def __init__(self, column: InstrumentedAttribute):
         detail = f"Unexpected parameter {column.name} is provided"
+        super().__init__(detail=detail)
+
+
+class InactiveResource(APIException):
+    """
+    Raised when a resource is not in an active or useful state.
+    """
+
+    status_code = status.HTTP_412_PRECONDITION_FAILED
+    headers = {"X-Error": "InactiveResource"}
+
+    def __init__(self, orm_class: DeclarativeMeta):
+        detail = (
+            f"The status of {orm_class.__name__} is not in an active or useful state"
+        )
         super().__init__(detail=detail)
 
 
@@ -356,6 +377,17 @@ class OverlappingLandmarkBoundary(APIException):
     headers = {"X-Error": "OverlappingLandmarkBoundary"}
 
 
+class OverlappingService(APIException):
+    """
+    Raised when a vehicle is already assigned to another service
+    whose time window overlaps with the requested service time.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    detail = "Vehicle is already assigned to another service during the requested time"
+    headers = {"X-Error": "OverlappingService"}
+
+
 class InvalidBoundaryArea(APIException):
     """
     Raised when the area of a landmark boundary is not within the prescribed limits.
@@ -404,6 +436,26 @@ class InvalidFareFunction(APIException):
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "Invalid fare function"
     headers = {"X-Error": "InvalidFareFunction"}
+
+
+class InvalidTicketVersion(APIException):
+    """
+    Raised when an invalid ticket version is provided.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    detail = "Invalid ticket version"
+    headers = {"X-Error": "InvalidTicketVersion"}
+
+
+class InvalidDigitalTicket(APIException):
+    """
+    Raised when an invalid digital ticket is provided.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    detail = "Invalid digital ticket"
+    headers = {"X-Error": "InvalidDigitalTicket"}
 
 
 class JSTimeLimitExceeded(APIException):

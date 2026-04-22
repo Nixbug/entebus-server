@@ -151,9 +151,10 @@ class ServiceStatus(IntEnum):
     """Lifecycle states of a service."""
 
     CREATED = 1
-    STARTED = 2
-    TERMINATED = 3
+    CACHED = 2
+    STARTED = 3
     ENDED = 4
+    AUDITED = 5
 
 
 class DutyStatus(IntEnum):
