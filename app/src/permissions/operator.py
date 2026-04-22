@@ -42,9 +42,15 @@ class PermissionPath(StrEnum):
     UPDATE_COMPANY_SERVICE = "company.service.update"
     DELETE_COMPANY_SERVICE = "company.service.delete"
 
-    CREATE_COMPANY_SERVICE_DUTY = "company.service.duty.create"
     UPDATE_COMPANY_SERVICE_DUTY = "company.service.duty.update"
-    DELETE_COMPANY_SERVICE_DUTY = "company.service.duty.delete"
+
+    CREATE_COMPANY_SERVICE_ASSIGNMENT = "company.service.assignment.create"
+    UPDATE_COMPANY_SERVICE_ASSIGNMENT = "company.service.assignment.update"
+    DELETE_COMPANY_SERVICE_ASSIGNMENT = "company.service.assignment.delete"
+
+    CREATE_COMPANY_SERVICE_TICKET = "company.service.ticket.create"
+
+    CREATE_COMPANY_SERVICE_STATEMENT = "company.service.statement.create"
 
     CREATE_COMPANY_SCHEDULE = "company.schedule.create"
     UPDATE_COMPANY_SCHEDULE = "company.schedule.update"
@@ -66,6 +72,18 @@ class TokenPermission(BaseModel):
     delete: bool = Field(description="Allow deleting token")
 
 
+class DutyPermission(BaseModel):
+    """Duty related permissions."""
+
+    update: bool = Field(description="Allow updating duties")
+
+
+class CreatePermission(BaseModel):
+    """Single action create permission."""
+
+    create: bool = Field(description="Allow creation")
+
+
 class OperatorPermissions(CRUDPermission):
     """Operator related permissions."""
 
@@ -76,7 +94,10 @@ class OperatorPermissions(CRUDPermission):
 class ServicePermissions(CRUDPermission):
     """Service related permissions."""
 
-    duty: CRUDPermission
+    duty: DutyPermission
+    assignment: CRUDPermission
+    ticket: CreatePermission
+    statement: CreatePermission
 
 
 class CompanyPermission(BaseModel):
