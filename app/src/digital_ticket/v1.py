@@ -46,12 +46,9 @@ class DigitalTicket:
         Returns:
             DigitalTicket: The deserialized ticket object.
         """
-        if not digital_ticket:
-            raise InvalidDigitalTicket()
-
         try:
             VERSION = int(digital_ticket[0])
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, IndexError):
             raise InvalidDigitalTicket()
 
         if VERSION != 1:
@@ -63,9 +60,8 @@ class DigitalTicket:
         )
         if len(body_and_signature) < minimum_payload_size:
             raise InvalidDigitalTicket()
+
         ticket_signature = body_and_signature[: TicketCreator.SIGNATURE_SIZE]
-        if len(ticket_signature) != TicketCreator.SIGNATURE_SIZE:
-            raise InvalidDigitalTicket()
         ticket_body = body_and_signature[TicketCreator.SIGNATURE_SIZE :]
         return DigitalTicket(ticket_signature, ticket_body)
 
@@ -129,14 +125,16 @@ class TicketCreator:
     R_COMPONENT_SIZE = int(SIGNATURE_SIZE / 2)
     S_COMPONENT_SIZE = int(SIGNATURE_SIZE / 2)
 
-    def __init__(self, pem_private_key: bytes = None, pem_public_key: bytes = None):
+    def __init__(
+        self, pem_private_key: bytes | None = None, pem_public_key: bytes | None = None
+    ):
         """
         Initializes the TicketCreator with optional PEM keys.
         If not provided, a new SECT163K1 key pair will be generated.
 
         Args:
-            pem_private_key (bytes, optional): PEM-encoded private key.
-            pem_public_key (bytes, optional): PEM-encoded public key.
+            pem_private_key (bytes | None, optional): PEM-encoded private key.
+            pem_public_key (bytes | None, optional): PEM-encoded public key.
         """
         if pem_private_key and pem_public_key:
             self._private_key = serialization.load_pem_private_key(

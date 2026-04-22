@@ -2130,6 +2130,12 @@ class Service(ORMbase):
         ending_at (DateTime, not null):
             The time of the day when the service ends operation, based on route information.
 
+        starting_landmark_id (Integer, not null):
+            Foreign key referencing `landmark.id` for the starting point of the service.
+
+        ending_landmark_id (Integer, not null):
+            Foreign key referencing `landmark.id` for the ending point of the service.
+
         private_key (TEXT, not null):
             Private cryptographic key for the service.
             Used for secure ticket generation and validation.
@@ -2142,17 +2148,11 @@ class Service(ORMbase):
             Optional text field for additional remarks or notes related to the service.
             Maximum 1024 characters long.
 
-        started_on (DateTime):
-            Time at which the first operator joined the duty.
-
-        finished_on (DateTime):
-            Time at which the Service is ended by the operator or when the statement is generated.
-
         updated_on (DateTime, nullable, onupdate=func.now()):
-            Timestamp automatically updated whenever the fare record is modified.
+            Timestamp automatically updated whenever the service record is modified.
 
         created_on (DateTime, not null, default=func.now()):
-            Timestamp of when the fare record was created.
+            Timestamp of when the service record was created.
     """
 
     __tablename__ = "service"
@@ -2171,13 +2171,11 @@ class Service(ORMbase):
     status = Column(Integer, nullable=False, default=ServiceStatus.CREATED)
     starting_at = Column(DateTime(timezone=True), nullable=False)
     ending_at = Column(DateTime(timezone=True), nullable=False)
-    starting_landmark_id = Column(Integer, ForeignKey("landmark.id"))
-    ending_landmark_id = Column(Integer, ForeignKey("landmark.id"))
+    starting_landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
+    ending_landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
     private_key = Column(TEXT, nullable=False)
     public_key = Column(TEXT, nullable=False)
     remark = Column(TEXT)
-    started_on = Column(DateTime(timezone=True))
-    finished_on = Column(DateTime(timezone=True))
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
@@ -2262,6 +2260,9 @@ class LandmarkInService(ORMbase):
             Identifier of the landmark.
             Stored without enforcing foreign key constraints to allow snapshot flexibility.
 
+        distance_from_start (Integer, not null):
+            Distance in meters from the starting landmark of the route.
+
         arrival_at (Time, not null):
             Scheduled arrival time at the landmark for the service.
 
@@ -2286,6 +2287,7 @@ class LandmarkInService(ORMbase):
         index=True,
     )
     landmark_id = Column(Integer, nullable=False, index=True)
+    distance_from_start = Column(Integer, nullable=False)
     arrival_at = Column(Time(timezone=True), nullable=False)
     departure_at = Column(Time(timezone=True), nullable=False)
     # Metadata
