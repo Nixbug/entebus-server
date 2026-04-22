@@ -562,7 +562,7 @@ async def fetch_landmark_in_route_for_executive(
             - Logged-in operator can only add landmarks to routes belonging to their company.    
             - Departure delta must be greater than arrival delta.    
             - When creating a landmark in a route, the route will be validated and status of the route will be updated.  
-            - Max 100 landmarks allowed per operator  
+            - Max 100 landmarks allowed per company  
         """,
 )
 async def create_landmark_in_route_for_operator(
@@ -593,7 +593,7 @@ async def create_landmark_in_route_for_operator(
 
         landmark_count = (
             session.query(LandmarkInRoute)
-            .filter(LandmarkInRoute.operator_id == token.operator_id)
+            .filter(LandmarkInRoute.company_id  == token.company_id)
             .count()
         )
         can_override_limit = verify_permission(
