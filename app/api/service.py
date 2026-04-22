@@ -1,9 +1,9 @@
 """
 Service API Router for EnteBus.
 
-Provides endpoints for managing services, including creation,
+Provides endpoints for managing services, including creation and retrieval.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for update, deletion, and retrieval are planned for future implementation.
+Endpoints for update and deletion are planned for future implementation.
 """
 
 from datetime import datetime, timezone
@@ -100,17 +100,19 @@ class ServiceSchema(BaseModel):
     updated_on: datetime | None
     created_on: datetime
 
-class MaskedServiceSchema(BaseModel):
+
+class MaskedServiceDetailSchema(ServiceSchema):
     """Schema for service response with detailed information."""
 
-    fare_in_service_id: Dict[str, Any]
-    vehicle_in_service_id: Dict[str, Any]
-    landmark_in_service_id: Dict[str, Any]
+    fare_in_service: Dict[str, Any]
+    vehicle_in_service: Dict[str, Any]
+    landmark_in_service: List[Dict[str, Any]]
 
-class ServiceDetailSchema(MaskedServiceSchema):
+
+class ServiceDetailSchema(MaskedServiceDetailSchema):
     """Schema for service response with detailed information."""
 
-    public_key : str
+    public_key: str
 
 
 # Input Forms
@@ -179,7 +181,7 @@ class QueryParamsForPU(IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFil
 class QueryParamsForOP(QueryParamsForPU):
     """Query parameters for operator users."""
 
-    pass
+    id_excluding: List[int] | None = Field(Query(default=None))
 
 
 class QueryParamsForEX(QueryParamsForOP):
@@ -198,6 +200,12 @@ class QueryParams(QueryParamsForEX):
     """Generic combined query parameters for services."""
 
     pass
+
+
+class ServiceQueryParams(BaseModel):
+    """Query parameters for retrieving a service."""
+
+    marked_as_cached: bool = Field(Query(default=False))
 
 
 # Functions
@@ -404,6 +412,8 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
     query = session.query(Service)
     if query_params.company_id is not None:
         query = query.filter(Service.company_id == query_params.company_id)
+    if query_params.id_excluding is not None:
+        query = query.filter(Service.id.notin_(query_params.id_excluding))
     if query_params.registration_number is not None:
         query = query.filter(
             Vehicle.registration_number.ilike(f"%{query_params.registration_number}%")
@@ -458,10 +468,9 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
     return services
 
 
-def get_service_related_entities(session: Session, service: Service) -> Dict[str, Any]:
+def search_service_details(session: Session, service: Service) -> Dict[str, Any]:
     """
-    Returns related snapshots for a given service id: landmarks in service,
-    fare snapshot in service, and vehicle snapshot in service.
+    Returns related entities for a service, including landmarks in service, fare snapshot, and vehicle snapshot.
 
     Args:
         session (Session): SQLAlchemy session.
@@ -471,39 +480,43 @@ def get_service_related_entities(session: Session, service: Service) -> Dict[str
         Dict[str, Any]: Dict containing `service`, `landmarks_in_service`,
         `fare_in_service`, and `vehicle_in_service` serialized for JSON.
     """
-    if service is None:
-        raise exceptions.UnknownValue(Service.id)
 
-    # Fetch landmarks snapshots and include landmark details
-    landmarks_snapshots = (
+    landmarks_in_service = (
         session.query(LandmarkInService)
         .filter(LandmarkInService.service_id == service.id)
         .order_by(LandmarkInService.arrival_at.asc())
         .all()
     )
-    landmarks_snapshots_data = jsonable_encoder(landmarks_snapshots)
+    landmarks_in_service_data = jsonable_encoder(landmarks_in_service)
 
-    # Fetch fare and vehicle snapshots
-    fare_snapshot = (
-            session.query(FareInService)
-            .filter(FareInService.id == service.fare_in_service_id)
-            .first()
-        )
+    fare_in_service = (
+        session.query(FareInService)
+        .filter(FareInService.id == service.fare_in_service_id)
+        .first()
+    )
 
-    fare_snapshots_data = jsonable_encoder(fare_snapshot)
+    fare_in_service_data = jsonable_encoder(
+        fare_in_service, exclude={"reference_count"}
+    )
 
-    vehicle_snapshot = (
-            session.query(VehicleInService)
-            .filter(VehicleInService.id == service.vehicle_in_service_id)
-            .first()
-        )
-    vehicle_snapshots_data = jsonable_encoder(vehicle_snapshot)
+    vehicle_in_service = (
+        session.query(VehicleInService)
+        .filter(VehicleInService.id == service.vehicle_in_service_id)
+        .first()
+    )
+    vehicle_in_service_data = jsonable_encoder(
+        vehicle_in_service, exclude={"reference_count"}
+    )
+
+    service_data = jsonable_encoder(service, exclude={"private_key"})
 
     return {
-        "landmarks_in_service": landmarks_snapshots_data,
-        "fare_in_service": fare_snapshots_data,
-        "vehicle_in_service": vehicle_snapshots_data,
+        **service_data,
+        "landmark_in_service": landmarks_in_service_data,
+        "fare_in_service": fare_in_service_data,
+        "vehicle_in_service": vehicle_in_service_data,
     }
+
 
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
@@ -626,6 +639,7 @@ async def fetch_service_executive(
 @route_executive.get(
     f"{URL_SERVICE}/{{id}}",
     tags=["Service"],
+    response_model=MaskedServiceDetailSchema,
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(Service.id)]
     ),
@@ -645,8 +659,7 @@ async def fetch_service_details_for_executive(
         verify_token(session, ExecutiveToken, access_token)
 
         service = validate_id(session, Service, id, Service.id)
-        service = get_service_related_entities(session, service)
-        return service
+        return search_service_details(session, service)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -769,6 +782,46 @@ async def fetch_service_operator(
         session.close()
 
 
+@route_operator.get(
+    f"{URL_SERVICE}/{{id}}",
+    tags=["Service"],
+    response_model=ServiceDetailSchema,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.UnknownValue(Service.id)]
+    ),
+    description=(
+        """
+            **Fetch a service by its ID.**    
+            - Requires a valid access token for authentication.    
+        """
+    ),
+)
+async def fetch_service_details_for_operator(
+    id: int,
+    query_params: ServiceQueryParams = Depends(),
+    access_token=Depends(bearer_operator),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+        service = validate_id(
+            session,
+            Service,
+            id,
+            Service.id,
+            extra_filter=(Service.company_id == token.company_id),
+        )
+        if query_params.marked_as_cached and service.status == ServiceStatus.CREATED:
+            service.status = ServiceStatus.CACHED
+            session.commit()
+            session.refresh(service)
+        return search_service_details(session, service)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Vendor]
 # ---------------------------------------------------------------------------
@@ -795,6 +848,36 @@ async def fetch_service_vendor(
             session,
             QueryParams(**query_params.model_dump()),
         )
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_vendor.get(
+    f"{URL_SERVICE}/{{id}}",
+    tags=["Service"],
+    response_model=MaskedServiceDetailSchema,
+    responses=fuse_exception_responses(
+        [exceptions.InvalidToken(), exceptions.UnknownValue(Service.id)]
+    ),
+    description=(
+        """
+            **Fetch a service by its ID.**    
+            - Requires a valid access token for authentication.    
+        """
+    ),
+)
+async def fetch_service_details_for_vendor(
+    id: int,
+    access_token=Depends(bearer_vendor),
+):
+    try:
+        session = SessionLocal()
+        verify_token(session, VendorToken, access_token.credentials)
+
+        service = validate_id(session, Service, id, Service.id)
+        return search_service_details(session, service)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -832,19 +915,21 @@ async def fetch_service_public(query_params: QueryParamsForPU = Depends()):
 
 
 @route_public.get(
-    f"{URL_SERVICE}/{{id}}/details",
+    f"{URL_SERVICE}/{{id}}",
     tags=["Service"],
+    response_model=MaskedServiceDetailSchema,
+    responses=fuse_exception_responses([exceptions.UnknownValue(Service.id)]),
     description=(
         """
-            **Fetches related snapshots for a service.**
-            - Returns landmarks in the service, fare snapshot, and vehicle snapshot.
+            **Fetches a service by its ID.**    
         """
     ),
 )
 async def fetch_service_details_public(id: int):
     try:
         session = SessionLocal()
-        return get_service_related_entities(session, id)
+        service = validate_id(session, Service, id, Service.id)
+        return search_service_details(session, service)
     except Exception as e:
         exceptions.handle(e)
     finally:
