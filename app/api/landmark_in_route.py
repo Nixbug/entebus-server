@@ -580,7 +580,7 @@ async def create_landmark_in_route_for_operator(
         can_update = verify_permission(
             roles, OperatorPermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
         )
-        if not (can_create or can_update):
+        if not (can_create | can_update):
             raise exceptions.NoPermission()
 
         route = validate_id(
