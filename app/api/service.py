@@ -470,7 +470,7 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
 
 def search_service_details(session: Session, service: Service) -> Dict[str, Any]:
     """
-    Returns related entities for a service, including landmarks in service, fare snapshot, and vehicle snapshot.
+    Returns details of a service along with related entities like landmarks, fare, and vehicle in service.
 
     Args:
         session (Session): SQLAlchemy session.
