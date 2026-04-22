@@ -94,12 +94,6 @@ class QueryParamsForEX(QueryParamsForOP):
     company_id: int | None = Field(Query(default=None))
 
 
-class QueryParams(QueryParamsForEX):
-    """Combined query parameters."""
-
-    pass
-
-
 def validate_assignment_association(service: Service, operator: Operator) -> None:
     """Validate that the service and operator belong to the same company."""
 
@@ -110,7 +104,7 @@ def validate_assignment_association(service: Service, operator: Operator) -> Non
 
 
 def search_assignments(
-    session: Session, query_params: QueryParams
+    session: Session, query_params: QueryParamsForEX
 ) -> list[ServiceAssignment]:
     """Fetch service assignments matching query parameters."""
 
@@ -206,7 +200,9 @@ async def fetch_assignment_executive(
     try:
         session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-        return search_assignments(session, QueryParams(**query_params.model_dump()))
+        return search_assignments(
+            session, QueryParamsForEX(**query_params.model_dump())
+        )
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -403,7 +399,7 @@ async def fetch_assignment_operator(
         token = verify_token(session, OperatorToken, access_token.credentials)
         query_params_data = query_params.model_dump()
         query_params_data["company_id"] = token.company_id
-        return search_assignments(session, QueryParams(**query_params_data))
+        return search_assignments(session, QueryParamsForEX(**query_params_data))
     except Exception as e:
         exceptions.handle(e)
     finally:
