@@ -101,15 +101,41 @@ class ServiceSchema(BaseModel):
     created_on: datetime
 
 
-class MaskedServiceDetailSchema(ServiceSchema):
+class FareSchema(BaseModel):
+    id: int
+    fare_id: int
+    version: int
+    name: str
+    attributes: Dict[str, Any]
+    function: str
+
+
+class VehicleSchema(BaseModel):
+    id: int
+    vehicle_id: int
+    version: int
+    registration_number: str
+    name: str
+    capacity: int
+
+
+class RouteSchema(BaseModel):
+    service_id: int | None = None
+    landmark_id: int
+    distance_from_start: float | None = None
+    arrival_at: str | None = None
+    departure_at: str | None = None
+
+
+class PublicServiceSchema(ServiceSchema):
     """Schema for service response with detailed information."""
 
-    fare_in_service: Dict[str, Any]
-    vehicle_in_service: Dict[str, Any]
-    landmark_in_service: List[Dict[str, Any]]
+    fare: FareSchema
+    vehicle: VehicleSchema
+    route: List[RouteSchema]
 
 
-class ServiceDetailSchema(MaskedServiceDetailSchema):
+class PrivateServiceSchema(PublicServiceSchema):
     """Schema for service response with detailed information."""
 
     public_key: str
@@ -512,9 +538,9 @@ def search_service_details(session: Session, service: Service) -> Dict[str, Any]
 
     return {
         **service_data,
-        "landmark_in_service": landmarks_in_service_data,
-        "fare_in_service": fare_in_service_data,
-        "vehicle_in_service": vehicle_in_service_data,
+        "route": landmarks_in_service_data,
+        "fare": fare_in_service_data,
+        "vehicle": vehicle_in_service_data,
     }
 
 
@@ -639,7 +665,7 @@ async def fetch_service_executive(
 @route_executive.get(
     f"{URL_SERVICE}/{{id}}",
     tags=["Service"],
-    response_model=MaskedServiceDetailSchema,
+    response_model=PublicServiceSchema,
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(Service.id)]
     ),
@@ -785,7 +811,7 @@ async def fetch_service_operator(
 @route_operator.get(
     f"{URL_SERVICE}/{{id}}",
     tags=["Service"],
-    response_model=ServiceDetailSchema,
+    response_model=PrivateServiceSchema,
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(Service.id)]
     ),
@@ -857,7 +883,7 @@ async def fetch_service_vendor(
 @route_vendor.get(
     f"{URL_SERVICE}/{{id}}",
     tags=["Service"],
-    response_model=MaskedServiceDetailSchema,
+    response_model=PublicServiceSchema,
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(Service.id)]
     ),
@@ -917,7 +943,7 @@ async def fetch_service_public(query_params: QueryParamsForPU = Depends()):
 @route_public.get(
     f"{URL_SERVICE}/{{id}}",
     tags=["Service"],
-    response_model=MaskedServiceDetailSchema,
+    response_model=PublicServiceSchema,
     responses=fuse_exception_responses([exceptions.UnknownValue(Service.id)]),
     description=(
         """
