@@ -2263,10 +2263,10 @@ class LandmarkInService(ORMbase):
         distance_from_start (Integer, not null):
             Distance in meters from the starting landmark of the route.
 
-        arrival_at (Time, not null):
+        arrival_at (DateTime, not null):
             Scheduled arrival time at the landmark for the service.
 
-        departure_at (Time, not null):
+        departure_at (DateTime, not null):
             Scheduled departure time from the landmark for the service.
 
     Metadata:
@@ -2288,8 +2288,8 @@ class LandmarkInService(ORMbase):
     )
     landmark_id = Column(Integer, nullable=False, index=True)
     distance_from_start = Column(Integer, nullable=False)
-    arrival_at = Column(Time(timezone=True), nullable=False)
-    departure_at = Column(Time(timezone=True), nullable=False)
+    arrival_at = Column(DateTime(timezone=True), nullable=False)
+    departure_at = Column(DateTime(timezone=True), nullable=False)
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())

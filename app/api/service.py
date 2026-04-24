@@ -406,10 +406,10 @@ def create_service(
     for landmark_in_route in landmarks_in_route:
         arrival_at = (
             starting_at + timedelta(minutes=landmark_in_route.arrival_delta)
-        ).timetz()
+        )
         departure_at = (
             starting_at + timedelta(minutes=landmark_in_route.departure_delta)
-        ).timetz()
+        )
 
         landmark_in_service = LandmarkInService(
             service_id=service.id,
