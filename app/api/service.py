@@ -404,11 +404,9 @@ def create_service(
     # Create LandmarkInService entries for this service (snapshot timings)
     landmarks_in_service = []
     for landmark_in_route in landmarks_in_route:
-        arrival_at = (
-            starting_at + timedelta(minutes=landmark_in_route.arrival_delta)
-        )
-        departure_at = (
-            starting_at + timedelta(minutes=landmark_in_route.departure_delta)
+        arrival_at = starting_at + timedelta(minutes=landmark_in_route.arrival_delta)
+        departure_at = starting_at + timedelta(
+            minutes=landmark_in_route.departure_delta
         )
 
         landmark_in_service = LandmarkInService(
