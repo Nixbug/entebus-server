@@ -16,6 +16,7 @@ from datetime import timedelta
 from fastapi import status, Depends
 from sqlalchemy import String, or_, and_
 from sqlalchemy.orm.session import Session
+from sqlalchemy.orm import aliased
 
 from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
 from app.src.urls import URL_SERVICE
@@ -446,17 +447,21 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
         and query_params.ending_landmark_id is not None
     ):
         # Find services with both landmarks where starting arrives before ending
+        # Use aliases to differentiate between starting and ending landmarks
+        starting_lmk = aliased(LandmarkInService)
+        ending_lmk = aliased(LandmarkInService)
+
         svcs_to_consider = (
-            session.query(LandmarkInService.service_id)
+            session.query(starting_lmk.service_id)
             .join(
-                LandmarkInService,
+                ending_lmk,
                 and_(
-                    LandmarkInService.service_id == LandmarkInService.service_id,
-                    LandmarkInService.arrival_at < LandmarkInService.arrival_at,
+                    starting_lmk.service_id == ending_lmk.service_id,
+                    starting_lmk.arrival_at < ending_lmk.arrival_at,
                 ),
             )
-            .filter(LandmarkInService.landmark_id == query_params.starting_landmark_id)
-            .filter(LandmarkInService.landmark_id == query_params.ending_landmark_id)
+            .filter(starting_lmk.landmark_id == query_params.starting_landmark_id)
+            .filter(ending_lmk.landmark_id == query_params.ending_landmark_id)
             .distinct()
             .all()
         )
