@@ -14,7 +14,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 from datetime import timedelta
 from fastapi import status, Depends
-from sqlalchemy import String, or_, and_, aliased
+from sqlalchemy import String, or_, and_
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
