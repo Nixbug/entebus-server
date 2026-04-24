@@ -6,7 +6,7 @@ Uses Pydantic schemas for input validation and structured output.
 Endpoints for update and deletion are planned for future implementation.
 """
 
-from datetime import datetime, time, timezone
+from datetime import datetime, timezone
 from enum import StrEnum
 from fastapi.encoders import jsonable_encoder
 from typing import Any, Dict, List
@@ -451,9 +451,7 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
             .filter(LandmarkInService.landmark_id == query_params.starting_landmark_id)
             .all()
         )
-
-        for row in starting_landmark:
-            svcs_touching_starting_lmk.append(row)
+        svcs_touching_starting_lmk.extend(starting_landmark)
 
     if query_params.ending_landmark_id is not None:
         ending_landmark = (
@@ -464,9 +462,7 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
             .filter(LandmarkInService.landmark_id == query_params.ending_landmark_id)
             .all()
         )
-
-        for row in ending_landmark:
-            svcs_touching_ending_lmk.append(row)
+        svcs_touching_ending_lmk.extend(ending_landmark)
 
     svcs_to_consider = None
     if (
@@ -988,7 +984,6 @@ async def fetch_service_public(query_params: QueryParamsForPU = Depends()):
                 **query_params.model_dump(),
                 company_id=None,
                 id_excluding=None,
-                status_list=[ServiceStatus.ACTIVE],
             ),
         )
     except Exception as e:
