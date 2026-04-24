@@ -436,13 +436,70 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
         List[Service]: List of Services that match the search criteria.
     """
     query = session.query(Service)
+
+    services_at_starting_landmark = []
+    services_at_ending_landmark = []
+
+    filtered_services = None
+
+    if query_params.starting_landmark_id is not None:
+        starting_landmark = (
+            session.query(
+                LandmarkInService.service_id,
+                LandmarkInService.arrival_at,
+            )
+            .filter(LandmarkInService.landmark_id == query_params.starting_landmark_id)
+            .all()
+        )
+
+        for row in starting_landmark:
+            services_at_starting_landmark.append(row)
+
+    if query_params.ending_landmark_id is not None:
+        ending_landmark = (
+            session.query(
+                LandmarkInService.service_id,
+                LandmarkInService.arrival_at,
+            )
+            .filter(LandmarkInService.landmark_id == query_params.ending_landmark_id)
+            .all()
+        )
+
+        for row in ending_landmark:
+            services_at_ending_landmark.append(row)
+
+    if (
+        query_params.starting_landmark_id is not None
+        or query_params.ending_landmark_id is not None
+    ):
+
+        if services_at_starting_landmark and services_at_ending_landmark:
+            filtered_services = []
+
+            for starting_svc in services_at_starting_landmark:
+                for ending_svc in services_at_ending_landmark:
+                    if (
+                        starting_svc.service_id == ending_svc.service_id
+                        and starting_svc.arrival_at < ending_svc.arrival_at
+                    ):
+                        filtered_services.append(starting_svc.service_id)
+
+        else:
+            filtered_services = list(
+                set(row.service_id for row in services_at_starting_landmark).union(
+                    row.service_id for row in services_at_ending_landmark
+                )
+            )
+
+    if filtered_services is not None:
+        query = query.filter(Service.id.in_(filtered_services))
     if query_params.company_id is not None:
         query = query.filter(Service.company_id == query_params.company_id)
     if query_params.id_excluding is not None:
         query = query.filter(Service.id.notin_(query_params.id_excluding))
     if query_params.registration_number is not None:
         query = query.filter(
-            Vehicle.registration_number.ilike(f"%{query_params.registration_number}%")
+            Service.registration_number.ilike(f"%{query_params.registration_number}%")
         )
     if query_params.ticket_mode is not None:
         query = query.filter(Service.ticket_mode == query_params.ticket_mode)
@@ -454,14 +511,7 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
         query = query.filter(Service.ending_at >= query_params.ending_at_ge)
     if query_params.ending_at_le is not None:
         query = query.filter(Service.ending_at <= query_params.ending_at_le)
-    if query_params.starting_landmark_id is not None:
-        query = query.filter(
-            Service.starting_landmark_id == query_params.starting_landmark_id
-        )
-    if query_params.ending_landmark_id is not None:
-        query = query.filter(
-            Service.ending_landmark_id == query_params.ending_landmark_id
-        )
+
     # Common search
     if query_params.search:
         search = f"%{query_params.search}%"
@@ -932,6 +982,7 @@ async def fetch_service_public(query_params: QueryParamsForPU = Depends()):
             QueryParams(
                 **query_params.model_dump(),
                 company_id=None,
+                id_excluding=None,
             ),
         )
     except Exception as e:
