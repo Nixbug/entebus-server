@@ -497,7 +497,7 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
         query = query.filter(Service.id.in_(svcs_to_consider))
     if query_params.company_id is not None:
         query = query.filter(Service.company_id == query_params.company_id)
-    if query_params.id_excluding is not None:
+    if query_params.id_excluding:
         query = query.filter(Service.id.notin_(query_params.id_excluding))
     if query_params.registration_number is not None:
         query = query.filter(
