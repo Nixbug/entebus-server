@@ -102,6 +102,8 @@ class ServiceSchema(BaseModel):
 
 
 class FareSchema(BaseModel):
+    """Schema for fare response."""
+
     id: int
     fare_id: int
     version: int
@@ -111,6 +113,8 @@ class FareSchema(BaseModel):
 
 
 class VehicleSchema(BaseModel):
+    """Schema for vehicle response."""
+
     id: int
     vehicle_id: int
     version: int
@@ -120,15 +124,17 @@ class VehicleSchema(BaseModel):
 
 
 class RouteSchema(BaseModel):
-    service_id: int | None = None
+    """Schema for route response."""
+
+    service_id: int
     landmark_id: int
-    distance_from_start: float | None = None
-    arrival_at: str | None = None
-    departure_at: str | None = None
+    distance_from_start: int
+    arrival_at: datetime
+    departure_at: datetime
 
 
 class PublicServiceSchema(ServiceSchema):
-    """Schema for service response with detailed information."""
+    """Schema for service response with masked details."""
 
     fare: FareSchema
     vehicle: VehicleSchema
@@ -171,7 +177,7 @@ class CreateForm(CreateFormForEX):
 
 ## Query Parameters
 class OrderBy(StrEnum):
-    """Enum for ordering fare results."""
+    """Enum for ordering service results."""
 
     ID = "id"
     CREATED_ON = "created_on"
@@ -181,7 +187,7 @@ class OrderBy(StrEnum):
 
 
 class QueryParamsForPU(IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFilter):
-    """Query parameters for operator users."""
+    """Query parameters for public users."""
 
     search: str | None = Field(Query(default=None))
     name: str | None = Field(Query(default=None))
@@ -435,12 +441,8 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
     Returns:
         List[Service]: List of Services that match the search criteria.
     """
-    query = session.query(Service)
-
-    services_at_starting_landmark = []
-    services_at_ending_landmark = []
-
-    filtered_services = None
+    svcs_touching_starting_lmk = []
+    svcs_touching_ending_lmk = []
 
     if query_params.starting_landmark_id is not None:
         starting_landmark = (
@@ -453,7 +455,7 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
         )
 
         for row in starting_landmark:
-            services_at_starting_landmark.append(row)
+            svcs_touching_starting_lmk.append(row)
 
     if query_params.ending_landmark_id is not None:
         ending_landmark = (
@@ -466,33 +468,39 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
         )
 
         for row in ending_landmark:
-            services_at_ending_landmark.append(row)
+            svcs_touching_ending_lmk.append(row)
 
+    svcs_to_consider = None
     if (
         query_params.starting_landmark_id is not None
-        or query_params.ending_landmark_id is not None
+        and query_params.ending_landmark_id is not None
     ):
+        svcs_to_consider = []
 
-        if services_at_starting_landmark and services_at_ending_landmark:
-            filtered_services = []
+        for starting_svc in svcs_touching_starting_lmk:
+            for ending_svc in svcs_touching_ending_lmk:
+                if (
+                    starting_svc.service_id == ending_svc.service_id
+                    and starting_svc.arrival_at < ending_svc.arrival_at
+                ):
+                    svcs_to_consider.append(starting_svc.service_id)
 
-            for starting_svc in services_at_starting_landmark:
-                for ending_svc in services_at_ending_landmark:
-                    if (
-                        starting_svc.service_id == ending_svc.service_id
-                        and starting_svc.arrival_at < ending_svc.arrival_at
-                    ):
-                        filtered_services.append(starting_svc.service_id)
+    else:
+        if query_params.starting_landmark_id is not None:
+            svcs_to_consider = []
 
-        else:
-            filtered_services = list(
-                set(row.service_id for row in services_at_starting_landmark).union(
-                    row.service_id for row in services_at_ending_landmark
-                )
-            )
+            for row in svcs_touching_starting_lmk:
+                svcs_to_consider.append(row.service_id)
 
-    if filtered_services is not None:
-        query = query.filter(Service.id.in_(filtered_services))
+        elif query_params.ending_landmark_id is not None:
+            svcs_to_consider = []
+
+            for row in svcs_touching_ending_lmk:
+                svcs_to_consider.append(row.service_id)
+
+    query = session.query(Service)
+    if svcs_to_consider is not None:
+        query = query.filter(Service.id.in_(svcs_to_consider))
     if query_params.company_id is not None:
         query = query.filter(Service.company_id == query_params.company_id)
     if query_params.id_excluding is not None:
@@ -511,7 +519,6 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
         query = query.filter(Service.ending_at >= query_params.ending_at_ge)
     if query_params.ending_at_le is not None:
         query = query.filter(Service.ending_at <= query_params.ending_at_le)
-
     # Common search
     if query_params.search:
         search = f"%{query_params.search}%"
@@ -560,7 +567,7 @@ def search_service_details(session: Session, service: Service) -> Dict[str, Any]
     landmarks_in_service = (
         session.query(LandmarkInService)
         .filter(LandmarkInService.service_id == service.id)
-        .order_by(LandmarkInService.arrival_at.asc())
+        .order_by(LandmarkInService.distance_from_start.asc())
         .all()
     )
     landmarks_in_service_data = jsonable_encoder(landmarks_in_service)
@@ -983,6 +990,7 @@ async def fetch_service_public(query_params: QueryParamsForPU = Depends()):
                 **query_params.model_dump(),
                 company_id=None,
                 id_excluding=None,
+                status_list=[ServiceStatus.ACTIVE],
             ),
         )
     except Exception as e:
