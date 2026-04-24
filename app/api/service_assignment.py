@@ -1,13 +1,12 @@
 """
 Service Assignment API Router for EnteBus.
 
-Provides endpoints for managing assignments between services and operators,
-including creation, update, deletion, and retrieval.
+Provides endpoints for managing service assignments, including creation,
+update, deletion and retrieval. Uses Pydantic schemas for
+input validation and structured output.
 """
-
 from datetime import datetime
 from enum import StrEnum
-
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -22,6 +21,7 @@ from app.src.db import (
     Service,
     ServiceAssignment,
     SessionLocal,
+    Company,
 )
 from app.src.enums import OrderIn
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, UpdatedOnFilter
@@ -45,24 +45,26 @@ route_executive = APIRouter()
 route_operator = APIRouter()
 
 
-class AssignmentRead(BaseModel):
+class ServiceAssignmentSchema(BaseModel):
     """Schema for service assignment response."""
 
     id: int
+    company_id: int
     service_id: int
     operator_id: int
     created_on: datetime
     updated_on: datetime | None
 
 
-class AssignmentCreate(BaseModel):
+class CreateForm(BaseModel):
     """Form data for creating a service assignment."""
 
+    company_id: int = Field()
     service_id: int = Field()
     operator_id: int = Field()
 
 
-class AssignmentUpdate(BaseModel):
+class UpdateForm(BaseModel):
     """Form data for updating a service assignment."""
 
     service_id: int | None = Field(default=None)
@@ -94,25 +96,15 @@ class QueryParamsForEX(QueryParamsForOP):
     company_id: int | None = Field(Query(default=None))
 
 
-def validate_assignment_association(service: Service, operator: Operator) -> None:
-    """Validate that the service and operator belong to the same company."""
-
-    if service.company_id != operator.company_id:
-        raise exceptions.InvalidAssociation(
-            ServiceAssignment.service_id, ServiceAssignment.operator_id
-        )
-
-
+# Functions
 def search_assignments(
     session: Session, query_params: QueryParamsForEX
 ) -> list[ServiceAssignment]:
     """Fetch service assignments matching query parameters."""
 
-    query = session.query(ServiceAssignment).join(
-        Service, Service.id == ServiceAssignment.service_id
-    )
+    query = session.query(ServiceAssignment)
     if query_params.company_id is not None:
-        query = query.filter(Service.company_id == query_params.company_id)
+        query = query.filter(ServiceAssignment.company_id == query_params.company_id)
     if query_params.service_id is not None:
         query = query.filter(ServiceAssignment.service_id == query_params.service_id)
     if query_params.operator_id is not None:
@@ -133,10 +125,13 @@ def search_assignments(
     return query.all()
 
 
+# ---------------------------------------------------------------------------
+## API endpoints [Executive]
+# ---------------------------------------------------------------------------
 @route_executive.post(
     URL_SERVICE_ASSIGNMENT,
     tags=["Service Assignment"],
-    response_model=AssignmentRead,
+    response_model=ServiceAssignmentSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
         [
@@ -144,14 +139,18 @@ def search_assignments(
             exceptions.NoPermission(),
             exceptions.UnknownValue(ServiceAssignment.service_id),
             exceptions.UnknownValue(ServiceAssignment.operator_id),
+            exceptions.UnknownValue(ServiceAssignment.company_id),
             exceptions.InvalidAssociation(
-                ServiceAssignment.service_id, ServiceAssignment.operator_id
+                ServiceAssignment.company_id, ServiceAssignment.service_id
+            ),
+            exceptions.InvalidAssociation(
+                ServiceAssignment.company_id, ServiceAssignment.operator_id
             ),
         ]
     ),
 )
 async def create_assignment_executive(
-    form_param: AssignmentCreate,
+    form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
@@ -162,17 +161,30 @@ async def create_assignment_executive(
         verify_permission(
             roles, ExecutivePermissionPath.CREATE_COMPANY_SERVICE_ASSIGNMENT
         )
-
+ 
+        company = validate_id(
+            session, Company, form_param.company_id, ServiceAssignment.company_id
+        )
         service = validate_id(
             session, Service, form_param.service_id, ServiceAssignment.service_id
         )
         operator = validate_id(
             session, Operator, form_param.operator_id, ServiceAssignment.operator_id
         )
-        validate_assignment_association(service, operator)
+        
+        if service.company_id != company.id :
+            raise exceptions.InvalidAssociation(
+                ServiceAssignment.company_id, ServiceAssignment.service_id
+            )
+        if operator.company_id != company.id :
+            raise exceptions.InvalidAssociation(
+                ServiceAssignment.company_id, ServiceAssignment.operator_id
+            )
 
         assignment = ServiceAssignment(
-            service_id=form_param.service_id, operator_id=form_param.operator_id
+            company_id=service.company_id,
+            service_id=form_param.service_id,
+            operator_id=form_param.operator_id
         )
         session.add(assignment)
         session.commit()
@@ -190,7 +202,7 @@ async def create_assignment_executive(
 @route_executive.get(
     URL_SERVICE_ASSIGNMENT,
     tags=["Service Assignment"],
-    response_model=list[AssignmentRead],
+    response_model=list[ServiceAssignmentSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
 )
 async def fetch_assignment_executive(
@@ -212,7 +224,7 @@ async def fetch_assignment_executive(
 @route_executive.patch(
     f"{URL_SERVICE_ASSIGNMENT}/{{id}}",
     tags=["Service Assignment"],
-    response_model=AssignmentRead,
+    response_model=ServiceAssignmentSchema,
     status_code=status.HTTP_200_OK,
     responses=fuse_exception_responses(
         [
@@ -229,7 +241,7 @@ async def fetch_assignment_executive(
 )
 async def update_assignment_executive(
     id: int,
-    form_param: AssignmentUpdate,
+    form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
@@ -322,10 +334,13 @@ async def delete_assignment_executive(
         session.close()
 
 
+# ---------------------------------------------------------------------------
+## API endpoints [Operator]
+# ---------------------------------------------------------------------------
 @route_operator.post(
     URL_SERVICE_ASSIGNMENT,
     tags=["Service Assignment"],
-    response_model=AssignmentRead,
+    response_model=ServiceAssignmentSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
         [
@@ -340,7 +355,7 @@ async def delete_assignment_executive(
     ),
 )
 async def create_assignment_operator(
-    form_param: AssignmentCreate,
+    form_param: CreateForm,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
 ):
@@ -366,10 +381,9 @@ async def create_assignment_operator(
             ServiceAssignment.operator_id,
             extra_filter=(Operator.company_id == token.company_id),
         )
-        validate_assignment_association(service, operator)
 
         assignment = ServiceAssignment(
-            service_id=form_param.service_id, operator_id=form_param.operator_id
+           company_id = token.company_id, service_id=form_param.service_id, operator_id=form_param.operator_id
         )
         session.add(assignment)
         session.commit()
@@ -387,7 +401,7 @@ async def create_assignment_operator(
 @route_operator.get(
     URL_SERVICE_ASSIGNMENT,
     tags=["Service Assignment"],
-    response_model=list[AssignmentRead],
+    response_model=list[ServiceAssignmentSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
 )
 async def fetch_assignment_operator(
@@ -409,7 +423,7 @@ async def fetch_assignment_operator(
 @route_operator.patch(
     f"{URL_SERVICE_ASSIGNMENT}/{{id}}",
     tags=["Service Assignment"],
-    response_model=AssignmentRead,
+    response_model=ServiceAssignmentSchema,
     status_code=status.HTTP_200_OK,
     responses=fuse_exception_responses(
         [
@@ -426,7 +440,7 @@ async def fetch_assignment_operator(
 )
 async def update_assignment_operator(
     id: int,
-    form_param: AssignmentUpdate,
+    form_param: UpdateForm,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
 ):
@@ -495,7 +509,6 @@ async def update_assignment_operator(
 
 @route_operator.delete(
     f"{URL_SERVICE_ASSIGNMENT}/{{id}}",
-    tags=["Service Assignment"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
