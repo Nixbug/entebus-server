@@ -6,7 +6,7 @@ Uses Pydantic schemas for input validation and structured output.
 Endpoints for update and deletion are planned for future implementation.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from enum import StrEnum
 from fastapi.encoders import jsonable_encoder
 from typing import Any, Dict, List
@@ -129,8 +129,8 @@ class RouteSchema(BaseModel):
     service_id: int
     landmark_id: int
     distance_from_start: int
-    arrival_at: datetime
-    departure_at: datetime
+    arrival_at: time
+    departure_at: time
 
 
 class PublicServiceSchema(ServiceSchema):
