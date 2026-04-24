@@ -14,7 +14,7 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 from datetime import timedelta
 from fastapi import status, Depends
-from sqlalchemy import String, or_
+from sqlalchemy import String, or_, and_, aliased
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
@@ -439,58 +439,51 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
     Returns:
         List[Service]: List of Services that match the search criteria.
     """
-    svcs_touching_starting_lmk = []
-    svcs_touching_ending_lmk = []
-
-    if query_params.starting_landmark_id is not None:
-        starting_landmark = (
-            session.query(
-                LandmarkInService.service_id,
-                LandmarkInService.arrival_at,
-            )
-            .filter(LandmarkInService.landmark_id == query_params.starting_landmark_id)
-            .all()
-        )
-        svcs_touching_starting_lmk.extend(starting_landmark)
-
-    if query_params.ending_landmark_id is not None:
-        ending_landmark = (
-            session.query(
-                LandmarkInService.service_id,
-                LandmarkInService.arrival_at,
-            )
-            .filter(LandmarkInService.landmark_id == query_params.ending_landmark_id)
-            .all()
-        )
-        svcs_touching_ending_lmk.extend(ending_landmark)
-
     svcs_to_consider = None
+
     if (
         query_params.starting_landmark_id is not None
         and query_params.ending_landmark_id is not None
     ):
-        svcs_to_consider = []
+        # Find services with both landmarks where starting arrives before ending
+        starting_lis = aliased(LandmarkInService)
+        ending_lis = aliased(LandmarkInService)
 
-        for starting_svc in svcs_touching_starting_lmk:
-            for ending_svc in svcs_touching_ending_lmk:
-                if (
-                    starting_svc.service_id == ending_svc.service_id
-                    and starting_svc.arrival_at < ending_svc.arrival_at
-                ):
-                    svcs_to_consider.append(starting_svc.service_id)
+        svcs_to_consider = (
+            session.query(starting_lis.service_id)
+            .join(
+                ending_lis,
+                and_(
+                    starting_lis.service_id == ending_lis.service_id,
+                    starting_lis.arrival_at < ending_lis.arrival_at,
+                ),
+            )
+            .filter(starting_lis.landmark_id == query_params.starting_landmark_id)
+            .filter(ending_lis.landmark_id == query_params.ending_landmark_id)
+            .distinct()
+            .all()
+        )
+        svcs_to_consider = [svc[0] for svc in svcs_to_consider]
 
-    else:
-        if query_params.starting_landmark_id is not None:
-            svcs_to_consider = []
+    elif query_params.starting_landmark_id is not None:
+        # Find services with the starting landmark only
+        svcs_to_consider = (
+            session.query(LandmarkInService.service_id)
+            .filter(LandmarkInService.landmark_id == query_params.starting_landmark_id)
+            .distinct()
+            .all()
+        )
+        svcs_to_consider = [svc[0] for svc in svcs_to_consider]
 
-            for row in svcs_touching_starting_lmk:
-                svcs_to_consider.append(row.service_id)
-
-        elif query_params.ending_landmark_id is not None:
-            svcs_to_consider = []
-
-            for row in svcs_touching_ending_lmk:
-                svcs_to_consider.append(row.service_id)
+    elif query_params.ending_landmark_id is not None:
+        # Find services with the ending landmark only
+        svcs_to_consider = (
+            session.query(LandmarkInService.service_id)
+            .filter(LandmarkInService.landmark_id == query_params.ending_landmark_id)
+            .distinct()
+            .all()
+        )
+        svcs_to_consider = [svc[0] for svc in svcs_to_consider]
 
     query = session.query(Service)
     if svcs_to_consider is not None:
