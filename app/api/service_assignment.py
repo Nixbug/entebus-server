@@ -97,6 +97,19 @@ class QueryParamsForEX(QueryParamsForOP):
 
 
 # Functions
+def create_route(session: Session, form_param: CreateForm) -> dict:
+    """
+    Creates a new route record in the database.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        form_param (CreateForm): Form data for creating a route.
+
+    Returns:
+        dict: The created route data.
+    """
+
+    
 def search_assignments(
     session: Session, query_params: QueryParamsForEX
 ) -> list[ServiceAssignment]:
