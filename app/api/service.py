@@ -446,20 +446,17 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
         and query_params.ending_landmark_id is not None
     ):
         # Find services with both landmarks where starting arrives before ending
-        starting_lis = aliased(LandmarkInService)
-        ending_lis = aliased(LandmarkInService)
-
         svcs_to_consider = (
-            session.query(starting_lis.service_id)
+            session.query(LandmarkInService.service_id)
             .join(
-                ending_lis,
+                LandmarkInService,
                 and_(
-                    starting_lis.service_id == ending_lis.service_id,
-                    starting_lis.arrival_at < ending_lis.arrival_at,
+                    LandmarkInService.service_id == LandmarkInService.service_id,
+                    LandmarkInService.arrival_at < LandmarkInService.arrival_at,
                 ),
             )
-            .filter(starting_lis.landmark_id == query_params.starting_landmark_id)
-            .filter(ending_lis.landmark_id == query_params.ending_landmark_id)
+            .filter(LandmarkInService.landmark_id == query_params.starting_landmark_id)
+            .filter(LandmarkInService.landmark_id == query_params.ending_landmark_id)
             .distinct()
             .all()
         )
