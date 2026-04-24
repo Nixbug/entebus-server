@@ -129,8 +129,8 @@ class RouteSchema(BaseModel):
     service_id: int
     landmark_id: int
     distance_from_start: int
-    arrival_at: time
-    departure_at: time
+    arrival_at: datetime
+    departure_at: datetime
 
 
 class PublicServiceSchema(ServiceSchema):
