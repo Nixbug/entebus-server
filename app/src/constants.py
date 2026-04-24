@@ -97,6 +97,7 @@ MAX_DUTIES_PER_SERVICE = 50  # Maximum number of duties allowed per service
 # Timezone constants
 # ---------------------------------------------------------------------------
 TMZ_PRIMARY = ZoneInfo("UTC")
+TMZ_SECONDARY = ZoneInfo("Asia/Kolkata")
 
 
 # ---------------------------------------------------------------------------
