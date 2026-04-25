@@ -535,7 +535,7 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
     return services
 
 
-def search_service_details(session: Session, service: Service) -> Dict[str, Any]:
+def fetch_service_details(session: Session, service: Service) -> Dict[str, Any]:
     """
     Returns details of a service along with related entities like landmarks, fare, and vehicle in service.
 
@@ -726,7 +726,7 @@ async def fetch_service_details_for_executive(
         verify_token(session, ExecutiveToken, access_token)
 
         service = validate_id(session, Service, id, Service.id)
-        return search_service_details(session, service)
+        return fetch_service_details(session, service)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -860,6 +860,7 @@ async def fetch_service_operator(
         """
             **Fetch a service by its ID.**    
             - Requires a valid access token for authentication.    
+            - If `marked_as_cached` query parameter is set to true, and the service status is currently CREATED, the status will be updated to CACHED.    
         """
     ),
 )
@@ -883,7 +884,7 @@ async def fetch_service_details_for_operator(
             service.status = ServiceStatus.CACHED
             session.commit()
             session.refresh(service)
-        return search_service_details(session, service)
+        return fetch_service_details(session, service)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -945,7 +946,7 @@ async def fetch_service_details_for_vendor(
         verify_token(session, VendorToken, access_token.credentials)
 
         service = validate_id(session, Service, id, Service.id)
-        return search_service_details(session, service)
+        return fetch_service_details(session, service)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -999,7 +1000,7 @@ async def fetch_service_details_public(id: int):
         session = SessionLocal()
 
         service = validate_id(session, Service, id, Service.id)
-        return search_service_details(session, service)
+        return fetch_service_details(session, service)
     except Exception as e:
         exceptions.handle(e)
     finally:
