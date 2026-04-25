@@ -167,7 +167,7 @@ def validate_service_assignment_entities(
     service_id: int,
     operator_id: int,
     scope_with_company_filter: bool,
-) -> None:
+) -> tuple[Service, Operator]:
     """
     Validate service/operator IDs for assignment endpoints.
 
@@ -179,6 +179,8 @@ def validate_service_assignment_entities(
         scope_with_company_filter (bool): If True, apply company filters at lookup
             time; if False, validate IDs first and then check associations.
 
+    Returns:
+        tuple[Service, Operator]: Validated service and operator rows.
     """
     service_filter = (
         Service.company_id == company_id if scope_with_company_filter else None
@@ -204,6 +206,7 @@ def validate_service_assignment_entities(
 
     if not scope_with_company_filter:
         validate_service_assignment_company(service, operator, company_id)
+    return service, operator
 
 
 def delete_service_assignment(
@@ -316,13 +319,21 @@ async def create_assignment_executive(
         company = validate_id(
             session, Company, form_param.company_id, ServiceAssignment.company_id
         )
-        validate_service_assignment_entities(
-            session=session,
-            company_id=company.id,
-            service_id=form_param.service_id,
-            operator_id=form_param.operator_id,
-            scope_with_company_filter=False,
+        service = validate_id(
+            session, Service, form_param.service_id, ServiceAssignment.service_id
         )
+        operator = validate_id(
+            session, Operator, form_param.operator_id, ServiceAssignment.operator_id
+        )
+
+        if service.company_id != company.id:
+            raise exceptions.InvalidAssociation(
+                ServiceAssignment.service_id, ServiceAssignment.company_id
+            )
+        if operator.company_id != company.id:
+            raise exceptions.InvalidAssociation(
+                ServiceAssignment.operator_id, ServiceAssignment.company_id
+            )
         service_assignment_data = create_service_assignment(
             session, CreateForm(**form_param.model_dump())
         )
@@ -519,12 +530,19 @@ async def create_assignment_operator(
             roles, OperatorPermissionPath.CREATE_COMPANY_SERVICE_ASSIGNMENT
         )
 
-        validate_service_assignment_entities(
-            session=session,
-            company_id=token.company_id,
-            service_id=form_param.service_id,
-            operator_id=form_param.operator_id,
-            scope_with_company_filter=True,
+        validate_id(
+            session,
+            Service,
+            form_param.service_id,
+            ServiceAssignment.service_id,
+            extra_filter=(Service.company_id == token.company_id),
+        )
+        validate_id(
+            session,
+            Operator,
+            form_param.operator_id,
+            ServiceAssignment.operator_id,
+            extra_filter=(Operator.company_id == token.company_id),
         )
         service_assignment_data = create_service_assignment(
             session, CreateForm(**form_param.model_dump(), company_id=token.company_id)
