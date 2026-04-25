@@ -5,8 +5,10 @@ Provides endpoints for managing service assignments, including creation,
 update, deletion and retrieval. Uses Pydantic schemas for
 input validation and structured output.
 """
+
 from datetime import datetime
 from enum import StrEnum
+from typing import List
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -56,19 +58,29 @@ class ServiceAssignmentSchema(BaseModel):
     updated_on: datetime | None
 
 
-class CreateForm(BaseModel):
-    """Form data for creating a service assignment."""
+class CreateFormForOP(BaseModel):
+    """Form data for creating a service assignment for an operator."""
 
-    company_id: int = Field()
     service_id: int = Field()
     operator_id: int = Field()
+
+
+class CreateFormForEX(CreateFormForOP):
+    """Form data for creating a new service assignment for an executive."""
+
+    company_id: int = Field()
+
+
+class CreateForm(CreateFormForEX):
+    """Generic combined form data for creating a new service assignment."""
+
+    pass
 
 
 class UpdateForm(BaseModel):
     """Form data for updating a service assignment."""
 
-    service_id: int | None = Field(default=None)
-    operator_id: int | None = Field(default=None)
+    operator_id: int = Field(default=None)
 
 
 class OrderBy(StrEnum):
@@ -80,7 +92,7 @@ class OrderBy(StrEnum):
 
 
 class QueryParamsForOP(PaginationFilter, IDFilter, CreatedOnFilter, UpdatedOnFilter):
-    """Query parameters for operator assignment listing."""
+    """Query parameters for operators."""
 
     service_id: int | None = Field(Query(default=None))
     operator_id: int | None = Field(Query(default=None))
@@ -96,25 +108,71 @@ class QueryParamsForEX(QueryParamsForOP):
     company_id: int | None = Field(Query(default=None))
 
 
+class QueryParams(QueryParamsForEX):
+    """General combined query parameters."""
+
+    pass
+
+
 # Functions
-def create_route(session: Session, form_param: CreateForm) -> dict:
+def create_service_assignment(session: Session, form_param: CreateForm) -> dict:
     """
-    Creates a new route record in the database.
+    Creates a new service assignment record in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
-        form_param (CreateForm): Form data for creating a route.
+        form_param (CreateForm): Form data for creating a service assignment.
 
     Returns:
-        dict: The created route data.
+        dict: The created service assignment data.
     """
+    service_assignment = ServiceAssignment(
+        company_id=form_param.company_id,
+        service_id=form_param.service_id,
+        operator_id=form_param.operator_id,
+    )
+    session.add(service_assignment)
+    session.commit()
+    session.refresh(service_assignment)
+    assignment_data = jsonable_encoder(service_assignment)
+    return assignment_data
 
-    
-def search_assignments(
-    session: Session, query_params: QueryParamsForEX
-) -> list[ServiceAssignment]:
-    """Fetch service assignments matching query parameters."""
 
+def delete_service_assignment(
+    session: Session, service_assignment: ServiceAssignment
+) -> dict:
+    """
+    Deletes a service assignment from the database.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        service_assignment (ServiceAssignment): Service assignment to delete.
+
+    Returns:
+        dict: JSON-encoded representation of the deleted service assignment.
+    """
+    service_assignment_data = jsonable_encoder(service_assignment)
+    session.delete(service_assignment)
+    session.commit()
+    return service_assignment_data
+
+
+def search_service_assignments(
+    session: Session, query_params: QueryParams
+) -> List[ServiceAssignment]:
+    """
+    Search for ServiceAssignments based on provided query parameters.
+
+    This function supports multiple filtering, searching, ordering, and
+    pagination capabilities to retrieve service assignments that match various criteria.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        query_params (QueryParams): Query parameters containing search criteria.
+
+    Returns:
+        List[ServiceAssignment]: List of ServiceAssignments that match the search criteria.
+    """
     query = session.query(ServiceAssignment)
     if query_params.company_id is not None:
         query = query.filter(ServiceAssignment.company_id == query_params.company_id)
@@ -123,10 +181,12 @@ def search_assignments(
     if query_params.operator_id is not None:
         query = query.filter(ServiceAssignment.operator_id == query_params.operator_id)
 
+    # Generalized filters
     query = apply_id_filters(query, ServiceAssignment, query_params)
     query = apply_created_on_filters(query, ServiceAssignment, query_params)
     query = apply_updated_on_filters(query, ServiceAssignment, query_params)
 
+    # Ordering and pagination
     ordering_attr = getattr(ServiceAssignment, query_params.order_by.value)
     ordering_func = (
         ordering_attr.asc
@@ -135,7 +195,9 @@ def search_assignments(
     )
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
-    return query.all()
+
+    service_assignments = query.all()
+    return service_assignments
 
 
 # ---------------------------------------------------------------------------
@@ -161,9 +223,17 @@ def search_assignments(
             ),
         ]
     ),
+    description=(
+        """
+                **Creates a new service assignment.**    
+                - Executive must have a valid access token.    
+                - Logged-in executive must have `company.service.assignment.create` permission.    
+                - Duplicate assignments are not allowed.    
+            """
+    ),
 )
 async def create_assignment_executive(
-    form_param: CreateForm,
+    form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
@@ -174,7 +244,7 @@ async def create_assignment_executive(
         verify_permission(
             roles, ExecutivePermissionPath.CREATE_COMPANY_SERVICE_ASSIGNMENT
         )
- 
+
         company = validate_id(
             session, Company, form_param.company_id, ServiceAssignment.company_id
         )
@@ -184,50 +254,21 @@ async def create_assignment_executive(
         operator = validate_id(
             session, Operator, form_param.operator_id, ServiceAssignment.operator_id
         )
-        
-        if service.company_id != company.id :
+
+        if service.company_id != company.id:
             raise exceptions.InvalidAssociation(
-                ServiceAssignment.company_id, ServiceAssignment.service_id
+                ServiceAssignment.service_id, ServiceAssignment.company_id
             )
-        if operator.company_id != company.id :
+        if operator.company_id != company.id:
             raise exceptions.InvalidAssociation(
-                ServiceAssignment.company_id, ServiceAssignment.operator_id
+                ServiceAssignment.operator_id, ServiceAssignment.company_id
             )
-
-        assignment = ServiceAssignment(
-            company_id=service.company_id,
-            service_id=form_param.service_id,
-            operator_id=form_param.operator_id
+        service_assignment_data = create_service_assignment(
+            session, CreateForm(**form_param.model_dump())
         )
-        session.add(assignment)
-        session.commit()
-        session.refresh(assignment)
 
-        assignment_data = jsonable_encoder(assignment)
-        log_event(token, request_info, assignment_data)
-        return assignment_data
-    except Exception as e:
-        exceptions.handle(e)
-    finally:
-        session.close()
-
-
-@route_executive.get(
-    URL_SERVICE_ASSIGNMENT,
-    tags=["Service Assignment"],
-    response_model=list[ServiceAssignmentSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-)
-async def fetch_assignment_executive(
-    query_params: QueryParamsForEX = Depends(),
-    access_token=Depends(oauth2_executive),
-):
-    try:
-        session = SessionLocal()
-        verify_token(session, ExecutiveToken, access_token)
-        return search_assignments(
-            session, QueryParamsForEX(**query_params.model_dump())
-        )
+        log_event(token, request_info, service_assignment_data)
+        return service_assignment_data
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -247,9 +288,18 @@ async def fetch_assignment_executive(
             exceptions.UnknownValue(ServiceAssignment.service_id),
             exceptions.UnknownValue(ServiceAssignment.operator_id),
             exceptions.InvalidAssociation(
-                ServiceAssignment.service_id, ServiceAssignment.operator_id
+                ServiceAssignment.operator_id, ServiceAssignment.company_id
             ),
         ]
+    ),
+    description=(
+        """
+            **Updates an existing service assignment.**    
+            - Executive must have a valid access token.    
+            - Logged-in executive must have `company.service.assignment.update` permission.    
+            - Duplicate assignments are not allowed.    
+            - Empty PATCH requests are allowed and will result in no changes.    
+        """
     ),
 )
 async def update_assignment_executive(
@@ -266,45 +316,33 @@ async def update_assignment_executive(
             roles, ExecutivePermissionPath.UPDATE_COMPANY_SERVICE_ASSIGNMENT
         )
 
-        assignment = validate_id(session, ServiceAssignment, id, ServiceAssignment.id)
-        service_id = (
-            form_param.service_id
-            if form_param.service_id is not None
-            else assignment.service_id
+        service_assignment = validate_id(
+            session, ServiceAssignment, id, ServiceAssignment.id
         )
-        operator_id = (
-            form_param.operator_id
-            if form_param.operator_id is not None
-            else assignment.operator_id
-        )
-        service = validate_id(
-            session,
-            Service,
-            service_id,
-            ServiceAssignment.service_id,
-        )
-        operator = validate_id(
-            session,
-            Operator,
-            operator_id,
-            ServiceAssignment.operator_id,
-        )
-        validate_assignment_association(service, operator)
+        if (
+            form_param.operator_id is not None
+            and service_assignment.operator_id != form_param.operator_id
+        ):
+            operator = validate_id(
+                session,
+                Operator,
+                form_param.operator_id,
+                ServiceAssignment.operator_id,
+            )
+            if operator.company_id != service_assignment.company_id:
+                raise exceptions.InvalidAssociation(
+                    ServiceAssignment.operator_id, ServiceAssignment.company_id
+                )
+            service_assignment.operator_id = form_param.operator_id
 
-        if form_param.service_id is not None:
-            assignment.service_id = form_param.service_id
-        if form_param.operator_id is not None:
-            assignment.operator_id = form_param.operator_id
-
-        have_updates = session.is_modified(assignment)
+        have_updates = session.is_modified(service_assignment)
         if have_updates:
             session.commit()
-            session.refresh(assignment)
-
-        assignment_data = jsonable_encoder(assignment)
+            session.refresh(service_assignment)
+        service_assignment_data = jsonable_encoder(service_assignment)
         if have_updates:
-            log_event(token, request_info, assignment_data)
-        return assignment_data
+            log_event(token, request_info, service_assignment_data)
+        return service_assignment_data
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -317,6 +355,14 @@ async def update_assignment_executive(
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing service assignment.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in executive must have the `company.service.assignment.delete` permission.    
+            - Returns 204 No Content even if the specified service assignment does not exist.    
+        """
     ),
 )
 async def delete_assignment_executive(
@@ -332,15 +378,44 @@ async def delete_assignment_executive(
             roles, ExecutivePermissionPath.DELETE_COMPANY_SERVICE_ASSIGNMENT
         )
 
-        assignment = (
+        service_assignment = (
             session.query(ServiceAssignment).filter(ServiceAssignment.id == id).first()
         )
-        if assignment is not None:
-            assignment_data = jsonable_encoder(assignment)
-            session.delete(assignment)
-            session.commit()
-            log_event(token, request_info, assignment_data)
+        if service_assignment is not None:
+            service_assignment_data = delete_service_assignment(
+                session, service_assignment
+            )
+            log_event(token, request_info, service_assignment_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.get(
+    URL_SERVICE_ASSIGNMENT,
+    tags=["Service Assignment"],
+    response_model=list[ServiceAssignmentSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches a list of service assignments.**    
+            - Requires a valid access token for authentication.    
+        """
+    ),
+)
+async def fetch_assignment_executive(
+    query_params: QueryParamsForEX = Depends(),
+    access_token=Depends(oauth2_executive),
+):
+    try:
+        session = SessionLocal()
+        verify_token(session, ExecutiveToken, access_token)
+
+        return search_service_assignments(
+            session, QueryParams(**query_params.model_dump())
+        )
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -366,9 +441,17 @@ async def delete_assignment_executive(
             ),
         ]
     ),
+    description=(
+        """
+                **Creates a new service assignment.**    
+                - Operator must have a valid access token.    
+                - Logged-in operator must have `company.service.assignment.create` permission.    
+                - Duplicate mappings are not allowed.    
+            """
+    ),
 )
 async def create_assignment_operator(
-    form_param: CreateForm,
+    form_param: CreateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
 ):
@@ -380,53 +463,25 @@ async def create_assignment_operator(
             roles, OperatorPermissionPath.CREATE_COMPANY_SERVICE_ASSIGNMENT
         )
 
-        service = validate_id(
+        validate_id(
             session,
             Service,
             form_param.service_id,
             ServiceAssignment.service_id,
             extra_filter=(Service.company_id == token.company_id),
         )
-        operator = validate_id(
+        validate_id(
             session,
             Operator,
             form_param.operator_id,
             ServiceAssignment.operator_id,
             extra_filter=(Operator.company_id == token.company_id),
         )
-
-        assignment = ServiceAssignment(
-           company_id = token.company_id, service_id=form_param.service_id, operator_id=form_param.operator_id
+        service_assignment_data = create_service_assignment(
+            session, CreateForm(**form_param.model_dump(), company_id=token.company_id)
         )
-        session.add(assignment)
-        session.commit()
-        session.refresh(assignment)
-
-        assignment_data = jsonable_encoder(assignment)
-        log_event(token, request_info, assignment_data)
-        return assignment_data
-    except Exception as e:
-        exceptions.handle(e)
-    finally:
-        session.close()
-
-
-@route_operator.get(
-    URL_SERVICE_ASSIGNMENT,
-    tags=["Service Assignment"],
-    response_model=list[ServiceAssignmentSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-)
-async def fetch_assignment_operator(
-    query_params: QueryParamsForOP = Depends(),
-    access_token=Depends(bearer_operator),
-):
-    try:
-        session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        query_params_data = query_params.model_dump()
-        query_params_data["company_id"] = token.company_id
-        return search_assignments(session, QueryParamsForEX(**query_params_data))
+        log_event(token, request_info, service_assignment_data)
+        return service_assignment_data
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -445,10 +500,17 @@ async def fetch_assignment_operator(
             exceptions.UnknownValue(ServiceAssignment.id),
             exceptions.UnknownValue(ServiceAssignment.service_id),
             exceptions.UnknownValue(ServiceAssignment.operator_id),
-            exceptions.InvalidAssociation(
-                ServiceAssignment.service_id, ServiceAssignment.operator_id
-            ),
+
         ]
+    ),
+    description=(
+        """
+            **Updates an existing service assignment.**    
+            - Operator must have a valid access token.    
+            - Logged-in operator must have `company.service.assignment.update` permission.    
+            - Duplicate mappings are not allowed.    
+            - Empty PATCH requests are allowed and will result in no changes.    
+        """
     ),
 )
 async def update_assignment_operator(
@@ -465,55 +527,34 @@ async def update_assignment_operator(
             roles, OperatorPermissionPath.UPDATE_COMPANY_SERVICE_ASSIGNMENT
         )
 
-        assignment = (
-            session.query(ServiceAssignment)
-            .join(Service, Service.id == ServiceAssignment.service_id)
-            .filter(ServiceAssignment.id == id, Service.company_id == token.company_id)
-            .first()
-        )
-        if assignment is None:
-            raise exceptions.UnknownValue(ServiceAssignment.id)
-
-        service_id = (
-            form_param.service_id
-            if form_param.service_id is not None
-            else assignment.service_id
-        )
-        operator_id = (
-            form_param.operator_id
-            if form_param.operator_id is not None
-            else assignment.operator_id
-        )
-        service = validate_id(
+        service_assignment = validate_id(
             session,
-            Service,
-            service_id,
-            ServiceAssignment.service_id,
-            extra_filter=(Service.company_id == token.company_id),
+            ServiceAssignment,
+            id,
+            ServiceAssignment.id,
+            extra_filter=(ServiceAssignment.company_id == token.company_id),
         )
-        operator = validate_id(
-            session,
-            Operator,
-            operator_id,
-            ServiceAssignment.operator_id,
-            extra_filter=(Operator.company_id == token.company_id),
-        )
-        validate_assignment_association(service, operator)
-
-        if form_param.service_id is not None:
-            assignment.service_id = form_param.service_id
-        if form_param.operator_id is not None:
-            assignment.operator_id = form_param.operator_id
-
-        have_updates = session.is_modified(assignment)
+        if (
+            form_param.operator_id is not None
+            and service_assignment.operator_id != form_param.operator_id
+        ):
+            validate_id(
+                session,
+                Operator,
+                form_param.operator_id,
+                ServiceAssignment.operator_id,
+                extra_filter=(Operator.company_id == token.company_id),
+            )
+            service_assignment.operator_id = form_param.operator_id
+        have_updates = session.is_modified(service_assignment)
         if have_updates:
             session.commit()
-            session.refresh(assignment)
+            session.refresh(service_assignment)
 
-        assignment_data = jsonable_encoder(assignment)
+        service_assignment_data = jsonable_encoder(service_assignment)
         if have_updates:
-            log_event(token, request_info, assignment_data)
-        return assignment_data
+            log_event(token, request_info, service_assignment_data)
+        return service_assignment_data
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -522,9 +563,18 @@ async def update_assignment_operator(
 
 @route_operator.delete(
     f"{URL_SERVICE_ASSIGNMENT}/{{id}}",
+    tags=["Service Assignment"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
+    ),
+    description=(
+        """
+            **Deletes an existing service assignment.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in operator must have the `company.service.assignment.delete` permission.    
+            - Returns 204 No Content even if the specified service assignment does not exist.    
+        """
     ),
 )
 async def delete_assignment_operator(
@@ -540,18 +590,50 @@ async def delete_assignment_operator(
             roles, OperatorPermissionPath.DELETE_COMPANY_SERVICE_ASSIGNMENT
         )
 
-        assignment = (
+        service_assignment = (
             session.query(ServiceAssignment)
-            .join(Service, Service.id == ServiceAssignment.service_id)
-            .filter(ServiceAssignment.id == id, Service.company_id == token.company_id)
+            .filter(
+                ServiceAssignment.id == id,
+                ServiceAssignment.company_id == token.company_id,
+            )
             .first()
         )
-        if assignment is not None:
-            assignment_data = jsonable_encoder(assignment)
-            session.delete(assignment)
-            session.commit()
-            log_event(token, request_info, assignment_data)
+        if service_assignment is not None:
+            service_assignment_data = delete_service_assignment(
+                session, service_assignment
+            )
+            log_event(token, request_info, service_assignment_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.get(
+    URL_SERVICE_ASSIGNMENT,
+    tags=["Service Assignment"],
+    response_model=List[ServiceAssignmentSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches a list of service assignments.**    
+            - Requires a valid access token for authentication.    
+        """
+    ),
+)
+async def fetch_assignment_operator(
+    query_params: QueryParamsForOP = Depends(),
+    access_token=Depends(bearer_operator),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+
+        return search_service_assignments(
+            session,
+            QueryParams(**query_params.model_dump(), company_id=token.company_id),
+        )
     except Exception as e:
         exceptions.handle(e)
     finally:
