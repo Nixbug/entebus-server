@@ -2192,11 +2192,11 @@ class ServiceAssignment(ORMbase):
     Columns:
         id (Integer, unique, not null):
             Primary identifier for the assignment record.
-        
+
         company_id (Integer, not null):
             Foreign key referencing `company.id` that operates the service.
             Cascades on delete — if the company is removed, related assignments are deleted.
-        
+
         service_id (Integer, not null):
             Foreign key referencing `service.id`.
             Identifies the service assigned to an operator.
@@ -2218,7 +2218,12 @@ class ServiceAssignment(ORMbase):
     __table_args__ = (UniqueConstraint("service_id", "operator_id"),)
 
     id = Column(Integer, primary_key=True)
-    company_id = Column(Integer, ForeignKey("company.id", ondelete="CASCADE"), nullable=False, index=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     service_id = Column(
         Integer,
         ForeignKey("service.id", ondelete="CASCADE"),
