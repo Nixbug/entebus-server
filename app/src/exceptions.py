@@ -486,3 +486,13 @@ class UnknownTicketType(APIException):
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "Unknown ticket type"
     headers = {"X-Error": "UnknownTicketType"}
+
+
+class LandmarkInRouteLimitExceeded(APIException):
+    """
+    Raised when the number of landmarks in a route reaches the allowed maximum.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    detail = "Landmark in route limit reached for operator"
+    headers = {"X-Error": "LandmarkLimitExceeded"}

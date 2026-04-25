@@ -8,7 +8,7 @@ input validation and structured output.
 
 from datetime import datetime
 from enum import StrEnum
-from fastapi import APIRouter, Depends, status, Query, Response, HTTPException
+from fastapi import APIRouter, Depends, status, Query, Response
 from typing import List, Tuple
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm.session import Session
@@ -600,11 +600,7 @@ async def create_landmark_in_route_for_operator(
         )
 
         if landmark_count >= MAX_LANDMARKS_PER_ROUTE:
-            raise HTTPException(
-                status_code=406,
-                detail="Landmark in route limit reached for operator",
-                headers={"X-Error": "LandmarkLimitExceeded"},
-            )
+            raise exceptions.LandmarkInRouteLimitExceeded()
 
         landmark = create_landmark_in_route(session, route, form_param)
         log_event(token, request_info, landmark)
