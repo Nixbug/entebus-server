@@ -463,9 +463,7 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
             .filter(starting_lmk.landmark_id == query_params.starting_landmark_id)
             .filter(ending_lmk.landmark_id == query_params.ending_landmark_id)
             .distinct()
-            .all()
         )
-        svcs_to_consider = [svc[0] for svc in svcs_to_consider]
 
     elif query_params.starting_landmark_id is not None:
         # Find services with the starting landmark only
@@ -473,9 +471,7 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
             session.query(LandmarkInService.service_id)
             .filter(LandmarkInService.landmark_id == query_params.starting_landmark_id)
             .distinct()
-            .all()
         )
-        svcs_to_consider = [svc[0] for svc in svcs_to_consider]
 
     elif query_params.ending_landmark_id is not None:
         # Find services with the ending landmark only
@@ -483,9 +479,7 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
             session.query(LandmarkInService.service_id)
             .filter(LandmarkInService.landmark_id == query_params.ending_landmark_id)
             .distinct()
-            .all()
         )
-        svcs_to_consider = [svc[0] for svc in svcs_to_consider]
 
     query = session.query(Service)
     if svcs_to_consider is not None:
