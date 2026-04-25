@@ -871,6 +871,7 @@ async def fetch_service_details_for_operator(
     try:
         session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
+
         service = validate_id(
             session,
             Service,
@@ -996,6 +997,7 @@ async def fetch_service_public(query_params: QueryParamsForPU = Depends()):
 async def fetch_service_details_public(id: int):
     try:
         session = SessionLocal()
+
         service = validate_id(session, Service, id, Service.id)
         return search_service_details(session, service)
     except Exception as e:
