@@ -216,10 +216,10 @@ def search_service_assignments(
             exceptions.UnknownValue(ServiceAssignment.operator_id),
             exceptions.UnknownValue(ServiceAssignment.company_id),
             exceptions.InvalidAssociation(
-                ServiceAssignment.company_id, ServiceAssignment.service_id
+                ServiceAssignment.service_id, ServiceAssignment.company_id
             ),
             exceptions.InvalidAssociation(
-                ServiceAssignment.company_id, ServiceAssignment.operator_id
+                ServiceAssignment.operator_id, ServiceAssignment.company_id
             ),
         ]
     ),
@@ -285,7 +285,6 @@ async def create_assignment_executive(
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.UnknownValue(ServiceAssignment.id),
-            exceptions.UnknownValue(ServiceAssignment.service_id),
             exceptions.UnknownValue(ServiceAssignment.operator_id),
             exceptions.InvalidAssociation(
                 ServiceAssignment.operator_id, ServiceAssignment.company_id
@@ -436,9 +435,6 @@ async def fetch_assignment_executive(
             exceptions.NoPermission(),
             exceptions.UnknownValue(ServiceAssignment.service_id),
             exceptions.UnknownValue(ServiceAssignment.operator_id),
-            exceptions.InvalidAssociation(
-                ServiceAssignment.service_id, ServiceAssignment.operator_id
-            ),
         ]
     ),
     description=(
@@ -498,7 +494,6 @@ async def create_assignment_operator(
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.UnknownValue(ServiceAssignment.id),
-            exceptions.UnknownValue(ServiceAssignment.service_id),
             exceptions.UnknownValue(ServiceAssignment.operator_id),
         ]
     ),
