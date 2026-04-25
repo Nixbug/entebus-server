@@ -19,6 +19,7 @@ from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import aliased
 
 from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
+from app.api.fare import FareAttributes
 from app.src.urls import URL_SERVICE
 from app.src.db import (
     SessionLocal,
@@ -109,7 +110,7 @@ class FareSchema(BaseModel):
     fare_id: int
     version: int
     name: str
-    attributes: Dict[str, Any]
+    attributes: FareAttributes
     function: str
 
 
