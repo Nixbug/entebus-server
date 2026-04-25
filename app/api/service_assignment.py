@@ -167,7 +167,7 @@ def validate_service_assignment_entities(
     service_id: int,
     operator_id: int,
     scope_with_company_filter: bool,
-) -> tuple[Service, Operator]:
+) -> None:
     """
     Validate service/operator IDs for assignment endpoints.
 
@@ -179,8 +179,6 @@ def validate_service_assignment_entities(
         scope_with_company_filter (bool): If True, apply company filters at lookup
             time; if False, validate IDs first and then check associations.
 
-    Returns:
-        tuple[Service, Operator]: Validated service and operator rows.
     """
     service_filter = (
         Service.company_id == company_id if scope_with_company_filter else None
@@ -206,7 +204,6 @@ def validate_service_assignment_entities(
 
     if not scope_with_company_filter:
         validate_service_assignment_company(service, operator, company_id)
-    return service, operator
 
 
 def delete_service_assignment(
