@@ -8,7 +8,7 @@ input validation and structured output.
 
 from datetime import datetime
 from enum import StrEnum
-from fastapi import APIRouter, Depends, status, Query, Response
+from fastapi import APIRouter, Depends, status, Query, Response, HTTPException
 from typing import List, Tuple
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm.session import Session
@@ -53,7 +53,7 @@ from app.src.openobserve import log_event
 from app.src import exceptions
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
-from app.constants import MAX_LANDMARKS_PER_ROUTE
+from app.src.constants import MAX_LANDMARKS_PER_ROUTE
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -562,7 +562,7 @@ async def fetch_landmark_in_route_for_executive(
             - Logged-in operator can only add landmarks to routes belonging to their company.    
             - Departure delta must be greater than arrival delta.    
             - When creating a landmark in a route, the route will be validated and status of the route will be updated.  
-            - Max 100 landmarks allowed per company  
+            - Max 100 landmarks allowed per route
         """,
 )
 async def create_landmark_in_route_for_operator(
@@ -590,26 +590,21 @@ async def create_landmark_in_route_for_operator(
             LandmarkInRoute.route_id,
             extra_filter=(Route.company_id == token.company_id),
         )
-
         landmark_count = (
             session.query(LandmarkInRoute)
-            .filter(LandmarkInRoute.company_id == token.company_id)
-            .count()
+            .filter(
+                LandmarkInRoute.route_id == route.id,
+                LandmarkInRoute.company_id == token.company_id
+                ).count()
         )
-        can_override_limit = verify_permission(
-            roles,
-            OperatorPermissionPath.OVERRIDE_LANDMARK_LIMIT,
-            raise_exception=False,
-        )
-        if landmark_count >= MAX_LANDMARKS_PER_ROUTE and not can_override_limit:
-            response = Response(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                content='{"detail": "Landmark in route limit reached for operator"}',
-                media_type="application/json",
-            )
-            response.headers["X-Error"] = "LIMIT_EXCEEDED"
-            return response
 
+        if landmark_count >= MAX_LANDMARKS_PER_ROUTE:
+            raise HTTPException(
+                status_code=406,
+                detail="Landmark in route limit reached for operator",
+                headers={"X-Error": "LandmarkLimitExceeded"},
+            )
+        
         landmark = create_landmark_in_route(session, route, form_param)
         log_event(token, request_info, landmark)
         return landmark
