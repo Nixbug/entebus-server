@@ -500,7 +500,6 @@ async def create_assignment_operator(
             exceptions.UnknownValue(ServiceAssignment.id),
             exceptions.UnknownValue(ServiceAssignment.service_id),
             exceptions.UnknownValue(ServiceAssignment.operator_id),
-
         ]
     ),
     description=(
