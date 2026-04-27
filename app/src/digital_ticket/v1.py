@@ -1,3 +1,5 @@
+import datetime
+from typing import Any, List, Dict
 from base91 import encode, decode
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
@@ -6,7 +8,25 @@ from cryptography.hazmat.primitives.asymmetric.utils import (
     decode_dss_signature,
     encode_dss_signature,
 )
+from pydantic import BaseModel
 from app.src.exceptions import InvalidTicketVersion, InvalidDigitalTicket
+
+# Schema definitions for ticket data
+class TicketType(BaseModel):
+    id: int
+    count: int
+    price: float
+
+class TicketSchema(BaseModel):
+    id: int
+    service_id: int
+    created_on: datetime
+    ticket_types: List[TicketType]
+    amount: float
+    boarding_landmark_id: int
+    alight_landmark_id: int
+    distance: int
+    extra : Dict[str, Any]
 
 
 class DigitalTicket:

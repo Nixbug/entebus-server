@@ -24,6 +24,7 @@ from app.api import (
     operator_role,
     operator_role_map,
     operator_token,
+    paper_ticket,
     route,
     service,
     service_assignment,
@@ -115,6 +116,7 @@ app_operator.include_router(landmark_in_route.route_operator)
 app_operator.include_router(fare.route_operator)
 app_operator.include_router(service.route_operator)
 app_operator.include_router(service_assignment.route_operator)
+app_operator.include_router(paper_ticket.route_operator)
 
 
 # ------------------------------------------------------
