@@ -2410,7 +2410,9 @@ class Duty(ORMbase):
         nullable=False,
         index=True,
     )
-    operator_id = Column(Integer, ForeignKey("operator.id", ondelete="SET NULL"), index=True)
+    operator_id = Column(
+        Integer, ForeignKey("operator.id", ondelete="SET NULL"), index=True
+    )
     service_id = Column(
         Integer,
         ForeignKey("service.id", ondelete="CASCADE"),
