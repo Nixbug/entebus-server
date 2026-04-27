@@ -2181,6 +2181,66 @@ class Service(ORMbase):
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
 
 
+class ServiceAssignment(ORMbase):
+    """
+    Represents an assignment of a service to an operator.
+
+    This table links a service to an operator account and allows the same operator
+    to be assigned to different services. It supports CRUD operations from
+    executive and operator applications.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the assignment record.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id` that operates the service.
+            Cascades on delete — if the company is removed, related assignments are deleted.
+
+        service_id (Integer, not null):
+            Foreign key referencing `service.id`.
+            Identifies the service assigned to an operator.
+            Cascades on delete — if the service is removed, related assignments are deleted.
+
+        operator_id (Integer, not null):
+            Foreign key referencing `operator.id`.
+            Identifies the operator assigned to the service.
+            Cascades on delete — if the operator is removed, related assignments are deleted.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the assignment is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the assignment record was created.
+    """
+
+    __tablename__ = "service_assignment"
+    __table_args__ = (UniqueConstraint("service_id", "operator_id"),)
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    service_id = Column(
+        Integer,
+        ForeignKey("service.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    operator_id = Column(
+        Integer,
+        ForeignKey("operator.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
 class FareInService(ORMbase):
     """
     Represents a snapshot of fare data associated with a service.
