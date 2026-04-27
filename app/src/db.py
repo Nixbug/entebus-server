@@ -2453,7 +2453,7 @@ class PaperTicket(ORMbase):
             boarding landmark, alighting landmark, and any additional metadata.
             It is closely bound to `ticket_type` in fare attributes.
 
-        total_price (Numeric(10, 2), not null):
+        amount (Numeric(10, 2), not null):
             Total fare amount collected for this ticket.
             Precise up to two decimal places.
 
@@ -2477,6 +2477,6 @@ class PaperTicket(ORMbase):
     company_id = Column(Integer, ForeignKey("company.id"), nullable=False, index=True)
     # Ticket content
     ticket = Column(JSONB, nullable=False)
-    total_price = Column(Numeric(10, 2), nullable=False)
+    amount = Column(Numeric(10, 2), nullable=False)
     # Metadata
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
