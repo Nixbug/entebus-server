@@ -538,9 +538,9 @@ async def fetch_landmark_in_route_for_executive(
         session.close()
 
 
-# # ---------------------------------------------------------------------------
-# ## API endpoints [Operator]
-# # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+## API endpoints [Operator]
+# ---------------------------------------------------------------------------
 @route_operator.post(
     URL_LANDMARK_IN_ROUTE,
     tags=["Landmark In Route"],
@@ -570,8 +570,8 @@ async def create_landmark_in_route_for_operator(
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
 ):
-    session = SessionLocal()
     try:
+        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
         roles = get_operator_roles(session, token)
         can_create = verify_permission(
