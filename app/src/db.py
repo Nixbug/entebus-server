@@ -62,7 +62,7 @@ from app.src.enums import (
     FareScope,
     ServiceStatus,
     TicketingMode,
-    DutyStatus
+    DutyStatus,
 )
 
 
@@ -2411,7 +2411,10 @@ class Duty(ORMbase):
     )
     operator_id = Column(Integer, ForeignKey("operator.id"), index=True)
     service_id = Column(
-        Integer, ForeignKey("service.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer,
+        ForeignKey("service.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     status = Column(Integer, nullable=False, default=DutyStatus.STARTED)
     started_on = Column(DateTime(timezone=True))
