@@ -2380,7 +2380,7 @@ class Duty(ORMbase):
             Indicates the service the operator is assigned to perform.
             Cascades on delete — if the service is removed, related duties are deleted.
 
-        status (Integer, not null, default=DutyStatus.ASSIGNED):
+        status (Integer, not null, default=DutyStatus.STARTED):
             Current lifecycle status of the duty. Mapped from the `DutyStatus` enum.
 
         started_on (DateTime, nullable):
@@ -2459,9 +2459,6 @@ class PaperTicket(ORMbase):
         amount (Numeric(10, 2), not null):
             Total fare amount collected for this ticket.
             Precise up to two decimal places.
-
-        updated_on (DateTime, nullable, onupdate=func.now()):
-            Timestamp automatically updated whenever the ticket record is modified.
 
         created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the ticket was created.
