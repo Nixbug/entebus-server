@@ -7,6 +7,7 @@ Endpoints for retrieval are planned for future implementation.
 """
 
 from datetime import datetime, timezone
+from decimal import Decimal
 from fastapi import APIRouter, Depends, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -49,7 +50,7 @@ class PaperTicketSchema(BaseModel):
     duty_id: int
     company_id: int
     ticket: TicketSchema
-    amount: float
+    amount: Decimal
     created_on: datetime
 
 
@@ -60,7 +61,7 @@ class CreateForm(BaseModel):
 
     service_id: int = Field()
     ticket: TicketSchema = Field()
-    amount: float = Field()
+    amount: Decimal = Field()
 
 
 ## Functions
@@ -153,19 +154,15 @@ def create_paper_ticket(
     if distance < 0:
         raise exceptions.UnknownValue(PaperTicket.dropping_point)
 
-    fare_in_service = validate_id(
-        session,
-        FareInService,
-        service.fare_in_service_id,
-        FareInService.id,
+    fare_in_service = (
+        session.query(FareInService)
+        .filter(FareInService.id == service.fare_in_service_id)
+        .first()
     )
     fare_function = v1.DynamicFare(fare_in_service.function)
     fare_ticket_types = fare_in_service.attributes["ticket_types"]
 
-    extra_obj = {
-        "startingLandmarkId": ticket.boarding_landmark_id,
-        "endingLandmarkId": ticket.alight_landmark_id,
-    }
+    extra_obj = {}
 
     total_fare = 0.0
 

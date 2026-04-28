@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Any, List, Dict
+from decimal import Decimal
+from typing import Annotated, Any, List, Dict
 from base91 import encode, decode
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
@@ -8,15 +9,18 @@ from cryptography.hazmat.primitives.asymmetric.utils import (
     decode_dss_signature,
     encode_dss_signature,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.src.exceptions import InvalidTicketVersion, InvalidDigitalTicket
+
+
+TwoDecimalPlaces = Annotated[Decimal, Field(max_digits=10, decimal_places=2)]
 
 
 # Schema definitions for ticket data
 class TicketType(BaseModel):
     id: int
     count: int
-    price: float
+    price: TwoDecimalPlaces
 
 
 class TicketSchema(BaseModel):
@@ -24,7 +28,7 @@ class TicketSchema(BaseModel):
     service_id: int
     created_on: datetime
     ticket_types: List[TicketType]
-    amount: float
+    amount: TwoDecimalPlaces
     boarding_landmark_id: int
     alight_landmark_id: int
     distance: int
