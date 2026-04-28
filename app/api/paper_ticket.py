@@ -32,7 +32,7 @@ from app.src.functions import (
     fuse_exception_responses,
 )
 from app.src import exceptions
-from app.src.digital_ticket.v1 import TicketSchema
+from app.src.digital_ticket.v1 import TicketSchema, TwoDecimalPlaces
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -47,7 +47,7 @@ class PaperTicketSchema(BaseModel):
     duty_id: int
     company_id: int
     ticket: TicketSchema
-    amount: Decimal
+    amount: TwoDecimalPlaces
     created_on: datetime
 
 
@@ -90,7 +90,7 @@ def search_paper_tickets(
     Search for paper tickets provided on query parameters.
 
     This function supports multiple filtering, searching, ordering, and
-    pagination capabilities to retrieve fares that match various criteria.
+    pagination capabilities to retrieve paper tickets that match various criteria.
 
     Args:
         session (Session): SQLAlchemy database session.
@@ -129,8 +129,6 @@ def search_paper_tickets(
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
-
-
 @route_executive.get(
     URL_PAPER_TICKET,
     tags=["Paper Ticket"],
