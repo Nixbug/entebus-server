@@ -155,7 +155,9 @@ def create_paper_ticket(
     fare_function = v1.DynamicFare(fare_in_service.function)
     fare_ticket_types = fare_in_service.attributes["ticket_types"]
 
-    extra_obj = {}
+    extra_obj = jsonable_encoder(ticket.extra)
+    if not isinstance(extra_obj, dict):
+        raise exceptions.InvalidValue("extra")
 
     total_fare = Decimal(0)
 

@@ -32,7 +32,7 @@ class TicketSchema(BaseModel):
     boarding_landmark_id: int
     alight_landmark_id: int
     distance: int
-    extra: Dict[str, Any]
+    extra: Dict[str, Any] = Field(default_factory=dict)
 
 
 class DigitalTicket:
