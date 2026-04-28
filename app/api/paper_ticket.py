@@ -64,7 +64,7 @@ class CreateForm(BaseModel):
 
 
 ## Functions
-def create_paper_ticket_record(
+def create_paper_ticket(
     session: Session, token: OperatorToken, form_param: CreateForm
 ) -> dict:
     """
