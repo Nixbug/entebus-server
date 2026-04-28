@@ -102,6 +102,7 @@ def create_paper_ticket(
             Duty.operator_id == token.operator_id,
             Duty.status.in_((DutyStatus.STARTED, DutyStatus.ENDED)),
         )
+        .order_by(Duty.started_on.desc(), Duty.id.desc())
         .first()
     )
     if duty is None:
@@ -144,7 +145,7 @@ def create_paper_ticket(
         alight_landmark.distance_from_start - boarding_landmark.distance_from_start
     )
     if distance < 0:
-        raise exceptions.UnknownValue(PaperTicket.dropping_point)
+        raise exceptions.UnknownValue("alight_landmark_id")
 
     fare_in_service = (
         session.query(FareInService)
@@ -182,7 +183,9 @@ def create_paper_ticket(
 
     ticket_dict = ticket.model_dump()
     ticket_dict["created_on"] = ticket_dict["created_on"].isoformat()
-    ticket_dict["amount"] = float(ticket_dict["amount"])
+    ticket_dict["service_id"] = form_param.service_id
+    ticket_dict["amount"] = float(form_param.amount)
+    ticket_dict["distance"] = distance
     for tt in ticket_dict["ticket_types"]:
         tt["price"] = float(tt["price"])
 
