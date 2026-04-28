@@ -6,7 +6,7 @@ Uses Pydantic schemas for input validation and structured output.
 Endpoints for retrieval are planned for future implementation.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 from fastapi import APIRouter, Depends, status
 from fastapi.encoders import jsonable_encoder
@@ -92,6 +92,8 @@ def create_paper_ticket(
         PaperTicket.service_id,
         (Service.company_id == token.company_id),
     )
+    if service.status != ServiceStatus.STARTED:
+        service.status = ServiceStatus.STARTED
 
     duty = (
         session.query(Duty)
@@ -102,29 +104,19 @@ def create_paper_ticket(
         )
         .first()
     )
-    utc_now = datetime.now(timezone.utc)
     if duty is None:
         duty = Duty(
             company_id=token.company_id,
             operator_id=token.operator_id,
             service_id=form_param.service_id,
             status=DutyStatus.STARTED,
-            started_on=utc_now,
+            started_on=form_param.ticket.created_on,
         )
         session.add(duty)
         session.flush()
-    elif duty.status == DutyStatus.STARTED:
-        pass
     elif duty.status == DutyStatus.ENDED:
-        if service.status in (
-            ServiceStatus.CACHED,
-            ServiceStatus.CREATED,
-            ServiceStatus.ENDED,
-        ):
-            service.status = ServiceStatus.STARTED
-
         duty.status = DutyStatus.STARTED
-        duty.started_on = utc_now
+        duty.finished_on = None
         session.flush()
 
     ticket = form_param.ticket
@@ -164,7 +156,7 @@ def create_paper_ticket(
 
     extra_obj = {}
 
-    total_fare = 0.0
+    total_fare = Decimal(0)
 
     for ticket_type in ticket.ticket_types:
         matched = next(
@@ -177,7 +169,9 @@ def create_paper_ticket(
         if ticket_type.count <= 0:
             raise exceptions.UnknownValue("ticket_types")
 
-        expected_price = fare_function.evaluate(matched["name"], distance, extra_obj)
+        expected_price = Decimal(
+            str(fare_function.evaluate(matched["name"], distance, extra_obj))
+        )
         if ticket_type.price != expected_price:
             raise exceptions.InvalidValue(PaperTicket.amount)
 
@@ -188,6 +182,9 @@ def create_paper_ticket(
 
     ticket_dict = ticket.model_dump()
     ticket_dict["created_on"] = ticket_dict["created_on"].isoformat()
+    ticket_dict["amount"] = float(ticket_dict["amount"])
+    for tt in ticket_dict["ticket_types"]:
+        tt["price"] = float(tt["price"])
 
     paper_ticket = PaperTicket(
         service_id=form_param.service_id,
