@@ -35,7 +35,7 @@ from app.src.functions import (
 )
 from app.src import exceptions
 from app.src.dynamic_fare import v1
-from app.src.digital_ticket.v1 import TicketSchema
+from app.src.digital_ticket.v1 import TicketSchema, TwoDecimalPlaces
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -50,7 +50,7 @@ class PaperTicketSchema(BaseModel):
     duty_id: int
     company_id: int
     ticket: TicketSchema
-    amount: Decimal
+    amount: TwoDecimalPlaces
     created_on: datetime
 
 
