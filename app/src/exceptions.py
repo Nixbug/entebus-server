@@ -307,6 +307,19 @@ class InactiveResource(APIException):
         super().__init__(detail=detail)
 
 
+class DataInUse(APIException):
+    """
+    Raised when trying to delete a resource that is currently in use or not in a deletable state.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    headers = {"X-Error": "DataInUse"}
+
+    def __init__(self, orm_class: DeclarativeMeta):
+        detail = f"The {orm_class.__name__} is currently in use"
+        super().__init__(detail=detail)
+
+
 class NoPermission(APIException):
     """
     Raised when a user does not have permission to perform an action.
