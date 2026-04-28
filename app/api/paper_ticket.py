@@ -46,11 +46,9 @@ class PaperTicketSchema(BaseModel):
     """Schema for paper ticket response."""
 
     id: int
-    service_id: int
     duty_id: int
     company_id: int
     ticket: TicketSchema
-    amount: Decimal
     created_on: datetime
 
 
@@ -156,8 +154,6 @@ def create_paper_ticket(
     fare_ticket_types = fare_in_service.attributes["ticket_types"]
 
     extra_obj = jsonable_encoder(ticket.extra)
-    if not isinstance(extra_obj, dict):
-        raise exceptions.InvalidValue("extra")
 
     total_fare = Decimal(0)
 
