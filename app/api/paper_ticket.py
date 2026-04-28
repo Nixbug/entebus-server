@@ -46,9 +46,11 @@ class PaperTicketSchema(BaseModel):
     """Schema for paper ticket response."""
 
     id: int
+    service_id: int
     duty_id: int
     company_id: int
     ticket: TicketSchema
+    amount: Decimal
     created_on: datetime
 
 
@@ -57,9 +59,7 @@ class CreateForm(BaseModel):
     """
     Form data for creating a new paper ticket."""
 
-    service_id: int = Field()
     ticket: TicketSchema = Field()
-    amount: Decimal = Field()
 
 
 ## Functions
@@ -86,7 +86,7 @@ def create_paper_ticket(
     service = validate_id(
         session,
         Service,
-        form_param.service_id,
+        form_param.ticket.service_id,
         PaperTicket.service_id,
         (Service.company_id == token.company_id),
     )
@@ -96,7 +96,7 @@ def create_paper_ticket(
     duty = (
         session.query(Duty)
         .filter(
-            Duty.service_id == form_param.service_id,
+            Duty.service_id == form_param.ticket.service_id,
             Duty.operator_id == token.operator_id,
             Duty.status.in_((DutyStatus.STARTED, DutyStatus.ENDED)),
         )
@@ -107,7 +107,7 @@ def create_paper_ticket(
         duty = Duty(
             company_id=token.company_id,
             operator_id=token.operator_id,
-            service_id=form_param.service_id,
+            service_id=form_param.ticket.service_id,
             status=DutyStatus.STARTED,
             started_on=form_param.ticket.created_on,
         )
@@ -122,7 +122,7 @@ def create_paper_ticket(
     boarding_landmark = (
         session.query(LandmarkInService)
         .filter(
-            LandmarkInService.service_id == form_param.service_id,
+            LandmarkInService.service_id == form_param.ticket.service_id,
             LandmarkInService.landmark_id == ticket.boarding_landmark_id,
         )
         .first()
@@ -132,7 +132,7 @@ def create_paper_ticket(
     alight_landmark = (
         session.query(LandmarkInService)
         .filter(
-            LandmarkInService.service_id == form_param.service_id,
+            LandmarkInService.service_id == form_param.ticket.service_id,
             LandmarkInService.landmark_id == ticket.alight_landmark_id,
         )
         .first()
@@ -176,23 +176,22 @@ def create_paper_ticket(
 
         total_fare += ticket_type.price * ticket_type.count
 
-    if total_fare != form_param.amount:
+    if total_fare != form_param.ticket.amount:
         raise exceptions.InvalidValue(PaperTicket.amount)
 
     ticket_dict = ticket.model_dump()
     ticket_dict["created_on"] = ticket_dict["created_on"].isoformat()
-    ticket_dict["service_id"] = form_param.service_id
-    ticket_dict["amount"] = float(form_param.amount)
+    ticket_dict["amount"] = float(ticket_dict["amount"])
     ticket_dict["distance"] = distance
     for tt in ticket_dict["ticket_types"]:
         tt["price"] = float(tt["price"])
 
     paper_ticket = PaperTicket(
-        service_id=form_param.service_id,
+        service_id=form_param.ticket.service_id,
         duty_id=duty.id,
         company_id=token.company_id,
         ticket=ticket_dict,
-        amount=form_param.amount,
+        amount=form_param.ticket.amount,
     )
     session.add(paper_ticket)
     session.commit()
