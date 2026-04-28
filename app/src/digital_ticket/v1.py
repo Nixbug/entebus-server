@@ -29,8 +29,8 @@ class TicketSchema(BaseModel):
     created_on: datetime
     ticket_types: List[TicketType]
     amount: TwoDecimalPlaces
-    boarding_landmark_id: int
-    alight_landmark_id: int
+    pickup_point: int
+    dropping_point: int
     distance: int
     extra: Dict[str, Any] = Field(default_factory=dict)
 

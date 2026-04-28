@@ -123,27 +123,27 @@ def create_paper_ticket(
         session.query(LandmarkInService)
         .filter(
             LandmarkInService.service_id == form_param.ticket.service_id,
-            LandmarkInService.landmark_id == ticket.boarding_landmark_id,
+            LandmarkInService.landmark_id == ticket.pickup_point,
         )
         .first()
     )
     if boarding_landmark is None:
-        raise exceptions.UnknownValue("boarding_landmark_id")
+        raise exceptions.UnknownValue("pickup_point")
     alight_landmark = (
         session.query(LandmarkInService)
         .filter(
             LandmarkInService.service_id == form_param.ticket.service_id,
-            LandmarkInService.landmark_id == ticket.alight_landmark_id,
+            LandmarkInService.landmark_id == ticket.dropping_point,
         )
         .first()
     )
     if alight_landmark is None:
-        raise exceptions.UnknownValue("alight_landmark_id")
+        raise exceptions.UnknownValue("dropping_point")
     distance = (
         alight_landmark.distance_from_start - boarding_landmark.distance_from_start
     )
     if distance < 0:
-        raise exceptions.UnknownValue("alight_landmark_id")
+        raise exceptions.UnknownValue("dropping_point")
 
     fare_in_service = (
         session.query(FareInService)
@@ -231,7 +231,7 @@ def create_paper_ticket(
             - If no active duty exists, a new duty is created automatically.    
             - If a duty is ENDED, it is reactivated to STARTED with `finished_on` cleared.    
             - A duty in AUDITED status is ignored; a new duty is created instead.    
-            - `ticket.boarding_landmark_id` and `ticket.alight_landmark_id` must be landmarks assigned to the service.    
+            - `ticket.pickup_point` and `ticket.dropping_point` must be landmarks assigned to the service.    
             - Ticket type IDs must match those defined in the service fare configuration.    
             - Prices are cross-validated server-side using the fare function.    
             - `amount` must equal the sum of (price × count) for all ticket types.    
