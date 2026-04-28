@@ -7,6 +7,7 @@ Endpoints for creation are planned for future implementation.
 """
 
 from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
 from typing import List
 from fastapi import APIRouter, Depends, Query
@@ -46,7 +47,7 @@ class PaperTicketSchema(BaseModel):
     duty_id: int
     company_id: int
     ticket: TicketSchema
-    amount: float
+    amount: Decimal
     created_on: datetime
 
 
