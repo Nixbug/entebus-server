@@ -121,7 +121,7 @@ def create_paper_ticket_record(
             ServiceStatus.ENDED,
         ):
             service.status = ServiceStatus.STARTED
-        
+
         duty.status = DutyStatus.STARTED
         duty.started_on = utc_now
         session.flush()
