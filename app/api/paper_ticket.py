@@ -127,7 +127,7 @@ def search_paper_tickets(
 
 
 # ---------------------------------------------------------------------------
-## API endpoints [Operator]
+## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 
 
@@ -160,6 +160,9 @@ async def fetch_paper_ticket_executive(
         session.close()
 
 
+# ---------------------------------------------------------------------------
+## API endpoints [Operator]
+# ---------------------------------------------------------------------------
 @route_operator.get(
     URL_PAPER_TICKET,
     tags=["Paper Ticket"],
