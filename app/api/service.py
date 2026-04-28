@@ -587,7 +587,14 @@ def fetch_service_details(session: Session, service: Service) -> Dict[str, Any]:
 
 def delete_service(session: Session, service: Service) -> dict:
     """
-    Deletes a service from the database.
+    Deletes a service from the database and decrements/cleans up related snapshot reference counts.
+
+    This function ensures that when a service is deleted:
+    1. The FareInService snapshot reference_count is decremented
+    2. If FareInService reference_count reaches 0, the snapshot is deleted
+    3. The VehicleInService snapshot reference_count is decremented
+    4. If VehicleInService reference_count reaches 0, the snapshot is deleted
+    5. The service and related LandmarkInService entries are deleted
 
     Args:
         session (Session): SQLAlchemy database session.
@@ -597,6 +604,29 @@ def delete_service(session: Session, service: Service) -> dict:
         dict: JSON-encoded representation of the deleted service.
     """
     service_data = jsonable_encoder(service, exclude={"private_key", "public_key"})
+
+    fare_in_service = (
+        session.query(FareInService)
+        .filter(FareInService.id == service.fare_in_service_id)
+        .first()
+    )
+    if fare_in_service:
+        fare_in_service.reference_count -= 1
+        if fare_in_service.reference_count <= 0:
+            session.delete(fare_in_service)
+        session.flush()
+
+    vehicle_in_service = (
+        session.query(VehicleInService)
+        .filter(VehicleInService.id == service.vehicle_in_service_id)
+        .first()
+    )
+    if vehicle_in_service:
+        vehicle_in_service.reference_count -= 1
+        if vehicle_in_service.reference_count <= 0:
+            session.delete(vehicle_in_service)
+        session.flush()
+
     session.delete(service)
     session.commit()
     return service_data
