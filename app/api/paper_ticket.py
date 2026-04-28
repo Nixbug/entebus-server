@@ -84,9 +84,6 @@ def create_paper_ticket_record(
     Returns:
         dict: The created paper ticket data.
     """
-
-    ticket = form_param.ticket
-
     service = validate_id(
         session,
         Service,
@@ -94,22 +91,24 @@ def create_paper_ticket_record(
         PaperTicket.service_id,
         (Service.company_id == token.company_id),
     )
+
     duty = (
         session.query(Duty)
         .filter(
             Duty.service_id == form_param.service_id,
             Duty.operator_id == token.operator_id,
+            Duty.status.in_((DutyStatus.STARTED, DutyStatus.ENDED)),
         )
         .first()
     )
-    now = datetime.now(timezone.utc)
+    utc_now = datetime.now(timezone.utc)
     if duty is None:
         duty = Duty(
             company_id=token.company_id,
             operator_id=token.operator_id,
             service_id=form_param.service_id,
             status=DutyStatus.STARTED,
-            started_on=now,
+            started_on=utc_now,
         )
         session.add(duty)
         session.flush()
@@ -122,19 +121,18 @@ def create_paper_ticket_record(
             ServiceStatus.ENDED,
         ):
             service.status = ServiceStatus.STARTED
+        
         duty.status = DutyStatus.STARTED
-        duty.started_on = now
+        duty.started_on = utc_now
         session.flush()
-    else:
-        raise exceptions.InactiveResource(Duty)
 
+    ticket = form_param.ticket
     fare_in_service = validate_id(
         session,
         FareInService,
         service.fare_in_service_id,
         FareInService.id,
     )
-
     landmarks = (
         session.query(LandmarkInService)
         .filter(LandmarkInService.service_id == form_param.service_id)
