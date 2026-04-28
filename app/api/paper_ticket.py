@@ -127,38 +127,38 @@ def create_paper_ticket_record(
         session.flush()
 
     ticket = form_param.ticket
-    fare_in_service = validate_id(
-        session,
-        FareInService,
-        service.fare_in_service_id,
-        FareInService.id,
-    )
-    landmarks = (
+    boarding_landmark = (
         session.query(LandmarkInService)
-        .filter(LandmarkInService.service_id == form_param.service_id)
-        .all()
-    )
-
-    boarding_landmark = next(
-        (lm for lm in landmarks if lm.landmark_id == ticket.boarding_landmark_id),
-        None,
+        .filter(
+            LandmarkInService.service_id == form_param.service_id,
+            LandmarkInService.landmark_id == ticket.boarding_landmark_id,
+        )
+        .first()
     )
     if boarding_landmark is None:
         raise exceptions.UnknownValue("boarding_landmark_id")
-
-    alight_landmark = next(
-        (lm for lm in landmarks if lm.landmark_id == ticket.alight_landmark_id),
-        None,
+    alight_landmark = (
+        session.query(LandmarkInService)
+        .filter(
+            LandmarkInService.service_id == form_param.service_id,
+            LandmarkInService.landmark_id == ticket.alight_landmark_id,
+        )
+        .first()
     )
     if alight_landmark is None:
         raise exceptions.UnknownValue("alight_landmark_id")
-
     distance = (
         alight_landmark.distance_from_start - boarding_landmark.distance_from_start
     )
     if distance < 0:
         raise exceptions.UnknownValue(PaperTicket.dropping_point)
 
+    fare_in_service = validate_id(
+        session,
+        FareInService,
+        service.fare_in_service_id,
+        FareInService.id,
+    )
     fare_function = v1.DynamicFare(fare_in_service.function)
     fare_ticket_types = fare_in_service.attributes["ticket_types"]
 
