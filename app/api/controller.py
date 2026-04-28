@@ -80,6 +80,7 @@ app_executive.include_router(landmark_in_route.route_executive)
 app_executive.include_router(fare.route_executive)
 app_executive.include_router(service.route_executive)
 app_executive.include_router(service_assignment.route_executive)
+app_executive.include_router(paper_ticket.route_executive)
 
 
 # ------------------------------------------------------
