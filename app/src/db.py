@@ -2374,6 +2374,7 @@ class Duty(ORMbase):
         operator_id (Integer, nullable):
             Foreign key referencing `operator.id`.
             Identifies the operator assigned to this duty.
+            Sets to NULL on delete — if the operator is removed, the duty remains but the operator reference is cleared.
 
         service_id (Integer, not null):
             Foreign key referencing `service.id`.
@@ -2409,7 +2410,7 @@ class Duty(ORMbase):
         nullable=False,
         index=True,
     )
-    operator_id = Column(Integer, ForeignKey("operator.id"), index=True)
+    operator_id = Column(Integer, ForeignKey("operator.id", ondelete="SET NULL"), index=True)
     service_id = Column(
         Integer,
         ForeignKey("service.id", ondelete="CASCADE"),
