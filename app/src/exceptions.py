@@ -492,9 +492,12 @@ class LimitExceeded(APIException):
     """
     Raised when the number of entries in a table reaches the allowed maximum.
     """
+
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     headers = {"X-Error": "LimitExceeded"}
 
     def __init__(self, orm_class: DeclarativeMeta):
-        detail = f"Number of entries into {orm_class.__name__} exceeded the allowed limits."
+        detail = (
+            f"Number of entries into {orm_class.__name__} exceeded the allowed limits."
+        )
         super().__init__(detail=detail)
