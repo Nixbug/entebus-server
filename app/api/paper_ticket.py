@@ -215,7 +215,6 @@ def create_paper_ticket(
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.UnknownValue(PaperTicket.service_id),
-            exceptions.InactiveResource(Duty),
             exceptions.InvalidValue(PaperTicket.amount),
             exceptions.UnknownTicketType(),
             exceptions.InvalidFareFunction(),
@@ -229,16 +228,13 @@ def create_paper_ticket(
             - Requires a valid operator access token.    
             - Logged-in operator must have `company.service.ticket.create` permission.    
             - Service must belong to the operator's company.    
-            - If no duty exists for this operator and service, a new duty is created automatically.    
-            - If a duty exists and is STARTED, the ticket is added to it.    
-            - If a duty exists and is ENDED, the duty is reactivated to STARTED (and the service too if needed).    
-            - A duty in AUDITED status cannot accept new tickets.    
-            - The `ticket` field must contain a valid `TicketSchema` object from the operator device.    
+            - If no active duty exists, a new duty is created automatically.    
+            - If a duty is ENDED, it is reactivated to STARTED with `finished_on` cleared.    
+            - A duty in AUDITED status is ignored; a new duty is created instead.    
             - `ticket.boarding_landmark_id` and `ticket.alight_landmark_id` must be landmarks assigned to the service.    
-            - Ticket type IDs in `ticket.ticket_types` must match those defined in the service fare configuration.    
-            - Prices in `ticket.ticket_types` are cross-validated server-side using the fare function.    
-            - The provided `amount` must equal the sum of (price × count) for all ticket types in `ticket.ticket_types`.    
-            - Distance is derived from `alight_landmark.distance_from_start - boarding_landmark.distance_from_start`.    
+            - Ticket type IDs must match those defined in the service fare configuration.    
+            - Prices are cross-validated server-side using the fare function.    
+            - `amount` must equal the sum of (price × count) for all ticket types.    
         """
     ),
 )
