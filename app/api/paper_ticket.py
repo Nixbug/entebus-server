@@ -139,6 +139,7 @@ def create_paper_ticket(
     )
     if dropping_point is None:
         raise exceptions.UnknownValue("dropping_point")
+
     distance = dropping_point.distance_from_start - pickup_point.distance_from_start
     if distance < 0:
         raise exceptions.UnknownValue("dropping_point")
@@ -152,20 +153,19 @@ def create_paper_ticket(
     )
     fare_function = v1.DynamicFare(fare_in_service.function)
     fare_ticket_types = fare_in_service.attributes["ticket_types"]
-
     extras = jsonable_encoder(ticket.extras)
     total_fare = Decimal(0)
 
     for ticket_type in ticket.ticket_types:
-        matched = next(
+        matched_tf = next(
             (ft for ft in fare_ticket_types if ft["id"] == ticket_type.id),
             None,
         )
-        if matched is None:
+        if matched_tf is None:
             raise exceptions.UnknownTicketType()
 
         expected_price = Decimal(
-            str(fare_function.evaluate(matched["name"], distance, extras))
+            str(fare_function.evaluate(matched_tf["name"], distance, extras))
         )
         if ticket_type.price != expected_price:
             raise exceptions.InvalidValue(PaperTicket.amount)
@@ -176,11 +176,7 @@ def create_paper_ticket(
         raise exceptions.InvalidValue(PaperTicket.amount)
 
     ticket_dict = ticket.model_dump()
-    ticket_dict["created_on"] = ticket_dict["created_on"].isoformat()
-    ticket_dict["amount"] = str(ticket_dict["amount"])
     ticket_dict["distance"] = distance
-    for tt in ticket_dict["ticket_types"]:
-        tt["price"] = str(tt["price"])
 
     paper_ticket = PaperTicket(
         service_id=form_param.ticket.service_id,
