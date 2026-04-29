@@ -319,4 +319,3 @@ class TicketCreator:
             ec.EllipticCurvePublicKey: The public key.
         """
         return self._public_key
-    
