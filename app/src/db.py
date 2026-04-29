@@ -2516,7 +2516,7 @@ class PaperTicket(ORMbase):
 
         ticket (JSONB, not null):
             Structured data capturing the full ticket content including ticket types,
-            pickup point, dropping point, and any additional metadata.
+            pickup_point, dropping_point, and any additional metadata.
             It is closely bound to `ticket_type` in fare attributes.
 
         amount (Numeric(10, 2), not null):
