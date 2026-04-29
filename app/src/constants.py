@@ -91,6 +91,7 @@ MAX_ROUTE_DISTANCE = 10000 * 1000  # Max route length in meters (10000 km)
 SERVICE_START_LEAD_TIME_MINUTES = 60  # Minimum buffer before a service starts
 SERVICE_CREATION_LEAD_TIME_DAYS = 1  # Minimum buffer before a service can be created
 MAX_DUTIES_PER_SERVICE = 50  # Maximum number of duties allowed per service
+SERVICE_ENDING_WINDOW_MINUTES = 15  # Minutes before service end time to allow service completion
 
 
 # ---------------------------------------------------------------------------

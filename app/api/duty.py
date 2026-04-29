@@ -32,6 +32,7 @@ from app.src.validators import (
     validate_id,
     validate_state_transition,
 )
+from app.src.constants import SERVICE_ENDING_WINDOW_MINUTES
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.openobserve import log_event
@@ -68,17 +69,17 @@ class DutySchema(BaseModel):
 class UpdateForm(BaseModel):
     """Form data for updating a duty."""
 
-    status: DutyStatus = Field(description=enum_str(DutyStatus),default=None)
+    status: DutyStatus = Field(description=enum_str(DutyStatus), default=None)
 
 
-# Functios
+# Functions
 def update_duty(
     session: Session, duty: Duty, form_param: UpdateForm
 ) -> tuple[bool, dict]:
     """
     Updates a duty record when transitioning to ENDED status.
 
-    Validates status transitions. Calculates collection from PaperTickets and 
+    Validates status transitions. Calculates collection from PaperTickets and
     updates related service status if all duties are complete.
 
     Args:
@@ -98,11 +99,10 @@ def update_duty(
     update_data = form_param.model_dump(exclude_unset=True)
     now = datetime.now(timezone.utc)
     service = None
-    
+
     if "status" in update_data and update_data["status"] != duty.status:
         new_status = update_data["status"]
-        
-        
+
         validate_state_transition(
             _allowed_transitions,
             duty.status,
@@ -116,7 +116,6 @@ def update_duty(
                 .filter(PaperTicket.duty_id == duty.id)
                 .scalar()
             ) or 0
-
             duty.finished_on = now
 
             service = (
@@ -133,13 +132,15 @@ def update_duty(
                     .count()
                 )
                 if other_started_duties == 0 and now >= service.ending_at - timedelta(
-                    minutes=15
+                    minutes=SERVICE_ENDING_WINDOW_MINUTES
                 ):
                     service.status = ServiceStatus.ENDED
 
         duty.status = new_status
 
-    have_updates = session.is_modified(duty) or (service is not None and session.is_modified(service))
+    have_updates = session.is_modified(duty) or (
+        service is not None and session.is_modified(service)
+    )
     if have_updates:
         session.commit()
         session.refresh(duty)
@@ -244,6 +245,7 @@ async def update_duty_operator(
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_SERVICE_DUTY)
 
         duty = validate_id(session, Duty, id, Duty.id)
+
         have_updates, duty_data = update_duty(
             session, duty, UpdateForm(**form_param.model_dump(exclude_unset=True))
         )
