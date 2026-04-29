@@ -116,6 +116,7 @@ def create_paper_ticket(
     elif duty.status == DutyStatus.ENDED:
         duty.status = DutyStatus.STARTED
         duty.finished_on = None
+        duty.collection = 0
         session.flush()
 
     ticket = form_param.ticket
