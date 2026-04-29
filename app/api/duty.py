@@ -92,8 +92,7 @@ def update_duty(
     """
     _allowed_transitions = {
         DutyStatus.STARTED: [DutyStatus.ENDED],
-        DutyStatus.ENDED: [],
-        DutyStatus.AUDITED: [],
+        DutyStatus.ENDED: [DutyStatus.STARTED],
     }
 
     update_data = form_param.model_dump(exclude_unset=True)
@@ -110,31 +109,36 @@ def update_duty(
             Duty.status,
         )
 
+        service = session.query(Service).filter(Service.id == duty.service_id).first()
+
         if new_status == DutyStatus.ENDED:
             duty.collection = (
                 session.query(func.sum(PaperTicket.amount))
                 .filter(PaperTicket.duty_id == duty.id)
                 .scalar()
-            ) or 0
+            )
             duty.finished_on = now
 
-            service = (
-                session.query(Service).filter(Service.id == duty.service_id).first()
-            )
-            if service:
-                other_started_duties = (
-                    session.query(Duty)
-                    .filter(
-                        Duty.id != duty.id,
-                        Duty.service_id == service.id,
-                        Duty.status == DutyStatus.STARTED,
-                    )
-                    .count()
+            ongoing_duties = (
+                session.query(Duty)
+                .filter(
+                    Duty.id != duty.id,
+                    Duty.service_id == service.id,
+                    Duty.status == DutyStatus.STARTED,
                 )
-                if other_started_duties == 0 and now >= service.ending_at - timedelta(
-                    minutes=SERVICE_ENDING_WINDOW_MINUTES
-                ):
-                    service.status = ServiceStatus.ENDED
+                .count()
+            )
+            if ongoing_duties == 0 and now >= service.ending_at - timedelta(
+                minutes=SERVICE_ENDING_WINDOW_MINUTES
+            ):
+                service.status = ServiceStatus.ENDED
+
+        elif new_status == DutyStatus.STARTED and duty.status == DutyStatus.ENDED:
+            duty.finished_on = None
+            duty.collection = 0
+
+            if service.status == ServiceStatus.ENDED:
+                service.status = ServiceStatus.STARTED
 
         duty.status = new_status
 
