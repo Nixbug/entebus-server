@@ -13,13 +13,13 @@ from pydantic import BaseModel, Field
 from app.src.exceptions import InvalidTicketVersion, InvalidDigitalTicket
 
 
-TwoDecimalPlaces = Annotated[Decimal, Field(max_digits=10, decimal_places=2)]
+TwoDecimalPlaces = Annotated[Decimal, Field(max_digits=10, decimal_places=2, ge=0)]
 
 
 # Schema definitions for ticket data
 class TicketType(BaseModel):
-    id: int
-    count: int
+    id: int = Field(ge=1, le=255)
+    count: int = Field(ge=1, le=255)
     price: TwoDecimalPlaces
 
 
@@ -32,7 +32,7 @@ class TicketSchema(BaseModel):
     pickup_point: int
     dropping_point: int
     distance: int
-    extra: Dict[str, Any] = Field(default_factory=dict)
+    extras: Dict[str, Any] = Field(default_factory=dict)
 
 
 class DigitalTicket:

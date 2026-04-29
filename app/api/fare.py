@@ -67,7 +67,7 @@ class FareAttributes(BaseModel):
     ticket_types: List[TicketTypesInAttribute]
     currency_type: str
     distance_unit: str
-    extra: Dict[str, Any]
+    extras: Dict[str, Any]
 
 
 class FareSchema(BaseModel):
