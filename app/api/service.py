@@ -755,7 +755,11 @@ async def fetch_service_details_for_executive(
     tags=["Service"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission(), exceptions.DataInUse(Service)]
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.DataInUse(Service),
+        ]
     ),
     description=(
         """
@@ -954,7 +958,11 @@ async def fetch_service_details_for_operator(
     tags=["Service"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission(), exceptions.DataInUse(Service)]
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.DataInUse(Service),
+        ]
     ),
     description=(
         """
@@ -976,9 +984,7 @@ async def delete_service_operator(
         session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
         roles = get_operator_roles(session, token)
-        verify_permission(
-            roles, OperatorPermissionPath.DELETE_COMPANY_SERVICE
-        )
+        verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_SERVICE)
 
         service = (
             session.query(Service)
