@@ -157,15 +157,15 @@ def create_paper_ticket(
     total_fare = Decimal(0)
 
     for ticket_type in ticket.ticket_types:
-        matched_tf = next(
+        matched_ticket_type = next(
             (ft for ft in fare_ticket_types if ft["id"] == ticket_type.id),
             None,
         )
-        if matched_tf is None:
+        if matched_ticket_type is None:
             raise exceptions.UnknownTicketType()
 
         expected_price = Decimal(
-            str(fare_function.evaluate(matched_tf["name"], distance, extras))
+            str(fare_function.evaluate(matched_ticket_type["name"], distance, extras))
         )
         if ticket_type.price != expected_price:
             raise exceptions.InvalidValue(PaperTicket.amount)
@@ -179,7 +179,7 @@ def create_paper_ticket(
         service_id=form_param.ticket.service_id,
         duty_id=duty.id,
         company_id=token.company_id,
-        ticket=ticket.model_dump(),
+        ticket=ticket.model_dump(mode="json"),
         amount=form_param.ticket.amount,
     )
     session.add(paper_ticket)
