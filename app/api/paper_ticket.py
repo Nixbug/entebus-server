@@ -100,7 +100,6 @@ def create_paper_ticket(
             Duty.operator_id == token.operator_id,
             Duty.status.in_((DutyStatus.STARTED, DutyStatus.ENDED)),
         )
-        .order_by(Duty.started_on.desc(), Duty.id.desc())
         .first()
     )
     if duty is None:
