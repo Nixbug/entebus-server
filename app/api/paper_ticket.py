@@ -175,14 +175,11 @@ def create_paper_ticket(
     if total_fare != form_param.ticket.amount:
         raise exceptions.InvalidValue(PaperTicket.amount)
 
-    ticket_dict = ticket.model_dump()
-    ticket_dict["distance"] = distance
-
     paper_ticket = PaperTicket(
         service_id=form_param.ticket.service_id,
         duty_id=duty.id,
         company_id=token.company_id,
-        ticket=ticket_dict,
+        ticket=ticket.model_dump(),
         amount=form_param.ticket.amount,
     )
     session.add(paper_ticket)
