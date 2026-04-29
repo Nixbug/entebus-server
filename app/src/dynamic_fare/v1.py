@@ -33,13 +33,13 @@ class DynamicFare:
         ):
             raise exceptions.InvalidFareFunction()
 
-    def evaluate(self, ticket_type, total_distance, extra):
+    def evaluate(self, ticket_type, total_distance, extras):
         try:
             return self.js_context.call(
                 "getFare",
                 ticket_type,
                 total_distance,
-                extra,
+                extras,
                 timeout=self.time_out_limit,
                 max_memory=self.max_memory_size,
             )

@@ -118,21 +118,6 @@ def update_duty(
                 .scalar()
             )
             duty.finished_on = now
-
-            ongoing_duties = (
-                session.query(Duty)
-                .filter(
-                    Duty.id != duty.id,
-                    Duty.service_id == service.id,
-                    Duty.status == DutyStatus.STARTED,
-                )
-                .count()
-            )
-            if ongoing_duties == 0 and now >= service.ending_at - timedelta(
-                minutes=SERVICE_ENDING_WINDOW_MINUTES
-            ):
-                service.status = ServiceStatus.ENDED
-
         elif new_status == DutyStatus.STARTED and duty.status == DutyStatus.ENDED:
             duty.finished_on = None
             duty.collection = 0
