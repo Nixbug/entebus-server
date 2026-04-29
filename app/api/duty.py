@@ -26,7 +26,12 @@ from app.src.db import (
 )
 from app.src.enums import DutyStatus, ServiceStatus
 from app.src.urls import URL_DUTY
-from app.src.validators import verify_token, verify_permission, validate_id, validate_state_transition
+from app.src.validators import (
+    verify_token,
+    verify_permission,
+    validate_id,
+    validate_state_transition,
+)
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.openobserve import log_event
@@ -63,18 +68,18 @@ class DutySchema(BaseModel):
 class UpdateForm(BaseModel):
     """Form data for updating a duty."""
 
-    status: DutyStatus = Field(description=enum_str(DutyStatus))
+    status: DutyStatus = Field(description=enum_str(DutyStatus),default=None)
 
 
-
-
-def update_duty(session: Session, duty: Duty, form_param: UpdateForm) -> tuple[bool, dict]:
+# Functios
+def update_duty(
+    session: Session, duty: Duty, form_param: UpdateForm
+) -> tuple[bool, dict]:
     """
-    Updates a duty record with the new status and related service updates.
+    Updates a duty record when transitioning to ENDED status.
 
-    Validates status transitions before updating. Sets timestamps and calculates 
-    collection amounts based on status changes. Updates related service status 
-    and timestamps accordingly.
+    Validates status transitions. Calculates collection from PaperTickets and 
+    updates related service status if all duties are complete.
 
     Args:
         session (Session): SQLAlchemy database session.
@@ -83,38 +88,27 @@ def update_duty(session: Session, duty: Duty, form_param: UpdateForm) -> tuple[b
 
     Returns:
         tuple[bool, dict]: (have_updates, duty_data)
-    
-    Raises:
-        InvalidStateTransition: If the status transition is not allowed.
     """
-    update_data = form_param.model_dump(exclude_unset=True)
-
-    service = (
-        session.query(Service)
-        .filter(Service.id == duty.service_id)
-        .first()
-    )
-
-    _allowed_duty_status_transitions = {
+    _allowed_transitions = {
         DutyStatus.STARTED: [DutyStatus.ENDED],
         DutyStatus.ENDED: [],
         DutyStatus.AUDITED: [],
     }
 
-    if "status" in update_data:
+    update_data = form_param.model_dump(exclude_unset=True)
+    now = datetime.now(timezone.utc)
+    service = None
+    
+    if "status" in update_data and update_data["status"] != duty.status:
         new_status = update_data["status"]
-
+        
+        
         validate_state_transition(
-            _allowed_duty_status_transitions,
+            _allowed_transitions,
             duty.status,
             new_status,
             Duty.status,
         )
-
-    now = datetime.now(timezone.utc)
-
-    if "status" in update_data and update_data["status"] != duty.status:
-        new_status = update_data["status"]
 
         if new_status == DutyStatus.ENDED:
             duty.collection = (
@@ -125,6 +119,9 @@ def update_duty(session: Session, duty: Duty, form_param: UpdateForm) -> tuple[b
 
             duty.finished_on = now
 
+            service = (
+                session.query(Service).filter(Service.id == duty.service_id).first()
+            )
             if service:
                 other_started_duties = (
                     session.query(Duty)
@@ -135,22 +132,14 @@ def update_duty(session: Session, duty: Duty, form_param: UpdateForm) -> tuple[b
                     )
                     .count()
                 )
-
-                if (
-                    other_started_duties == 0
-                    and now >= service.ending_at - timedelta(minutes=15)
+                if other_started_duties == 0 and now >= service.ending_at - timedelta(
+                    minutes=15
                 ):
                     service.status = ServiceStatus.ENDED
 
-                    if service.finished_on is None:
-                        service.finished_on = now
-
         duty.status = new_status
 
-    have_updates = session.is_modified(duty) or (
-        service is not None and session.is_modified(service)
-    )
-
+    have_updates = session.is_modified(duty) or (service is not None and session.is_modified(service))
     if have_updates:
         session.commit()
         session.refresh(duty)
@@ -166,7 +155,6 @@ def update_duty(session: Session, duty: Duty, form_param: UpdateForm) -> tuple[b
     f"{URL_DUTY}/{{id}}",
     tags=["Duty"],
     response_model=DutySchema,
-    status_code=status.HTTP_200_OK,
     responses=fuse_exception_responses(
         [
             exceptions.InvalidToken(),
@@ -181,11 +169,9 @@ def update_duty(session: Session, duty: Duty, form_param: UpdateForm) -> tuple[b
             - Requires a valid executive access token.    
             - Logged in executive must have `company.service.duty.update` permission.    
             - Allowed status transitions:
-              - STARTED → ENDED: Mark duty as finished    
-              - ENDED → AUDITED: Mark duty as audited    
-            - When status transitions to ENDED, finished_on timestamp is set to current time.    
+              - STARTED → ENDED: Mark duty as finished and calculate collection    
+            - When status transitions to ENDED, collection is calculated from PaperTickets.    
             - Invalid state transitions will raise an exception.    
-            - Returns 200 OK with updated duty details.    
         """
     ),
 )
@@ -202,7 +188,10 @@ async def update_duty_executive(
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_SERVICE_DUTY)
 
         duty = validate_id(session, Duty, id, Duty.id)
-        have_updates, duty_data = update_duty(session, duty, form_param)
+
+        have_updates, duty_data = update_duty(
+            session, duty, UpdateForm(**form_param.model_dump(exclude_unset=True))
+        )
 
         if have_updates:
             log_event(token, request_info, duty_data)
@@ -234,10 +223,9 @@ async def update_duty_executive(
             **Updates an existing duty status.**    
             - Requires a valid operator access token.    
             - Logged in operator must have `company.service.duty.update` permission.    
-            - Allowed status transitions:
+            - Allowed status transitions:    
               - STARTED → ENDED: Mark duty as finished    
-              - ENDED → AUDITED: Mark duty as audited    
-            - When status transitions to ENDED, finished_on timestamp is set to current time.    
+            - When status transitions to ENDED, collection is calculated from PaperTickets.    
             - Invalid state transitions will raise an exception.    
             - Returns 200 OK with updated duty details.    
         """
@@ -256,7 +244,9 @@ async def update_duty_operator(
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_SERVICE_DUTY)
 
         duty = validate_id(session, Duty, id, Duty.id)
-        have_updates, duty_data = update_duty(session, duty, form_param)
+        have_updates, duty_data = update_duty(
+            session, duty, UpdateForm(**form_param.model_dump(exclude_unset=True))
+        )
 
         if have_updates:
             log_event(token, request_info, duty_data)
