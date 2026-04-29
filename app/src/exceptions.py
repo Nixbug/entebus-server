@@ -488,11 +488,13 @@ class UnknownTicketType(APIException):
     headers = {"X-Error": "UnknownTicketType"}
 
 
-class LandmarkInRouteLimitExceeded(APIException):
+class LimitExceeded(APIException):
     """
-    Raised when the number of landmarks in a route reaches the allowed maximum.
+    Raised when the number of entries in a table reaches the allowed maximum.
     """
-
     status_code = status.HTTP_406_NOT_ACCEPTABLE
-    detail = "Landmark in route limit reached for operator"
-    headers = {"X-Error": "LandmarkLimitExceeded"}
+    headers = {"X-Error": "LimitExceeded"}
+
+    def __init__(self, orm_class: DeclarativeMeta):
+        detail = f"Number of entries into {orm_class.__name__} exceeded the allowed limits."
+        super().__init__(detail=detail)
