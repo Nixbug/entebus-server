@@ -244,7 +244,9 @@ async def update_duty_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_SERVICE_DUTY)
 
-        duty = validate_id(session, Duty, id, Duty.id)
+        duty = validate_id(
+            session, Duty, id, Duty.id, (Duty.company_id == token.company_id)
+        )
 
         have_updates, duty_data = update_duty(
             session, duty, UpdateForm(**form_param.model_dump(exclude_unset=True))
