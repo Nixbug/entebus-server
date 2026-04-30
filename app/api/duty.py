@@ -76,10 +76,11 @@ def update_duty(
     session: Session, duty: Duty, form_param: UpdateForm
 ) -> tuple[bool, dict]:
     """
-    Updates a duty record when transitioning to ENDED status.
+    Updates a duty record based on the requested status transition.
 
-    Validates status transitions. Calculates collection from PaperTickets and
-    updates related service status if all duties are complete.
+    Validates status transitions. Calculates collection from PaperTickets when
+    transitioning a duty to ENDED, and reactivates an ENDED service if the duty
+    is moved back to STARTED.
 
     Args:
         session (Session): SQLAlchemy database session.
@@ -225,7 +226,7 @@ async def update_duty_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token)
+        token = verify_token(session, OperatorToken, access_token.credentials)
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_SERVICE_DUTY)
 
