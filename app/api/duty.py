@@ -96,7 +96,7 @@ def update_duty(
     }
 
     update_data = form_param.model_dump(exclude_unset=True)
-    now = datetime.now(timezone.utc)
+    utc_now = datetime.now(timezone.utc)
     service = None
 
     if "status" in update_data and update_data["status"] != duty.status:
@@ -113,7 +113,7 @@ def update_duty(
                 .filter(PaperTicket.duty_id == duty.id)
                 .scalar()
             )
-            duty.finished_on = now
+            duty.finished_on = utc_now
         elif new_status == DutyStatus.STARTED:
             duty.finished_on = None
             duty.collection = 0
