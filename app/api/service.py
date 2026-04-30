@@ -1,9 +1,9 @@
 """
 Service API Router for EnteBus.
 
-Provides endpoints for managing services, including creation and retrieval.
-Uses Pydantic schemas for input validation and structured output.
-Endpoints for update and deletion are planned for future implementation.
+Provides endpoints for managing services, including creation,
+update, deletion and retrieval. Uses Pydantic schemas for
+input validation and structured output.
 """
 
 from datetime import datetime, timezone
@@ -14,7 +14,7 @@ from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel, Field
 from datetime import timedelta
 from fastapi import status, Depends
-from sqlalchemy import String, or_, and_
+from sqlalchemy import String, and_, func, or_
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import aliased
 
@@ -26,6 +26,7 @@ from app.src.db import (
     ExecutiveToken,
     OperatorToken,
     Service,
+    Duty,
     Route,
     LandmarkInRoute,
     Landmark,
@@ -35,6 +36,7 @@ from app.src.db import (
     VehicleInService,
     LandmarkInService,
     Company,
+    PaperTicket,
     VendorToken,
 )
 from app.src import exceptions
@@ -49,9 +51,11 @@ from app.src.functions import (
     apply_created_on_filters,
     apply_updated_on_filters,
     apply_status_filters,
+    update_if_changed,
 )
 from app.src.validators import (
     validate_id,
+    validate_state_transition,
     verify_token,
     verify_permission,
 )
@@ -59,6 +63,7 @@ from app.src.permissions.operator import PermissionPath as OperatorPermissionPat
 from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.enums import (
+    DutyStatus,
     OrderIn,
     VehicleStatus,
     CompanyStatus,
@@ -175,6 +180,18 @@ class CreateForm(CreateFormForEX):
     """Generic combined form data for creating a new service."""
 
     pass
+
+
+class UpdateForm(BaseModel):
+    """Form data for updating an existing service."""
+
+    ticket_mode: TicketingMode | None = Field(
+        default=None, description=enum_str(TicketingMode)
+    )
+    status: ServiceStatus | None = Field(
+        default=None, description=enum_str(ServiceStatus)
+    )
+    remark: str | None = Field(default=None, min_length=1, max_length=1024)
 
 
 ## Query Parameters
@@ -425,6 +442,78 @@ def create_service(
     session.refresh(service)
     service_data = jsonable_encoder(service, exclude={"private_key"})
     return service_data
+
+
+def update_service(
+    session: Session, service: Service, form_param: UpdateForm
+) -> tuple[bool, dict]:
+    """
+    Updates an existing service record.
+
+    Supports service status transitions CREATED -> CACHED, STARTED -> ENDED,
+    and ENDED -> STARTED. When a service is ended, all STARTED duties on that
+    service are ended at the same UTC timestamp and their collection totals are
+    finalized from related paper tickets. Reactivating a service does not
+    reactivate duties.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        service (Service): Existing service to update.
+        form_param (UpdateForm): Form data for updating the service.
+
+    Returns:
+        tuple[bool, dict]: (have_updates, service_data)
+    """
+    allowed_transitions = {
+        ServiceStatus.CREATED: [ServiceStatus.CACHED],
+        ServiceStatus.STARTED: [ServiceStatus.ENDED],
+        ServiceStatus.ENDED: [ServiceStatus.STARTED],
+    }
+
+    update_data = form_param.model_dump(exclude_unset=True)
+    utc_now = datetime.now(timezone.utc)
+    duties = []
+
+    if "status" in update_data:
+        new_status = update_data.pop("status")
+        if new_status != service.status:
+            validate_state_transition(
+                allowed_transitions,
+                service.status,
+                new_status,
+                Service.status,
+            )
+
+            if new_status == ServiceStatus.ENDED:
+                duties = (
+                    session.query(Duty)
+                    .filter(
+                        Duty.service_id == service.id,
+                        Duty.status == DutyStatus.STARTED,
+                    )
+                    .all()
+                )
+                for duty in duties:
+                    duty.collection = (
+                        session.query(func.sum(PaperTicket.amount))
+                        .filter(PaperTicket.duty_id == duty.id)
+                        .scalar()
+                    )
+                    duty.finished_on = utc_now
+                    duty.status = DutyStatus.ENDED
+
+            service.status = new_status
+
+    update_if_changed(service, update_data)
+    have_updates = session.is_modified(service) or any(
+        session.is_modified(duty) for duty in duties
+    )
+    if have_updates:
+        session.commit()
+        session.refresh(service)
+
+    service_data = jsonable_encoder(service, exclude={"private_key"})
+    return have_updates, service_data
 
 
 def search_service(session: Session, query_params: QueryParams) -> List[Service]:
@@ -721,6 +810,58 @@ async def create_service_executive(
         session.close()
 
 
+@route_executive.patch(
+    f"{URL_SERVICE}/{{id}}",
+    tags=["Service"],
+    response_model=ServiceSchema,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(Service.id),
+            exceptions.InvalidStateTransition(Service.status),
+        ]
+    ),
+    description=(
+        """
+            **Updates an existing service.**    
+            - Requires a valid access token.    
+            - Logged in executive must have `company.service.update` permission.    
+            - Allowed status transitions:    
+                - CREATED -> CACHED   
+                - STARTED -> ENDED    
+                - ENDED -> STARTED    
+            - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
+            - Empty PATCH requests are allowed and will result in no changes.    
+        """
+    ),
+)
+async def update_service_executive(
+    id: int,
+    form_param: UpdateForm,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_SERVICE)
+
+        service = validate_id(session, Service, id, Service.id)
+        have_updates, service_data = update_service(
+            session, service, UpdateForm(**form_param.model_dump(exclude_unset=True))
+        )
+
+        if have_updates:
+            log_event(token, request_info, service_data)
+        return service_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 @route_executive.get(
     URL_SERVICE,
     tags=["Service"],
@@ -905,6 +1046,65 @@ async def create_service_operator(
             CreateForm(**form_param.model_dump(), company_id=token.company_id),
         )
         log_event(token, request_info, service_data)
+        return service_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.patch(
+    f"{URL_SERVICE}/{{id}}",
+    tags=["Service"],
+    response_model=ServiceSchema,
+    status_code=status.HTTP_200_OK,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(Service.id),
+            exceptions.InvalidStateTransition(Service.status),
+        ]
+    ),
+    description=(
+        """
+            **Updates an existing service for a company.**    
+            - Requires a valid access token.    
+            - Logged in operator must have `company.service.update` permission.    
+            - Allowed status transitions:    
+                - CREATED -> CACHED    
+                - STARTED -> ENDED    
+                - ENDED -> STARTED     
+            - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
+            - Empty PATCH requests are allowed and will result in no changes.    
+        """
+    ),
+)
+async def update_service_operator(
+    id: int,
+    form_param: UpdateForm,
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+        roles = get_operator_roles(session, token)
+        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_SERVICE)
+
+        service = validate_id(
+            session,
+            Service,
+            id,
+            Service.id,
+            extra_filter=(Service.company_id == token.company_id),
+        )
+        have_updates, service_data = update_service(
+            session, service, UpdateForm(**form_param.model_dump(exclude_unset=True))
+        )
+
+        if have_updates:
+            log_event(token, request_info, service_data)
         return service_data
     except Exception as e:
         exceptions.handle(e)
