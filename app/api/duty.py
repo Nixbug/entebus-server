@@ -6,7 +6,7 @@ Uses Pydantic schemas for input validation and structured output.
 Endpoints for retrieval are planned for future implementation.
 """
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from decimal import Decimal
 from fastapi import APIRouter, Depends, status
 from fastapi.encoders import jsonable_encoder
@@ -32,7 +32,6 @@ from app.src.validators import (
     validate_id,
     validate_state_transition,
 )
-from app.src.constants import SERVICE_ENDING_WINDOW_MINUTES
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.openobserve import log_event
@@ -108,9 +107,6 @@ def update_duty(
             new_status,
             Duty.status,
         )
-
-        service = session.query(Service).filter(Service.id == duty.service_id).first()
-
         if new_status == DutyStatus.ENDED:
             duty.collection = (
                 session.query(func.sum(PaperTicket.amount))
@@ -121,10 +117,11 @@ def update_duty(
         elif new_status == DutyStatus.STARTED and duty.status == DutyStatus.ENDED:
             duty.finished_on = None
             duty.collection = 0
-
+            service = (
+                session.query(Service).filter(Service.id == duty.service_id).first()
+            )
             if service.status == ServiceStatus.ENDED:
                 service.status = ServiceStatus.STARTED
-
         duty.status = new_status
 
     have_updates = session.is_modified(duty) or (
@@ -153,17 +150,17 @@ def update_duty(
             exceptions.InvalidStateTransition(Duty.status),
         ]
     ),
-    description=(
-        """
-            **Updates an existing duty status.**    
+    description=("""
+            **Updates an existing duty for a service.**    
             - Requires a valid executive access token.    
             - Logged in executive must have `company.service.duty.update` permission.    
             - Allowed status transitions:
-              - STARTED → ENDED: Mark duty as finished and calculate collection    
+              - STARTED → ENDED: Mark duty as finished and calculate collection  
+              - ENDED → STARTED: Reactivate duty and clear finished_on and collection  
             - When status transitions to ENDED, collection is calculated from PaperTickets.    
             - Invalid state transitions will raise an exception.    
-        """
-    ),
+            - Empty PATCH requests are allowed and will result in no changes.    
+        """),
 )
 async def update_duty_executive(
     id: int,
@@ -208,18 +205,17 @@ async def update_duty_executive(
             exceptions.InvalidStateTransition(Duty.status),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Updates an existing duty status.**    
             - Requires a valid operator access token.    
             - Logged in operator must have `company.service.duty.update` permission.    
             - Allowed status transitions:    
-              - STARTED → ENDED: Mark duty as finished    
+              - STARTED → ENDED: Mark duty as finished and calculate collection    
+              - ENDED → STARTED: Reactivate duty and clear finished_on and collection    
             - When status transitions to ENDED, collection is calculated from PaperTickets.    
             - Invalid state transitions will raise an exception.    
-            - Returns 200 OK with updated duty details.    
-        """
-    ),
+            - Empty PATCH requests are allowed and will result in no changes.    
+        """),
 )
 async def update_duty_operator(
     id: int,
