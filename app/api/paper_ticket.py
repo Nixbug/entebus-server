@@ -1,29 +1,31 @@
 """
 Paper Ticket API Router for EnteBus.
 
-Provides endpoints for managing paper tickets, including creation.
+Provides endpoints for managing paper tickets, including creation and retrieval.
 Uses Pydantic schemas for input validation and structured output.
-Endpoints for retrieval are planned for future implementation.
 """
 
 from datetime import datetime
 from decimal import Decimal
-from fastapi import APIRouter, Depends, status
+from enum import StrEnum
+from typing import List
+from fastapi import APIRouter, Depends, status, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
 
-from app.api.bearer import bearer_operator
+from app.api.bearer import bearer_operator, oauth2_executive
 from app.src.db import (
     SessionLocal,
     OperatorToken,
+    ExecutiveToken,
     PaperTicket,
     Service,
     Duty,
     FareInService,
     LandmarkInService,
 )
-from app.src.enums import DutyStatus, ServiceStatus
+from app.src.enums import DutyStatus, ServiceStatus, OrderIn
 from app.src.urls import URL_PAPER_TICKET
 from app.src.validators import verify_token, verify_permission, validate_id
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
@@ -32,7 +34,11 @@ from app.src.functions import (
     fuse_exception_responses,
     get_operator_roles,
     get_request_info,
+    enum_str,
+    apply_id_filters,
+    apply_created_on_filters,
 )
+from app.src.filters import PaginationFilter, IDFilter, CreatedOnFilter
 from app.src import exceptions
 from app.src.dynamic_fare import v1
 from app.src.digital_ticket.v1 import TicketSchema, TwoDecimalPlaces
@@ -60,6 +66,37 @@ class CreateForm(BaseModel):
     Form data for creating a new paper ticket."""
 
     ticket: TicketSchema = Field()
+
+
+## Query Params
+class OrderBy(StrEnum):
+    """Enum for ordering paper ticket results."""
+
+    ID = "id"
+    CREATED_ON = "created_on"
+
+
+class QueryParamsForOP(PaginationFilter, IDFilter, CreatedOnFilter):
+    """Query parameters for listing paper tickets."""
+
+    service_id: int | None = Field(Query(default=None))
+    duty_id: int | None = Field(Query(default=None))
+    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
+    order_in: OrderIn = Field(
+        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
+    )
+
+
+class QueryParamsForEX(QueryParamsForOP):
+    """Query parameters for executives users."""
+
+    company_id: int | None = Field(Query(default=None))
+
+
+class QueryParams(QueryParamsForEX):
+    """Generic query parameters."""
+
+    pass
 
 
 ## Functions
@@ -188,6 +225,81 @@ def create_paper_ticket(
     return jsonable_encoder(paper_ticket)
 
 
+def search_paper_tickets(
+    session: Session, query_params: QueryParams
+) -> List[PaperTicket]:
+    """
+    Search for paper tickets provided on query parameters.
+
+    This function supports multiple filtering, searching, ordering, and
+    pagination capabilities to retrieve paper tickets that match various criteria.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        query_params (QueryParams): Query parameters containing search criteria.
+
+
+    Returns:
+        List[PaperTicket]: List of paper tickets that match the search criteria.
+    """
+    query = session.query(PaperTicket)
+    if query_params.company_id is not None:
+        query = query.filter(PaperTicket.company_id == query_params.company_id)
+    if query_params.service_id is not None:
+        query = query.filter(PaperTicket.service_id == query_params.service_id)
+    if query_params.duty_id is not None:
+        query = query.filter(PaperTicket.duty_id == query_params.duty_id)
+
+    # Generalized filters
+    query = apply_id_filters(query, PaperTicket, query_params)
+    query = apply_created_on_filters(query, PaperTicket, query_params)
+
+    # ordering and pagination
+    ordering_attr = getattr(PaperTicket, query_params.order_by.value)
+    ordering_func = (
+        ordering_attr.asc
+        if query_params.order_in == OrderIn.ASCENDING
+        else ordering_attr.desc
+    )
+    query = query.order_by(ordering_func())
+    query = query.offset(query_params.offset).limit(query_params.limit)
+
+    paper_tickets = query.all()
+    return paper_tickets
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Executive]
+# ---------------------------------------------------------------------------
+@route_executive.get(
+    URL_PAPER_TICKET,
+    tags=["Paper Ticket"],
+    response_model=List[PaperTicketSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches a list of paper tickets.**    
+            - Requires a valid access token for authentication.    
+        """
+    ),
+)
+async def fetch_paper_ticket_executive(
+    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+):
+    try:
+        session = SessionLocal()
+        verify_token(session, ExecutiveToken, access_token)
+
+        return search_paper_tickets(
+            session,
+            QueryParams(**query_params.model_dump()),
+        )
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Operator]
 # ---------------------------------------------------------------------------
@@ -240,6 +352,35 @@ async def create_paper_ticket_operator(
         paper_ticket_data = create_paper_ticket(session, token, form_param)
         log_event(token, request_info, paper_ticket_data)
         return paper_ticket_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.get(
+    URL_PAPER_TICKET,
+    tags=["Paper Ticket"],
+    response_model=List[PaperTicketSchema],
+    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    description=(
+        """
+            **Fetches a list of paper tickets.**    
+            - Requires a valid access token for authentication.    
+        """
+    ),
+)
+async def fetch_paper_ticket_operator(
+    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+
+        return search_paper_tickets(
+            session,
+            QueryParams(**query_params.model_dump(), company_id=token.company_id),
+        )
     except Exception as e:
         exceptions.handle(e)
     finally:

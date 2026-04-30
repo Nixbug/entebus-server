@@ -15,7 +15,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
 from sqlalchemy import func
 
-
 from app.api.bearer import bearer_operator, oauth2_executive
 from app.src.db import (
     SessionLocal,
