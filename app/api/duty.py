@@ -6,10 +6,13 @@ Uses Pydantic schemas for input validation and structured output.
 Endpoints for retrieval are planned for future implementation.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+from decimal import Decimal
 from fastapi import APIRouter, Depends, status
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
+from sqlalchemy import func
 
 
 from app.api.bearer import bearer_operator, oauth2_executive
@@ -18,19 +21,247 @@ from app.src.db import (
     OperatorToken,
     Duty,
     ExecutiveToken,
+    Service,
+    PaperTicket,
 )
-from app.src.enums import DutyStatus
+from app.src.enums import DutyStatus, ServiceStatus
 from app.src.urls import URL_DUTY
-from app.src.validators import verify_token, verify_permission, validate_id
+from app.src.validators import verify_token, verify_permission, validate_id, validate_state_transition
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.openobserve import log_event
 from app.src.functions import (
+    enum_str,
     fuse_exception_responses,
     get_operator_roles,
     get_request_info,
+    get_executive_roles,
 )
 from app.src import exceptions
 
 route_executive = APIRouter()
 route_operator = APIRouter()
+
+
+## Output Schema
+class DutySchema(BaseModel):
+    """Schema for duty response."""
+
+    id: int
+    company_id: int
+    operator_id: int | None
+    service_id: int
+    status: int
+    started_on: datetime | None
+    finished_on: datetime | None
+    collection: Decimal | None
+    updated_on: datetime | None
+    created_on: datetime
+
+
+## Input Forms
+class UpdateForm(BaseModel):
+    """Form data for updating a duty."""
+
+    status: DutyStatus = Field(description=enum_str(DutyStatus))
+
+
+
+
+def update_duty(session: Session, duty: Duty, form_param: UpdateForm) -> tuple[bool, dict]:
+    """
+    Updates a duty record with the new status and related service updates.
+
+    Validates status transitions before updating. Sets timestamps and calculates 
+    collection amounts based on status changes. Updates related service status 
+    and timestamps accordingly.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        duty (Duty): Duty object to update.
+        form_param (UpdateForm): Form data containing new status.
+
+    Returns:
+        tuple[bool, dict]: (have_updates, duty_data)
+    
+    Raises:
+        InvalidStateTransition: If the status transition is not allowed.
+    """
+    update_data = form_param.model_dump(exclude_unset=True)
+
+    service = (
+        session.query(Service)
+        .filter(Service.id == duty.service_id)
+        .first()
+    )
+
+    _allowed_duty_status_transitions = {
+        DutyStatus.STARTED: [DutyStatus.ENDED],
+        DutyStatus.ENDED: [],
+        DutyStatus.AUDITED: [],
+    }
+
+    if "status" in update_data:
+        new_status = update_data["status"]
+
+        validate_state_transition(
+            _allowed_duty_status_transitions,
+            duty.status,
+            new_status,
+            Duty.status,
+        )
+
+    now = datetime.now(timezone.utc)
+
+    if "status" in update_data and update_data["status"] != duty.status:
+        new_status = update_data["status"]
+
+        if new_status == DutyStatus.ENDED:
+            duty.collection = (
+                session.query(func.sum(PaperTicket.amount))
+                .filter(PaperTicket.duty_id == duty.id)
+                .scalar()
+            ) or 0
+
+            duty.finished_on = now
+
+            if service:
+                other_started_duties = (
+                    session.query(Duty)
+                    .filter(
+                        Duty.id != duty.id,
+                        Duty.service_id == service.id,
+                        Duty.status == DutyStatus.STARTED,
+                    )
+                    .count()
+                )
+
+                if (
+                    other_started_duties == 0
+                    and now >= service.ending_at - timedelta(minutes=15)
+                ):
+                    service.status = ServiceStatus.ENDED
+
+                    if service.finished_on is None:
+                        service.finished_on = now
+
+        duty.status = new_status
+
+    have_updates = session.is_modified(duty) or (
+        service is not None and session.is_modified(service)
+    )
+
+    if have_updates:
+        session.commit()
+        session.refresh(duty)
+
+    duty_data = jsonable_encoder(duty)
+    return have_updates, duty_data
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Executive]
+# ---------------------------------------------------------------------------
+@route_executive.patch(
+    f"{URL_DUTY}/{{id}}",
+    tags=["Duty"],
+    response_model=DutySchema,
+    status_code=status.HTTP_200_OK,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(Duty.id),
+            exceptions.InvalidStateTransition(Duty.status),
+        ]
+    ),
+    description=(
+        """
+            **Updates an existing duty status.**    
+            - Requires a valid executive access token.    
+            - Logged in executive must have `company.service.duty.update` permission.    
+            - Allowed status transitions:
+              - STARTED → ENDED: Mark duty as finished    
+              - ENDED → AUDITED: Mark duty as audited    
+            - When status transitions to ENDED, finished_on timestamp is set to current time.    
+            - Invalid state transitions will raise an exception.    
+            - Returns 200 OK with updated duty details.    
+        """
+    ),
+)
+async def update_duty_executive(
+    id: int,
+    form_param: UpdateForm,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_SERVICE_DUTY)
+
+        duty = validate_id(session, Duty, id, Duty.id)
+        have_updates, duty_data = update_duty(session, duty, form_param)
+
+        if have_updates:
+            log_event(token, request_info, duty_data)
+        return duty_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Operator]
+# ---------------------------------------------------------------------------
+@route_operator.patch(
+    f"{URL_DUTY}/{{id}}",
+    tags=["Duty"],
+    response_model=DutySchema,
+    status_code=status.HTTP_200_OK,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.UnknownValue(Duty.id),
+            exceptions.InvalidStateTransition(Duty.status),
+        ]
+    ),
+    description=(
+        """
+            **Updates an existing duty status.**    
+            - Requires a valid operator access token.    
+            - Logged in operator must have `company.service.duty.update` permission.    
+            - Allowed status transitions:
+              - STARTED → ENDED: Mark duty as finished    
+              - ENDED → AUDITED: Mark duty as audited    
+            - When status transitions to ENDED, finished_on timestamp is set to current time.    
+            - Invalid state transitions will raise an exception.    
+            - Returns 200 OK with updated duty details.    
+        """
+    ),
+)
+async def update_duty_operator(
+    id: int,
+    form_param: UpdateForm,
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token)
+        roles = get_operator_roles(session, token)
+        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_SERVICE_DUTY)
+
+        duty = validate_id(session, Duty, id, Duty.id)
+        have_updates, duty_data = update_duty(session, duty, form_param)
+
+        if have_updates:
+            log_event(token, request_info, duty_data)
+        return duty_data
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
