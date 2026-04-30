@@ -210,8 +210,7 @@ def create_paper_ticket(
             exceptions.JSTimeLimitExceeded(),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Creates a new paper ticket for an operator's duty.**    
             - Requires a valid operator access token.    
             - Logged-in operator must have `company.service.ticket.create` permission.    
@@ -223,8 +222,7 @@ def create_paper_ticket(
             - Ticket type IDs must match those defined in the service fare configuration.    
             - Prices are cross-validated server-side using the fare function.    
             - `amount` must equal the sum of (price × count) for all ticket types.    
-        """
-    ),
+        """),
 )
 async def create_paper_ticket_operator(
     form_param: CreateForm,
