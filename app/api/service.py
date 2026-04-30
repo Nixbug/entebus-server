@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from fastapi.encoders import jsonable_encoder
 from typing import Any, Dict, List
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel, Field
 from datetime import timedelta
 from fastapi import status, Depends
@@ -585,6 +585,53 @@ def fetch_service_details(session: Session, service: Service) -> Dict[str, Any]:
     }
 
 
+def delete_service(session: Session, service: Service) -> dict:
+    """
+    Deletes a service from the database and decrements/cleans up related snapshot reference counts.
+
+    This function ensures that when a service is deleted:
+    1. The FareInService snapshot reference_count is decremented
+    2. If FareInService reference_count reaches 0, the snapshot is deleted
+    3. The VehicleInService snapshot reference_count is decremented
+    4. If VehicleInService reference_count reaches 0, the snapshot is deleted
+    5. The service and related LandmarkInService entries are deleted
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        service (Service): Service object to delete.
+
+    Returns:
+        dict: JSON-encoded representation of the deleted service.
+    """
+    service_data = jsonable_encoder(service, exclude={"private_key", "public_key"})
+
+    fare_in_service = (
+        session.query(FareInService)
+        .filter(FareInService.id == service.fare_in_service_id)
+        .first()
+    )
+    if fare_in_service:
+        fare_in_service.reference_count -= 1
+        if fare_in_service.reference_count <= 0:
+            session.delete(fare_in_service)
+        session.flush()
+
+    vehicle_in_service = (
+        session.query(VehicleInService)
+        .filter(VehicleInService.id == service.vehicle_in_service_id)
+        .first()
+    )
+    if vehicle_in_service:
+        vehicle_in_service.reference_count -= 1
+        if vehicle_in_service.reference_count <= 0:
+            session.delete(vehicle_in_service)
+        session.flush()
+
+    session.delete(service)
+    session.commit()
+    return service_data
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -727,6 +774,51 @@ async def fetch_service_details_for_executive(
 
         service = validate_id(session, Service, id, Service.id)
         return fetch_service_details(session, service)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_executive.delete(
+    f"{URL_SERVICE}/{{id}}",
+    tags=["Service"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.DataInUse(Service),
+        ]
+    ),
+    description=(
+        """
+            **Deletes an existing service.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in executive must have the `company.service.delete` permission.    
+            - Service can only be deleted if it is in CREATED status.    
+            - Returns 204 No Content even if the specified service does not exist.    
+        """
+    ),
+)
+async def delete_service_executive(
+    id: int,
+    access_token=Depends(oauth2_executive),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, token)
+        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_SERVICE)
+
+        service = session.query(Service).filter(Service.id == id).first()
+        if service and service.status != ServiceStatus.CREATED:
+            raise exceptions.DataInUse(Service)
+        if service is not None:
+            service_data = delete_service(session, service)
+            log_event(token, request_info, service_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -885,6 +977,59 @@ async def fetch_service_details_for_operator(
             session.commit()
             session.refresh(service)
         return fetch_service_details(session, service)
+    except Exception as e:
+        exceptions.handle(e)
+    finally:
+        session.close()
+
+
+@route_operator.delete(
+    f"{URL_SERVICE}/{{id}}",
+    tags=["Service"],
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=fuse_exception_responses(
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.DataInUse(Service),
+        ]
+    ),
+    description=(
+        """
+            **Deletes an existing service.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in operator must have the `company.service.delete` permission.    
+            - Operator can only delete services within their company.    
+            - Service can only be deleted if it is in CREATED status.    
+            - Returns 204 No Content even if the specified service does not exist.    
+        """
+    ),
+)
+async def delete_service_operator(
+    id: int,
+    access_token=Depends(bearer_operator),
+    request_info=Depends(get_request_info),
+):
+    try:
+        session = SessionLocal()
+        token = verify_token(session, OperatorToken, access_token.credentials)
+        roles = get_operator_roles(session, token)
+        verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_SERVICE)
+
+        service = (
+            session.query(Service)
+            .filter(
+                Service.id == id,
+                Service.company_id == token.company_id,
+            )
+            .first()
+        )
+        if service and service.status != ServiceStatus.CREATED:
+            raise exceptions.DataInUse(Service)
+        if service is not None:
+            service_data = delete_service(session, service)
+            log_event(token, request_info, service_data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
     finally:
