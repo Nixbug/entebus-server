@@ -119,7 +119,7 @@ def create_paper_ticket(
         session.flush()
 
     ticket = form_param.ticket
-    boarding_landmark = (
+    pickup_point = (
         session.query(LandmarkInService)
         .filter(
             LandmarkInService.service_id == form_param.ticket.service_id,
@@ -127,9 +127,9 @@ def create_paper_ticket(
         )
         .first()
     )
-    if boarding_landmark is None:
+    if pickup_point is None:
         raise exceptions.UnknownValue("pickup_point")
-    alight_landmark = (
+    dropping_point = (
         session.query(LandmarkInService)
         .filter(
             LandmarkInService.service_id == form_param.ticket.service_id,
@@ -137,13 +137,13 @@ def create_paper_ticket(
         )
         .first()
     )
-    if alight_landmark is None:
+    if dropping_point is None:
         raise exceptions.UnknownValue("dropping_point")
-    distance = (
-        alight_landmark.distance_from_start - boarding_landmark.distance_from_start
-    )
+    distance = dropping_point.distance_from_start - pickup_point.distance_from_start
     if distance < 0:
         raise exceptions.UnknownValue("dropping_point")
+    if distance != ticket.distance:
+        raise exceptions.UnknownValue("distance")
 
     fare_in_service = (
         session.query(FareInService)
