@@ -152,16 +152,16 @@ def update_duty(
         ]
     ),
     description=("""
-            **Updates an existing duty for a service.**    
-            - Requires a valid executive access token.    
-            - Logged in executive must have `company.service.duty.update` permission.    
-            - Allowed status transitions:
-              - STARTED → ENDED: Mark duty as finished and calculate collection  
-              - ENDED → STARTED: Reactivate duty and clear finished_on and collection  
-            - When status transitions to ENDED, collection is calculated from PaperTickets.    
-            - Invalid state transitions will raise an exception.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """),
+                **Updates an existing duty for a service.**    
+                - Requires a valid executive access token.    
+                - Logged in executive must have `company.service.duty.update` permission.    
+                - Allowed status transitions:
+                - STARTED → ENDED: Mark duty as finished and calculate collection  
+                - ENDED → STARTED: Reactivate duty and clear finished_on and collection  
+                - When status transitions to ENDED, collection is calculated from PaperTickets.    
+                - Invalid state transitions will raise an exception.    
+                - Empty PATCH requests are allowed and will result in no changes.    
+            """),
 )
 async def update_duty_executive(
     id: int,
@@ -207,16 +207,16 @@ async def update_duty_executive(
         ]
     ),
     description=("""
-            **Updates an existing duty status.**    
-            - Requires a valid operator access token.    
-            - Logged in operator must have `company.service.duty.update` permission.    
-            - Allowed status transitions:    
-              - STARTED → ENDED: Mark duty as finished and calculate collection    
-              - ENDED → STARTED: Reactivate duty and clear finished_on and collection    
-            - When status transitions to ENDED, collection is calculated from PaperTickets.    
-            - Invalid state transitions will raise an exception.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """),
+                **Updates an existing duty status.**    
+                - Requires a valid operator access token.    
+                - Logged in operator must have `company.service.duty.update` permission.    
+                - Allowed status transitions:    
+                - STARTED → ENDED: Mark duty as finished and calculate collection    
+                - ENDED → STARTED: Reactivate duty and clear finished_on and collection    
+                - When status transitions to ENDED, collection is calculated from PaperTickets.    
+                - Invalid state transitions will raise an exception.    
+                - Empty PATCH requests are allowed and will result in no changes.    
+            """),
 )
 async def update_duty_operator(
     id: int,
