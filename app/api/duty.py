@@ -101,7 +101,6 @@ def update_duty(
 
     if "status" in update_data and update_data["status"] != duty.status:
         new_status = update_data["status"]
-
         validate_state_transition(
             _allowed_transitions,
             duty.status,
@@ -115,7 +114,7 @@ def update_duty(
                 .scalar()
             )
             duty.finished_on = now
-        elif new_status == DutyStatus.STARTED and duty.status == DutyStatus.ENDED:
+        elif new_status == DutyStatus.STARTED:
             duty.finished_on = None
             duty.collection = 0
             service = (
