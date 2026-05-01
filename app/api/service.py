@@ -469,7 +469,6 @@ def update_service(
     }
 
     update_data = form_param.model_dump(exclude_unset=True)
-    utc_now = datetime.now(timezone.utc)
     duties = []
 
     if "status" in update_data:
@@ -483,6 +482,7 @@ def update_service(
             )
 
             if new_status == ServiceStatus.ENDED:
+                utc_now = datetime.now(timezone.utc)
                 duties = (
                     session.query(Duty)
                     .filter(
