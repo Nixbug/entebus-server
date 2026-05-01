@@ -462,7 +462,7 @@ def update_service(
     Returns:
         tuple[bool, dict]: (have_updates, service_data)
     """
-    allowed_transitions = {
+    _allowed_service_status_transitions = {
         ServiceStatus.CREATED: [ServiceStatus.CACHED],
         ServiceStatus.STARTED: [ServiceStatus.ENDED],
         ServiceStatus.ENDED: [ServiceStatus.STARTED],
@@ -475,7 +475,7 @@ def update_service(
         new_status = update_data.pop("status")
         if new_status != service.status:
             validate_state_transition(
-                allowed_transitions,
+                _allowed_service_status_transitions,
                 service.status,
                 new_status,
                 Service.status,
