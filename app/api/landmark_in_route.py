@@ -54,7 +54,6 @@ from app.src import exceptions
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 
-
 route_executive = APIRouter()
 route_operator = APIRouter()
 route_vendor = APIRouter()
@@ -88,11 +87,11 @@ class CreateForm(BaseModel):
 
 
 class UpdateForm(BaseModel):
-    """Form data for updating an  landmark in route."""
+    """Form data for updating an landmark in route."""
 
-    distance_from_start: int | None = Field(default=None, gt=-1)
-    arrival_delta: int | None = Field(default=None, gt=-1)
-    departure_delta: int | None = Field(default=None, gt=-1)
+    distance_from_start: int = Field(default=None, gt=-1)
+    arrival_delta: int = Field(default=None, gt=-1)
+    departure_delta: int = Field(default=None, gt=-1)
 
 
 ## Query Parameters
@@ -106,7 +105,7 @@ class OrderBy(StrEnum):
 
 
 class QueryParamsForPU(IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFilter):
-    """Query parameters for public users."""
+    """Query parameters for public."""
 
     route_id: int | None = Field(Query(default=None))
     landmark_id: int | None = Field(Query(default=None))
@@ -123,13 +122,13 @@ class QueryParamsForPU(IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFil
 
 
 class QueryParamsForOP(QueryParamsForPU):
-    """Query parameters for operators users."""
+    """Query parameters for operators."""
 
     pass
 
 
 class QueryParamsForEX(QueryParamsForOP):
-    """Query parameters for executives users."""
+    """Query parameters for executives."""
 
     company_id: int | None = Field(Query(default=None))
 
@@ -141,7 +140,7 @@ class QueryParamsForVE(QueryParamsForEX):
 
 
 class QueryParams(QueryParamsForEX):
-    """Generic query parameters."""
+    """Generic combined query parameters."""
 
     pass
 

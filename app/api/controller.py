@@ -3,7 +3,7 @@ FastAPI application instances for different user domains.
 
 This module creates separate FastAPI apps for each type of user domain
 (executive, vendor, operator, public) and tags each app with a corresponding
-AppID for contextual request handling.It also includes routers for each app.
+AppID for contextual request handling. It also includes routers for each app.
 """
 
 from fastapi import FastAPI

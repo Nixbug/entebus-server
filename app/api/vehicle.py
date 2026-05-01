@@ -138,7 +138,7 @@ class UpdateForm(BaseModel):
 
 ## Query Parameters
 class OrderBy(StrEnum):
-    """Enum for ordering company results."""
+    """Enum for ordering vehicle results."""
 
     ID = "id"
     CREATED_ON = "created_on"
@@ -148,7 +148,7 @@ class OrderBy(StrEnum):
 class QueryParamsForPU(
     IDFilter, CreatedOnFilter, UpdatedOnFilter, NameFilter, PaginationFilter
 ):
-    """Query parameters for public users."""
+    """Query parameters for public."""
 
     search: str | None = Field(Query(default=None))
     registration_number: str | None = Field(Query(default=None))
@@ -161,7 +161,7 @@ class QueryParamsForPU(
 
 
 class QueryParamsForOP(QueryParamsForPU):
-    """Query parameters for operators users."""
+    """Query parameters for operators."""
 
     manufactured_on_ge: datetime | None = Field(Query(default=None))
     manufactured_on_le: datetime | None = Field(Query(default=None))
@@ -179,13 +179,13 @@ class QueryParamsForOP(QueryParamsForPU):
 
 
 class QueryParamsForEX(QueryParamsForOP):
-    """Query parameters for executives users."""
+    """Query parameters for executives."""
 
     company_id: int | None = Field(Query(default=None))
 
 
 class QueryParamsForVE(QueryParamsForEX):
-    """Query parameters for vendor users."""
+    """Query parameters for vendors."""
 
     pass
 

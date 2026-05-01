@@ -151,7 +151,7 @@ class PrivateServiceSchema(PublicServiceSchema):
 
 # Input Forms
 class CreateFormForOP(BaseModel):
-    """Form data  for creating a new service by an operator."""
+    """Form data for creating a new service by an operator."""
 
     route_id: int = Field()
     fare_id: int = Field()
@@ -166,7 +166,7 @@ class CreateFormForOP(BaseModel):
 
 
 class CreateFormForEX(CreateFormForOP):
-    """Form data  for creating a new service by an executive."""
+    """Form data for creating a new service by an executive."""
 
     company_id: int = Field()
 

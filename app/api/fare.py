@@ -125,7 +125,7 @@ class OrderBy(StrEnum):
 
 
 class QueryParamsForOP(IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFilter):
-    """Query parameters for operator users."""
+    """Query parameters for operators."""
 
     search: str | None = Field(Query(default=None))
     name: str | None = Field(Query(default=None))
@@ -142,7 +142,7 @@ class QueryParamsForOP(IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFil
 
 
 class QueryParamsForEX(QueryParamsForOP):
-    """Query parameters for executives users."""
+    """Query parameters for executives."""
 
     company_id: int | None = Field(Query(default=None))
 
@@ -154,7 +154,7 @@ class QueryParamsForVE(QueryParamsForEX):
 
 
 class QueryParams(QueryParamsForEX):
-    """Generic query parameters."""
+    """Generic combined query parameters."""
 
     pass
 

@@ -121,7 +121,7 @@ class OrderBy(StrEnum):
 
 
 class QueryParamsForPU(PictureFilter, CreatedOnFilter, IDFilter, PaginationFilter):
-    """Query parameters for operators."""
+    """Query parameters for public."""
 
     vehicle_id: int | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
