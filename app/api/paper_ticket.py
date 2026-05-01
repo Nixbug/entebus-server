@@ -206,7 +206,6 @@ def create_paper_ticket(
         )
         if ticket_type.price != expected_price:
             raise exceptions.InvalidValue(PaperTicket.amount)
-
         total_fare += ticket_type.price * ticket_type.count
 
     if total_fare != form_param.ticket.amount:
