@@ -747,7 +747,8 @@ def delete_service(session: Session, service: Service) -> dict:
             exceptions.InvalidValue(Service.starting_at),
         ]
     ),
-    description=(f"""
+    description=(
+        f"""
             **Creates a new service for a company.**    
             - Requires a valid access token.    
             - Logged in executive must have `company.service.create` permission.    
@@ -756,7 +757,8 @@ def delete_service(session: Session, service: Service) -> dict:
             - Service can only be created within `{SERVICE_CREATION_LEAD_TIME_DAYS}` days before the `starting_at`.   
             - The service name is auto-generated based on the name of the route, vehicle, and starting date.    
             - By default the status of the service is set to CREATED.   
-        """),
+        """
+    ),
 )
 async def create_service_executive(
     form_param: CreateFormForEX,
@@ -818,7 +820,8 @@ async def create_service_executive(
             exceptions.InvalidStateTransition(Service.status),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Updates an existing service.**    
             - Requires a valid access token.    
             - Logged in executive must have `company.service.update` permission.    
@@ -828,7 +831,8 @@ async def create_service_executive(
                 - ENDED -> STARTED    
             - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """),
+        """
+    ),
 )
 async def update_service_executive(
     id: int,
@@ -861,10 +865,12 @@ async def update_service_executive(
     tags=["Service"],
     response_model=List[ServiceSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches a list of services.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def fetch_service_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -890,10 +896,12 @@ async def fetch_service_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(Service.id)]
     ),
-    description=("""
+    description=(
+        """
             **Fetch a service by its ID.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def fetch_service_details_for_executive(
     id: int,
@@ -922,13 +930,15 @@ async def fetch_service_details_for_executive(
             exceptions.DataInUse(Service),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Deletes an existing service.**    
             - Requires a valid access token for authentication.    
             - The logged-in executive must have the `company.service.delete` permission.    
             - Service can only be deleted if it is in CREATED status.    
             - Returns 204 No Content even if the specified service does not exist.    
-        """),
+        """
+    ),
 )
 async def delete_service_executive(
     id: int,
@@ -977,7 +987,8 @@ async def delete_service_executive(
             exceptions.InvalidValue(Service.starting_at),
         ]
     ),
-    description=(f"""
+    description=(
+        f"""
             **Creates a new service for a company.**    
             - Requires a valid access token.    
             - Logged in operator must have `company.service.create` permission.    
@@ -987,7 +998,8 @@ async def delete_service_executive(
             - Service can only be created within `{SERVICE_CREATION_LEAD_TIME_DAYS}` days before the `starting_at`.   
             - The service name is auto-generated based on the name of the route, vehicle, and starting date.    
             - By default the status of the service is set to CREATED.   
-        """),
+        """
+    ),
 )
 async def create_service_operator(
     form_param: CreateFormForOP,
@@ -1052,7 +1064,8 @@ async def create_service_operator(
             exceptions.InvalidStateTransition(Service.status),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Updates an existing service for a company.**    
             - Requires a valid access token.    
             - Logged in operator must have `company.service.update` permission.    
@@ -1062,7 +1075,8 @@ async def create_service_operator(
                 - ENDED -> STARTED     
             - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """),
+        """
+    ),
 )
 async def update_service_operator(
     id: int,
@@ -1101,10 +1115,12 @@ async def update_service_operator(
     tags=["Service"],
     response_model=List[ServiceSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches a list of services.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def fetch_service_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
@@ -1130,11 +1146,13 @@ async def fetch_service_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(Service.id)]
     ),
-    description=("""
+    description=(
+        """
             **Fetch a service by its ID.**    
             - Requires a valid access token for authentication.    
             - If `marked_as_cached` query parameter is set to true, and the service status is currently CREATED, the status will be updated to CACHED.    
-        """),
+        """
+    ),
 )
 async def fetch_service_details_for_operator(
     id: int,
@@ -1174,14 +1192,16 @@ async def fetch_service_details_for_operator(
             exceptions.DataInUse(Service),
         ]
     ),
-    description=("""
+    description=(
+        """
             **Deletes an existing service.**    
             - Requires a valid access token for authentication.    
             - The logged-in operator must have the `company.service.delete` permission.    
             - Operator can only delete services within their company.    
             - Service can only be deleted if it is in CREATED status.    
             - Returns 204 No Content even if the specified service does not exist.    
-        """),
+        """
+    ),
 )
 async def delete_service_operator(
     id: int,
@@ -1222,10 +1242,12 @@ async def delete_service_operator(
     tags=["Service"],
     response_model=List[ServiceSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=("""
+    description=(
+        """
             **Fetches a list of services.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def fetch_service_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
@@ -1251,10 +1273,12 @@ async def fetch_service_vendor(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(Service.id)]
     ),
-    description=("""
+    description=(
+        """
             **Fetch a service by its ID.**    
             - Requires a valid access token for authentication.    
-        """),
+        """
+    ),
 )
 async def fetch_service_details_for_vendor(
     id: int,
@@ -1279,9 +1303,11 @@ async def fetch_service_details_for_vendor(
     URL_SERVICE,
     tags=["Service"],
     response_model=List[ServiceSchema],
-    description=("""
+    description=(
+        """
             **Fetches a list of services for public users.**    
-        """),
+        """
+    ),
 )
 async def fetch_service_public(query_params: QueryParamsForPU = Depends()):
     try:
@@ -1306,9 +1332,11 @@ async def fetch_service_public(query_params: QueryParamsForPU = Depends()):
     tags=["Service"],
     response_model=PublicServiceSchema,
     responses=fuse_exception_responses([exceptions.UnknownValue(Service.id)]),
-    description=("""
+    description=(
+        """
             **Fetches a service by its ID.**    
-        """),
+        """
+    ),
 )
 async def fetch_service_details_public(id: int):
     try:
