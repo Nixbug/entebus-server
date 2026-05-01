@@ -491,12 +491,20 @@ def update_service(
                     )
                     .all()
                 )
-                for duty in duties:
-                    duty.collection = (
-                        session.query(func.sum(PaperTicket.amount))
-                        .filter(PaperTicket.duty_id == duty.id)
-                        .scalar()
+                duty_ids = [duty.id for duty in duties]
+                collections_by_duty_id = {}
+                if duty_ids:
+                    collections_by_duty_id = dict(
+                        session.query(
+                            PaperTicket.duty_id,
+                            func.sum(PaperTicket.amount),
+                        )
+                        .filter(PaperTicket.duty_id.in_(duty_ids))
+                        .group_by(PaperTicket.duty_id)
+                        .all()
                     )
+                for duty in duties:
+                    duty.collection = collections_by_duty_id.get(duty.id)
                     duty.finished_on = utc_now
                     duty.status = DutyStatus.ENDED
 
