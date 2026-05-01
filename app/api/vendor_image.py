@@ -591,7 +591,7 @@ async def fetch_vendor_image_for_vendor(
         [exceptions.InvalidToken(), exceptions.UnknownValue(VendorImage.id)]
     ),
     description=(
-        """ 
+        """
             **Download vendor profile picture in original or resized resolution.**    
             - Requires a valid access token for authentication.    
         """

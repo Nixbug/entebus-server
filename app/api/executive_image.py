@@ -15,7 +15,6 @@ from io import BytesIO
 from datetime import datetime
 
 from app.src.buckets import EXECUTIVE_IMAGES
-from app.src.constants import MAX_IMAGE_RESOLUTION, MIN_IMAGE_RESOLUTION
 from app.src import exceptions
 from app.src.enums import OrderIn
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, PictureFilter

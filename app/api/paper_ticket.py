@@ -77,7 +77,7 @@ class OrderBy(StrEnum):
 
 
 class QueryParamsForOP(PaginationFilter, IDFilter, CreatedOnFilter):
-    """Query parameters for listing paper tickets."""
+    """Query parameters for operators."""
 
     service_id: int | None = Field(Query(default=None))
     duty_id: int | None = Field(Query(default=None))
@@ -88,13 +88,13 @@ class QueryParamsForOP(PaginationFilter, IDFilter, CreatedOnFilter):
 
 
 class QueryParamsForEX(QueryParamsForOP):
-    """Query parameters for executives users."""
+    """Query parameters for executives."""
 
     company_id: int | None = Field(Query(default=None))
 
 
 class QueryParams(QueryParamsForEX):
-    """Generic query parameters."""
+    """Generic combined query parameters."""
 
     pass
 
