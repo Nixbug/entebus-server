@@ -184,7 +184,7 @@ class CreateForm(CreateFormForEX):
 
 class UpdateForm(BaseModel):
     """Form data for updating an existing service."""
-    
+
     name: str | None = Field(
         default=None, min_length=1, max_length=128, pattern=NAME_PATTERN
     )
@@ -455,7 +455,7 @@ def update_service(
     form_param: UpdateForm,
     vehicle: Vehicle | None,
     route: Route | None,
-    fare: Fare | None
+    fare: Fare | None,
 ) -> tuple[bool, dict]:
     """
     Updates an existing service record.
@@ -531,7 +531,12 @@ def update_service(
     fare_id = update_data.pop("fare_id", None)
     starting_at_input = update_data.pop("starting_at", None)
 
-    if vehicle_id is not None or route_id is not None or fare_id is not None or starting_at_input is not None:
+    if (
+        vehicle_id is not None
+        or route_id is not None
+        or fare_id is not None
+        or starting_at_input is not None
+    ):
         if service.status != ServiceStatus.CREATED:
             raise exceptions.DataInUse(Service)
 
@@ -544,7 +549,8 @@ def update_service(
                 starting_at_input = starting_at_input.astimezone(timezone.utc)
             utc_now = datetime.now(timezone.utc)
             if (
-                starting_at_input > (utc_now + timedelta(days=SERVICE_CREATION_LEAD_TIME_DAYS))
+                starting_at_input
+                > (utc_now + timedelta(days=SERVICE_CREATION_LEAD_TIME_DAYS))
                 or starting_at_input < utc_now
             ):
                 raise exceptions.InvalidValue(Service.starting_at)
@@ -651,7 +657,9 @@ def update_service(
             )
             first_landmark_in_route = landmarks_in_route[0]
             last_landmark_in_route = landmarks_in_route[-1]
-            ending_at = new_starting_at + timedelta(minutes=last_landmark_in_route.arrival_delta)
+            ending_at = new_starting_at + timedelta(
+                minutes=last_landmark_in_route.arrival_delta
+            )
 
             # 1. Delete old LandmarkInService entries
             old_landmarks_in_service = (
@@ -670,8 +678,10 @@ def update_service(
                         service_id=service.id,
                         landmark_id=landmark_in_route.landmark_id,
                         distance_from_start=landmark_in_route.distance_from_start,
-                        arrival_at=new_starting_at + timedelta(minutes=landmark_in_route.arrival_delta),
-                        departure_at=new_starting_at + timedelta(minutes=landmark_in_route.departure_delta),
+                        arrival_at=new_starting_at
+                        + timedelta(minutes=landmark_in_route.arrival_delta),
+                        departure_at=new_starting_at
+                        + timedelta(minutes=landmark_in_route.departure_delta),
                     )
                 )
             session.add_all(landmarks_in_service)
@@ -692,12 +702,20 @@ def update_service(
                 .all()
             )
             for landmark_in_service in landmarks_in_service:
-                landmark_in_service.arrival_at = landmark_in_service.arrival_at + time_change
-                landmark_in_service.departure_at = landmark_in_service.departure_at + time_change
+                landmark_in_service.arrival_at = (
+                    landmark_in_service.arrival_at + time_change
+                )
+                landmark_in_service.departure_at = (
+                    landmark_in_service.departure_at + time_change
+                )
             service.ending_at = service.ending_at + time_change
             service.starting_at = new_starting_at
 
-        if vehicle_id is not None or route_id is not None or starting_at_input is not None:
+        if (
+            vehicle_id is not None
+            or route_id is not None
+            or starting_at_input is not None
+        ):
             session.flush()
             overlapping_service = (
                 session.query(Service)
