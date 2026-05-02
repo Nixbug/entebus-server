@@ -104,7 +104,7 @@ class ServiceSchema(BaseModel):
     remark: str | None
     starting_at: datetime
     ending_at: datetime
-    updated_on: datetime | None
+    updated_on: datetime | None = None
     created_on: datetime
 
 
@@ -184,12 +184,19 @@ class CreateForm(CreateFormForEX):
 
 class UpdateForm(BaseModel):
     """Form data for updating an existing service."""
-
+    
+    name: str | None = Field(
+        default=None, min_length=1, max_length=128, pattern=NAME_PATTERN
+    )
     ticket_mode: TicketingMode = Field(
         default=None, description=enum_str(TicketingMode)
     )
     status: ServiceStatus = Field(default=None, description=enum_str(ServiceStatus))
     remark: str | None = Field(default=None, min_length=1, max_length=1024)
+    vehicle_id: int = Field(default=None)
+    route_id: int = Field(default=None)
+    fare_id: int = Field(default=None)
+    starting_at: datetime = Field(default=None)
 
 
 ## Query Parameters
@@ -443,7 +450,12 @@ def create_service(
 
 
 def update_service(
-    session: Session, service: Service, form_param: UpdateForm
+    session: Session,
+    service: Service,
+    form_param: UpdateForm,
+    vehicle: Vehicle | None,
+    route: Route | None,
+    fare: Fare | None
 ) -> tuple[bool, dict]:
     """
     Updates an existing service record.
@@ -458,6 +470,9 @@ def update_service(
         session (Session): SQLAlchemy database session.
         service (Service): Existing service to update.
         form_param (UpdateForm): Form data for updating the service.
+        vehicle (Vehicle | None): New vehicle if vehicle_id was provided.
+        route (Route | None): New route if route_id was provided.
+        fare (Fare | None): New fare if fare_id was provided.
 
     Returns:
         tuple[bool, dict]: (have_updates, service_data)
@@ -470,6 +485,7 @@ def update_service(
 
     update_data = form_param.model_dump(exclude_unset=True)
     duties = []
+    landmarks_in_service = []
 
     if "status" in update_data:
         new_status = update_data.pop("status")
@@ -510,9 +526,197 @@ def update_service(
 
             service.status = new_status
 
+    vehicle_id = update_data.pop("vehicle_id", None)
+    route_id = update_data.pop("route_id", None)
+    fare_id = update_data.pop("fare_id", None)
+    starting_at_input = update_data.pop("starting_at", None)
+
+    if vehicle_id is not None or route_id is not None or fare_id is not None or starting_at_input is not None:
+        if service.status != ServiceStatus.CREATED:
+            raise exceptions.DataInUse(Service)
+
+        # Validate and normalize starting_at
+        new_starting_at = service.starting_at
+        if starting_at_input is not None:
+            if starting_at_input.tzinfo is None:
+                starting_at_input = starting_at_input.replace(tzinfo=timezone.utc)
+            else:
+                starting_at_input = starting_at_input.astimezone(timezone.utc)
+            utc_now = datetime.now(timezone.utc)
+            if (
+                starting_at_input > (utc_now + timedelta(days=SERVICE_CREATION_LEAD_TIME_DAYS))
+                or starting_at_input < utc_now
+            ):
+                raise exceptions.InvalidValue(Service.starting_at)
+            new_starting_at = starting_at_input
+
+        if fare_id is not None:
+            # 1. Save old snapshot ID before any mutation
+            old_fare_in_service_id = service.fare_in_service_id
+
+            # 2. Find or create new snapshot and increment its reference count
+            fare_in_service = (
+                session.query(FareInService)
+                .filter(
+                    FareInService.fare_id == fare.id,
+                    FareInService.version == fare.version,
+                )
+                .first()
+            )
+            if fare_in_service:
+                fare_in_service.reference_count += 1
+            else:
+                fare_in_service = FareInService(
+                    fare_id=fare.id,
+                    version=fare.version,
+                    name=fare.name,
+                    attributes=fare.attributes,
+                    function=fare.function,
+                    reference_count=1,
+                )
+                session.add(fare_in_service)
+            session.flush()
+
+            # 3. Relink service to new snapshot
+            service.fare_in_service_id = fare_in_service.id
+            session.flush()
+
+            # 4. Decrement/delete old snapshot
+            old_fare_in_service = (
+                session.query(FareInService)
+                .filter(FareInService.id == old_fare_in_service_id)
+                .first()
+            )
+            if old_fare_in_service:
+                old_fare_in_service.reference_count -= 1
+                if old_fare_in_service.reference_count <= 0:
+                    session.delete(old_fare_in_service)
+                session.flush()
+
+        if vehicle_id is not None:
+            if vehicle.status != VehicleStatus.ACTIVE:
+                raise exceptions.InactiveResource(Vehicle)
+
+            # 1. Save old snapshot ID before any mutation
+            old_vehicle_in_service_id = service.vehicle_in_service_id
+
+            # 2. Find or create new snapshot and increment its reference count
+            vehicle_in_service = (
+                session.query(VehicleInService)
+                .filter(
+                    VehicleInService.vehicle_id == vehicle.id,
+                    VehicleInService.version == vehicle.version,
+                )
+                .first()
+            )
+            if vehicle_in_service:
+                vehicle_in_service.reference_count += 1
+            else:
+                vehicle_in_service = VehicleInService(
+                    vehicle_id=vehicle.id,
+                    version=vehicle.version,
+                    registration_number=vehicle.registration_number,
+                    name=vehicle.name,
+                    capacity=vehicle.capacity,
+                    reference_count=1,
+                )
+                session.add(vehicle_in_service)
+            session.flush()
+
+            # 3. Relink service to new snapshot
+            service.vehicle_in_service_id = vehicle_in_service.id
+            service.registration_number = vehicle.registration_number
+            session.flush()
+
+            # 4. Decrement/delete old snapshot
+            old_vehicle_in_service = (
+                session.query(VehicleInService)
+                .filter(VehicleInService.id == old_vehicle_in_service_id)
+                .first()
+            )
+            if old_vehicle_in_service:
+                old_vehicle_in_service.reference_count -= 1
+                if old_vehicle_in_service.reference_count <= 0:
+                    session.delete(old_vehicle_in_service)
+                session.flush()
+
+        if route_id is not None:
+            if route.status != RouteStatus.VALID:
+                raise exceptions.InactiveResource(Route)
+            landmarks_in_route = (
+                session.query(LandmarkInRoute)
+                .filter(LandmarkInRoute.route_id == route.id)
+                .order_by(LandmarkInRoute.distance_from_start.asc())
+                .all()
+            )
+            first_landmark_in_route = landmarks_in_route[0]
+            last_landmark_in_route = landmarks_in_route[-1]
+            ending_at = new_starting_at + timedelta(minutes=last_landmark_in_route.arrival_delta)
+
+            # 1. Delete old LandmarkInService entries
+            old_landmarks_in_service = (
+                session.query(LandmarkInService)
+                .filter(LandmarkInService.service_id == service.id)
+                .all()
+            )
+            for old_landmark in old_landmarks_in_service:
+                session.delete(old_landmark)
+            session.flush()
+
+            # 2. Insert new LandmarkInService entries
+            for landmark_in_route in landmarks_in_route:
+                landmarks_in_service.append(
+                    LandmarkInService(
+                        service_id=service.id,
+                        landmark_id=landmark_in_route.landmark_id,
+                        distance_from_start=landmark_in_route.distance_from_start,
+                        arrival_at=new_starting_at + timedelta(minutes=landmark_in_route.arrival_delta),
+                        departure_at=new_starting_at + timedelta(minutes=landmark_in_route.departure_delta),
+                    )
+                )
+            session.add_all(landmarks_in_service)
+            session.flush()
+
+            # 3. Update service timing and landmark anchors
+            service.starting_at = new_starting_at
+            service.ending_at = ending_at
+            service.starting_landmark_id = first_landmark_in_route.landmark_id
+            service.ending_landmark_id = last_landmark_in_route.landmark_id
+
+        elif starting_at_input is not None:
+            # Route unchanged — shift all existing landmark timestamps by the time delta
+            time_change = new_starting_at - service.starting_at
+            landmarks_in_service = (
+                session.query(LandmarkInService)
+                .filter(LandmarkInService.service_id == service.id)
+                .all()
+            )
+            for landmark_in_service in landmarks_in_service:
+                landmark_in_service.arrival_at = landmark_in_service.arrival_at + time_change
+                landmark_in_service.departure_at = landmark_in_service.departure_at + time_change
+            service.ending_at = service.ending_at + time_change
+            service.starting_at = new_starting_at
+
+        if vehicle_id is not None or route_id is not None or starting_at_input is not None:
+            session.flush()
+            overlapping_service = (
+                session.query(Service)
+                .filter(
+                    Service.id != service.id,
+                    Service.registration_number == service.registration_number,
+                    Service.starting_at < service.ending_at,
+                    Service.ending_at > service.starting_at,
+                )
+                .first()
+            )
+            if overlapping_service:
+                raise exceptions.OverlappingService()
+
     update_if_changed(service, update_data)
-    have_updates = session.is_modified(service) or any(
-        session.is_modified(duty) for duty in duties
+    have_updates = (
+        session.is_modified(service)
+        or any(session.is_modified(duty) for duty in duties)
+        or any(session.is_modified(lmk) for lmk in landmarks_in_service)
     )
     if have_updates:
         session.commit()
@@ -825,11 +1029,24 @@ async def create_service_executive(
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.UnknownValue(Service.id),
+            exceptions.UnknownValue("vehicle_id"),
+            exceptions.UnknownValue("route_id"),
+            exceptions.UnknownValue("fare_id"),
             exceptions.InvalidStateTransition(Service.status),
+            exceptions.InvalidAssociation(
+                VehicleInService.vehicle_id, Service.company_id
+            ),
+            exceptions.InvalidAssociation(LandmarkInRoute.route_id, Service.company_id),
+            exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id),
+            exceptions.InactiveResource(Vehicle),
+            exceptions.InactiveResource(Route),
+            exceptions.OverlappingService(),
+            exceptions.DataInUse(Service),
+            exceptions.InvalidValue(Service.starting_at),
         ]
     ),
     description=(
-        """
+        f"""
             **Updates an existing service.**    
             - Requires a valid access token.    
             - Logged in executive must have `company.service.update` permission.    
@@ -838,6 +1055,8 @@ async def create_service_executive(
                 - STARTED -> ENDED    
                 - ENDED -> STARTED    
             - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
+            - `vehicle_id`, `route_id`, `fare_id`, and `starting_at` can only be updated when service status is CREATED.    
+            - Service can only be updated within `{SERVICE_CREATION_LEAD_TIME_DAYS}` days before `starting_at`.    
             - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
@@ -855,8 +1074,37 @@ async def update_service_executive(
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_SERVICE)
 
         service = validate_id(session, Service, id, Service.id)
+
+        update_data = form_param.model_dump(exclude_unset=True)
+        vehicle = None
+        route = None
+        fare = None
+        if "vehicle_id" in update_data:
+            vehicle = validate_id(session, Vehicle, form_param.vehicle_id, "vehicle_id")
+            if vehicle.company_id != service.company_id:
+                raise exceptions.InvalidAssociation(
+                    VehicleInService.vehicle_id, Service.company_id
+                )
+        if "route_id" in update_data:
+            route = validate_id(session, Route, form_param.route_id, "route_id")
+            if route.company_id != service.company_id:
+                raise exceptions.InvalidAssociation(
+                    LandmarkInRoute.route_id, Service.company_id
+                )
+        if "fare_id" in update_data:
+            fare = validate_id(session, Fare, form_param.fare_id, "fare_id")
+            if fare.scope != FareScope.GLOBAL and fare.company_id != service.company_id:
+                raise exceptions.InvalidAssociation(
+                    FareInService.fare_id, Service.company_id
+                )
+
         have_updates, service_data = update_service(
-            session, service, UpdateForm(**form_param.model_dump(exclude_unset=True))
+            session,
+            service,
+            UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            vehicle=vehicle,
+            route=route,
+            fare=fare,
         )
 
         if have_updates:
@@ -1069,11 +1317,20 @@ async def create_service_operator(
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.UnknownValue(Service.id),
+            exceptions.UnknownValue("vehicle_id"),
+            exceptions.UnknownValue("route_id"),
+            exceptions.UnknownValue("fare_id"),
             exceptions.InvalidStateTransition(Service.status),
+            exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id),
+            exceptions.InactiveResource(Vehicle),
+            exceptions.InactiveResource(Route),
+            exceptions.OverlappingService(),
+            exceptions.DataInUse(Service),
+            exceptions.InvalidValue(Service.starting_at),
         ]
     ),
     description=(
-        """
+        f"""
             **Updates an existing service for a company.**    
             - Requires a valid access token.    
             - Logged in operator must have `company.service.update` permission.    
@@ -1082,6 +1339,8 @@ async def create_service_operator(
                 - STARTED -> ENDED    
                 - ENDED -> STARTED     
             - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
+            - `vehicle_id`, `route_id`, `fare_id`, and `starting_at` can only be updated when service status is CREATED.    
+            - Service can only be updated within `{SERVICE_CREATION_LEAD_TIME_DAYS}` days before `starting_at`.    
             - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
@@ -1105,8 +1364,41 @@ async def update_service_operator(
             Service.id,
             extra_filter=(Service.company_id == token.company_id),
         )
+
+        update_data = form_param.model_dump(exclude_unset=True)
+        vehicle = None
+        route = None
+        fare = None
+        if "vehicle_id" in update_data:
+            vehicle = validate_id(
+                session,
+                Vehicle,
+                form_param.vehicle_id,
+                "vehicle_id",
+                extra_filter=(Vehicle.company_id == token.company_id),
+            )
+        if "route_id" in update_data:
+            route = validate_id(
+                session,
+                Route,
+                form_param.route_id,
+                "route_id",
+                extra_filter=(Route.company_id == token.company_id),
+            )
+        if "fare_id" in update_data:
+            fare = validate_id(session, Fare, form_param.fare_id, "fare_id")
+            if fare.scope != FareScope.GLOBAL and fare.company_id != token.company_id:
+                raise exceptions.InvalidAssociation(
+                    FareInService.fare_id, Service.company_id
+                )
+
         have_updates, service_data = update_service(
-            session, service, UpdateForm(**form_param.model_dump(exclude_unset=True))
+            session,
+            service,
+            UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            vehicle=vehicle,
+            route=route,
+            fare=fare,
         )
 
         if have_updates:
