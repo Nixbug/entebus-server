@@ -557,94 +557,96 @@ def update_service(
             new_starting_at = starting_at_input
 
         if fare_id is not None:
-            # 1. Save old snapshot ID before any mutation
-            old_fare_in_service_id = service.fare_in_service_id
-
-            # 2. Find or create new snapshot and increment its reference count
-            fare_in_service = (
-                session.query(FareInService)
-                .filter(
-                    FareInService.fare_id == fare.id,
-                    FareInService.version == fare.version,
-                )
-                .first()
-            )
-            if fare_in_service:
-                fare_in_service.reference_count += 1
-            else:
-                fare_in_service = FareInService(
-                    fare_id=fare.id,
-                    version=fare.version,
-                    name=fare.name,
-                    attributes=fare.attributes,
-                    function=fare.function,
-                    reference_count=1,
-                )
-                session.add(fare_in_service)
-            session.flush()
-
-            # 3. Relink service to new snapshot
-            service.fare_in_service_id = fare_in_service.id
-            session.flush()
-
-            # 4. Decrement/delete old snapshot
             old_fare_in_service = (
                 session.query(FareInService)
-                .filter(FareInService.id == old_fare_in_service_id)
+                .filter(FareInService.id == service.fare_in_service_id)
                 .first()
             )
-            if old_fare_in_service:
-                old_fare_in_service.reference_count -= 1
-                if old_fare_in_service.reference_count <= 0:
-                    session.delete(old_fare_in_service)
+            if (
+                old_fare_in_service is None
+                or old_fare_in_service.fare_id != fare.id
+                or old_fare_in_service.version != fare.version
+            ):
+                old_fare_in_service_id = service.fare_in_service_id
+
+                fare_in_service = (
+                    session.query(FareInService)
+                    .filter(
+                        FareInService.fare_id == fare.id,
+                        FareInService.version == fare.version,
+                    )
+                    .first()
+                )
+                if fare_in_service:
+                    fare_in_service.reference_count += 1
+                else:
+                    fare_in_service = FareInService(
+                        fare_id=fare.id,
+                        version=fare.version,
+                        name=fare.name,
+                        attributes=fare.attributes,
+                        function=fare.function,
+                        reference_count=1,
+                    )
+                    session.add(fare_in_service)
                 session.flush()
+
+                service.fare_in_service_id = fare_in_service.id
+                session.flush()
+
+                if old_fare_in_service:
+                    old_fare_in_service.reference_count -= 1
+                    if old_fare_in_service.reference_count <= 0:
+                        session.delete(old_fare_in_service)
+                    session.flush()
 
         if vehicle_id is not None:
             if vehicle.status != VehicleStatus.ACTIVE:
                 raise exceptions.InactiveResource(Vehicle)
 
-            # 1. Save old snapshot ID before any mutation
-            old_vehicle_in_service_id = service.vehicle_in_service_id
-
-            # 2. Find or create new snapshot and increment its reference count
-            vehicle_in_service = (
-                session.query(VehicleInService)
-                .filter(
-                    VehicleInService.vehicle_id == vehicle.id,
-                    VehicleInService.version == vehicle.version,
-                )
-                .first()
-            )
-            if vehicle_in_service:
-                vehicle_in_service.reference_count += 1
-            else:
-                vehicle_in_service = VehicleInService(
-                    vehicle_id=vehicle.id,
-                    version=vehicle.version,
-                    registration_number=vehicle.registration_number,
-                    name=vehicle.name,
-                    capacity=vehicle.capacity,
-                    reference_count=1,
-                )
-                session.add(vehicle_in_service)
-            session.flush()
-
-            # 3. Relink service to new snapshot
-            service.vehicle_in_service_id = vehicle_in_service.id
-            service.registration_number = vehicle.registration_number
-            session.flush()
-
-            # 4. Decrement/delete old snapshot
             old_vehicle_in_service = (
                 session.query(VehicleInService)
-                .filter(VehicleInService.id == old_vehicle_in_service_id)
+                .filter(VehicleInService.id == service.vehicle_in_service_id)
                 .first()
             )
-            if old_vehicle_in_service:
-                old_vehicle_in_service.reference_count -= 1
-                if old_vehicle_in_service.reference_count <= 0:
-                    session.delete(old_vehicle_in_service)
+            if (
+                old_vehicle_in_service is None
+                or old_vehicle_in_service.vehicle_id != vehicle.id
+                or old_vehicle_in_service.version != vehicle.version
+            ):
+                old_vehicle_in_service_id = service.vehicle_in_service_id
+
+                vehicle_in_service = (
+                    session.query(VehicleInService)
+                    .filter(
+                        VehicleInService.vehicle_id == vehicle.id,
+                        VehicleInService.version == vehicle.version,
+                    )
+                    .first()
+                )
+                if vehicle_in_service:
+                    vehicle_in_service.reference_count += 1
+                else:
+                    vehicle_in_service = VehicleInService(
+                        vehicle_id=vehicle.id,
+                        version=vehicle.version,
+                        registration_number=vehicle.registration_number,
+                        name=vehicle.name,
+                        capacity=vehicle.capacity,
+                        reference_count=1,
+                    )
+                    session.add(vehicle_in_service)
                 session.flush()
+
+                service.vehicle_in_service_id = vehicle_in_service.id
+                service.registration_number = vehicle.registration_number
+                session.flush()
+
+                if old_vehicle_in_service:
+                    old_vehicle_in_service.reference_count -= 1
+                    if old_vehicle_in_service.reference_count <= 0:
+                        session.delete(old_vehicle_in_service)
+                    session.flush()
 
         if route_id is not None:
             if route.status != RouteStatus.VALID:
