@@ -540,7 +540,6 @@ def update_service(
         if service.status != ServiceStatus.CREATED:
             raise exceptions.DataInUse(Service)
 
-        # Validate and normalize starting_at
         new_starting_at = service.starting_at
         if starting_at_input is not None:
             if starting_at_input.tzinfo is None:
@@ -663,7 +662,6 @@ def update_service(
                 minutes=last_landmark_in_route.arrival_delta
             )
 
-            # 1. Delete old LandmarkInService entries
             old_landmarks_in_service = (
                 session.query(LandmarkInService)
                 .filter(LandmarkInService.service_id == service.id)
@@ -673,7 +671,6 @@ def update_service(
                 session.delete(old_landmark)
             session.flush()
 
-            # 2. Insert new LandmarkInService entries
             for landmark_in_route in landmarks_in_route:
                 landmarks_in_service.append(
                     LandmarkInService(
@@ -689,14 +686,12 @@ def update_service(
             session.add_all(landmarks_in_service)
             session.flush()
 
-            # 3. Update service timing and landmark anchors
             service.starting_at = new_starting_at
             service.ending_at = ending_at
             service.starting_landmark_id = first_landmark_in_route.landmark_id
             service.ending_landmark_id = last_landmark_in_route.landmark_id
 
         elif starting_at_input is not None:
-            # Route unchanged — shift all existing landmark timestamps by the time delta
             time_change = new_starting_at - service.starting_at
             landmarks_in_service = (
                 session.query(LandmarkInService)
