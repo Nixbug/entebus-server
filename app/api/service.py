@@ -9,7 +9,7 @@ input validation and structured output.
 from datetime import datetime, timezone
 from enum import StrEnum
 from fastapi.encoders import jsonable_encoder
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Sequence
 from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel, Field
 from datetime import timedelta
@@ -54,7 +54,6 @@ from app.src.functions import (
     update_if_changed,
 )
 from app.src.validators import (
-    create_landmarks_in_service,
     delete_fare_in_service,
     delete_vehicle_in_service,
     validate_id,
@@ -269,6 +268,28 @@ class ServiceQueryParams(BaseModel):
 
 
 # Functions
+def create_landmarks_in_service(
+    service_id: int,
+    landmarks_in_route: Sequence[LandmarkInRoute],
+    starting_at: datetime,
+) -> list[LandmarkInService]:
+    """Build landmark snapshot rows for a service based on route timing deltas."""
+    landmarks_in_service = []
+    for landmark_in_route in landmarks_in_route:
+        landmarks_in_service.append(
+            LandmarkInService(
+                service_id=service_id,
+                landmark_id=landmark_in_route.landmark_id,
+                distance_from_start=landmark_in_route.distance_from_start,
+                arrival_at=starting_at
+                + timedelta(minutes=landmark_in_route.arrival_delta),
+                departure_at=starting_at
+                + timedelta(minutes=landmark_in_route.departure_delta),
+            )
+        )
+    return landmarks_in_service
+
+
 def create_service(
     session: Session,
     route: Route,

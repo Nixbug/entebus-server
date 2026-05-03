@@ -458,38 +458,6 @@ def validate_state_transition(
     return True
 
 
-def create_landmarks_in_service(
-    service_id: int,
-    landmarks_in_route: Sequence[LandmarkInRoute],
-    starting_at: datetime,
-) -> list[LandmarkInService]:
-    """
-    Create LandmarkInService snapshot rows from route landmarks.
-
-    Args:
-        service_id (int): The ID of the service for which to create landmarks.
-        landmarks_in_route (Sequence[LandmarkInRoute]): The ordered list of landmarks in the route.
-        starting_at (datetime): The starting time of the service, used to calculate arrival and departure times.
-
-    Returns:
-        list[LandmarkInService]: A list of LandmarkInService instances representing the landmarks for the service, with calculated arrival and departure times.
-    """
-    landmarks_in_service = []
-    for landmark_in_route in landmarks_in_route:
-        landmarks_in_service.append(
-            LandmarkInService(
-                service_id=service_id,
-                landmark_id=landmark_in_route.landmark_id,
-                distance_from_start=landmark_in_route.distance_from_start,
-                arrival_at=starting_at
-                + timedelta(minutes=landmark_in_route.arrival_delta),
-                departure_at=starting_at
-                + timedelta(minutes=landmark_in_route.departure_delta),
-            )
-        )
-    return landmarks_in_service
-
-
 def delete_fare_in_service(
     session: Session,
     fare_in_service_id: int,
