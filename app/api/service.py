@@ -302,7 +302,7 @@ def validate_service_timing(
     starting_at: datetime,
     ending_at: datetime,
     registration_number: str,
-    exclude_id: int | None = None,
+    exclude_service_id: int | None = None,
 ) -> None:
     """
     Validates that there are no overlapping services for the same vehicle registration number.
@@ -322,8 +322,8 @@ def validate_service_timing(
         Service.starting_at < ending_at,
         Service.ending_at > starting_at,
     )
-    if exclude_id is not None:
-        query = query.filter(Service.id != exclude_id)
+    if exclude_service_id is not None:
+        query = query.filter(Service.id != exclude_service_id)
     if query.first():
         raise exceptions.OverlappingService()
 
@@ -583,7 +583,7 @@ def update_service(
     if have_critical_change and service.status != ServiceStatus.CREATED:
         raise exceptions.DataInUse(Service)
 
-    new_starting_at = service.starting_at
+    final_starting_at = service.starting_at
     if starting_at is not None or route_id is not None:
         if starting_at is not None:
             if starting_at.tzinfo is None:
@@ -597,7 +597,7 @@ def update_service(
                 or starting_at < utc_now
             ):
                 raise exceptions.InvalidValue(Service.starting_at)
-            new_starting_at = starting_at
+            final_starting_at = starting_at
 
     if have_critical_change:
         if fare_id is not None:
@@ -697,7 +697,7 @@ def update_service(
             )
             first_landmark_in_route = landmarks_in_route[0]
             last_landmark_in_route = landmarks_in_route[-1]
-            ending_at = new_starting_at + timedelta(
+            ending_at = final_starting_at + timedelta(
                 minutes=last_landmark_in_route.arrival_delta
             )
 
@@ -707,19 +707,19 @@ def update_service(
             session.flush()
 
             landmarks_in_service = create_landmarks_in_service(
-                service.id, landmarks_in_route, new_starting_at
+                service.id, landmarks_in_route, final_starting_at
             )
             session.add_all(landmarks_in_service)
             session.flush()
 
-            service.starting_at = new_starting_at
+            service.starting_at = final_starting_at
             service.ending_at = ending_at
             service.starting_landmark_id = first_landmark_in_route.landmark_id
             service.ending_landmark_id = last_landmark_in_route.landmark_id
             critical_updated = True
 
         elif starting_at is not None:
-            time_change = new_starting_at - service.starting_at
+            time_change = final_starting_at - service.starting_at
             landmarks_in_service = (
                 session.query(LandmarkInService)
                 .filter(LandmarkInService.service_id == service.id)
@@ -733,7 +733,7 @@ def update_service(
                     landmark_in_service.departure_at + time_change
                 )
             service.ending_at = service.ending_at + time_change
-            service.starting_at = new_starting_at
+            service.starting_at = final_starting_at
             critical_updated = True
 
         if vehicle_id is not None or route_id is not None or starting_at is not None:
@@ -743,7 +743,7 @@ def update_service(
                 service.starting_at,
                 service.ending_at,
                 service.registration_number,
-                exclude_id=service.id,
+                exclude_service_id=service.id,
             )
 
     update_if_changed(service, update_data)
