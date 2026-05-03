@@ -54,10 +54,7 @@ from app.src.functions import (
     update_if_changed,
 )
 from app.src.validators import (
-    delete_fare_in_service,
-    delete_vehicle_in_service,
     validate_id,
-    validate_service_timing,
     validate_state_transition,
     verify_token,
     verify_permission,
@@ -273,7 +270,17 @@ def create_landmarks_in_service(
     landmarks_in_route: Sequence[LandmarkInRoute],
     starting_at: datetime,
 ) -> list[LandmarkInService]:
-    """Build landmark snapshot rows for a service based on route timing deltas."""
+    """
+    Create landmark snapshot rows for a service based on route timing deltas.
+
+    Args:
+        service_id (int): The ID of the service.
+        landmarks_in_route (Sequence[LandmarkInRoute]): The landmarks in the route.
+        starting_at (datetime): The starting time of the service.
+
+    Returns:
+        list[LandmarkInService]: The list of landmarks in the service.
+    """
     landmarks_in_service = []
     for landmark_in_route in landmarks_in_route:
         landmarks_in_service.append(
@@ -289,6 +296,37 @@ def create_landmarks_in_service(
         )
     return landmarks_in_service
 
+
+def validate_service_timing(
+    session: Session,
+    starting_at: datetime,
+    ending_at: datetime,
+    registration_number: str,
+    exclude_id: int | None = None,
+) -> None:
+    """
+    Validates that there are no overlapping services for the same vehicle registration number.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        starting_at (datetime): Proposed starting time of the service.
+        ending_at (datetime): Proposed ending time of the service.
+        registration_number (str): Vehicle registration number to check for overlaps.
+        exclude_id (int | None): Optional service ID to exclude from the check (useful when updating a service).
+
+    Raises:
+        exceptions.OverlappingService: If there is an overlapping service with the same vehicle registration number.
+    """
+    query = session.query(Service).filter(
+        Service.registration_number == registration_number,
+        Service.starting_at < ending_at,
+        Service.ending_at > starting_at,
+    )
+    if exclude_id is not None:
+        query = query.filter(Service.id != exclude_id)
+    if query.first():
+        raise exceptions.OverlappingService()
+    
 
 def create_service(
     session: Session,
@@ -709,10 +747,13 @@ def update_service(
 
     update_if_changed(service, update_data)
     have_updates = (
-        have_critical_change or
-        session.is_modified(service)
+        have_critical_change
+        or session.is_modified(service)
         or any(session.is_modified(duty) for duty in duties)
-        or any(session.is_modified(landmark_in_service) for landmark_in_service in landmarks_in_service)
+        or any(
+            session.is_modified(landmark_in_service)
+            for landmark_in_service in landmarks_in_service
+        )
     )
     if have_updates:
         session.commit()
@@ -878,6 +919,52 @@ def fetch_service_details(session: Session, service: Service) -> Dict[str, Any]:
         "fare": fare_in_service_data,
         "vehicle": vehicle_in_service_data,
     }
+
+
+def delete_fare_in_service(
+    session: Session,
+    fare_in_service_id: int,
+) -> None:
+    """
+    Decrements the reference count of a FareInService and deletes it if the count reaches zero.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        fare_in_service_id (int): The ID of the FareInService to potentially delete.
+    """
+    fare_in_service = (
+        session.query(FareInService)
+        .filter(FareInService.id == fare_in_service_id)
+        .first()
+    )
+    if fare_in_service:
+        fare_in_service.reference_count -= 1
+        if fare_in_service.reference_count == 0:
+            session.delete(fare_in_service)
+        session.flush()
+
+
+def delete_vehicle_in_service(
+    session: Session,
+    vehicle_in_service_id: int,
+) -> None:
+    """
+    Decrements the reference count of a VehicleInService and deletes it if the count reaches zero.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        vehicle_in_service_id (int): The ID of the VehicleInService to potentially delete.
+    """
+    vehicle_in_service = (
+        session.query(VehicleInService)
+        .filter(VehicleInService.id == vehicle_in_service_id)
+        .first()
+    )
+    if vehicle_in_service:
+        vehicle_in_service.reference_count -= 1
+        if vehicle_in_service.reference_count == 0:
+            session.delete(vehicle_in_service)
+        session.flush()
 
 
 def delete_service(session: Session, service: Service) -> dict:
