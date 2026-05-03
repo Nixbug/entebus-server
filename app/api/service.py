@@ -332,7 +332,9 @@ def create_service(
     ending_at = starting_at + timedelta(minutes=last_landmark_in_route.arrival_delta)
 
     # Prevent assigning the same vehicle to overlapping services (any company)
-    validate_service_timing(session, starting_at, ending_at, vehicle.registration_number)
+    validate_service_timing(
+        session, starting_at, ending_at, vehicle.registration_number
+    )
 
     # Use provided name if present, otherwise create service name for display
     if form_param.name is not None:
@@ -674,11 +676,7 @@ def update_service(
             service.ending_at = service.ending_at + time_change
             service.starting_at = new_starting_at
 
-        if (
-            vehicle_id is not None
-            or route_id is not None
-            or starting_at is not None
-        ):
+        if vehicle_id is not None or route_id is not None or starting_at is not None:
             session.flush()
             validate_service_timing(
                 session,
