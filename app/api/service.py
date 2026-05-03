@@ -326,7 +326,7 @@ def validate_service_timing(
         query = query.filter(Service.id != exclude_id)
     if query.first():
         raise exceptions.OverlappingService()
-    
+
 
 def create_service(
     session: Session,
