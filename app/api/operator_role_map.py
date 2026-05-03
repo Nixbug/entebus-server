@@ -69,7 +69,7 @@ class CreateForm(BaseModel):
 class UpdateForm(BaseModel):
     """Form data for updating an operator role mapping."""
 
-    role_id: int | None = Field(default=None)
+    role_id: int = Field(default=None)
 
 
 # Query Parameters

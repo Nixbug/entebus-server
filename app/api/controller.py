@@ -3,7 +3,7 @@ FastAPI application instances for different user domains.
 
 This module creates separate FastAPI apps for each type of user domain
 (executive, vendor, operator, public) and tags each app with a corresponding
-AppID for contextual request handling.It also includes routers for each app.
+AppID for contextual request handling. It also includes routers for each app.
 """
 
 from fastapi import FastAPI
@@ -12,6 +12,7 @@ from app.api import (
     business,
     bus_stop,
     company,
+    duty,
     executive_account,
     executive_image,
     executive_role_map,
@@ -24,8 +25,10 @@ from app.api import (
     operator_role,
     operator_role_map,
     operator_token,
+    paper_ticket,
     route,
     service,
+    service_assignment,
     vehicle,
     vehicle_image,
     vendor_account,
@@ -76,7 +79,10 @@ app_executive.include_router(vehicle_image.route_executive)
 app_executive.include_router(route.route_executive)
 app_executive.include_router(landmark_in_route.route_executive)
 app_executive.include_router(fare.route_executive)
+app_executive.include_router(duty.route_executive)
+app_executive.include_router(service_assignment.route_executive)
 app_executive.include_router(service.route_executive)
+app_executive.include_router(paper_ticket.route_executive)
 
 
 # ------------------------------------------------------
@@ -92,6 +98,7 @@ app_vendor.include_router(vehicle.route_vendor)
 app_vendor.include_router(route.route_vendor)
 app_vendor.include_router(landmark_in_route.route_vendor)
 app_vendor.include_router(fare.route_vendor)
+app_vendor.include_router(service.route_vendor)
 
 
 # ------------------------------------------------------
@@ -110,7 +117,10 @@ app_operator.include_router(vehicle_image.route_operator)
 app_operator.include_router(route.route_operator)
 app_operator.include_router(landmark_in_route.route_operator)
 app_operator.include_router(fare.route_operator)
+app_operator.include_router(duty.route_operator)
+app_operator.include_router(service_assignment.route_operator)
 app_operator.include_router(service.route_operator)
+app_operator.include_router(paper_ticket.route_operator)
 
 
 # ------------------------------------------------------
@@ -124,3 +134,4 @@ app_public.include_router(vehicle.route_public)
 app_public.include_router(vehicle_image.route_public)
 app_public.include_router(route.route_public)
 app_public.include_router(landmark_in_route.route_public)
+app_public.include_router(service.route_public)

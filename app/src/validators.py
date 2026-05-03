@@ -407,14 +407,14 @@ def validate_fare_function(function: str, attributes: dict) -> DynamicFare:
     if df_version != DYNAMIC_FARE_VERSION:
         raise exceptions.InvalidFareVersion()
 
-    extra = attributes.get("extra", {})
+    extras = attributes.get("extras", {})
     ticket_types = attributes.get("ticket_types", [])
 
     fare_function = DynamicFare(function)
 
     for ticket_type in ticket_types:
         name = ticket_type.get("name")
-        result = fare_function.evaluate(name, 1, extra)
+        result = fare_function.evaluate(name, 1, extras)
         if (
             not isinstance(result, (int, float))
             or isinstance(result, bool)

@@ -160,11 +160,9 @@ class ServiceStatus(IntEnum):
 class DutyStatus(IntEnum):
     """Lifecycle states of a duty."""
 
-    ASSIGNED = 1
-    STARTED = 2
-    TERMINATED = 3
-    ENDED = 4
-    NOT_USED = 5
+    STARTED = 1
+    ENDED = 2
+    AUDITED = 3
 
 
 class RouteStatus(IntEnum):

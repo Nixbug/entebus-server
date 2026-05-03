@@ -597,7 +597,7 @@ async def fetch_operator_image_for_operator(
         [exceptions.InvalidToken(), exceptions.UnknownValue(OperatorImage.id)]
     ),
     description=(
-        """ 
+        """
             **Download operator profile picture in original or resized resolution.**    
             - Requires a valid access token for authentication.    
         """

@@ -37,7 +37,6 @@ from app.src.functions import (
     apply_updated_on_filters,
 )
 
-
 route_executive = APIRouter()
 
 
@@ -63,7 +62,7 @@ class CreateForm(BaseModel):
 class UpdateForm(BaseModel):
     """Form data for updating an executive role mapping."""
 
-    role_id: int | None = Field(default=None)
+    role_id: int = Field(default=None)
 
 
 # Query Parameters

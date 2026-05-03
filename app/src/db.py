@@ -62,6 +62,7 @@ from app.src.enums import (
     FareScope,
     ServiceStatus,
     TicketingMode,
+    DutyStatus,
 )
 
 
@@ -2181,6 +2182,66 @@ class Service(ORMbase):
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
 
 
+class ServiceAssignment(ORMbase):
+    """
+    Represents an assignment of a service to an operator.
+
+    This table links a service to an operator account and allows the same operator
+    to be assigned to different services. It supports CRUD operations from
+    executive and operator applications.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the assignment record.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id` that operates the service.
+            Cascades on delete — if the company is removed, related assignments are deleted.
+
+        service_id (Integer, not null):
+            Foreign key referencing `service.id`.
+            Identifies the service assigned to an operator.
+            Cascades on delete — if the service is removed, related assignments are deleted.
+
+        operator_id (Integer, not null):
+            Foreign key referencing `operator.id`.
+            Identifies the operator assigned to the service.
+            Cascades on delete — if the operator is removed, related assignments are deleted.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the assignment is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the assignment record was created.
+    """
+
+    __tablename__ = "service_assignment"
+    __table_args__ = (UniqueConstraint("service_id", "operator_id"),)
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    service_id = Column(
+        Integer,
+        ForeignKey("service.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    operator_id = Column(
+        Integer,
+        ForeignKey("operator.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
 class FareInService(ORMbase):
     """
     Represents a snapshot of fare data associated with a service.
@@ -2263,10 +2324,10 @@ class LandmarkInService(ORMbase):
         distance_from_start (Integer, not null):
             Distance in meters from the starting landmark of the route.
 
-        arrival_at (Time, not null):
+        arrival_at (DateTime, not null):
             Scheduled arrival time at the landmark for the service.
 
-        departure_at (Time, not null):
+        departure_at (DateTime, not null):
             Scheduled departure time from the landmark for the service.
 
     Metadata:
@@ -2288,8 +2349,8 @@ class LandmarkInService(ORMbase):
     )
     landmark_id = Column(Integer, nullable=False, index=True)
     distance_from_start = Column(Integer, nullable=False)
-    arrival_at = Column(Time(timezone=True), nullable=False)
-    departure_at = Column(Time(timezone=True), nullable=False)
+    arrival_at = Column(DateTime(timezone=True), nullable=False)
+    departure_at = Column(DateTime(timezone=True), nullable=False)
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
@@ -2347,8 +2408,138 @@ class VehicleInService(ORMbase):
     registration_number = Column(String(16), nullable=False)
     name = Column(String(32), nullable=False)
     capacity = Column(Integer, nullable=False)
-
     # Metadata
     reference_count = Column(Integer, nullable=False, default=1)
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class Duty(ORMbase):
+    """
+    Represents a duty assignment where an operator is assigned to a service under a specific company.
+
+    This table tracks operator responsibilities and service execution over time, capturing key
+    lifecycle events like assignment, start, and completion. It is essential for scheduling,
+    monitoring, and auditing operator activities.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the duty record.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id`.
+            Indicates the company under which this duty is assigned.
+            Cascades on delete — if the company is removed, related duties are deleted.
+
+        operator_id (Integer, nullable):
+            Foreign key referencing `operator.id`.
+            Identifies the operator assigned to this duty.
+            Sets to NULL on delete — if the operator is removed, the duty remains but the operator reference is cleared.
+
+        service_id (Integer, not null):
+            Foreign key referencing `service.id`.
+            Indicates the service the operator is assigned to perform.
+            Cascades on delete — if the service is removed, related duties are deleted.
+
+        status (Integer, not null, default=DutyStatus.STARTED):
+            Current lifecycle status of the duty. Mapped from the `DutyStatus` enum.
+
+        started_on (DateTime, nullable):
+            The time at which the operator prints the first ticket against the duty.
+
+        finished_on (DateTime, nullable):
+            The time of the day when the operator ends the duty.
+
+        collection (Numeric, nullable):
+            Total collection amount by an operator against a service.
+            Precise up to two decimal places.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the duty record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the duty was created.
+    """
+
+    __tablename__ = "duty"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    operator_id = Column(
+        Integer, ForeignKey("operator.id", ondelete="SET NULL"), index=True
+    )
+    service_id = Column(
+        Integer,
+        ForeignKey("service.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    status = Column(Integer, nullable=False, default=DutyStatus.STARTED)
+    started_on = Column(DateTime(timezone=True))
+    finished_on = Column(DateTime(timezone=True))
+    collection = Column(Numeric(10, 2))
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class PaperTicket(ORMbase):
+    """
+    Represents a manually issued paper ticket for a particular service and duty.
+
+    This table stores the details of each paper ticket issued during service execution,
+    helping to track passenger journey, fare collection, and routing information.
+    It is essential for auditing, ticket validation, and historical record-keeping
+    for operations involving manual ticketing systems.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the paper ticket.
+
+        service_id (Integer, not null):
+            Foreign key referencing `service.id`.
+            Identifies the service associated with this ticket.
+            Cascades on delete — if the service is removed, related tickets are deleted.
+
+        duty_id (Integer, not null):
+            Foreign key referencing `duty.id`.
+            Indicates the specific duty under which the ticket was issued.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id`.
+            Indicates the company under which the ticket was issued.
+
+        ticket (JSONB, not null):
+            Structured data capturing the full ticket content including ticket types,
+            pickup_point, dropping_point, and any additional metadata.
+            It is closely bound to `ticket_type` in fare attributes.
+
+        amount (Numeric(10, 2), not null):
+            Total fare amount collected for this ticket.
+            Precise up to two decimal places.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the ticket was created.
+    """
+
+    __tablename__ = "paper_ticket"
+
+    id = Column(Integer, primary_key=True)
+    service_id = Column(
+        Integer,
+        ForeignKey("service.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    duty_id = Column(Integer, ForeignKey("duty.id"), nullable=False, index=True)
+    company_id = Column(Integer, ForeignKey("company.id"), nullable=False, index=True)
+    # Ticket content
+    ticket = Column(JSONB, nullable=False)
+    amount = Column(Numeric(10, 2), nullable=False)
+    # Metadata
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
