@@ -709,9 +709,10 @@ def update_service(
 
     update_if_changed(service, update_data)
     have_updates = (
+        have_critical_change or
         session.is_modified(service)
         or any(session.is_modified(duty) for duty in duties)
-        or any(session.is_modified(lmk) for lmk in landmarks_in_service)
+        or any(session.is_modified(landmark_in_service) for landmark_in_service in landmarks_in_service)
     )
     if have_updates:
         session.commit()
