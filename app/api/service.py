@@ -1120,7 +1120,7 @@ async def create_service_executive(
                 - ENDED -> STARTED    
             - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
             - `vehicle_id`, `route_id`, `fare_id`, and `starting_at` can only be updated when service status is CREATED.    
-            - Service can only be updated within `{SERVICE_CREATION_LEAD_TIME_DAYS}` days before `starting_at`.    
+            - `starting_at` can only be updated within `{SERVICE_CREATION_LEAD_TIME_DAYS}` days before the service's current `starting_at`.    
             - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
@@ -1404,7 +1404,7 @@ async def create_service_operator(
                 - ENDED -> STARTED     
             - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
             - `vehicle_id`, `route_id`, `fare_id`, and `starting_at` can only be updated when service status is CREATED.    
-            - Service can only be updated within `{SERVICE_CREATION_LEAD_TIME_DAYS}` days before `starting_at`.    
+            - `starting_at` can only be updated within `{SERVICE_CREATION_LEAD_TIME_DAYS}` days before the service's current `starting_at`.    
             - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
