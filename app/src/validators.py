@@ -6,7 +6,7 @@ making it easier for developers to integrate them into their projects.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Type, Union
+from typing import Any, Sequence, Type, Union
 from dns.enum import IntEnum
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import InstrumentedAttribute
@@ -30,7 +30,11 @@ from app.src.db import (
     VendorRole,
     Company,
     Business,
+    FareInService,
+    VehicleInService,
+    LandmarkInService,
     LandmarkInRoute,
+    Service,
 )
 from app.src.constants import DYNAMIC_FARE_VERSION, MIN_LANDMARK_IN_ROUTE
 from app.src.dynamic_fare.v1 import DynamicFare
@@ -452,3 +456,111 @@ def validate_state_transition(
     if not is_valid_transition(transitions, old_state, new_state):
         raise exceptions.InvalidStateTransition(column)
     return True
+
+
+def create_landmarks_in_service(
+    service_id: int,
+    landmarks_in_route: Sequence[LandmarkInRoute],
+    starting_at: datetime,
+) -> list[LandmarkInService]:
+    """
+    Create LandmarkInService snapshot rows from route landmarks.
+
+    Args:
+        service_id (int): The ID of the service for which to create landmarks.
+        landmarks_in_route (Sequence[LandmarkInRoute]): The ordered list of landmarks in the route.
+        starting_at (datetime): The starting time of the service, used to calculate arrival and departure times.
+
+    Returns:
+        list[LandmarkInService]: A list of LandmarkInService instances representing the landmarks for the service, with calculated arrival and departure times.
+    """
+    landmarks_in_service = []
+    for landmark_in_route in landmarks_in_route:
+        landmarks_in_service.append(
+            LandmarkInService(
+                service_id=service_id,
+                landmark_id=landmark_in_route.landmark_id,
+                distance_from_start=landmark_in_route.distance_from_start,
+                arrival_at=starting_at
+                + timedelta(minutes=landmark_in_route.arrival_delta),
+                departure_at=starting_at
+                + timedelta(minutes=landmark_in_route.departure_delta),
+            )
+        )
+    return landmarks_in_service
+
+
+def delete_fare_in_service(
+    session: Session,
+    fare_in_service_id: int,
+) -> None:
+    """
+    Decrement FareInService reference_count and delete if it reaches 0.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        fare_in_service_id (int): The ID of the FareInService record to update/delete.
+    """
+    fare_in_service = (
+        session.query(FareInService)
+        .filter(FareInService.id == fare_in_service_id)
+        .first()
+    )
+    if fare_in_service:
+        fare_in_service.reference_count -= 1
+        if fare_in_service.reference_count == 0:
+            session.delete(fare_in_service)
+        session.flush()
+
+
+def delete_vehicle_in_service(
+    session: Session,
+    vehicle_in_service_id: int,
+) -> None:
+    """
+    Decrement VehicleInService reference_count and delete if it reaches 0.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        vehicle_in_service_id (int): The ID of the VehicleInService record to update/delete.
+    """
+    vehicle_in_service = (
+        session.query(VehicleInService)
+        .filter(VehicleInService.id == vehicle_in_service_id)
+        .first()
+    )
+    if vehicle_in_service:
+        vehicle_in_service.reference_count -= 1
+        if vehicle_in_service.reference_count == 0:
+            session.delete(vehicle_in_service)
+        session.flush()
+
+
+def validate_service_timing(
+    session: Session,
+    starting_at: datetime,
+    ending_at: datetime,
+    registration_number: str,
+    exclude_id: int | None = None,
+) -> None:
+    """
+    Raise OverlappingService if another service with the same vehicle overlaps the given time window.
+    Args:
+        session (Session): Active SQLAlchemy session.
+        starting_at (datetime): Proposed service start time.
+        ending_at (datetime): Proposed service end time.
+        registration_number (str): Vehicle registration number to check for overlaps.
+        exclude_id (int | None): Optional service ID to exclude from the check (useful when updating an existing service).
+
+    Raises:
+        exceptions.OverlappingService: If an overlapping service is found for the same vehicle.
+    """
+    query = session.query(Service).filter(
+        Service.registration_number == registration_number,
+        Service.starting_at < ending_at,
+        Service.ending_at > starting_at,
+    )
+    if exclude_id is not None:
+        query = query.filter(Service.id != exclude_id)
+    if query.first():
+        raise exceptions.OverlappingService()

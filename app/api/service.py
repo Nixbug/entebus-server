@@ -54,7 +54,11 @@ from app.src.functions import (
     update_if_changed,
 )
 from app.src.validators import (
+    create_landmarks_in_service,
+    delete_fare_in_service,
+    delete_vehicle_in_service,
     validate_id,
+    validate_service_timing,
     validate_state_transition,
     verify_token,
     verify_permission,
@@ -328,17 +332,7 @@ def create_service(
     ending_at = starting_at + timedelta(minutes=last_landmark_in_route.arrival_delta)
 
     # Prevent assigning the same vehicle to overlapping services (any company)
-    overlapping_service = (
-        session.query(Service)
-        .filter(
-            Service.registration_number == vehicle.registration_number,
-            Service.starting_at < ending_at,
-            Service.ending_at > starting_at,
-        )
-        .first()
-    )
-    if overlapping_service:
-        raise exceptions.OverlappingService()
+    validate_service_timing(session, starting_at, ending_at, vehicle.registration_number)
 
     # Use provided name if present, otherwise create service name for display
     if form_param.name is not None:
@@ -425,22 +419,9 @@ def create_service(
     session.add(service)
     session.flush()
 
-    # Create LandmarkInService entries for this service (snapshot timings)
-    landmarks_in_service = []
-    for landmark_in_route in landmarks_in_route:
-        arrival_at = starting_at + timedelta(minutes=landmark_in_route.arrival_delta)
-        departure_at = starting_at + timedelta(
-            minutes=landmark_in_route.departure_delta
-        )
-
-        landmark_in_service = LandmarkInService(
-            service_id=service.id,
-            landmark_id=landmark_in_route.landmark_id,
-            distance_from_start=landmark_in_route.distance_from_start,
-            arrival_at=arrival_at,
-            departure_at=departure_at,
-        )
-        landmarks_in_service.append(landmark_in_service)
+    landmarks_in_service = create_landmarks_in_service(
+        service.id, landmarks_in_route, starting_at
+    )
     session.add_all(landmarks_in_service)
 
     session.commit()
@@ -529,32 +510,34 @@ def update_service(
     vehicle_id = update_data.pop("vehicle_id", None)
     route_id = update_data.pop("route_id", None)
     fare_id = update_data.pop("fare_id", None)
-    starting_at_input = update_data.pop("starting_at", None)
-
-    if (
+    starting_at = update_data.pop("starting_at", None)
+    have_critical_change = (
         vehicle_id is not None
         or route_id is not None
         or fare_id is not None
-        or starting_at_input is not None
-    ):
-        if service.status != ServiceStatus.CREATED:
-            raise exceptions.DataInUse(Service)
+        or starting_at is not None
+    )
 
-        new_starting_at = service.starting_at
-        if starting_at_input is not None:
-            if starting_at_input.tzinfo is None:
-                starting_at_input = starting_at_input.replace(tzinfo=timezone.utc)
+    if have_critical_change and service.status != ServiceStatus.CREATED:
+        raise exceptions.DataInUse(Service)
+
+    new_starting_at = service.starting_at
+    if starting_at is not None or route_id is not None:
+        if starting_at is not None:
+            if starting_at.tzinfo is None:
+                starting_at = starting_at.replace(tzinfo=timezone.utc)
             else:
-                starting_at_input = starting_at_input.astimezone(timezone.utc)
+                starting_at = starting_at.astimezone(timezone.utc)
             utc_now = datetime.now(timezone.utc)
             if (
-                starting_at_input
+                starting_at
                 > (utc_now + timedelta(days=SERVICE_CREATION_LEAD_TIME_DAYS))
-                or starting_at_input < utc_now
+                or starting_at < utc_now
             ):
                 raise exceptions.InvalidValue(Service.starting_at)
-            new_starting_at = starting_at_input
+            new_starting_at = starting_at
 
+    if have_critical_change:
         if fare_id is not None:
             old_fare_in_service = (
                 session.query(FareInService)
@@ -593,11 +576,7 @@ def update_service(
                 service.fare_in_service_id = fare_in_service.id
                 session.flush()
 
-                if old_fare_in_service:
-                    old_fare_in_service.reference_count -= 1
-                    if old_fare_in_service.reference_count <= 0:
-                        session.delete(old_fare_in_service)
-                    session.flush()
+                delete_fare_in_service(session, old_fare_in_service_id)
 
         if vehicle_id is not None:
             if vehicle.status != VehicleStatus.ACTIVE:
@@ -641,11 +620,7 @@ def update_service(
                 service.registration_number = vehicle.registration_number
                 session.flush()
 
-                if old_vehicle_in_service:
-                    old_vehicle_in_service.reference_count -= 1
-                    if old_vehicle_in_service.reference_count <= 0:
-                        session.delete(old_vehicle_in_service)
-                    session.flush()
+                delete_vehicle_in_service(session, old_vehicle_in_service_id)
 
         if route_id is not None:
             if route.status != RouteStatus.VALID:
@@ -671,18 +646,9 @@ def update_service(
                 session.delete(old_landmark)
             session.flush()
 
-            for landmark_in_route in landmarks_in_route:
-                landmarks_in_service.append(
-                    LandmarkInService(
-                        service_id=service.id,
-                        landmark_id=landmark_in_route.landmark_id,
-                        distance_from_start=landmark_in_route.distance_from_start,
-                        arrival_at=new_starting_at
-                        + timedelta(minutes=landmark_in_route.arrival_delta),
-                        departure_at=new_starting_at
-                        + timedelta(minutes=landmark_in_route.departure_delta),
-                    )
-                )
+            landmarks_in_service = create_landmarks_in_service(
+                service.id, landmarks_in_route, new_starting_at
+            )
             session.add_all(landmarks_in_service)
             session.flush()
 
@@ -691,7 +657,7 @@ def update_service(
             service.starting_landmark_id = first_landmark_in_route.landmark_id
             service.ending_landmark_id = last_landmark_in_route.landmark_id
 
-        elif starting_at_input is not None:
+        elif starting_at is not None:
             time_change = new_starting_at - service.starting_at
             landmarks_in_service = (
                 session.query(LandmarkInService)
@@ -711,21 +677,16 @@ def update_service(
         if (
             vehicle_id is not None
             or route_id is not None
-            or starting_at_input is not None
+            or starting_at is not None
         ):
             session.flush()
-            overlapping_service = (
-                session.query(Service)
-                .filter(
-                    Service.id != service.id,
-                    Service.registration_number == service.registration_number,
-                    Service.starting_at < service.ending_at,
-                    Service.ending_at > service.starting_at,
-                )
-                .first()
+            validate_service_timing(
+                session,
+                service.starting_at,
+                service.ending_at,
+                service.registration_number,
+                exclude_id=service.id,
             )
-            if overlapping_service:
-                raise exceptions.OverlappingService()
 
     update_if_changed(service, update_data)
     have_updates = (
@@ -919,27 +880,8 @@ def delete_service(session: Session, service: Service) -> dict:
     """
     service_data = jsonable_encoder(service, exclude={"private_key", "public_key"})
 
-    fare_in_service = (
-        session.query(FareInService)
-        .filter(FareInService.id == service.fare_in_service_id)
-        .first()
-    )
-    if fare_in_service:
-        fare_in_service.reference_count -= 1
-        if fare_in_service.reference_count <= 0:
-            session.delete(fare_in_service)
-        session.flush()
-
-    vehicle_in_service = (
-        session.query(VehicleInService)
-        .filter(VehicleInService.id == service.vehicle_in_service_id)
-        .first()
-    )
-    if vehicle_in_service:
-        vehicle_in_service.reference_count -= 1
-        if vehicle_in_service.reference_count <= 0:
-            session.delete(vehicle_in_service)
-        session.flush()
+    delete_fare_in_service(session, service.fare_in_service_id)
+    delete_vehicle_in_service(session, service.vehicle_in_service_id)
 
     session.delete(service)
     session.commit()
