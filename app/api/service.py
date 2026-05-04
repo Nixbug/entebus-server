@@ -332,7 +332,7 @@ def validate_service_timing(
         starting_at (datetime): Proposed starting time of the service.
         ending_at (datetime): Proposed ending time of the service.
         registration_number (str): Vehicle registration number to check for overlaps.
-        exclude_id (int | None): Optional service ID to exclude from the check (useful when updating a service).
+        exclude_service_id (int | None): Optional service ID to exclude from the check (useful when updating a service).
 
     Raises:
         exceptions.OverlappingService: If there is an overlapping service with the same vehicle registration number.
@@ -973,11 +973,11 @@ def delete_service(session: Session, service: Service) -> dict:
     ).delete(synchronize_session=False)
 
     session.delete(service)
-    session.commit()
 
     delete_fare_in_service(session, old_fare_in_service_id)
     delete_vehicle_in_service(session, old_vehicle_in_service_id)
 
+    session.commit()
     return service_data
 
 
@@ -1107,6 +1107,8 @@ async def create_service_executive(
             - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
             - `vehicle_id`, `route_id`, `fare_id`, and `starting_at` can only be updated when service status is CREATED.    
             - `starting_at` can only be updated within `{SERVICE_CREATION_LEAD_TIME_DAYS}` days before the service's current `starting_at`.    
+            - `starting_at` can only be updated if it satisfies the standard service creation lead-time rule: it must be at least    
+                `{SERVICE_CREATION_LEAD_TIME_DAYS}` days in the future at the time of the update.    
             - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
@@ -1390,7 +1392,8 @@ async def create_service_operator(
                 - ENDED -> STARTED     
             - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
             - `vehicle_id`, `route_id`, `fare_id`, and `starting_at` can only be updated when service status is CREATED.    
-            - `starting_at` can only be updated within `{SERVICE_CREATION_LEAD_TIME_DAYS}` days before the service's current `starting_at`.    
+            - `starting_at` can only be updated if it satisfies the standard service creation lead-time rule: it must be at least    
+                `{SERVICE_CREATION_LEAD_TIME_DAYS}` days in the future at the time of the update.    
             - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
