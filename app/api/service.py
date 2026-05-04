@@ -600,151 +600,150 @@ def update_service(
             update_route = True
             service.starting_at = starting_at
 
-    if have_critical_change:
-        if fare_id is not None:
-            old_fare_in_service = (
+    if fare_id is not None:
+        old_fare_in_service = (
+            session.query(FareInService)
+            .filter(FareInService.id == service.fare_in_service_id)
+            .first()
+        )
+        if (
+            old_fare_in_service is None
+            or old_fare_in_service.fare_id != fare.id
+            or old_fare_in_service.version != fare.version
+        ):
+            old_fare_in_service_id = service.fare_in_service_id
+
+            fare_in_service = (
                 session.query(FareInService)
-                .filter(FareInService.id == service.fare_in_service_id)
+                .filter(
+                    FareInService.fare_id == fare.id,
+                    FareInService.version == fare.version,
+                )
                 .first()
             )
-            if (
-                old_fare_in_service is None
-                or old_fare_in_service.fare_id != fare.id
-                or old_fare_in_service.version != fare.version
-            ):
-                old_fare_in_service_id = service.fare_in_service_id
-
-                fare_in_service = (
-                    session.query(FareInService)
-                    .filter(
-                        FareInService.fare_id == fare.id,
-                        FareInService.version == fare.version,
-                    )
-                    .first()
-                )
-                if fare_in_service:
-                    fare_in_service.reference_count += 1
-                else:
-                    fare_in_service = FareInService(
-                        fare_id=fare.id,
-                        version=fare.version,
-                        name=fare.name,
-                        attributes=fare.attributes,
-                        function=fare.function,
-                        reference_count=1,
-                    )
-                    session.add(fare_in_service)
-                session.flush()
-
-                service.fare_in_service_id = fare_in_service.id
-                session.flush()
-
-                delete_fare_in_service(session, old_fare_in_service_id)
-                critical_updated = True
-
-        if vehicle_id is not None:
-            if vehicle.status != VehicleStatus.ACTIVE:
-                raise exceptions.InactiveResource(Vehicle)
-
-            old_vehicle_in_service = (
-                session.query(VehicleInService)
-                .filter(VehicleInService.id == service.vehicle_in_service_id)
-                .first()
-            )
-            if (
-                old_vehicle_in_service is None
-                or old_vehicle_in_service.vehicle_id != vehicle.id
-                or old_vehicle_in_service.version != vehicle.version
-            ):
-                old_vehicle_in_service_id = service.vehicle_in_service_id
-
-                vehicle_in_service = (
-                    session.query(VehicleInService)
-                    .filter(
-                        VehicleInService.vehicle_id == vehicle.id,
-                        VehicleInService.version == vehicle.version,
-                    )
-                    .first()
-                )
-                if vehicle_in_service:
-                    vehicle_in_service.reference_count += 1
-                else:
-                    vehicle_in_service = VehicleInService(
-                        vehicle_id=vehicle.id,
-                        version=vehicle.version,
-                        registration_number=vehicle.registration_number,
-                        name=vehicle.name,
-                        capacity=vehicle.capacity,
-                        reference_count=1,
-                    )
-                    session.add(vehicle_in_service)
-                session.flush()
-
-                service.vehicle_in_service_id = vehicle_in_service.id
-                service.registration_number = vehicle.registration_number
-                session.flush()
-
-                delete_vehicle_in_service(session, old_vehicle_in_service_id)
-                critical_updated = True
-
-        if route_id is not None or update_route:
-            if route_id is not None:
-                if route.status != RouteStatus.VALID:
-                    raise exceptions.InactiveResource(Route)
-                landmarks_in_route = (
-                    session.query(LandmarkInRoute)
-                    .filter(LandmarkInRoute.route_id == route.id)
-                    .order_by(LandmarkInRoute.distance_from_start.asc())
-                    .all()
-                )
-                first_landmark_in_route = landmarks_in_route[0]
-                last_landmark_in_route = landmarks_in_route[-1]
-                ending_at = service.starting_at + timedelta(
-                    minutes=last_landmark_in_route.arrival_delta
-                )
-
-                session.query(LandmarkInService).filter(
-                    LandmarkInService.service_id == service.id
-                ).delete(synchronize_session=False)
-                session.flush()
-
-                landmarks_in_service = create_landmarks_in_service(
-                    service.id, landmarks_in_route, service.starting_at
-                )
-                session.add_all(landmarks_in_service)
-                session.flush()
-
-                service.ending_at = ending_at
-                service.starting_landmark_id = first_landmark_in_route.landmark_id
-                service.ending_landmark_id = last_landmark_in_route.landmark_id
-                critical_updated = True
-
+            if fare_in_service:
+                fare_in_service.reference_count += 1
             else:
-                time_change = service.starting_at - old_starting_at
-                landmarks_in_service = (
-                    session.query(LandmarkInService)
-                    .filter(LandmarkInService.service_id == service.id)
-                    .all()
+                fare_in_service = FareInService(
+                    fare_id=fare.id,
+                    version=fare.version,
+                    name=fare.name,
+                    attributes=fare.attributes,
+                    function=fare.function,
+                    reference_count=1,
                 )
-                for landmark_in_service in landmarks_in_service:
-                    landmark_in_service.arrival_at = (
-                        landmark_in_service.arrival_at + time_change
-                    )
-                    landmark_in_service.departure_at = (
-                        landmark_in_service.departure_at + time_change
-                    )
-                service.ending_at = service.ending_at + time_change
-                critical_updated = True
-
-        if vehicle_id is not None or route_id is not None or starting_at is not None:
+                session.add(fare_in_service)
             session.flush()
-            validate_service_timing(
-                session,
-                service.starting_at,
-                service.ending_at,
-                service.registration_number,
-                exclude_service_id=service.id,
+
+            service.fare_in_service_id = fare_in_service.id
+            session.flush()
+
+            delete_fare_in_service(session, old_fare_in_service_id)
+            critical_updated = True
+
+    if vehicle_id is not None:
+        if vehicle.status != VehicleStatus.ACTIVE:
+            raise exceptions.InactiveResource(Vehicle)
+
+        old_vehicle_in_service = (
+            session.query(VehicleInService)
+            .filter(VehicleInService.id == service.vehicle_in_service_id)
+            .first()
+        )
+        if (
+            old_vehicle_in_service is None
+            or old_vehicle_in_service.vehicle_id != vehicle.id
+            or old_vehicle_in_service.version != vehicle.version
+        ):
+            old_vehicle_in_service_id = service.vehicle_in_service_id
+
+            vehicle_in_service = (
+                session.query(VehicleInService)
+                .filter(
+                    VehicleInService.vehicle_id == vehicle.id,
+                    VehicleInService.version == vehicle.version,
+                )
+                .first()
             )
+            if vehicle_in_service:
+                vehicle_in_service.reference_count += 1
+            else:
+                vehicle_in_service = VehicleInService(
+                    vehicle_id=vehicle.id,
+                    version=vehicle.version,
+                    registration_number=vehicle.registration_number,
+                    name=vehicle.name,
+                    capacity=vehicle.capacity,
+                    reference_count=1,
+                )
+                session.add(vehicle_in_service)
+            session.flush()
+
+            service.vehicle_in_service_id = vehicle_in_service.id
+            service.registration_number = vehicle.registration_number
+            session.flush()
+
+            delete_vehicle_in_service(session, old_vehicle_in_service_id)
+            critical_updated = True
+
+    if route_id is not None or update_route:
+        if route_id is not None:
+            if route.status != RouteStatus.VALID:
+                raise exceptions.InactiveResource(Route)
+            landmarks_in_route = (
+                session.query(LandmarkInRoute)
+                .filter(LandmarkInRoute.route_id == route.id)
+                .order_by(LandmarkInRoute.distance_from_start.asc())
+                .all()
+            )
+            first_landmark_in_route = landmarks_in_route[0]
+            last_landmark_in_route = landmarks_in_route[-1]
+            ending_at = service.starting_at + timedelta(
+                minutes=last_landmark_in_route.arrival_delta
+            )
+
+            session.query(LandmarkInService).filter(
+                LandmarkInService.service_id == service.id
+            ).delete(synchronize_session=False)
+            session.flush()
+
+            landmarks_in_service = create_landmarks_in_service(
+                service.id, landmarks_in_route, service.starting_at
+            )
+            session.add_all(landmarks_in_service)
+            session.flush()
+
+            service.ending_at = ending_at
+            service.starting_landmark_id = first_landmark_in_route.landmark_id
+            service.ending_landmark_id = last_landmark_in_route.landmark_id
+            critical_updated = True
+
+        else:
+            time_change = service.starting_at - old_starting_at
+            landmarks_in_service = (
+                session.query(LandmarkInService)
+                .filter(LandmarkInService.service_id == service.id)
+                .all()
+            )
+            for landmark_in_service in landmarks_in_service:
+                landmark_in_service.arrival_at = (
+                    landmark_in_service.arrival_at + time_change
+                )
+                landmark_in_service.departure_at = (
+                    landmark_in_service.departure_at + time_change
+                )
+            service.ending_at = service.ending_at + time_change
+            critical_updated = True
+
+    if vehicle_id is not None or route_id is not None or starting_at is not None:
+        session.flush()
+        validate_service_timing(
+            session,
+            service.starting_at,
+            service.ending_at,
+            service.registration_number,
+            exclude_service_id=service.id,
+        )
 
     update_if_changed(service, update_data)
     have_updates = (
