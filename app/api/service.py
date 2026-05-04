@@ -668,52 +668,51 @@ def update_service(
             delete_vehicle_in_service(session, old_vehicle_in_service_id)
             has_critical_change = True
 
-    if route_id is not None or update_route:
-        if route_id is not None:
-            if route.status != RouteStatus.VALID:
-                raise exceptions.InactiveResource(Route)
-            landmarks_in_route = (
-                session.query(LandmarkInRoute)
-                .filter(LandmarkInRoute.route_id == route.id)
-                .order_by(LandmarkInRoute.distance_from_start.asc())
-                .all()
-            )
-            first_landmark_in_route = landmarks_in_route[0]
-            last_landmark_in_route = landmarks_in_route[-1]
-            ending_at = service.starting_at + timedelta(
-                minutes=last_landmark_in_route.arrival_delta
-            )
+    if route_id is not None:
+        if route.status != RouteStatus.VALID:
+            raise exceptions.InactiveResource(Route)
+        landmarks_in_route = (
+            session.query(LandmarkInRoute)
+            .filter(LandmarkInRoute.route_id == route.id)
+            .order_by(LandmarkInRoute.distance_from_start.asc())
+            .all()
+        )
+        first_landmark_in_route = landmarks_in_route[0]
+        last_landmark_in_route = landmarks_in_route[-1]
+        ending_at = service.starting_at + timedelta(
+            minutes=last_landmark_in_route.arrival_delta
+        )
 
-            session.query(LandmarkInService).filter(
-                LandmarkInService.service_id == service.id
-            ).delete(synchronize_session=False)
-            session.flush()
-            landmarks_in_service = create_landmarks_in_service(
-                service.id, landmarks_in_route, service.starting_at
-            )
-            session.add_all(landmarks_in_service)
-            session.flush()
-            service.ending_at = ending_at
-            service.starting_landmark_id = first_landmark_in_route.landmark_id
-            service.ending_landmark_id = last_landmark_in_route.landmark_id
-            has_critical_change = True
+        session.query(LandmarkInService).filter(
+            LandmarkInService.service_id == service.id
+        ).delete(synchronize_session=False)
+        session.flush()
+        landmarks_in_service = create_landmarks_in_service(
+            service.id, landmarks_in_route, service.starting_at
+        )
+        session.add_all(landmarks_in_service)
+        session.flush()
+        service.ending_at = ending_at
+        service.starting_landmark_id = first_landmark_in_route.landmark_id
+        service.ending_landmark_id = last_landmark_in_route.landmark_id
+        has_critical_change = True
 
-        else:
-            time_change = service.starting_at - old_starting_at
-            landmarks_in_service = (
-                session.query(LandmarkInService)
-                .filter(LandmarkInService.service_id == service.id)
-                .all()
+    elif update_route:
+        time_change = service.starting_at - old_starting_at
+        landmarks_in_service = (
+            session.query(LandmarkInService)
+            .filter(LandmarkInService.service_id == service.id)
+            .all()
+        )
+        for landmark_in_service in landmarks_in_service:
+            landmark_in_service.arrival_at = (
+                landmark_in_service.arrival_at + time_change
             )
-            for landmark_in_service in landmarks_in_service:
-                landmark_in_service.arrival_at = (
-                    landmark_in_service.arrival_at + time_change
-                )
-                landmark_in_service.departure_at = (
-                    landmark_in_service.departure_at + time_change
-                )
-            service.ending_at = service.ending_at + time_change
-            has_critical_change = True
+            landmark_in_service.departure_at = (
+                landmark_in_service.departure_at + time_change
+            )
+        service.ending_at = service.ending_at + time_change
+        has_critical_change = True
 
     if vehicle_id is not None or route_id is not None or starting_at is not None:
         session.flush()
