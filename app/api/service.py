@@ -976,11 +976,20 @@ def delete_service(session: Session, service: Service) -> dict:
     """
     service_data = jsonable_encoder(service, exclude={"private_key", "public_key"})
 
-    delete_fare_in_service(session, service.fare_in_service_id)
-    delete_vehicle_in_service(session, service.vehicle_in_service_id)
+   
+    old_fare_in_service_id = service.fare_in_service_id
+    old_vehicle_in_service_id = service.vehicle_in_service_id
+
+    session.query(LandmarkInService).filter(
+        LandmarkInService.service_id == service.id
+    ).delete(synchronize_session=False)
 
     session.delete(service)
     session.commit()
+
+    delete_fare_in_service(session, old_fare_in_service_id)
+    delete_vehicle_in_service(session, old_vehicle_in_service_id)
+
     return service_data
 
 
