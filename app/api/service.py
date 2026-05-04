@@ -265,6 +265,27 @@ class ServiceQueryParams(BaseModel):
 
 
 # Functions
+def validate_starting_at(starting_at: datetime) -> datetime:
+    """
+    Normalize a datetime to UTC and validate it is within the allowed creation window.
+
+    Returns the normalized `starting_at` in UTC.
+    """
+    if starting_at.tzinfo is None:
+        starting_at = starting_at.replace(tzinfo=timezone.utc)
+    else:
+        starting_at = starting_at.astimezone(timezone.utc)
+
+    utc_now = datetime.now(timezone.utc)
+    if (
+        starting_at > (utc_now + timedelta(days=SERVICE_CREATION_LEAD_TIME_DAYS))
+        or starting_at < utc_now
+    ):
+        raise exceptions.InvalidValue(Service.starting_at)
+
+    return starting_at
+
+
 def create_landmarks_in_service(
     service_id: int,
     landmarks_in_route: List[LandmarkInRoute],
@@ -363,20 +384,8 @@ def create_service(
     if route.status != RouteStatus.VALID:
         raise exceptions.InactiveResource(Route)
 
-    # Normalize starting_at to UTC for consistent comparison and storage
-    starting_at = form_param.starting_at
-    if starting_at.tzinfo is None:
-        starting_at = starting_at.replace(tzinfo=timezone.utc)
-    else:
-        starting_at = starting_at.astimezone(timezone.utc)
-
-    # Service can only be created within a certain lead time before starting_at, and cannot be created in the past
-    utc_now = datetime.now(timezone.utc)
-    if (
-        starting_at > (utc_now + timedelta(days=SERVICE_CREATION_LEAD_TIME_DAYS))
-        or starting_at < utc_now
-    ):
-        raise exceptions.InvalidValue(Service.starting_at)
+    # Normalize and validate starting_at
+    starting_at = validate_starting_at(form_param.starting_at)
 
     # Fetch all landmarks for the route ordered by distance from start.
     # Use the first/last entries to determine display names and ending_at.
@@ -583,21 +592,13 @@ def update_service(
     if have_critical_change and service.status != ServiceStatus.CREATED:
         raise exceptions.DataInUse(Service)
 
-    final_starting_at = service.starting_at
-    if starting_at is not None or route_id is not None:
-        if starting_at is not None:
-            if starting_at.tzinfo is None:
-                starting_at = starting_at.replace(tzinfo=timezone.utc)
-            else:
-                starting_at = starting_at.astimezone(timezone.utc)
-            utc_now = datetime.now(timezone.utc)
-            if (
-                starting_at
-                > (utc_now + timedelta(days=SERVICE_CREATION_LEAD_TIME_DAYS))
-                or starting_at < utc_now
-            ):
-                raise exceptions.InvalidValue(Service.starting_at)
-            final_starting_at = starting_at
+    update_route = False
+    old_starting_at = service.starting_at
+    if starting_at is not None:
+        starting_at = validate_starting_at(starting_at)
+        if starting_at != old_starting_at:
+            update_route = True
+            service.starting_at = starting_at
 
     if have_critical_change:
         if fare_id is not None:
@@ -686,55 +687,54 @@ def update_service(
                 delete_vehicle_in_service(session, old_vehicle_in_service_id)
                 critical_updated = True
 
-        if route_id is not None:
-            if route.status != RouteStatus.VALID:
-                raise exceptions.InactiveResource(Route)
-            landmarks_in_route = (
-                session.query(LandmarkInRoute)
-                .filter(LandmarkInRoute.route_id == route.id)
-                .order_by(LandmarkInRoute.distance_from_start.asc())
-                .all()
-            )
-            first_landmark_in_route = landmarks_in_route[0]
-            last_landmark_in_route = landmarks_in_route[-1]
-            ending_at = final_starting_at + timedelta(
-                minutes=last_landmark_in_route.arrival_delta
-            )
-
-            session.query(LandmarkInService).filter(
-                LandmarkInService.service_id == service.id
-            ).delete(synchronize_session=False)
-            session.flush()
-
-            landmarks_in_service = create_landmarks_in_service(
-                service.id, landmarks_in_route, final_starting_at
-            )
-            session.add_all(landmarks_in_service)
-            session.flush()
-
-            service.starting_at = final_starting_at
-            service.ending_at = ending_at
-            service.starting_landmark_id = first_landmark_in_route.landmark_id
-            service.ending_landmark_id = last_landmark_in_route.landmark_id
-            critical_updated = True
-
-        elif starting_at is not None:
-            time_change = final_starting_at - service.starting_at
-            landmarks_in_service = (
-                session.query(LandmarkInService)
-                .filter(LandmarkInService.service_id == service.id)
-                .all()
-            )
-            for landmark_in_service in landmarks_in_service:
-                landmark_in_service.arrival_at = (
-                    landmark_in_service.arrival_at + time_change
+        if route_id is not None or update_route:
+            if route_id is not None:
+                if route.status != RouteStatus.VALID:
+                    raise exceptions.InactiveResource(Route)
+                landmarks_in_route = (
+                    session.query(LandmarkInRoute)
+                    .filter(LandmarkInRoute.route_id == route.id)
+                    .order_by(LandmarkInRoute.distance_from_start.asc())
+                    .all()
                 )
-                landmark_in_service.departure_at = (
-                    landmark_in_service.departure_at + time_change
+                first_landmark_in_route = landmarks_in_route[0]
+                last_landmark_in_route = landmarks_in_route[-1]
+                ending_at = service.starting_at + timedelta(
+                    minutes=last_landmark_in_route.arrival_delta
                 )
-            service.ending_at = service.ending_at + time_change
-            service.starting_at = final_starting_at
-            critical_updated = True
+
+                session.query(LandmarkInService).filter(
+                    LandmarkInService.service_id == service.id
+                ).delete(synchronize_session=False)
+                session.flush()
+
+                landmarks_in_service = create_landmarks_in_service(
+                    service.id, landmarks_in_route, service.starting_at
+                )
+                session.add_all(landmarks_in_service)
+                session.flush()
+
+                service.ending_at = ending_at
+                service.starting_landmark_id = first_landmark_in_route.landmark_id
+                service.ending_landmark_id = last_landmark_in_route.landmark_id
+                critical_updated = True
+
+            else:
+                time_change = service.starting_at - old_starting_at
+                landmarks_in_service = (
+                    session.query(LandmarkInService)
+                    .filter(LandmarkInService.service_id == service.id)
+                    .all()
+                )
+                for landmark_in_service in landmarks_in_service:
+                    landmark_in_service.arrival_at = (
+                        landmark_in_service.arrival_at + time_change
+                    )
+                    landmark_in_service.departure_at = (
+                        landmark_in_service.departure_at + time_change
+                    )
+                service.ending_at = service.ending_at + time_change
+                critical_updated = True
 
         if vehicle_id is not None or route_id is not None or starting_at is not None:
             session.flush()
