@@ -348,6 +348,75 @@ def validate_service_timing(
         raise exceptions.OverlappingService()
 
 
+def create_fare_in_service(session: Session, fare: Fare) -> FareInService:
+    """
+    If a FareInService snapshot exists for the given fare/version, increment its reference_count and return it.
+    Otherwise, create a new snapshot with reference_count=1 and return that.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        fare (Fare): The Fare object for which to create or update the FareInService snapshot.
+
+    Returns:
+        FareInService: The existing or newly created FareInService snapshot associated with the given fare.
+    """
+    fare_in_service = (
+        session.query(FareInService)
+        .filter(FareInService.fare_id == fare.id, FareInService.version == fare.version)
+        .first()
+    )
+    if fare_in_service:
+        fare_in_service.reference_count += 1
+    else:
+        fare_in_service = FareInService(
+            fare_id=fare.id,
+            version=fare.version,
+            name=fare.name,
+            attributes=fare.attributes,
+            function=fare.function,
+            reference_count=1,
+        )
+        session.add(fare_in_service)
+    session.flush()
+    return fare_in_service
+
+
+def create_vehicle_in_service(session: Session, vehicle: Vehicle) -> VehicleInService:
+    """
+    If a VehicleInService snapshot exists for the given vehicle/version, increment its reference_count and return it.
+    Otherwise, create a new snapshot with reference_count=1 and return that.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        vehicle (Vehicle): The Vehicle object for which to create or update the VehicleInService snapshot.
+
+    Returns:
+        VehicleInService: The existing or newly created VehicleInService snapshot associated with the given vehicle.
+    """
+    vehicle_in_service = (
+        session.query(VehicleInService)
+        .filter(
+            VehicleInService.vehicle_id == vehicle.id,
+            VehicleInService.version == vehicle.version,
+        )
+        .first()
+    )
+    if vehicle_in_service:
+        vehicle_in_service.reference_count += 1
+    else:
+        vehicle_in_service = VehicleInService(
+            vehicle_id=vehicle.id,
+            version=vehicle.version,
+            registration_number=vehicle.registration_number,
+            name=vehicle.name,
+            capacity=vehicle.capacity,
+            reference_count=1,
+        )
+        session.add(vehicle_in_service)
+    session.flush()
+    return vehicle_in_service
+
+
 def create_service(
     session: Session,
     route: Route,
@@ -422,48 +491,9 @@ def create_service(
         )
         name = f"{starting_at_str} {first_landmark.name} -> {last_landmark.name} ({vehicle.registration_number})"
 
-    # Ensure fare snapshot exists in fare_in_service (or increment reference_count)
-    fare_in_service = (
-        session.query(FareInService)
-        .filter(FareInService.fare_id == fare.id, FareInService.version == fare.version)
-        .first()
-    )
-    if fare_in_service:
-        fare_in_service.reference_count += 1
-    else:
-        fare_in_service = FareInService(
-            fare_id=fare.id,
-            version=fare.version,
-            name=fare.name,
-            attributes=fare.attributes,
-            function=fare.function,
-            reference_count=1,
-        )
-        session.add(fare_in_service)
-    session.flush()
+    fare_in_service = create_fare_in_service(session, fare)
 
-    # Ensure vehicle snapshot exists in vehicle_in_service (or increment reference_count)
-    vehicle_in_service = (
-        session.query(VehicleInService)
-        .filter(
-            VehicleInService.vehicle_id == vehicle.id,
-            VehicleInService.version == vehicle.version,
-        )
-        .first()
-    )
-    if vehicle_in_service:
-        vehicle_in_service.reference_count += 1
-    else:
-        vehicle_in_service = VehicleInService(
-            vehicle_id=vehicle.id,
-            version=vehicle.version,
-            registration_number=vehicle.registration_number,
-            name=vehicle.name,
-            capacity=vehicle.capacity,
-            reference_count=1,
-        )
-        session.add(vehicle_in_service)
-    session.flush()
+    vehicle_in_service = create_vehicle_in_service(session, vehicle)
 
     # Generate keys
     ticket_creator = TicketCreator()
@@ -611,27 +641,7 @@ def update_service(
             or old_fare_in_service.version != fare.version
         ):
             old_fare_in_service_id = service.fare_in_service_id
-            fare_in_service = (
-                session.query(FareInService)
-                .filter(
-                    FareInService.fare_id == fare.id,
-                    FareInService.version == fare.version,
-                )
-                .first()
-            )
-            if fare_in_service:
-                fare_in_service.reference_count += 1
-            else:
-                fare_in_service = FareInService(
-                    fare_id=fare.id,
-                    version=fare.version,
-                    name=fare.name,
-                    attributes=fare.attributes,
-                    function=fare.function,
-                    reference_count=1,
-                )
-                session.add(fare_in_service)
-            session.flush()
+            fare_in_service = create_fare_in_service(session, fare)
             service.fare_in_service_id = fare_in_service.id
             session.flush()
             delete_fare_in_service(session, old_fare_in_service_id)
@@ -651,28 +661,7 @@ def update_service(
             or old_vehicle_in_service.version != vehicle.version
         ):
             old_vehicle_in_service_id = service.vehicle_in_service_id
-
-            vehicle_in_service = (
-                session.query(VehicleInService)
-                .filter(
-                    VehicleInService.vehicle_id == vehicle.id,
-                    VehicleInService.version == vehicle.version,
-                )
-                .first()
-            )
-            if vehicle_in_service:
-                vehicle_in_service.reference_count += 1
-            else:
-                vehicle_in_service = VehicleInService(
-                    vehicle_id=vehicle.id,
-                    version=vehicle.version,
-                    registration_number=vehicle.registration_number,
-                    name=vehicle.name,
-                    capacity=vehicle.capacity,
-                    reference_count=1,
-                )
-                session.add(vehicle_in_service)
-            session.flush()
+            vehicle_in_service = create_vehicle_in_service(session, vehicle)
             service.vehicle_in_service_id = vehicle_in_service.id
             service.registration_number = vehicle.registration_number
             session.flush()
@@ -976,7 +965,6 @@ def delete_service(session: Session, service: Service) -> dict:
     """
     service_data = jsonable_encoder(service, exclude={"private_key", "public_key"})
 
-   
     old_fare_in_service_id = service.fare_in_service_id
     old_vehicle_in_service_id = service.vehicle_in_service_id
 
