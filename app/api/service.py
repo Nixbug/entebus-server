@@ -625,7 +625,7 @@ def update_service(
     old_starting_at = service.starting_at
     if starting_at is not None:
         starting_at = validate_starting_at(starting_at)
-        if starting_at != old_starting_at:
+        if starting_at != service.starting_at:
             update_route = True
             service.starting_at = starting_at
 
