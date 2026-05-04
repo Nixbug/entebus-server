@@ -938,11 +938,10 @@ def delete_fare_in_service(
         .filter(FareInService.id == fare_in_service_id)
         .first()
     )
-    if fare_in_service:
-        fare_in_service.reference_count -= 1
-        if fare_in_service.reference_count == 0:
-            session.delete(fare_in_service)
-        session.flush()
+    fare_in_service.reference_count -= 1
+    if fare_in_service.reference_count == 0:
+        session.delete(fare_in_service)
+    session.flush()
 
 
 def delete_vehicle_in_service(
@@ -961,11 +960,10 @@ def delete_vehicle_in_service(
         .filter(VehicleInService.id == vehicle_in_service_id)
         .first()
     )
-    if vehicle_in_service:
-        vehicle_in_service.reference_count -= 1
-        if vehicle_in_service.reference_count == 0:
-            session.delete(vehicle_in_service)
-        session.flush()
+    vehicle_in_service.reference_count -= 1
+    if vehicle_in_service.reference_count == 0:
+        session.delete(vehicle_in_service)
+    session.flush()
 
 
 def delete_service(session: Session, service: Service) -> dict:
