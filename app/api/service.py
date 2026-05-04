@@ -282,7 +282,6 @@ def validate_starting_at(starting_at: datetime) -> datetime:
         or starting_at < utc_now
     ):
         raise exceptions.InvalidValue(Service.starting_at)
-
     return starting_at
 
 
@@ -587,7 +586,7 @@ def update_service(
         or fare_id is not None
         or starting_at is not None
     )
-    critical_updated = False
+    has_critical_change = False
 
     if have_critical_change and service.status != ServiceStatus.CREATED:
         raise exceptions.DataInUse(Service)
@@ -612,7 +611,6 @@ def update_service(
             or old_fare_in_service.version != fare.version
         ):
             old_fare_in_service_id = service.fare_in_service_id
-
             fare_in_service = (
                 session.query(FareInService)
                 .filter(
@@ -634,17 +632,14 @@ def update_service(
                 )
                 session.add(fare_in_service)
             session.flush()
-
             service.fare_in_service_id = fare_in_service.id
             session.flush()
-
             delete_fare_in_service(session, old_fare_in_service_id)
-            critical_updated = True
+            has_critical_change = True
 
     if vehicle_id is not None:
         if vehicle.status != VehicleStatus.ACTIVE:
             raise exceptions.InactiveResource(Vehicle)
-
         old_vehicle_in_service = (
             session.query(VehicleInService)
             .filter(VehicleInService.id == service.vehicle_in_service_id)
@@ -678,13 +673,11 @@ def update_service(
                 )
                 session.add(vehicle_in_service)
             session.flush()
-
             service.vehicle_in_service_id = vehicle_in_service.id
             service.registration_number = vehicle.registration_number
             session.flush()
-
             delete_vehicle_in_service(session, old_vehicle_in_service_id)
-            critical_updated = True
+            has_critical_change = True
 
     if route_id is not None or update_route:
         if route_id is not None:
@@ -706,17 +699,15 @@ def update_service(
                 LandmarkInService.service_id == service.id
             ).delete(synchronize_session=False)
             session.flush()
-
             landmarks_in_service = create_landmarks_in_service(
                 service.id, landmarks_in_route, service.starting_at
             )
             session.add_all(landmarks_in_service)
             session.flush()
-
             service.ending_at = ending_at
             service.starting_landmark_id = first_landmark_in_route.landmark_id
             service.ending_landmark_id = last_landmark_in_route.landmark_id
-            critical_updated = True
+            has_critical_change = True
 
         else:
             time_change = service.starting_at - old_starting_at
@@ -733,7 +724,7 @@ def update_service(
                     landmark_in_service.departure_at + time_change
                 )
             service.ending_at = service.ending_at + time_change
-            critical_updated = True
+            has_critical_change = True
 
     if vehicle_id is not None or route_id is not None or starting_at is not None:
         session.flush()
@@ -747,7 +738,7 @@ def update_service(
 
     update_if_changed(service, update_data)
     have_updates = (
-        critical_updated
+        has_critical_change
         or session.is_modified(service)
         or any(session.is_modified(duty) for duty in duties)
         or any(
