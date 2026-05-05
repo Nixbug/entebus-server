@@ -610,15 +610,15 @@ def update_service(
     route_id = update_data.pop("route_id", None)
     fare_id = update_data.pop("fare_id", None)
     starting_at = update_data.pop("starting_at", None)
-    have_critical_change = (
+    need_critical_change = (
         vehicle_id is not None
         or route_id is not None
         or fare_id is not None
         or starting_at is not None
     )
-    has_critical_change = False
+    have_critical_change = False
 
-    if have_critical_change and service.status != ServiceStatus.CREATED:
+    if need_critical_change and service.status != ServiceStatus.CREATED:
         raise exceptions.DataInUse(Service)
 
     update_route = False
@@ -645,7 +645,7 @@ def update_service(
             service.fare_in_service_id = fare_in_service.id
             session.flush()
             delete_fare_in_service(session, old_fare_in_service_id)
-            has_critical_change = True
+            have_critical_change = True
 
     if vehicle_id is not None:
         if vehicle.status != VehicleStatus.ACTIVE:
@@ -666,7 +666,7 @@ def update_service(
             service.registration_number = vehicle.registration_number
             session.flush()
             delete_vehicle_in_service(session, old_vehicle_in_service_id)
-            has_critical_change = True
+            have_critical_change = True
 
     if route_id is not None:
         if route.status != RouteStatus.VALID:
@@ -695,7 +695,7 @@ def update_service(
         service.ending_at = ending_at
         service.starting_landmark_id = first_landmark_in_route.landmark_id
         service.ending_landmark_id = last_landmark_in_route.landmark_id
-        has_critical_change = True
+        have_critical_change = True
 
     elif update_route:
         time_change = service.starting_at - old_starting_at
@@ -712,7 +712,7 @@ def update_service(
                 landmark_in_service.departure_at + time_change
             )
         service.ending_at = service.ending_at + time_change
-        has_critical_change = True
+        have_critical_change = True
 
     if vehicle_id is not None or route_id is not None or starting_at is not None:
         session.flush()
@@ -726,7 +726,7 @@ def update_service(
 
     update_if_changed(service, update_data)
     have_updates = (
-        has_critical_change
+        have_critical_change
         or session.is_modified(service)
         or any(session.is_modified(duty) for duty in duties)
         or any(
