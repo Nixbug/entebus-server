@@ -629,7 +629,7 @@ def update_service(
             update_route = True
             service.starting_at = starting_at
 
-    if fare_id is not None or update_route:
+    if fare_id is not None:
         old_fare_in_service = (
             session.query(FareInService)
             .filter(FareInService.id == service.fare_in_service_id)
