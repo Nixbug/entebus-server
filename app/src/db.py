@@ -2611,7 +2611,7 @@ class ServiceLocation(ORMbase):
         nullable=True,
         index=True,
     )
-    landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
+    landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False, index=True)
     location = Column(Geometry(geometry_type="POINT", srid=4326))
     accuracy = Column(Numeric(10, 2))
     # Metadata
