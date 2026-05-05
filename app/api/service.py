@@ -629,7 +629,7 @@ def update_service(
             update_route = True
             service.starting_at = starting_at
 
-    if fare_id is not None:
+    if fare_id is not None or update_route :
         old_fare_in_service = (
             session.query(FareInService)
             .filter(FareInService.id == service.fare_in_service_id)
@@ -640,11 +640,10 @@ def update_service(
             or old_fare_in_service.fare_id != fare.id
             or old_fare_in_service.version != fare.version
         ):
-            old_fare_in_service_id = service.fare_in_service_id
             fare_in_service = create_fare_in_service(session, fare)
+            delete_fare_in_service(session, service.fare_in_service_id)
             service.fare_in_service_id = fare_in_service.id
             session.flush()
-            delete_fare_in_service(session, old_fare_in_service_id)
             have_critical_change = True
 
     if vehicle_id is not None:
@@ -660,12 +659,11 @@ def update_service(
             or old_vehicle_in_service.vehicle_id != vehicle.id
             or old_vehicle_in_service.version != vehicle.version
         ):
-            old_vehicle_in_service_id = service.vehicle_in_service_id
             vehicle_in_service = create_vehicle_in_service(session, vehicle)
+            delete_vehicle_in_service(session, service.vehicle_in_service_id)
             service.vehicle_in_service_id = vehicle_in_service.id
             service.registration_number = vehicle.registration_number
             session.flush()
-            delete_vehicle_in_service(session, old_vehicle_in_service_id)
             have_critical_change = True
 
     if route_id is not None:
@@ -964,17 +962,15 @@ def delete_service(session: Session, service: Service) -> dict:
     """
     service_data = jsonable_encoder(service, exclude={"private_key", "public_key"})
 
-    old_fare_in_service_id = service.fare_in_service_id
-    old_vehicle_in_service_id = service.vehicle_in_service_id
-
     session.query(LandmarkInService).filter(
         LandmarkInService.service_id == service.id
     ).delete(synchronize_session=False)
 
-    session.delete(service)
+    # decrement/delete snapshots by passing ids directly from service
+    delete_fare_in_service(session, service.fare_in_service_id)
+    delete_vehicle_in_service(session, service.vehicle_in_service_id)
 
-    delete_fare_in_service(session, old_fare_in_service_id)
-    delete_vehicle_in_service(session, old_vehicle_in_service_id)
+    session.delete(service)
 
     session.commit()
     return service_data
