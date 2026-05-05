@@ -631,8 +631,10 @@ def update_service(
                 LandmarkInService.service_id == service.id
             ).update(
                 {
-                    LandmarkInService.arrival_at: LandmarkInService.arrival_at + time_change,
-                    LandmarkInService.departure_at: LandmarkInService.departure_at + time_change,
+                    LandmarkInService.arrival_at: LandmarkInService.arrival_at
+                    + time_change,
+                    LandmarkInService.departure_at: LandmarkInService.departure_at
+                    + time_change,
                 },
                 synchronize_session=False,
             )
@@ -668,7 +670,7 @@ def update_service(
         service.starting_landmark_id = first_landmark_in_route.landmark_id
         service.ending_landmark_id = last_landmark_in_route.landmark_id
         have_critical_change = True
-    
+
     if fare_id is not None:
         old_fare_in_service = (
             session.query(FareInService)
