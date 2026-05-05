@@ -2432,9 +2432,7 @@ class Duty(ORMbase):
             Cascades on delete — if the company is removed, related duties are deleted.
 
         operator_id (Integer, nullable):
-            Foreign key referencing `operator.id`.
-            Identifies the operator assigned to this duty.
-            Sets to NULL on delete — if the operator is removed, the duty remains but the operator reference is cleared.
+            Operator identifier. Stored as a plain integer in the current schema.
 
         service_id (Integer, not null):
             Foreign key referencing `service.id`.
@@ -2470,9 +2468,7 @@ class Duty(ORMbase):
         nullable=False,
         index=True,
     )
-    operator_id = Column(
-        Integer, ForeignKey("operator.id", ondelete="SET NULL"), index=True
-    )
+    operator_id = Column(Integer, index=True)
     service_id = Column(
         Integer,
         ForeignKey("service.id", ondelete="CASCADE"),
@@ -2542,4 +2538,70 @@ class PaperTicket(ORMbase):
     ticket = Column(JSONB, nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
     # Metadata
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class ServiceLocation(ORMbase):
+    """
+    Real-time or historical geospatial trace for services.
+
+    This table stores location samples linked to a company and a service,
+    and may include an `operator_id` and a reference to a `landmark`.
+    Each record represents a point-in-time position with optional accuracy
+    metadata and timestamps.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the trace record.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id`.
+            Indicates the company associated with this location record.
+            Cascades on delete — if the company is removed, related location records are deleted.
+
+        service_id (Integer, not null):
+            Foreign key referencing `service.id`.
+            Indicates the service associated with this location record.
+            Cascades on delete — if the service is removed, related location records are deleted.
+
+        operator_id (Integer, nullable):
+            Operator identifier. Stored as a plain integer in the current schema.
+
+        landmark_id (Integer, not null):
+            Foreign key referencing `landmark.id` for associated landmark.
+
+        location (Geometry POINT SRID=4326, nullable):
+            Geospatial point representing the recorded location.
+
+        accuracy (Numeric, nullable):
+            Accuracy metric for the recorded location (precision 2 decimals).
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the service location record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the service location record was created.
+    """
+
+    __tablename__ = "service_location"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    service_id = Column(
+        Integer,
+        ForeignKey("service.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    operator_id = Column(Integer, index=True)
+    landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
+    location = Column(Geometry(geometry_type="POINT", srid=4326))
+    accuracy = Column(Numeric(10, 2))
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
