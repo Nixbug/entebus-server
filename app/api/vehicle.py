@@ -54,6 +54,7 @@ from app.src.functions import (
     apply_status_filters,
     apply_name_filters,
     resolve_model_defaults,
+    normalize_timestamp,
 )
 from app.src.filters import (
     IDFilter,
@@ -213,11 +214,7 @@ def validate_manufactured_on(
     if manufactured_on is None:
         return None
 
-    if manufactured_on.tzinfo is None:
-        manufactured_on = manufactured_on.replace(tzinfo=TMZ_PRIMARY)
-    else:
-        manufactured_on = manufactured_on.astimezone(TMZ_PRIMARY)
-
+    manufactured_on = normalize_timestamp(manufactured_on)
     if manufactured_on > datetime.now(tz=TMZ_PRIMARY):
         raise exceptions.InvalidValue(Vehicle.manufactured_on)
     return manufactured_on

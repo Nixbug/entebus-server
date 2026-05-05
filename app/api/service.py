@@ -52,6 +52,7 @@ from app.src.functions import (
     apply_updated_on_filters,
     apply_status_filters,
     update_if_changed,
+    normalize_timestamp,
 )
 from app.src.validators import (
     validate_id,
@@ -81,7 +82,8 @@ from app.src.filters import (
 from app.src.regex import NAME_PATTERN
 from app.src.constants import TMZ_SECONDARY
 from app.src.digital_ticket.v1 import TicketCreator
-from app.src.constants import SERVICE_CREATION_LEAD_TIME_DAYS
+from app.src.constants import SERVICE_CREATION_LEAD_TIME_DAYS, TMZ_PRIMARY
+
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -271,12 +273,8 @@ def validate_starting_at(starting_at: datetime) -> datetime:
 
     Returns the normalized `starting_at` in UTC.
     """
-    if starting_at.tzinfo is None:
-        starting_at = starting_at.replace(tzinfo=timezone.utc)
-    else:
-        starting_at = starting_at.astimezone(timezone.utc)
-
-    utc_now = datetime.now(timezone.utc)
+    starting_at = normalize_timestamp(starting_at)
+    utc_now = datetime.now(TMZ_PRIMARY)
     if (
         starting_at > (utc_now + timedelta(days=SERVICE_CREATION_LEAD_TIME_DAYS))
         or starting_at < utc_now
