@@ -563,7 +563,6 @@ def update_service(
 
     update_data = form_param.model_dump(exclude_unset=True)
     duties = []
-    landmarks_in_service = []
 
     if "status" in update_data:
         new_status = update_data.pop("status")
@@ -1001,7 +1000,7 @@ def delete_service(session: Session, service: Service) -> dict:
             - Logged in executive must have `company.service.create` permission.    
             - Validates that the vehicle, route, and fare belong to the specified company.    
             - Status of vehicle must be ACTIVE, company must be VERIFIED, and route must be VALID.    
-            - Service can only be created within `{SERVICE_CREATION_LEAD_TIME_DAYS}` days before the `starting_at`.   
+            - `starting_at` must be between now and `{SERVICE_CREATION_LEAD_TIME_DAYS}` days from now.    
             - The service name is auto-generated based on the name of the route, vehicle, and starting date.    
             - By default the status of the service is set to CREATED.   
         """
@@ -1091,9 +1090,7 @@ async def create_service_executive(
                 - ENDED -> STARTED    
             - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
             - `vehicle_id`, `route_id`, `fare_id`, and `starting_at` can only be updated when service status is CREATED.    
-            - `starting_at` can only be updated within `{SERVICE_CREATION_LEAD_TIME_DAYS}` days before the service's current `starting_at`.    
-            - `starting_at` can only be updated if it satisfies the standard service creation lead-time rule: it must be at least    
-                `{SERVICE_CREATION_LEAD_TIME_DAYS}` days in the future at the time of the update.    
+            - `starting_at` must be between now and `{SERVICE_CREATION_LEAD_TIME_DAYS}` days from now.    
             - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
@@ -1288,7 +1285,7 @@ async def delete_service_executive(
             - Operator can only create services for the company they belong to.    
             - Validates that the vehicle, route, and fare belong to the specified company.    
             - Status of vehicle must be ACTIVE, company must be VERIFIED, and route must be VALID.    
-            - Service can only be created within `{SERVICE_CREATION_LEAD_TIME_DAYS}` days before the `starting_at`.   
+            - `starting_at` must be between now and `{SERVICE_CREATION_LEAD_TIME_DAYS}` days from now.    
             - The service name is auto-generated based on the name of the route, vehicle, and starting date.    
             - By default the status of the service is set to CREATED.   
         """
@@ -1377,8 +1374,7 @@ async def create_service_operator(
                 - ENDED -> STARTED     
             - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
             - `vehicle_id`, `route_id`, `fare_id`, and `starting_at` can only be updated when service status is CREATED.    
-            - `starting_at` can only be updated if it satisfies the standard service creation lead-time rule: it must be at least    
-                `{SERVICE_CREATION_LEAD_TIME_DAYS}` days in the future at the time of the update.    
+            - `starting_at` must be between now and `{SERVICE_CREATION_LEAD_TIME_DAYS}` days from now.    
             - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
