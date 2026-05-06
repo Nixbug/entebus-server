@@ -2594,6 +2594,7 @@ class ServiceLocation(ORMbase):
     """
 
     __tablename__ = "service_location"
+    __table_args__ = (UniqueConstraint("service_id", "operator_id"),)
 
     id = Column(Integer, primary_key=True)
     company_id = Column(
