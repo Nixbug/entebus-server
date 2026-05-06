@@ -903,7 +903,7 @@ def fetch_fare_in_service(session: Session, service: Service) -> Dict[str, Any]:
     return jsonable_encoder(fare_in_service, exclude={"reference_count"})
 
 
-def fetch_vehicle_in_service(session: Session, service: Service) -> Dict[str, Any] :
+def fetch_vehicle_in_service(session: Session, service: Service) -> Dict[str, Any]:
     """
     Fetch and return the `VehicleInService` snapshot for a service.
 
