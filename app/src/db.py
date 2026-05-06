@@ -2575,6 +2575,8 @@ class ServiceLocation(ORMbase):
             Foreign key referencing `operator.id`.
             Indicates the operator associated with this location record, if any.
             Set to NULL when the referenced operator is deleted.
+            Unique constraint `(service_id, operator_id)` ensures at most one
+            location record per operator for a given service.
 
         landmark_id (Integer, not null):
             Foreign key referencing `landmark.id`.
