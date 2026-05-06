@@ -1011,7 +1011,6 @@ def delete_service(session: Session, service: Service) -> dict:
     delete_fare_in_service(session, service)
     delete_vehicle_in_service(session, service)
 
-
     session.delete(service)
 
     session.commit()
