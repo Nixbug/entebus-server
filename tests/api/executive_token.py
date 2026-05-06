@@ -65,7 +65,8 @@ def performance_test(target_url: str):
 
     # Generate the maximum allowed tokens for the admin user
     for _ in range(MAX_EXECUTIVE_TOKENS):
-        requests.post(target_url, data=VALID_EXECUTIVE_CREDENTIALS["admin"])
+        response = requests.post(target_url, data=VALID_EXECUTIVE_CREDENTIALS["admin"])
+        assert response.status_code == 200
 
     # The first token should have been revoked due to token rotation policy
     response = requests.get(target_url, headers=admin_token.HEADER())
@@ -175,13 +176,9 @@ def permission_test(target_url: str):
 
     print("CASE 02: Guest attempts to delete admin token via id")
     response = requests.delete(
-        f"{target_url}/{admin_token.executive_id}", headers=guest_token.HEADER()
+        f"{target_url}/{admin_token.id}", headers=guest_token.HEADER()
     )
-    assert response.status_code == 204
-
-    # DELETE returns 204 but token is not deleted, so GET still returns 200.
-    response = requests.get(target_url, headers=admin_token.HEADER())
-    assert response.status_code == 200
+    assert response.status_code == 403
 
     print("CASE 03: Guest tries to revoke admin access token")
     response = requests.post(
