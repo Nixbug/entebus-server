@@ -2571,6 +2571,11 @@ class ServiceLocation(ORMbase):
             Indicates the service associated with this location record.
             Cascades on delete — if the service is removed, related location records are deleted.
 
+        operator_id (Integer, nullable):
+            Foreign key referencing `operator.id`.
+            Indicates the operator associated with this location record, if any.
+            Set to NULL when the referenced operator is deleted.
+
         landmark_id (Integer, not null):
             Foreign key referencing `landmark.id`.
             The last landmark passed by the service at the time of recording this location.
@@ -2601,6 +2606,12 @@ class ServiceLocation(ORMbase):
         Integer,
         ForeignKey("service.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
+    )
+    operator_id = Column(
+        Integer,
+        ForeignKey("operator.id", ondelete="SET NULL"),
+        nullable=True,
         index=True,
     )
     landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
