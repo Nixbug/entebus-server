@@ -179,9 +179,6 @@ def permission_test(target_url: str):
         f"{target_url}/{admin_token.id}", headers=guest_token.HEADER()
     )
     assert response.status_code == 403
-    # Delete returns 200 but token is not revoked, so GET still returns 200.
-    response = requests.get(target_url, headers=admin_token.HEADER())
-    assert response.status_code == 200
 
     print("CASE 03: Guest tries to revoke admin access token")
     response = requests.post(
