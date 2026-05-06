@@ -680,7 +680,7 @@ def update_service(
             or old_fare_in_service.version != fare.version
         ):
             fare_in_service = create_fare_in_service(session, fare)
-            delete_fare_in_service(session, service.fare_in_service_id)
+            delete_fare_in_service(session, service)
             service.fare_in_service_id = fare_in_service.id
             session.flush()
             have_critical_change = True
@@ -699,7 +699,7 @@ def update_service(
             or old_vehicle_in_service.version != vehicle.version
         ):
             vehicle_in_service = create_vehicle_in_service(session, vehicle)
-            delete_vehicle_in_service(session, service.vehicle_in_service_id)
+            delete_vehicle_in_service(session, service)
             service.vehicle_in_service_id = vehicle_in_service.id
             service.registration_number = vehicle.registration_number
             session.flush()
@@ -850,32 +850,9 @@ def fetch_service_details(session: Session, service: Service) -> Dict[str, Any]:
         `fare_in_service`, and `vehicle_in_service` serialized for JSON.
     """
 
-    landmarks_in_service = (
-        session.query(LandmarkInService)
-        .filter(LandmarkInService.service_id == service.id)
-        .order_by(LandmarkInService.distance_from_start.asc())
-        .all()
-    )
-    landmarks_in_service_data = jsonable_encoder(landmarks_in_service)
-
-    fare_in_service = (
-        session.query(FareInService)
-        .filter(FareInService.id == service.fare_in_service_id)
-        .first()
-    )
-
-    fare_in_service_data = jsonable_encoder(
-        fare_in_service, exclude={"reference_count"}
-    )
-
-    vehicle_in_service = (
-        session.query(VehicleInService)
-        .filter(VehicleInService.id == service.vehicle_in_service_id)
-        .first()
-    )
-    vehicle_in_service_data = jsonable_encoder(
-        vehicle_in_service, exclude={"reference_count"}
-    )
+    landmarks_in_service_data = fetch_landmarks_in_service(session, service)
+    fare_in_service_data = fetch_fare_in_service(session, service)
+    vehicle_in_service_data = fetch_vehicle_in_service(session, service)
 
     service_data = jsonable_encoder(service, exclude={"private_key"})
 
@@ -887,20 +864,97 @@ def fetch_service_details(session: Session, service: Service) -> Dict[str, Any]:
     }
 
 
-def delete_fare_in_service(
-    session: Session,
-    fare_in_service_id: int,
-) -> None:
+def fetch_landmarks_in_service(session: Session, service: Service) -> List[Dict[str, Any]]:
     """
-    Decrements the reference count of a FareInService and deletes it if the count reaches zero.
+    Fetch and return landmark snapshots (`LandmarkInService`) for a service.
 
     Args:
-        session (Session): SQLAlchemy database session.
-        fare_in_service_id (int): The ID of the FareInService to potentially delete.
+        session (Session): SQLAlchemy session.
+        service (Service): Service object to lookup.
+    
+    Returns:
+        List[Dict[str, Any]]: List of dicts containing `landmarks_in_service` serialized for JSON.
+    """
+    landmarks = (
+        session.query(LandmarkInService)
+        .filter(LandmarkInService.service_id == service.id)
+        .order_by(LandmarkInService.distance_from_start.asc())
+        .all()
+    )
+    return jsonable_encoder(landmarks)
+
+
+def fetch_fare_in_service(session: Session, service: Service) -> Dict[str, Any]:
+    """
+    Fetch and return the `FareInService` snapshot for a service.
+
+    Args :
+        session (Session): SQLAlchemy session.
+        service (Service): Service object to lookup.
+
+    Returns:
+        Dict[str, Any]: Dict containing `fare_in_service` serialized for JSON.
     """
     fare_in_service = (
         session.query(FareInService)
-        .filter(FareInService.id == fare_in_service_id)
+        .filter(FareInService.id == service.fare_in_service_id)
+        .first()
+    )
+    return jsonable_encoder(fare_in_service, exclude={"reference_count"})
+
+
+def fetch_vehicle_in_service(session: Session, service: Service) -> Dict[str, Any] :
+    """
+    Fetch and return the `VehicleInService` snapshot for a service.
+
+    Args :
+        session (Session): SQLAlchemy session.
+        service (Service): Service object to lookup.
+
+    Returns:
+        Dict[str, Any]: Dict containing `vehicle_in_service` serialized for JSON.
+   
+    """
+    vehicle_in_service = (
+        session.query(VehicleInService)
+        .filter(VehicleInService.id == service.vehicle_in_service_id)
+        .first()
+    )
+    return jsonable_encoder(vehicle_in_service, exclude={"reference_count"})
+
+
+def delete_landmarks_in_service(session: Session, service: Service) -> None:
+    """
+    Delete all `LandmarkInService` rows associated with a `Service`.
+
+    Args:
+        session (Session): SQLAlchemy session.
+        service (Service): Service whose landmark snapshots should be removed.
+
+    Returns:
+        None
+    """
+    session.query(LandmarkInService).filter(
+        LandmarkInService.service_id == service.id
+    ).delete(synchronize_session=False)
+    session.flush()
+
+
+def delete_fare_in_service(session: Session, service: Service) -> None:
+    """
+    Decrements the reference count of the `FareInService` snapshot referenced by the
+    given `Service` and deletes it if the count reaches zero.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        service (Service): Service whose `fare_in_service_id` will be decremented/cleaned up.
+    
+    Returns:
+        None
+    """
+    fare_in_service = (
+        session.query(FareInService)
+        .filter(FareInService.id == service.fare_in_service_id)
         .first()
     )
     fare_in_service.reference_count -= 1
@@ -909,20 +963,21 @@ def delete_fare_in_service(
     session.flush()
 
 
-def delete_vehicle_in_service(
-    session: Session,
-    vehicle_in_service_id: int,
-) -> None:
+def delete_vehicle_in_service(session: Session, service: Service) -> None:
     """
-    Decrements the reference count of a VehicleInService and deletes it if the count reaches zero.
+    Decrements the reference count of the `VehicleInService` snapshot referenced by the
+    given `Service` and deletes it if the count reaches zero.
 
     Args:
         session (Session): SQLAlchemy database session.
-        vehicle_in_service_id (int): The ID of the VehicleInService to potentially delete.
+        service (Service): Service whose `vehicle_in_service_id` will be decremented/cleaned up.
+
+    Returns:
+        None
     """
     vehicle_in_service = (
         session.query(VehicleInService)
-        .filter(VehicleInService.id == vehicle_in_service_id)
+        .filter(VehicleInService.id == service.vehicle_in_service_id)
         .first()
     )
     vehicle_in_service.reference_count -= 1
@@ -951,13 +1006,11 @@ def delete_service(session: Session, service: Service) -> dict:
     """
     service_data = jsonable_encoder(service, exclude={"private_key", "public_key"})
 
-    session.query(LandmarkInService).filter(
-        LandmarkInService.service_id == service.id
-    ).delete(synchronize_session=False)
+    # decrement/delete snapshots referenced by the service
+    delete_landmarks_in_service(session, service)
+    delete_fare_in_service(session, service)
+    delete_vehicle_in_service(session, service)
 
-    # decrement/delete snapshots by passing ids directly from service
-    delete_fare_in_service(session, service.fare_in_service_id)
-    delete_vehicle_in_service(session, service.vehicle_in_service_id)
 
     session.delete(service)
 
