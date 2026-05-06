@@ -15,6 +15,7 @@ from sqlalchemy import (
     CheckConstraint,
     Index,
     Numeric,
+    Float,
     create_engine,
     Boolean,
     TEXT,
@@ -2570,18 +2571,14 @@ class ServiceLocation(ORMbase):
             Indicates the service associated with this location record.
             Cascades on delete — if the service is removed, related location records are deleted.
 
-        operator_id (Integer, nullable):
-            Operator identifier. Foreign key referencing `operator.id`.
-            Set to NULL when the referenced operator is deleted.
-
         landmark_id (Integer, not null):
             Foreign key referencing `landmark.id` for associated landmark.
 
         location (Geometry POINT SRID=4326, nullable):
             Geospatial point representing the recorded location.
 
-        accuracy (Numeric, nullable):
-            Accuracy metric for the recorded location (precision 2 decimals).
+        accuracy (Float, nullable):
+            Accuracy metric for the recorded location (meters, floating point).
 
         updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp automatically updated whenever the service location record is modified.
@@ -2605,15 +2602,9 @@ class ServiceLocation(ORMbase):
         nullable=False,
         index=True,
     )
-    operator_id = Column(
-        Integer,
-        ForeignKey("operator.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
     landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False, index=True)
     location = Column(Geometry(geometry_type="POINT", srid=4326))
-    accuracy = Column(Numeric(10, 2))
+    accuracy = Column(Float)
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
