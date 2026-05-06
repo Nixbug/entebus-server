@@ -15,6 +15,7 @@ from sqlalchemy import (
     CheckConstraint,
     Index,
     Numeric,
+    Float,
     create_engine,
     Boolean,
     TEXT,
@@ -2432,9 +2433,8 @@ class Duty(ORMbase):
             Cascades on delete — if the company is removed, related duties are deleted.
 
         operator_id (Integer, nullable):
-            Foreign key referencing `operator.id`.
-            Identifies the operator assigned to this duty.
-            Sets to NULL on delete — if the operator is removed, the duty remains but the operator reference is cleared.
+            Operator identifier. Foreign key referencing `operator.id`.
+            Set to NULL when the referenced operator is deleted.
 
         service_id (Integer, not null):
             Foreign key referencing `service.id`.
@@ -2471,7 +2471,10 @@ class Duty(ORMbase):
         index=True,
     )
     operator_id = Column(
-        Integer, ForeignKey("operator.id", ondelete="SET NULL"), index=True
+        Integer,
+        ForeignKey("operator.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     service_id = Column(
         Integer,
@@ -2542,4 +2545,81 @@ class PaperTicket(ORMbase):
     ticket = Column(JSONB, nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
     # Metadata
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class ServiceLocation(ORMbase):
+    """
+    Real-time or historical geospatial trace for services.
+
+    This table stores location samples linked to a company and a service,
+    and may include an `operator_id` and a reference to a `landmark`.
+    Each record represents a point-in-time position with optional accuracy
+    metadata and timestamps.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the trace record.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id`.
+            Indicates the company associated with this location record.
+            Cascades on delete — if the company is removed, related location records are deleted.
+
+        service_id (Integer, not null):
+            Foreign key referencing `service.id`.
+            Indicates the service associated with this location record.
+            Cascades on delete — if the service is removed, related location records are deleted.
+
+        operator_id (Integer, nullable):
+            Foreign key referencing `operator.id`.
+            Indicates the operator associated with this location record, if any.
+            Set to NULL when the referenced operator is deleted.
+            Unique constraint `(service_id, operator_id)` ensures at most one
+            location record per operator for a given service.
+
+        landmark_id (Integer, not null):
+            Foreign key referencing `landmark.id`.
+            The last landmark passed by the service at the time of recording this location.
+
+        location (Geometry POINT SRID=4326, nullable):
+            Geospatial point representing the recorded location.
+
+        accuracy (Float, nullable):
+            Accuracy metric for the recorded location (meters, floating point).
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the service location record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the service location record was created.
+    """
+
+    __tablename__ = "service_location"
+    __table_args__ = (UniqueConstraint("service_id", "operator_id"),)
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    service_id = Column(
+        Integer,
+        ForeignKey("service.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    operator_id = Column(
+        Integer,
+        ForeignKey("operator.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
+    location = Column(Geometry(geometry_type="POINT", srid=4326))
+    accuracy = Column(Float)
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
