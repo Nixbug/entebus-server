@@ -2573,6 +2573,8 @@ class ServiceLocation(ORMbase):
 
         landmark_id (Integer, not null):
             Foreign key referencing `landmark.id` for associated landmark.
+            When recording a ticket journey between two landmarks, this field
+            should contain the starting landmark id.
 
         location (Geometry POINT SRID=4326, nullable):
             Geospatial point representing the recorded location.
