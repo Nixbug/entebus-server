@@ -44,7 +44,13 @@ from app.src.regex import NAME_PATTERN
 from app.src.enums import CompanyStatus, CompanyType, OrderIn
 from app.src.urls import URL_COMPANY
 from app.src.openobserve import log_event
-from app.src.validators import validate_id, verify_permission, verify_token, validate_srid_4326, validate_wkt_string
+from app.src.validators import (
+    validate_id,
+    verify_permission,
+    verify_token,
+    validate_srid_4326,
+    validate_wkt_string,
+)
 from app.src.functions import (
     apply_created_on_filters,
     apply_updated_on_filters,

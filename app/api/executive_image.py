@@ -24,7 +24,12 @@ from app.api.bearer import oauth2_executive
 from app.src.db import Executive, ExecutiveToken, ExecutiveImage, SessionLocal
 from app.src.permissions.executive import PermissionPath
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token, validate_id, validate_image
+from app.src.validators import (
+    verify_permission,
+    verify_token,
+    validate_id,
+    validate_image,
+)
 from app.src.constants import (
     MAX_IMAGE_FILE_SIZE,
     MAX_IMAGE_RESOLUTION,
