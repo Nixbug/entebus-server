@@ -7,7 +7,7 @@ input validation and structured output.
 """
 
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 from fastapi import APIRouter, Response, status, Depends, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field

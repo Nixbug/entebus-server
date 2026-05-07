@@ -40,7 +40,13 @@ from app.src import exceptions
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_BUS_STOP
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token, validate_id
+from app.src.validators import (
+    verify_permission,
+    verify_token,
+    validate_id,
+    validate_wkt_string,
+    validate_srid_4326,
+)
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
@@ -51,8 +57,6 @@ from app.src.functions import (
     get_request_info,
     get_executive_roles,
     update_if_changed,
-    validate_wkt_string,
-    validate_srid_4326,
 )
 
 route_executive = APIRouter()
