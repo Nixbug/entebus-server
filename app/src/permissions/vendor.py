@@ -5,8 +5,10 @@ Provides Pydantic schemas to define the hierarchical structure of permissions
 for vendors within the system and permission paths for specific actions.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 from enum import StrEnum
+
+from app.src.permissions.base import PermissionBase
 
 
 ## Permission Paths
@@ -27,7 +29,7 @@ class PermissionPath(StrEnum):
     DELETE_BUSINESS_VENDOR_TOKEN = "business.vendor.token.delete"
 
 
-class CRUDPermission(BaseModel):
+class CRUDPermission(PermissionBase):
     """Generic CRUD permission set — reused by most entities."""
 
     create: bool = Field(description="Allow creation")
@@ -35,7 +37,7 @@ class CRUDPermission(BaseModel):
     delete: bool = Field(description="Allow deletion")
 
 
-class TokenPermission(BaseModel):
+class TokenPermission(PermissionBase):
     """Specialized permissions for token management."""
 
     fetch: bool = Field(description="Allow fetching token details")
@@ -49,14 +51,14 @@ class VendorPermissions(CRUDPermission):
     token: TokenPermission
 
 
-class BusinessPermission(BaseModel):
+class BusinessPermission(PermissionBase):
     """Business related permissions."""
 
     update: bool = Field(description="Allow updating business details")
     vendor: VendorPermissions
 
 
-class PermissionSchema(BaseModel):
+class PermissionSchema(PermissionBase):
     """Top-level hierarchical permission structure for a VendorRole."""
 
     business: BusinessPermission

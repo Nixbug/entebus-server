@@ -5,8 +5,10 @@ Provides Pydantic schemas to define the hierarchical structure of permissions
 for operators within the system and permission paths for specific actions.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 from enum import StrEnum
+
+from app.src.permissions.base import PermissionBase
 
 
 ## Permission Paths
@@ -57,7 +59,7 @@ class PermissionPath(StrEnum):
     DELETE_COMPANY_SCHEDULE = "company.schedule.delete"
 
 
-class CRUDPermission(BaseModel):
+class CRUDPermission(PermissionBase):
     """Generic CRUD permission set — reused by most entities."""
 
     create: bool = Field(description="Allow creation")
@@ -65,20 +67,20 @@ class CRUDPermission(BaseModel):
     delete: bool = Field(description="Allow deletion")
 
 
-class TokenPermission(BaseModel):
+class TokenPermission(PermissionBase):
     """Specialized permissions for token management."""
 
     fetch: bool = Field(description="Allow fetching token details")
     delete: bool = Field(description="Allow deleting token")
 
 
-class DutyPermission(BaseModel):
+class DutyPermission(PermissionBase):
     """Duty related permissions."""
 
     update: bool = Field(description="Allow updating duties")
 
 
-class CreatePermission(BaseModel):
+class CreatePermission(PermissionBase):
     """Single action create permission."""
 
     create: bool = Field(description="Allow creation")
@@ -100,7 +102,7 @@ class ServicePermissions(CRUDPermission):
     statement: CreatePermission
 
 
-class CompanyPermission(BaseModel):
+class CompanyPermission(PermissionBase):
     """Company related permissions."""
 
     update: bool = Field(description="Allow updating company details")
@@ -112,7 +114,7 @@ class CompanyPermission(BaseModel):
     schedule: CRUDPermission
 
 
-class PermissionSchema(BaseModel):
+class PermissionSchema(PermissionBase):
     """Top-level hierarchical permission structure for an OperatorRole."""
 
     company: CompanyPermission
