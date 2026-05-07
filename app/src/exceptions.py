@@ -504,13 +504,27 @@ class UnknownTicketType(APIException):
 class LimitExceeded(APIException):
     """
     Raised when the number of entries in a table reaches the allowed maximum.
+
+    Args:
+        orm_class: The ORM model whose row count was exceeded.
+        limit: The exact numeric ceiling that was reached.
+        identifier: Optional ID of the parent resource (e.g. route_id) that
+            is already at capacity, so clients know which record to inspect.
     """
 
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     headers = {"X-Error": "LimitExceeded"}
 
-    def __init__(self, orm_class: DeclarativeMeta):
-        detail = (
-            f"Number of entries into {orm_class.__name__} exceeded the allowed limits."
-        )
+    def __init__(
+        self,
+        orm_class: DeclarativeMeta,
+        limit: int | None = None,
+        identifier: str | None = None,
+    ):
+        parts = [f"{orm_class.__name__} has reached its maximum allowed entries"]
+        if limit is not None:
+            parts.append(f"(limit: {limit})")
+        if identifier is not None:
+            parts.append(f"for {identifier}")
+        detail = " ".join(parts) + "."
         super().__init__(detail=detail)
