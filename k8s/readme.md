@@ -23,6 +23,9 @@ This guide explains how to deploy **Entebus Server** on Kubernetes using Kustomi
 - Uses app image tag: `develop`
 - Rewrites ingress host to: `dev-api.entebus.com`
 - Changes namespace label `environment` to `dev`
+- Rewrites ingress host to: `dev-api.entebus.com` and adds hosts for developer UIs:
+   - `dev-minio.entebus.com` (MinIO console)
+   - `dev-openobserve.entebus.com` (OpenObserve UI)
 
 ### `overlays/prod`
 
@@ -103,8 +106,8 @@ In Cloudflare dashboard:
 1. Go to **SSL/TLS → Origin Server**
 2. Click **Create Certificate**
 3. Choose:
-	 - **Private Key Type:** RSA (2048)
-	 - **Hostnames:** add all required domains (example: `api.entebus.com`, `dev-api.entebus.com`)
+ 	 - **Private Key Type:** RSA (2048)
+ 	 - **Hostnames:** add all required domains (example: `api.entebus.com`, `dev-api.entebus.com`, `dev-minio.entebus.com`, `dev-openobserve.entebus.com`, `minio.entebus.com`, `openobserve.entebus.com`)
 	 - **Validity:** 15 years
 4. Download/save files in PEM format:
 	 - `origin.crt`

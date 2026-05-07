@@ -28,6 +28,44 @@ patches:
       - op: replace
         path: /spec/rules/0/host
         value: dev-api.entebus.com
+      - op: add
+        path: /spec/tls/1
+        value:
+          hosts:
+            - dev-minio.entebus.com
+          secretName: cloudflare-origin-cert
+      - op: add
+        path: /spec/tls/2
+        value:
+          hosts:
+            - dev-openobserve.entebus.com
+          secretName: cloudflare-origin-cert
+      - op: add
+        path: /spec/rules/1
+        value:
+          host: dev-minio.entebus.com
+          http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: minio
+                    port:
+                      number: 9001
+      - op: add
+        path: /spec/rules/2
+        value:
+          host: dev-openobserve.entebus.com
+          http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: openobserve
+                    port:
+                      number: 5080
 
   - target:
       kind: Deployment
