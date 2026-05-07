@@ -553,7 +553,6 @@ async def fetch_landmark_in_route_for_executive(
             exceptions.InvalidValue(LandmarkInRoute.arrival_delta),
             exceptions.UnknownValue(LandmarkInRoute.route_id),
             exceptions.UnknownValue(LandmarkInRoute.landmark_id),
-            exceptions.LimitExceeded(orm_class=LandmarkInRoute),
         ]
     ),
     description=(
@@ -605,8 +604,6 @@ async def create_landmark_in_route_for_operator(
         if landmark_count >= MAX_LANDMARKS_PER_ROUTE:
             raise exceptions.LimitExceeded(
                 orm_class=LandmarkInRoute,
-                limit=MAX_LANDMARKS_PER_ROUTE,
-                identifier=f"route_id={route.id}",
             )
 
         landmark_in_route_data = create_landmark_in_route(session, route, form_param)
