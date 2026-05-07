@@ -314,45 +314,35 @@ def validate_service_timing(
 
 
 def create_landmarks_in_service(
-    session: Session, service_id: int, route_id: int, starting_at: datetime
-) -> tuple[List[LandmarkInService], datetime]:
+    service_id: int,
+    landmarks_in_route: List[LandmarkInRoute],
+    starting_at: datetime,
+) -> List[LandmarkInService]:
     """
     Create landmark snapshot rows for a service based on route timing deltas.
 
     Args:
-        session (Session): SQLAlchemy database session.
         service_id (int): The ID of the service.
-        route_id (int): The ID of the route.
+        landmarks_in_route (List[LandmarkInRoute]): The landmarks in the route.
         starting_at (datetime): The starting time of the service.
 
     Returns:
         List[LandmarkInService]: The list of landmarks in the service.
     """
-    landmarks_in_service: List[LandmarkInService] = []
-
-    landmarks_in_route = (
-        session.query(LandmarkInRoute)
-        .filter(LandmarkInRoute.route_id == route_id)
-        .order_by(LandmarkInRoute.distance_from_start.asc())
-        .all()
-    )
+    landmarks_in_service = []
     for landmark_in_route in landmarks_in_route:
-        arrival = starting_at + timedelta(minutes=landmark_in_route.arrival_delta)
-        departure = starting_at + timedelta(minutes=landmark_in_route.departure_delta)
-        landmark_in_service = LandmarkInService(
-            service_id=service_id,
-            landmark_id=landmark_in_route.landmark_id,
-            distance_from_start=landmark_in_route.distance_from_start,
-            arrival_at=arrival,
-            departure_at=departure,
+        landmarks_in_service.append(
+            LandmarkInService(
+                service_id=service_id,
+                landmark_id=landmark_in_route.landmark_id,
+                distance_from_start=landmark_in_route.distance_from_start,
+                arrival_at=starting_at
+                + timedelta(minutes=landmark_in_route.arrival_delta),
+                departure_at=starting_at
+                + timedelta(minutes=landmark_in_route.departure_delta),
+            )
         )
-        landmarks_in_service.append(landmark_in_service)
-
-    session.add_all(landmarks_in_service)
-    session.flush()
-
-    ending_at = landmarks_in_service[-1].departure_at if landmarks_in_service else starting_at
-    return landmarks_in_service, ending_at
+    return landmarks_in_service
 
 
 def create_fare_in_service(session: Session, fare: Fare) -> FareInService:
@@ -589,9 +579,15 @@ def create_service(
     starting_at = validate_starting_at(form_param.starting_at)
 
     # Fetch all landmarks for the route ordered by distance from start.
-    landmarks_in_service = create_landmarks_in_service(session, service.id, route.id, starting_at)
-    first_landmark_in_route = landmarks_in_service[0]
-    last_landmark_in_route = landmarks_in_service[-1]
+    # Use the first/last entries to determine display names and ending_at.
+    landmarks_in_route = (
+        session.query(LandmarkInRoute)
+        .filter(LandmarkInRoute.route_id == route.id)
+        .order_by(LandmarkInRoute.distance_from_start.asc())
+        .all()
+    )
+    first_landmark_in_route = landmarks_in_route[0]
+    last_landmark_in_route = landmarks_in_route[-1]
     ending_at = starting_at + timedelta(minutes=last_landmark_in_route.arrival_delta)
 
     # Prevent assigning the same vehicle to overlapping services (any company)
@@ -644,6 +640,12 @@ def create_service(
     )
     session.add(service)
     session.flush()
+
+    landmarks_in_service = create_landmarks_in_service(
+        service.id, landmarks_in_route, starting_at
+    )
+    session.add_all(landmarks_in_service)
+
     session.commit()
     session.refresh(service)
     service_data = jsonable_encoder(service, exclude={"private_key"})
@@ -778,11 +780,12 @@ def update_service(
         )
 
         delete_landmarks_in_service(session, service)
-        landmarks_in_service, computed_ending_at = create_landmarks_in_service(
-            session, service.id, route.id, service.starting_at
+        landmarks_in_service = create_landmarks_in_service(
+            service.id, landmarks_in_route, service.starting_at
         )
+        session.add_all(landmarks_in_service)
         session.flush()
-        service.ending_at = computed_ending_at
+        service.ending_at = ending_at
         service.starting_landmark_id = first_landmark_in_route.landmark_id
         service.ending_landmark_id = last_landmark_in_route.landmark_id
         have_critical_change = True
