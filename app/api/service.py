@@ -801,8 +801,8 @@ def update_service(
             or old_fare_in_service.fare_id != fare.id
             or old_fare_in_service.version != fare.version
         ):
-            fare_in_service = create_fare_in_service(session, fare)
             old_fare_in_service_id = service.fare_in_service_id
+            fare_in_service = create_fare_in_service(session, fare)
             service.fare_in_service_id = fare_in_service.id
             session.flush()
             delete_fare_in_service(session, old_fare_in_service_id)
@@ -822,12 +822,12 @@ def update_service(
             or old_vehicle_in_service.vehicle_id != vehicle.id
             or old_vehicle_in_service.version != vehicle.version
         ):
-            vehicle_in_service = create_vehicle_in_service(session, vehicle)
             old_vehicle_in_service_id = service.vehicle_in_service_id
-            delete_vehicle_in_service(session, old_vehicle_in_service_id)
+            vehicle_in_service = create_vehicle_in_service(session, vehicle)
             service.vehicle_in_service_id = vehicle_in_service.id
             service.registration_number = vehicle.registration_number
             session.flush()
+            delete_vehicle_in_service(session, old_vehicle_in_service_id)
             have_critical_change = True
 
     if vehicle_id is not None or route_id is not None or starting_at is not None:
