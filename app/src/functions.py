@@ -15,8 +15,10 @@ from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform
+from datetime import datetime
 
 from app.src import schemas, exceptions
+from app.src.constants import TMZ_PRIMARY
 from app.src.db import (
     ExecutiveRole,
     ExecutiveRoleMap,
@@ -535,3 +537,43 @@ def resolve_model_defaults(model_cls: Type[BaseModel], **overrides):
             else:
                 data[field_name] = default_val
     return model_cls(**data)
+
+
+def is_valid_transition(
+    transitions: dict[Any, list[Any]], old_state: Any, new_state: Any
+) -> bool:
+    """
+    Check if a state transition is valid.
+
+    Args:
+        transitions (dict[Any, list[Any]]): A mapping of valid state transitions.
+        old_state (Any): The current state before the transition.
+        new_state (Any): The desired state after the transition.
+
+    Returns:
+        bool: True if the transition is valid.
+    """
+    if new_state is None or old_state == new_state:
+        return True
+    if not transitions:
+        return False
+    if old_state not in transitions:
+        return False
+    return new_state in transitions[old_state]
+
+
+def normalize_timestamp(timestamp: datetime) -> datetime:
+    """
+     Normalize a naive or timezone-aware timestamp to UTC.
+
+    Args:
+         timestamp (datetime): The input timestamp, which can be naive or timezone-aware.
+
+     Returns:
+         datetime: The normalized timestamp in UTC.
+    """
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=TMZ_PRIMARY)
+    else:
+        timestamp = timestamp.astimezone(TMZ_PRIMARY)
+    return timestamp
