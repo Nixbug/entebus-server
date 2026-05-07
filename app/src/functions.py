@@ -17,6 +17,7 @@ from sqlalchemy.orm.session import Session
 from shapely.geometry.base import BaseGeometry
 from shapely import Polygon, wkt, errors
 from shapely.ops import transform
+from datetime import datetime
 
 from app.src import schemas, exceptions
 from app.src.constants import (
@@ -25,6 +26,7 @@ from app.src.constants import (
     MIN_IMAGE_FILE_SIZE,
     MIN_IMAGE_RESOLUTION,
 )
+from app.src.constants import TMZ_PRIMARY
 from app.src.db import (
     ExecutiveRole,
     ExecutiveRoleMap,
@@ -701,3 +703,20 @@ def is_valid_transition(
     if old_state not in transitions:
         return False
     return new_state in transitions[old_state]
+
+
+def normalize_timestamp(timestamp: datetime) -> datetime:
+    """
+     Normalize a naive or timezone-aware timestamp to UTC.
+
+    Args:
+         timestamp (datetime): The input timestamp, which can be naive or timezone-aware.
+
+     Returns:
+         datetime: The normalized timestamp in UTC.
+    """
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=TMZ_PRIMARY)
+    else:
+        timestamp = timestamp.astimezone(TMZ_PRIMARY)
+    return timestamp
