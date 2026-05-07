@@ -315,7 +315,7 @@ def validate_service_timing(
 
 def create_landmarks_in_service(
     session: Session, service_id: int, route_id: int, starting_at: datetime
-) -> List[LandmarkInService]:
+) -> tuple[List[LandmarkInService], datetime]:
     """
     Create landmark snapshot rows for a service based on route timing deltas.
 
@@ -350,7 +350,9 @@ def create_landmarks_in_service(
 
     session.add_all(landmarks_in_service)
     session.flush()
-    return landmarks_in_service
+
+    ending_at = landmarks_in_service[-1].departure_at if landmarks_in_service else starting_at
+    return landmarks_in_service, ending_at
 
 
 def create_fare_in_service(session: Session, fare: Fare) -> FareInService:
@@ -642,14 +644,6 @@ def create_service(
     )
     session.add(service)
     session.flush()
-
-    # create and persist landmark snapshots for this service and update ending_at
-    landmarks_in_service, computed_ending_at = create_landmarks_in_service(
-        session, service.id, route.id, starting_at
-    )
-    service.ending_at = computed_ending_at
-    session.flush()
-
     session.commit()
     session.refresh(service)
     service_data = jsonable_encoder(service, exclude={"private_key"})
