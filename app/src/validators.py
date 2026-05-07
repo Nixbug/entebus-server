@@ -363,8 +363,15 @@ def validate_srid_4326(geometry: BaseGeometry) -> bool:
     """
 
     def check_coords(coords):
-        for longitude, latitude in coords:
-            if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+        # Handle variable-length coordinate tuples to support 3D geometries (e.g., POINT Z)
+        for coord in coords:
+            try:
+                if len(coord) < 2:
+                    raise exceptions.InvalidSRID4326()
+                longitude, latitude = coord[0], coord[1]
+                if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+                    raise exceptions.InvalidSRID4326()
+            except (TypeError, ValueError):
                 raise exceptions.InvalidSRID4326()
         return True
 
