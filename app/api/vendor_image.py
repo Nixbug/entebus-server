@@ -31,13 +31,12 @@ from app.src import exceptions
 from app.src.urls import URL_VENDOR_PICTURE
 from app.src.minio import delete_file, upload_file, download_file
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token, validate_id
+from app.src.validators import verify_permission, verify_token, validate_id, validate_image
 from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
     get_executive_roles,
     get_vendor_roles,
-    validate_image,
     apply_created_on_filters,
     apply_id_filters,
     apply_picture_filters,
