@@ -56,7 +56,6 @@ from app.src.functions import (
     get_operator_roles,
     get_request_info,
     update_if_changed,
-    
     resolve_model_defaults,
     apply_status_filters,
     apply_type_filters,
