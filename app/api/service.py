@@ -99,9 +99,9 @@ class ServiceSchema(BaseModel):
     name: str
     status: int
     registration_number: str
-    fare_id: int
-    vehicle_id: int
-    route_id: int
+    fare_id: int | None
+    vehicle_id: int | None
+    route_id: int | None
     starting_landmark_id: int
     ending_landmark_id: int
     ticket_mode: int

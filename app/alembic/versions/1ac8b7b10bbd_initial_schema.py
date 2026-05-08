@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: a9558b562676
+Revision ID: 1ac8b7b10bbd
 Revises: 
-Create Date: 2026-05-08 08:51:54.280549
+Create Date: 2026-05-08 09:56:57.645056
 
 """
 from typing import Sequence, Union
@@ -13,7 +13,7 @@ from geoalchemy2 import Geometry
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'a9558b562676'
+revision: str = '1ac8b7b10bbd'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -431,9 +431,9 @@ def upgrade() -> None:
     sa.Column('name', sa.String(length=128), nullable=False),
     sa.Column('fare_in_service_id', sa.Integer(), nullable=False),
     sa.Column('vehicle_in_service_id', sa.Integer(), nullable=False),
-    sa.Column('fare_id', sa.Integer(), nullable=False),
-    sa.Column('vehicle_id', sa.Integer(), nullable=False),
-    sa.Column('route_id', sa.Integer(), nullable=False),
+    sa.Column('fare_id', sa.Integer(), nullable=True),
+    sa.Column('vehicle_id', sa.Integer(), nullable=True),
+    sa.Column('route_id', sa.Integer(), nullable=True),
     sa.Column('registration_number', sa.String(length=16), nullable=False),
     sa.Column('ticket_mode', sa.Integer(), nullable=False),
     sa.Column('status', sa.Integer(), nullable=False),
