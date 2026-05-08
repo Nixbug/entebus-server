@@ -2180,17 +2180,13 @@ class Service(ORMbase):
     vehicle_in_service_id = Column(
         Integer, ForeignKey("vehicle_in_service.id"), nullable=False
     )
-    fare_id = Column(
-        Integer, ForeignKey("fare.id", ondelete="SET NULL"), index=True
-    )
+    fare_id = Column(Integer, ForeignKey("fare.id", ondelete="SET NULL"), index=True)
     vehicle_id = Column(
         Integer,
         ForeignKey("vehicle.id", ondelete="SET NULL"),
         index=True,
     )
-    route_id = Column(
-        Integer, ForeignKey("route.id", ondelete="SET NULL"), index=True
-    )
+    route_id = Column(Integer, ForeignKey("route.id", ondelete="SET NULL"), index=True)
     registration_number = Column(String(16), nullable=False, index=True)
     ticket_mode = Column(Integer, nullable=False, default=TicketingMode.HYBRID)
     status = Column(Integer, nullable=False, default=ServiceStatus.CREATED)
