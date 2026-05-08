@@ -553,6 +553,7 @@ async def fetch_landmark_in_route_for_executive(
             exceptions.InvalidValue(LandmarkInRoute.arrival_delta),
             exceptions.UnknownValue(LandmarkInRoute.route_id),
             exceptions.UnknownValue(LandmarkInRoute.landmark_id),
+            exceptions.LimitExceeded(orm_class=LandmarkInRoute),
         ]
     ),
     description=(
