@@ -23,6 +23,10 @@ This guide explains how to deploy **Entebus Server** on Kubernetes using Kustomi
 - Uses app image tag: `develop`
 - Rewrites ingress host to: `dev-api.entebus.com`
 - Changes namespace label `environment` to `dev`
+- Rewrites ingress host to:
+  - `dev-api.entebus.com` (API endpoint)
+  - `dev-minio.entebus.com` (MinIO console)
+  - `dev-openobserve.entebus.com` (OpenObserve UI)
 
 ### `overlays/prod`
 
@@ -103,8 +107,8 @@ In Cloudflare dashboard:
 1. Go to **SSL/TLS → Origin Server**
 2. Click **Create Certificate**
 3. Choose:
-	 - **Private Key Type:** RSA (2048)
-	 - **Hostnames:** add all required domains (example: `api.entebus.com`, `dev-api.entebus.com`)
+ 	 - **Private Key Type:** RSA (2048)
+ 	 - **Hostnames:** add all required domains (example: `api.entebus.com`, `dev-api.entebus.com`, `dev-minio.entebus.com`, `dev-openobserve.entebus.com`, `minio.entebus.com`, `openobserve.entebus.com`)
 	 - **Validity:** 15 years
 4. Download/save files in PEM format:
 	 - `origin.crt`
@@ -112,13 +116,19 @@ In Cloudflare dashboard:
 
 ### 2 Create Kubernetes TLS secret
 
-From the project root (or directory containing the certificate files):
+From the project root (or directory containing the certificate files), run **one** of the following commands:
 
 ```bash
+# First-time creation of the TLS secret in the entebus namespace
 kubectl create secret tls cloudflare-origin-cert \
 	--namespace entebus \
 	--cert=origin.crt \
 	--key=origin.key
+
+# If the secret already exists, update/apply it idempotently instead
+kubectl create secret tls cloudflare-origin-cert \
+  --cert=origin.crt --key=origin.key -n entebus \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 Verify secret:
@@ -133,7 +143,7 @@ The ingress already references:
 
 - Secret name: `cloudflare-origin-cert`
 - TLS host in base: `api.entebus.com`
-- TLS host in dev overlay: `dev-api.entebus.com` (patched)
+- TLS hosts in overlays may differ; verify the rendered ingress manifest for your target overlay
 
 Confirm final ingress manifest:
 
