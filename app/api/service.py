@@ -99,8 +99,11 @@ class ServiceSchema(BaseModel):
     name: str
     status: int
     registration_number: str
-    starting_landmark_id: int | None
-    ending_landmark_id: int | None
+    fare_id: int
+    vehicle_id: int
+    route_id: int
+    starting_landmark_id: int
+    ending_landmark_id: int
     ticket_mode: int
     remark: str | None
     starting_at: datetime
@@ -239,6 +242,9 @@ class QueryParamsForOP(QueryParamsForPU):
     """Query parameters for operator users."""
 
     id_excluding: List[int] | None = Field(Query(default=None))
+    fare_id: int | None = Field(Query(default=None))
+    vehicle_id: int | None = Field(Query(default=None))
+    route_id: int | None = Field(Query(default=None))
 
 
 class QueryParamsForEX(QueryParamsForOP):
@@ -627,8 +633,11 @@ def create_service(
         company_id=company.id,
         name=name,
         fare_in_service_id=fare_in_service.id,
+        fare_id=fare.id,
         vehicle_in_service_id=vehicle_in_service.id,
+        vehicle_id=vehicle.id,
         registration_number=vehicle.registration_number,
+        route_id=route.id,
         ticket_mode=form_param.ticket_mode,
         status=ServiceStatus.CREATED,
         starting_at=starting_at,
@@ -788,6 +797,7 @@ def update_service(
         service.ending_at = ending_at
         service.starting_landmark_id = first_landmark_in_route.landmark_id
         service.ending_landmark_id = last_landmark_in_route.landmark_id
+        service.route_id = route.id
         have_critical_change = True
 
     if fare_id is not None:
@@ -804,6 +814,7 @@ def update_service(
             old_fare_in_service_id = service.fare_in_service_id
             fare_in_service = create_fare_in_service(session, fare)
             service.fare_in_service_id = fare_in_service.id
+            service.fare_id = fare.id
             session.flush()
             delete_fare_in_service(session, old_fare_in_service_id)
             session.flush()
@@ -826,6 +837,7 @@ def update_service(
             vehicle_in_service = create_vehicle_in_service(session, vehicle)
             service.vehicle_in_service_id = vehicle_in_service.id
             service.registration_number = vehicle.registration_number
+            service.vehicle_id = vehicle.id
             session.flush()
             delete_vehicle_in_service(session, old_vehicle_in_service_id)
             have_critical_change = True
@@ -914,6 +926,12 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
         query = query.filter(Service.id.in_(svcs_to_consider))
     if query_params.company_id is not None:
         query = query.filter(Service.company_id == query_params.company_id)
+    if query_params.fare_id is not None:
+        query = query.filter(Service.fare_id == query_params.fare_id)
+    if query_params.vehicle_id is not None:
+        query = query.filter(Service.vehicle_id == query_params.vehicle_id)
+    if query_params.route_id is not None:
+        query = query.filter(Service.route_id == query_params.route_id)
     if query_params.id_excluding:
         query = query.filter(Service.id.notin_(query_params.id_excluding))
     if query_params.registration_number is not None:
