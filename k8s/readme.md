@@ -118,10 +118,16 @@ In Cloudflare dashboard:
 From the project root (or directory containing the certificate files):
 
 ```bash
+# Create TLS secret in the entebus namespace
 kubectl create secret tls cloudflare-origin-cert \
 	--namespace entebus \
 	--cert=origin.crt \
 	--key=origin.key
+
+# Replace existing secret if it already exists (idempotent)
+kubectl create secret tls cloudflare-origin-cert \
+  --cert=origin.crt --key=origin.key -n entebus \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 Verify secret:
@@ -135,8 +141,8 @@ kubectl get secret cloudflare-origin-cert -n entebus
 The ingress already references:
 
 - Secret name: `cloudflare-origin-cert`
-- TLS host in base: `api.entebus.com`
-- TLS host in dev overlay: `dev-api.entebus.com` (patched)
+- TLS host in base: `api.entebus.com, minio.entebus.com, openobserve.entebus.com`
+- TLS host in dev overlay: `dev-api.entebus.com, dev-minio.entebus.com, dev-openobserve.entebus.com`
 
 Confirm final ingress manifest:
 
