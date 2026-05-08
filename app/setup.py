@@ -156,12 +156,12 @@ def initialize():
     )
     session.add(company)
     session.flush()
-    
+
     # Create company wallet
     wallet = Wallet(balance=0.0, name=company.name)
     session.add(wallet)
     session.flush()
-    
+
     # Map the company to its wallet
     company_wallet_map = CompanyWallet(company_id=company.id, wallet_id=wallet.id)
     session.add(company_wallet_map)
