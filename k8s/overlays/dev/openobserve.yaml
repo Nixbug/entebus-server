@@ -27,7 +27,6 @@ spec:
           volumeMounts:
             - name: openobserve-data
               mountPath: /data
-              subPath: zo-data
       containers:
         - name: openobserve
           image: public.ecr.aws/zinclabs/openobserve:latest
@@ -49,7 +48,6 @@ spec:
           volumeMounts:
             - name: openobserve-data
               mountPath: /data
-              subPath: zo-data
       volumes:
         - name: openobserve-data
           persistentVolumeClaim:
