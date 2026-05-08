@@ -142,8 +142,8 @@ kubectl get secret cloudflare-origin-cert -n entebus
 The ingress already references:
 
 - Secret name: `cloudflare-origin-cert`
-- TLS host in base: `api.entebus.com, minio.entebus.com, openobserve.entebus.com`
-- TLS host in dev overlay: `dev-api.entebus.com, dev-minio.entebus.com, dev-openobserve.entebus.com`
+- TLS host in base: `api.entebus.com`
+- TLS hosts in overlays may differ; verify the rendered ingress manifest for your target overlay
 
 Confirm final ingress manifest:
 
