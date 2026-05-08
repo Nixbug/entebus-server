@@ -116,16 +116,16 @@ In Cloudflare dashboard:
 
 ### 2 Create Kubernetes TLS secret
 
-From the project root (or directory containing the certificate files):
+From the project root (or directory containing the certificate files), run **one** of the following commands:
 
 ```bash
-# Create TLS secret in the entebus namespace
+# First-time creation of the TLS secret in the entebus namespace
 kubectl create secret tls cloudflare-origin-cert \
 	--namespace entebus \
 	--cert=origin.crt \
 	--key=origin.key
 
-# Replace existing secret if it already exists (idempotent)
+# If the secret already exists, update/apply it idempotently instead
 kubectl create secret tls cloudflare-origin-cert \
   --cert=origin.crt --key=origin.key -n entebus \
   --dry-run=client -o yaml | kubectl apply -f -
