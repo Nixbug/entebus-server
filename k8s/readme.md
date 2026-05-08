@@ -23,10 +23,10 @@ This guide explains how to deploy **Entebus Server** on Kubernetes using Kustomi
 - Uses app image tag: `develop`
 - Rewrites ingress host to: `dev-api.entebus.com`
 - Changes namespace label `environment` to `dev`
-- Rewrites ingress host to: 
-	-`dev-api.entebus.com` (API endpoint)
-   - `dev-minio.entebus.com` (MinIO console)
-   - `dev-openobserve.entebus.com` (OpenObserve UI)
+- Rewrites ingress host to:
+  - `dev-api.entebus.com` (API endpoint)
+  - `dev-minio.entebus.com` (MinIO console)
+  - `dev-openobserve.entebus.com` (OpenObserve UI)
 
 ### `overlays/prod`
 
