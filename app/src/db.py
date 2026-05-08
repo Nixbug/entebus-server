@@ -2181,16 +2181,15 @@ class Service(ORMbase):
         Integer, ForeignKey("vehicle_in_service.id"), nullable=False
     )
     fare_id = Column(
-        Integer, ForeignKey("fare.id", ondelete="SET NULL"), nullable=True, index=True
+        Integer, ForeignKey("fare.id", ondelete="SET NULL"), index=True
     )
     vehicle_id = Column(
         Integer,
         ForeignKey("vehicle.id", ondelete="SET NULL"),
-        nullable=True,
         index=True,
     )
     route_id = Column(
-        Integer, ForeignKey("route.id", ondelete="SET NULL"), nullable=True, index=True
+        Integer, ForeignKey("route.id", ondelete="SET NULL"), index=True
     )
     registration_number = Column(String(16), nullable=False, index=True)
     ticket_mode = Column(Integer, nullable=False, default=TicketingMode.HYBRID)
@@ -2497,7 +2496,6 @@ class Duty(ORMbase):
     operator_id = Column(
         Integer,
         ForeignKey("operator.id", ondelete="SET NULL"),
-        nullable=True,
         index=True,
     )
     service_id = Column(
@@ -2638,7 +2636,6 @@ class ServiceLocation(ORMbase):
     operator_id = Column(
         Integer,
         ForeignKey("operator.id", ondelete="SET NULL"),
-        nullable=True,
         index=True,
     )
     landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
