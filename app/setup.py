@@ -1,4 +1,5 @@
 import argparse
+import os
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
@@ -35,7 +36,9 @@ from app.src.db import (
 
 
 def _alembic_cfg() -> Config:
-    alembic_cfg = Config("app/alembic.ini")
+    current_dir = os.path.dirname(__file__)
+    alembic_ini = os.path.join(current_dir, "alembic.ini")
+    alembic_cfg = Config(alembic_ini)
     alembic_cfg.set_main_option("sqlalchemy.url", get_db_url())
     return alembic_cfg
 
