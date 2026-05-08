@@ -25,21 +25,15 @@ patches:
       - op: replace
         path: /spec/tls/0/hosts/0
         value: dev-api.entebus.com
+      - op: add
+        path: /spec/tls/0/hosts/1
+        value: dev-minio.entebus.com
+      - op: add
+        path: /spec/tls/0/hosts/2
+        value: dev-openobserve.entebus.com
       - op: replace
         path: /spec/rules/0/host
         value: dev-api.entebus.com
-      - op: add
-        path: /spec/tls/1
-        value:
-          hosts:
-            - dev-minio.entebus.com
-          secretName: cloudflare-origin-cert
-      - op: add
-        path: /spec/tls/2
-        value:
-          hosts:
-            - dev-openobserve.entebus.com
-          secretName: cloudflare-origin-cert
       - op: add
         path: /spec/rules/1
         value:
