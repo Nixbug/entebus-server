@@ -132,8 +132,6 @@ python -m app.setup tables init                     # Initialize the database wi
 
 python -m app.setup buckets create                  # Create all MinIO buckets (defined in app/src/buckets.py)
 python -m app.setup buckets delete                  # Delete all MinIO buckets
-
-python -m tests.setup test api                      # To run the tests (Make sure the server is running)
 ```
 
 
