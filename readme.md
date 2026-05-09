@@ -64,28 +64,30 @@ pip-compile --upgrade requirements.in --no-strip-extras
 **PostgreSQL + PostGIS**
 
 ```bash
-docker run --name postgis \
+docker run -d --name postgis \
+    --restart unless-stopped \
     -e POSTGRES_PASSWORD=password \
     -p 5432:5432 \
-    -d postgis/postgis:18-3.6-alpine
+    postgis/postgis:18-3.6-alpine
 ```
 
 **MinIO (object storage)**
 
 ```bash
-docker run --name minio \
+docker run -d --name minio \
+    --restart unless-stopped \
     -e MINIO_ROOT_USER=minio \
     -e MINIO_ROOT_PASSWORD=password \
     -p 9000:9000 \
     -p 9001:9001 \
-    -d minio/minio:RELEASE.2025-09-07T16-13-09Z server /data --console-address ":9001"
+    minio/minio:RELEASE.2025-09-07T16-13-09Z server /data --console-address ":9001"
 ```
 
 **OpenObserve (logs, traces, metrics)**
 
 ```bash
-docker run -d \
-    --name openobserve \
+docker run -d --name openobserve \
+    --restart unless-stopped \
     -p 5080:5080 \
     -e ZO_ROOT_USER_EMAIL="admin@entebus.com" \
     -e ZO_ROOT_USER_PASSWORD="password" \
@@ -95,9 +97,10 @@ docker run -d \
 **Redis DB**
 
 ```bash
-docker run --name redis \
+docker run -d --name redis \
+    --restart unless-stopped \
     -p 6379:6379 \
-    -d redis:8.6.3-alpine \
+    redis:8.6.3-alpine \
     redis-server --requirepass "password" --save "" --appendonly no
 ```
 
