@@ -78,7 +78,7 @@ docker run --name minio \
     -e MINIO_ROOT_PASSWORD=password \
     -p 9000:9000 \
     -p 9001:9001 \
-    -d minio/minio:latest server /data --console-address ":9001"
+    -d minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1 server /data --console-address ":9001"
 ```
 
 **OpenObserve (logs, traces, metrics)**
