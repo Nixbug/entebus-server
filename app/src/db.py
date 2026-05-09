@@ -2116,6 +2116,18 @@ class Service(ORMbase):
             Foreign key referencing `fare_in_service.id`.
             Specifies the snapshot of the fare details at the time of service creation.
 
+        fare_id (Integer, nullable):
+            Foreign key referencing `fare.id`.
+            This is the original fare from which the `fare_in_service` snapshot was created.
+
+        vehicle_id (Integer, nullable):
+            Foreign key referencing `vehicle.id`.
+            This is the original vehicle from which the `vehicle_in_service` snapshot was created.
+
+        route_id (Integer, nullable):
+            Foreign key referencing `route.id`.
+            Identifies the route that this service operates on.
+
         registration_number (String(16), not null):
             Registration number of the vehicle assigned to this service.
 
@@ -2168,6 +2180,13 @@ class Service(ORMbase):
     vehicle_in_service_id = Column(
         Integer, ForeignKey("vehicle_in_service.id"), nullable=False
     )
+    fare_id = Column(Integer, ForeignKey("fare.id", ondelete="SET NULL"), index=True)
+    vehicle_id = Column(
+        Integer,
+        ForeignKey("vehicle.id", ondelete="SET NULL"),
+        index=True,
+    )
+    route_id = Column(Integer, ForeignKey("route.id", ondelete="SET NULL"), index=True)
     registration_number = Column(String(16), nullable=False, index=True)
     ticket_mode = Column(Integer, nullable=False, default=TicketingMode.HYBRID)
     status = Column(Integer, nullable=False, default=ServiceStatus.CREATED)
@@ -2473,7 +2492,6 @@ class Duty(ORMbase):
     operator_id = Column(
         Integer,
         ForeignKey("operator.id", ondelete="SET NULL"),
-        nullable=True,
         index=True,
     )
     service_id = Column(
@@ -2614,7 +2632,6 @@ class ServiceLocation(ORMbase):
     operator_id = Column(
         Integer,
         ForeignKey("operator.id", ondelete="SET NULL"),
-        nullable=True,
         index=True,
     )
     landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
