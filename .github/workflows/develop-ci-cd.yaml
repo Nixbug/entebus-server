@@ -51,5 +51,5 @@ jobs:
 
       - name: Deploy to K8s
         run: |
-          kubectl -n entebus set image deployment/entebus-server entebus-server=${IMAGE_NAME}:develop --record
+          kubectl -n entebus set image deployment/entebus-server entebus-server=${IMAGE_NAME}:develop
           kubectl -n entebus rollout status deployment/entebus-server --timeout=180s || (kubectl -n entebus rollout undo deployment/entebus-server && exit 1)
