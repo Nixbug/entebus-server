@@ -67,7 +67,7 @@ pip-compile --upgrade requirements.in --no-strip-extras
 docker run --name postgis \
     -e POSTGRES_PASSWORD=password \
     -p 5432:5432 \
-    -d postgis/postgis
+    -d postgis/postgis:18-3.6-alpine
 ```
 
 **MinIO (object storage)**
@@ -78,7 +78,7 @@ docker run --name minio \
     -e MINIO_ROOT_PASSWORD=password \
     -p 9000:9000 \
     -p 9001:9001 \
-    -d minio/minio server /data --console-address ":9001"
+    -d minio/minio:latest server /data --console-address ":9001"
 ```
 
 **OpenObserve (logs, traces, metrics)**
@@ -89,7 +89,7 @@ docker run -d \
     -p 5080:5080 \
     -e ZO_ROOT_USER_EMAIL="admin@entebus.com" \
     -e ZO_ROOT_USER_PASSWORD="password" \
-    public.ecr.aws/zinclabs/openobserve:latest
+    openobserve/openobserve:v0.80.3
 ```
 
 **Redis DB**
@@ -97,8 +97,8 @@ docker run -d \
 ```bash
 docker run --name redis \
     -p 6379:6379 \
-    -d redis \
-    redis-server --requirepass "password"
+    -d redis:8.6.3-alpine \
+    redis-server --requirepass "password" --save "" --appendonly no
 ```
 
 
