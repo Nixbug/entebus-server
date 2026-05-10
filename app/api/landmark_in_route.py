@@ -597,15 +597,12 @@ async def create_landmark_in_route_for_operator(
             session.query(LandmarkInRoute)
             .filter(
                 LandmarkInRoute.route_id == route.id,
-                LandmarkInRoute.company_id == token.company_id,
             )
             .count()
         )
 
         if landmark_count >= MAX_LANDMARKS_PER_ROUTE:
-            raise exceptions.LimitExceeded(
-                orm_class=LandmarkInRoute,
-            )
+            raise exceptions.LimitExceeded(LandmarkInRoute)
 
         landmark_in_route_data = create_landmark_in_route(session, route, form_param)
         log_event(token, request_info, landmark_in_route_data)
