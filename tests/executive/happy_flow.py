@@ -27,10 +27,12 @@ from app.src.urls import (
     URL_EXECUTIVE_TOKEN,
     URL_LANDMARK,
     URL_BUS_STOP,
+    URL_ROUTE,
 )
 from tests.inputs import (
     BUS_STOP_IN_LANDMARK_1,
     COMPANY_1,
+    LANDMARK_2,
     OP_ACCOUNT_1,
     EX_ACCOUNT_1,
     EX_ACCOUNT_2,
@@ -42,8 +44,10 @@ from tests.inputs import (
     OP_GUEST_ROLE,
     VEHICLE_1,
     FARE_1,
+    ROUTE_1,
 )
 from app.api.fare import FareSchema
+from app.api.route import RouteSchema
 from app.api.operator_account import OperatorSchema
 from app.api.executive_image import ExecutiveImageSchema
 from app.api.operator_image import OperatorImageSchema
@@ -441,6 +445,31 @@ def test_vehicle_flow(vehicle_url: str, company: CompanySchema, token_headers: d
     assert response.status_code == 204
 
 
+def test_route_flow(route_url: str, company: CompanySchema, token_headers: dict):
+    print("Creating route")
+    ROUTE_1["company_id"] = company.id
+    response = requests.post(route_url, headers=token_headers, json=ROUTE_1)
+    assert response.status_code == 201
+    route = RouteSchema.model_validate(response.json())
+
+    print("Fetching route by id")
+    response = requests.get(f"{route_url}?id={route.id}", headers=token_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list) and len(data) == 1
+
+    print("Updating route")
+    update_payload = {"name": f"{route.name}-updated"}
+    response = requests.patch(
+        f"{route_url}/{route.id}", headers=token_headers, json=update_payload
+    )
+    assert response.status_code == 200
+
+    print("Deleting route")
+    response = requests.delete(f"{route_url}/{route.id}", headers=token_headers)
+    assert response.status_code == 204
+
+
 def test_fare_flow(fare_url: str, company: CompanySchema, token_headers: dict):
     print("Creating fare")
     FARE_1["company_id"] = company.id
@@ -609,6 +638,32 @@ def run_test(target_url):
 
     # Test vehicle image upload, retrieval, download and deletion
     test_vehicle_image_flow(VEHICLE_PICTURE_URL, vehicle, company, admin_headers)
+
+    # Creating 2 landmarks for testing route flow
+    print("Creating landmark 1 for route testing")
+    response = requests.post(LANDMARK_URL, headers=admin_headers, json=LANDMARK_1)
+    assert response.status_code == 201
+    landmark_1 = LandmarkSchema.model_validate(response.json())
+    print("Creating landmark 2 for route testing")
+    response = requests.post(LANDMARK_URL, headers=admin_headers, json=LANDMARK_2)
+    assert response.status_code == 201
+    landmark_2 = LandmarkSchema.model_validate(response.json())
+
+    # Test route creation, retrieval, updating and deletion
+    test_route_flow(f"{target_url}/executive{URL_ROUTE}", company, admin_headers)
+
+    # Delete the created 2 landmarks after tests
+    print("Deleting landmark 1")
+    response = requests.delete(f"{LANDMARK_URL}/{landmark_1.id}", headers=admin_headers)
+    assert response.status_code == 204
+    print("Deleting landmark 2")
+    response = requests.delete(f"{LANDMARK_URL}/{landmark_2.id}", headers=admin_headers)
+    assert response.status_code == 204
+
+    # Deleting the vehicle after tests
+    print("Deleting vehicle")
+    response = requests.delete(f"{VEHICLE_URL}/{vehicle.id}", headers=admin_headers)
+    assert response.status_code == 204
 
     # Deleting the operator after tests
     print("Deleting operator")

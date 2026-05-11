@@ -195,6 +195,17 @@ FARE_2 = {
     "scope": FareScope.LOCAL,
 }
 
+ROUTE_1 = {
+    "company_id": 0,  # to be updated with actual company id during test execution
+    "name": "route-1",
+    "start_time": "08:00:00",
+}
+ROUTE_2 = {
+    "company_id": 0,  # to be updated with actual company id during test execution
+    "name": "route-2",
+    "start_time": "09:00:00",
+}
+
 
 # Utility function to generate a random image for testing purposes
 def generate_test_image(height=256, width=256):
