@@ -34,15 +34,7 @@ EX_GUEST_CREDENTIALS = {
     "grant_type": GrantType.PASSWORD,
 }
 
-EX_ADMIN_ROLE = {
-    "name": "admin-role-1",
-    "permissions": PermissionSchemaEX.all_granted().model_dump(),
-}
-EX_GUEST_ROLE = {
-    "name": "guest-role-1",
-    "permissions": PermissionSchemaEX.all_denied().model_dump(),
-}
-
+# Prime input resources
 EX_ACCOUNT_1 = {
     "username": "account1",
     "password": "password",
@@ -52,16 +44,6 @@ EX_ACCOUNT_1 = {
     "phone_number": "+91-9496801234",
     "email_id": "account1@example.com",
 }
-EX_ACCOUNT_2 = {
-    "username": "account2",
-    "password": "password",
-    "gender": GenderType.FEMALE,
-    "full_name": "Account Two",
-    "designation": "Tester",
-    "phone_number": "+91-9496805678",
-    "email_id": "account2@example.com",
-}
-
 LANDMARK_1 = {
     "name": "landmark-1",
     "boundary": "POLYGON((77.5946 12.9716, 77.5946 12.9717, 77.5947 12.9717, 77.5947 12.9716, 77.5946 12.9716))",
@@ -74,7 +56,6 @@ LANDMARK_2 = {
     "type": LandmarkType.LOCAL,
     "alias_names": ["lm2"],
 }
-
 BUS_STOP_IN_LANDMARK_1 = {
     "name": "bus-stop-1",
     "landmark_id": 0,  # to be updated with actual landmark id during test execution
@@ -85,7 +66,6 @@ BUS_STOP_IN_LANDMARK_2 = {
     "landmark_id": 0,  # to be updated with actual landmark id during test execution
     "location": "POINT(77.59505 12.97205)",
 }
-
 COMPANY_1 = {
     "name": "Company One",
     "status": CompanyStatus.VERIFIED,
@@ -96,17 +76,6 @@ COMPANY_1 = {
     "email_id": "company1@example.com",
     "location": "POINT(77.59465 12.97165)",
 }
-COMPANY_2 = {
-    "name": "Company Two",
-    "status": CompanyStatus.UNDER_VERIFICATION,
-    "type": CompanyType.OTHER,
-    "description": "Another sample company for tests",
-    "address": "456 Second St, City",
-    "contact_number": "+91-9496805678",
-    "email_id": "company2@example.com",
-    "location": "POINT(77.59505 12.97205)",
-}
-
 OP_ACCOUNT_1 = {
     "username": "operator1",
     "password": "password",
@@ -119,19 +88,6 @@ OP_ACCOUNT_1 = {
     "phone_number": "+91-9000000001",
     "email_id": "operator1@example.com",
 }
-OP_ACCOUNT_2 = {
-    "username": "operator2",
-    "password": "password",
-    "company_id": 0,  # to be updated with actual company id during test execution
-    "gender": GenderType.FEMALE,
-    "description": "Operator Two for company two",
-    "type": OperatorType.MANAGER,
-    "full_name": "Operator Two",
-    "status": AccountStatus.ACTIVE,
-    "phone_number": "+91-9000000002",
-    "email_id": "operator2@example.com",
-}
-
 VEHICLE_1 = {
     "company_id": 0,  # to be updated with actual company id during test execution
     "registration_number": "KA01AB1234",
@@ -144,30 +100,6 @@ VEHICLE_1 = {
     "road_tax_upto": None,
     "status": VehicleStatus.CREATED,
 }
-VEHICLE_2 = {
-    "company_id": 0,  # to be updated with actual company id during test execution
-    "registration_number": "KA01CD5678",
-    "name": "Vehicle Two",
-    "capacity": 30,
-    "manufactured_on": None,
-    "insurance_upto": None,
-    "pollution_upto": None,
-    "fitness_upto": None,
-    "road_tax_upto": None,
-    "status": VehicleStatus.CREATED,
-}
-
-OP_ADMIN_ROLE = {
-    "company_id": 0,  # to be updated with actual company id during test execution
-    "name": "op-admin-role-1",
-    "permissions": PermissionSchemaOP.all_granted().model_dump(),
-}
-OP_GUEST_ROLE = {
-    "company_id": 0,  # to be updated with actual company id during test execution
-    "name": "op-guest-role-1",
-    "permissions": PermissionSchemaOP.all_denied().model_dump(),
-}
-
 FARE_1 = {
     "company_id": 0,  # to be updated with actual company id during test execution
     "name": "fare-1",
@@ -181,6 +113,92 @@ FARE_1 = {
     "function": "function getFare(type, distance, extras) { return 10; }",
     "scope": FareScope.LOCAL,
 }
+ROUTE_1 = {
+    "company_id": 0,  # to be updated with actual company id during test execution
+    "name": "route-1",
+    "start_time": "08:00:00",
+}
+OP_ADMIN_ROLE = {
+    "company_id": 0,  # to be updated with actual company id during test execution
+    "name": "op-admin-role-1",
+    "permissions": PermissionSchemaOP.all_granted().model_dump(),
+}
+OP_GUEST_ROLE = {
+    "company_id": 0,  # to be updated with actual company id during test execution
+    "name": "op-guest-role-1",
+    "permissions": PermissionSchemaOP.all_denied().model_dump(),
+}
+
+# Common input resources
+EX_ADMIN_ROLE = {
+    "name": "admin-role-1",
+    "permissions": PermissionSchemaEX.all_granted().model_dump(),
+}
+EX_GUEST_ROLE = {
+    "name": "guest-role-1",
+    "permissions": PermissionSchemaEX.all_denied().model_dump(),
+}
+
+# Secondary input resources
+EX_ACCOUNT_2 = {
+    "username": "account2",
+    "password": "password",
+    "gender": GenderType.FEMALE,
+    "full_name": "Account Two",
+    "designation": "Tester",
+    "phone_number": "+91-9496805678",
+    "email_id": "account2@example.com",
+}
+LANDMARK_3 = {
+    "name": "landmark-3",
+    "boundary": "POLYGON((77.5965 12.9735, 77.5965 12.9736, 77.5966 12.9736, 77.5966 12.9735, 77.5965 12.9735))",
+    "type": LandmarkType.LOCAL,
+    "alias_names": ["lm3"],
+}
+BUS_STOP_IN_LANDMARK_3 = {
+    "name": "bus-stop-3",
+    "landmark_id": 0,  # to be updated with actual landmark id during test execution
+    "location": "POINT(77.59655 12.97355)",
+}
+COMPANY_2 = {
+    "name": "Company Two",
+    "status": CompanyStatus.UNDER_VERIFICATION,
+    "type": CompanyType.OTHER,
+    "description": "Another sample company for tests",
+    "address": "456 Second St, City",
+    "contact_number": "+91-9496805678",
+    "email_id": "company2@example.com",
+    "location": "POINT(77.59505 12.97205)",
+}
+OP_TEST_ROLE = {
+    "company_id": 0,  # to be updated with actual company id during test execution
+    "name": "op-test-role-1",
+    "permissions": PermissionSchemaOP.all_denied().model_dump(),
+}
+OP_ACCOUNT_2 = {
+    "username": "operator2",
+    "password": "password",
+    "company_id": 0,  # to be updated with actual company id during test execution
+    "gender": GenderType.FEMALE,
+    "description": "Operator Two for company two",
+    "type": OperatorType.MANAGER,
+    "full_name": "Operator Two",
+    "status": AccountStatus.ACTIVE,
+    "phone_number": "+91-9000000002",
+    "email_id": "operator2@example.com",
+}
+VEHICLE_2 = {
+    "company_id": 0,  # to be updated with actual company id during test execution
+    "registration_number": "KA01CD5678",
+    "name": "Vehicle Two",
+    "capacity": 30,
+    "manufactured_on": None,
+    "insurance_upto": None,
+    "pollution_upto": None,
+    "fitness_upto": None,
+    "road_tax_upto": None,
+    "status": VehicleStatus.CREATED,
+}
 FARE_2 = {
     "company_id": 0,  # to be updated with actual company id during test execution
     "name": "fare-2",
@@ -193,12 +211,6 @@ FARE_2 = {
     },
     "function": "function getFare(type, distance, extras) { return 5 ; }",
     "scope": FareScope.LOCAL,
-}
-
-ROUTE_1 = {
-    "company_id": 0,  # to be updated with actual company id during test execution
-    "name": "route-1",
-    "start_time": "08:00:00",
 }
 ROUTE_2 = {
     "company_id": 0,  # to be updated with actual company id during test execution
