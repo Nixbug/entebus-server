@@ -320,6 +320,21 @@ class DataInUse(APIException):
         super().__init__(detail=detail)
 
 
+class LimitExceeded(APIException):
+    """
+    Raised when the number of entries in a table reaches the allowed maximum.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    headers = {"X-Error": "LimitExceeded"}
+
+    def __init__(self, orm_class: DeclarativeMeta):
+        detail = (
+            f"Number of entries into {orm_class.__name__} exceeded the allowed limits."
+        )
+        super().__init__(detail=detail)
+
+
 class NoPermission(APIException):
     """
     Raised when a user does not have permission to perform an action.
@@ -499,18 +514,3 @@ class UnknownTicketType(APIException):
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "Unknown ticket type"
     headers = {"X-Error": "UnknownTicketType"}
-
-
-class LimitExceeded(APIException):
-    """
-    Raised when the number of entries in a table reaches the allowed maximum.
-    """
-
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
-    headers = {"X-Error": "LimitExceeded"}
-
-    def __init__(self, orm_class: DeclarativeMeta):
-        detail = (
-            f"Number of entries into {orm_class.__name__} exceeded the allowed limits."
-        )
-        super().__init__(detail=detail)
