@@ -1,14 +1,13 @@
 """
-This module provides input data for tests.
+This module generates input data or payloads for tests.
 """
 
 from io import BytesIO
 from PIL import Image
 import numpy as np
+from shapely import wkt
 
 from app.src.enums import GenderType, GrantType, PlatformType
-from app.src.permissions.executive import PermissionSchema as PermissionSchemaEX
-from app.src.permissions.operator import PermissionSchema as PermissionSchemaOP
 from app.src.enums import (
     LandmarkType,
     CompanyStatus,
@@ -34,211 +33,175 @@ EX_GUEST_CREDENTIALS = {
     "grant_type": GrantType.PASSWORD,
 }
 
-# Prime input resources
-EX_ACCOUNT_1 = {
-    "username": "account1",
-    "password": "password",
-    "gender": GenderType.MALE,
-    "full_name": "Account One",
-    "designation": "Tester",
-    "phone_number": "+91-9496801234",
-    "email_id": "account1@example.com",
-}
-LANDMARK_1 = {
-    "name": "landmark-1",
-    "boundary": "POLYGON((77.5946 12.9716, 77.5946 12.9717, 77.5947 12.9717, 77.5947 12.9716, 77.5946 12.9716))",
-    "type": LandmarkType.LOCAL,
-    "alias_names": ["lm1"],
-}
-LANDMARK_2 = {
-    "name": "landmark-2",
-    "boundary": "POLYGON((77.5950 12.9720, 77.5950 12.9721, 77.5951 12.9721, 77.5951 12.9720, 77.5950 12.9720))",
-    "type": LandmarkType.LOCAL,
-    "alias_names": ["lm2"],
-}
-BUS_STOP_IN_LANDMARK_1 = {
-    "name": "bus-stop-1",
-    "landmark_id": 0,  # to be updated with actual landmark id during test execution
-    "location": "POINT(77.59465 12.97165)",
-}
-BUS_STOP_IN_LANDMARK_2 = {
-    "name": "bus-stop-2",
-    "landmark_id": 0,  # to be updated with actual landmark id during test execution
-    "location": "POINT(77.59505 12.97205)",
-}
-COMPANY_1 = {
-    "name": "Company One",
-    "status": CompanyStatus.VERIFIED,
-    "type": CompanyType.PRIVATE,
-    "description": "A sample private transport company used in tests",
-    "address": "123 Main St, City",
-    "contact_number": "+91-9496801234",
-    "email_id": "company1@example.com",
-    "location": "POINT(77.59465 12.97165)",
-}
-OP_ACCOUNT_1 = {
-    "username": "operator1",
-    "password": "password",
-    "company_id": 0,  # to be updated with actual company id during test execution
-    "gender": GenderType.OTHER,
-    "description": "Operator One for company one",
-    "type": OperatorType.NORMAL,
-    "full_name": "Operator One",
-    "status": AccountStatus.ACTIVE,
-    "phone_number": "+91-9000000001",
-    "email_id": "operator1@example.com",
-}
-VEHICLE_1 = {
-    "company_id": 0,  # to be updated with actual company id during test execution
-    "registration_number": "KA01AB1234",
-    "name": "Vehicle One",
-    "capacity": 40,
-    "manufactured_on": None,
-    "insurance_upto": None,
-    "pollution_upto": None,
-    "fitness_upto": None,
-    "road_tax_upto": None,
-    "status": VehicleStatus.CREATED,
-}
-FARE_1 = {
-    "company_id": 0,  # to be updated with actual company id during test execution
-    "name": "fare-1",
-    "attributes": {
-        "df_version": 1,
-        "ticket_types": [{"id": 1, "name": "regular"}],
-        "currency_type": "INR",
-        "distance_unit": "meter",
-        "extras": {},
-    },
-    "function": "function getFare(type, distance, extras) { return 10; }",
-    "scope": FareScope.LOCAL,
-}
-ROUTE_1 = {
-    "company_id": 0,  # to be updated with actual company id during test execution
-    "name": "route-1",
-    "start_time": "08:00:00",
-}
-OP_ADMIN_ROLE = {
-    "company_id": 0,  # to be updated with actual company id during test execution
-    "name": "op-admin-role-1",
-    "permissions": PermissionSchemaOP.all_granted().model_dump(),
-}
-OP_GUEST_ROLE = {
-    "company_id": 0,  # to be updated with actual company id during test execution
-    "name": "op-guest-role-1",
-    "permissions": PermissionSchemaOP.all_denied().model_dump(),
-}
-LANDMARK_1_IN_ROUTE_1 = {
-    "route_id": 0,  # to be updated with actual route id during test execution
-    "landmark_id": 0,  # to be updated with actual landmark id during test execution
-    "distance_from_start": 0,
-    "arrival_delta": 0,
-    "departure_delta": 1,
-}
-LANDMARK_2_IN_ROUTE_1 = {
-    "route_id": 0,  # to be updated with actual route id during test execution
-    "landmark_id": 0,  # to be updated with actual landmark id during test execution
-    "distance_from_start": 1000,
-    "arrival_delta": 2,
-    "departure_delta": 3,
-}
+
+# Payload generators for dynamic test data
+def generate_executive_account_payload():
+    suffix = str(np.random.randint(1000, 9999))
+    return {
+        "username": f"account{suffix}",
+        "password": "password",
+        "gender": GenderType.OTHER,
+        "full_name": f"Account {suffix}",
+        "designation": f"Tester {suffix}",
+        "phone_number": f"+91-949680{suffix}",
+        "email_id": f"account{suffix}@example.com",
+    }
 
 
-# Common input resources
-EX_ADMIN_ROLE = {
-    "name": "admin-role-1",
-    "permissions": PermissionSchemaEX.all_granted().model_dump(),
-}
-EX_GUEST_ROLE = {
-    "name": "guest-role-1",
-    "permissions": PermissionSchemaEX.all_denied().model_dump(),
-}
+def generate_operator_account_payload(company_id: int):
+    suffix = str(np.random.randint(1000, 9999))
+    return {
+        "username": f"operator{suffix}",
+        "password": "password",
+        "company_id": company_id,
+        "gender": GenderType.OTHER,
+        "description": f"Operator {suffix} for company {company_id}",
+        "type": OperatorType.NORMAL,
+        "full_name": f"Operator {suffix}",
+        "status": AccountStatus.ACTIVE,
+        "phone_number": f"+91-900000{suffix}",
+        "email_id": f"operator{suffix}@example.com",
+    }
 
-# Secondary input resources
-EX_ACCOUNT_2 = {
-    "username": "account2",
-    "password": "password",
-    "gender": GenderType.FEMALE,
-    "full_name": "Account Two",
-    "designation": "Tester",
-    "phone_number": "+91-9496805678",
-    "email_id": "account2@example.com",
-}
-LANDMARK_3 = {
-    "name": "landmark-3",
-    "boundary": "POLYGON((77.5965 12.9735, 77.5965 12.9736, 77.5966 12.9736, 77.5966 12.9735, 77.5965 12.9735))",
-    "type": LandmarkType.LOCAL,
-    "alias_names": ["lm3"],
-}
-BUS_STOP_IN_LANDMARK_3 = {
-    "name": "bus-stop-3",
-    "landmark_id": 0,  # to be updated with actual landmark id during test execution
-    "location": "POINT(77.59655 12.97355)",
-}
-COMPANY_2 = {
-    "name": "Company Two",
-    "status": CompanyStatus.UNDER_VERIFICATION,
-    "type": CompanyType.OTHER,
-    "description": "Another sample company for tests",
-    "address": "456 Second St, City",
-    "contact_number": "+91-9496805678",
-    "email_id": "company2@example.com",
-    "location": "POINT(77.59505 12.97205)",
-}
-OP_TEST_ROLE = {
-    "company_id": 0,  # to be updated with actual company id during test execution
-    "name": "op-test-role-1",
-    "permissions": PermissionSchemaOP.all_denied().model_dump(),
-}
-OP_ACCOUNT_2 = {
-    "username": "operator2",
-    "password": "password",
-    "company_id": 0,  # to be updated with actual company id during test execution
-    "gender": GenderType.FEMALE,
-    "description": "Operator Two for company two",
-    "type": OperatorType.MANAGER,
-    "full_name": "Operator Two",
-    "status": AccountStatus.ACTIVE,
-    "phone_number": "+91-9000000002",
-    "email_id": "operator2@example.com",
-}
-VEHICLE_2 = {
-    "company_id": 0,  # to be updated with actual company id during test execution
-    "registration_number": "KA01CD5678",
-    "name": "Vehicle Two",
-    "capacity": 30,
-    "manufactured_on": None,
-    "insurance_upto": None,
-    "pollution_upto": None,
-    "fitness_upto": None,
-    "road_tax_upto": None,
-    "status": VehicleStatus.CREATED,
-}
-FARE_2 = {
-    "company_id": 0,  # to be updated with actual company id during test execution
-    "name": "fare-2",
-    "attributes": {
-        "df_version": 1,
-        "ticket_types": [{"id": 1, "name": "regular"}, {"id": 2, "name": "senior"}],
-        "currency_type": "INR",
-        "distance_unit": "meter",
-        "extras": {"surcharge": 5},
-    },
-    "function": "function getFare(type, distance, extras) { return 5 ; }",
-    "scope": FareScope.LOCAL,
-}
-ROUTE_2 = {
-    "company_id": 0,  # to be updated with actual company id during test execution
-    "name": "route-2",
-    "start_time": "09:00:00",
-}
-LANDMARK_3_IN_ROUTE_1 = {
-    "route_id": 0,  # to be updated with actual route id during test execution
-    "landmark_id": 0,  # to be updated with actual landmark id during test execution
-    "distance_from_start": 2000,
-    "arrival_delta": 3,
-    "departure_delta": 4,
-}
+
+def generate_operator_role_payload(company_id: int, permissions: dict):
+    suffix = str(np.random.randint(1000, 9999))
+    return {
+        "company_id": company_id,
+        "name": f"op-role-{suffix}",
+        "permissions": permissions,
+    }
+
+
+def generate_executive_role_payload(permissions: dict):
+    suffix = str(np.random.randint(1000, 9999))
+    return {
+        "name": f"ex-role-{suffix}",
+        "permissions": permissions,
+    }
+
+
+def generate_company_payload():
+    suffix = str(np.random.randint(1000, 9999))
+    return {
+        "name": f"Company {suffix}",
+        "status": CompanyStatus.VERIFIED,
+        "type": CompanyType.PRIVATE,
+        "description": f"A sample company {suffix} used in tests",
+        "address": f"{suffix} Main St, City",
+        "contact_number": f"+91-949680{suffix}",
+        "email_id": f"company{suffix}@example.com",
+        "location": f"POINT(77.59{suffix} 12.97{suffix})",
+    }
+
+
+def generate_vehicle_payload(company_id: int):
+    suffix = str(np.random.randint(1000, 9999))
+    return {
+        "company_id": company_id,
+        "registration_number": f"KA01AB{suffix}",
+        "name": f"Vehicle {suffix}",
+        "capacity": np.random.randint(20, 50),
+        "manufactured_on": None,
+        "insurance_upto": None,
+        "pollution_upto": None,
+        "fitness_upto": None,
+        "road_tax_upto": None,
+        "status": VehicleStatus.ACTIVE,
+    }
+
+
+def generate_route_payload(company_id: int):
+    suffix = str(np.random.randint(1000, 9999))
+    return {
+        "company_id": company_id,
+        "name": f"Route {suffix}",
+        "start_time": "08:00:00",
+    }
+
+
+def generate_fare_payload(company_id: int):
+    suffix = str(np.random.randint(1000, 9999))
+    return {
+        "company_id": company_id,
+        "name": f"Fare {suffix}",
+        "attributes": {
+            "df_version": 1,
+            "ticket_types": [{"id": 1, "name": "regular"}],
+            "currency_type": "INR",
+            "distance_unit": "meter",
+            "extras": {},
+        },
+        "function": "function getFare(type, distance, extras) { return 10; }",
+        "scope": FareScope.LOCAL,
+    }
+
+
+def generate_landmark_payload():
+    suffix = str(np.random.randint(1000, 9999))
+    center_lon = float(77.59 + np.random.uniform(0, 0.01))
+    center_lat = float(12.97 + np.random.uniform(0, 0.01))
+    # small offsets in degrees (~10-50 meters)
+    d1 = float(np.random.uniform(0.00005, 0.0002))
+    d2 = float(np.random.uniform(0.00005, 0.0002))
+    p1 = (center_lon - d1, center_lat - d2)
+    p2 = (center_lon - d1, center_lat + d2)
+    p3 = (center_lon + d1, center_lat + d2)
+    p4 = (center_lon + d1, center_lat - d2)
+    boundary = f"POLYGON(({p1[0]} {p1[1]}, {p2[0]} {p2[1]}, {p3[0]} {p3[1]}, {p4[0]} {p4[1]}, {p1[0]} {p1[1]}))"
+    return {
+        "name": f"Landmark {suffix}",
+        "boundary": boundary,
+        "type": LandmarkType.LOCAL,
+        "alias_names": [f"lm{suffix}"],
+    }
+
+
+def generate_bus_stop_payload(landmark_id: int, boundary: str):
+    suffix = str(np.random.randint(1000, 9999))
+
+    geom = wkt.loads(boundary) if boundary else None
+    if geom is not None and not geom.is_empty:
+        pt = geom.representative_point()
+        lon, lat = float(pt.x), float(pt.y)
+    else:
+        # Fallback to random point if boundary is invalid
+        lon = float(77.59 + np.random.uniform(0, 0.01))
+        lat = float(12.97 + np.random.uniform(0, 0.01))
+
+    location = f"POINT({round(lon,6)} {round(lat,6)})"
+    return {
+        "name": f"Bus Stop {suffix}",
+        "landmark_id": landmark_id,
+        "location": location,
+    }
+
+
+def generate_landmark_in_route_payload(
+    route_id: int,
+    landmark_id: int,
+    distance_from_start: int,
+    arrival_delta: int,
+    departure_delta: int,
+):
+    return {
+        "route_id": route_id,
+        "landmark_id": landmark_id,
+        "distance_from_start": distance_from_start,
+        "arrival_delta": arrival_delta,
+        "departure_delta": departure_delta,
+    }
+
+
+def generate_service_payload(
+    company_id: int, route_id: int, fare_id: int, vehicle_id: int
+):
+    return {
+        "company_id": company_id,
+        "route_id": route_id,
+        "fare_id": fare_id,
+        "vehicle_id": vehicle_id,
+    }
 
 
 # Utility function to generate a random image for testing purposes

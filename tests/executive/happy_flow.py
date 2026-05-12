@@ -1,5 +1,7 @@
 import requests
 
+from app.src.permissions.executive import PermissionSchema as PermissionSchemaEX
+from app.src.permissions.operator import PermissionSchema as PermissionSchemaOP
 from app.api.company import CompanySchema
 from app.api.executive_account import ExecutiveSchema
 from app.api.executive_role import ExecutiveRoleSchema
@@ -23,6 +25,7 @@ from app.src.urls import (
     URL_OPERATOR_ROLE,
     URL_OPERATOR_ROLE_MAP,
     URL_FARE,
+    URL_SERVICE,
     URL_EXECUTIVE_ROLE_MAP,
     URL_VEHICLE,
     URL_VEHICLE_PICTURE,
@@ -31,33 +34,22 @@ from app.src.urls import (
     URL_BUS_STOP,
     URL_ROUTE,
 )
+from app.api.service import ServiceSchema
 from tests.inputs import (
-    BUS_STOP_IN_LANDMARK_1,
-    COMPANY_1,
-    COMPANY_2,
-    EX_GUEST_CREDENTIALS,
-    FARE_2,
-    LANDMARK_1_IN_ROUTE_1,
-    LANDMARK_2,
-    LANDMARK_2_IN_ROUTE_1,
-    LANDMARK_3,
-    LANDMARK_3_IN_ROUTE_1,
-    OP_ACCOUNT_1,
-    EX_ACCOUNT_1,
-    EX_ACCOUNT_2,
+    generate_company_payload,
+    generate_fare_payload,
+    generate_landmark_in_route_payload,
+    generate_operator_account_payload,
+    generate_executive_account_payload,
     EX_ADMIN_CREDENTIALS,
-    EX_ADMIN_ROLE,
-    LANDMARK_1,
-    OP_ACCOUNT_2,
-    OP_TEST_ROLE,
-    ROUTE_2,
-    VEHICLE_2,
+    generate_executive_role_payload,
+    generate_operator_role_payload,
+    generate_route_payload,
+    generate_service_payload,
     generate_test_image,
-    OP_ADMIN_ROLE,
-    OP_GUEST_ROLE,
-    VEHICLE_1,
-    FARE_1,
-    ROUTE_1,
+    generate_vehicle_payload,
+    generate_landmark_payload,
+    generate_bus_stop_payload,
 )
 from app.api.fare import FareSchema
 from app.api.route import RouteSchema
@@ -66,7 +58,7 @@ from app.api.executive_image import ExecutiveImageSchema
 from app.api.operator_image import OperatorImageSchema
 
 
-def test_executive_token_flow(token_url: str, credentials: dict):
+def test_executive_token_endpoint(token_url: str, credentials: dict):
     print(f"Requesting token")
     response = requests.post(token_url, data=credentials)
     assert response.status_code == 200
@@ -104,7 +96,7 @@ def test_executive_token_flow(token_url: str, credentials: dict):
     assert response.status_code == 401
 
 
-def test_executive_image_flow(picture_url: str, token_headers: dict):
+def test_executive_image_endpoint(picture_url: str, token_headers: dict):
     print("Uploading executive image")
     files = generate_test_image()
     response = requests.post(picture_url, headers=token_headers, files=files)
@@ -129,7 +121,7 @@ def test_executive_image_flow(picture_url: str, token_headers: dict):
     assert response.status_code == 204
 
 
-def test_executive_role_flow(role_url: str, role_data: dict, token_headers: dict):
+def test_executive_role_endpoint(role_url: str, role_data: dict, token_headers: dict):
     print("Creating role")
     response = requests.post(role_url, headers=token_headers, json=role_data)
     assert response.status_code == 201
@@ -153,7 +145,7 @@ def test_executive_role_flow(role_url: str, role_data: dict, token_headers: dict
     assert response.status_code == 204
 
 
-def test_executive_account_flow(
+def test_executive_account_endpoint(
     account_url: str, account_data: dict, token_headers: dict
 ):
     print("Creating executive account")
@@ -179,7 +171,7 @@ def test_executive_account_flow(
     assert response.status_code == 204
 
 
-def test_executive_role_map_flow(
+def test_executive_role_map_endpoint(
     role_map_url: str, role_url: str, account: ExecutiveSchema, token_headers: dict
 ):
 
@@ -224,7 +216,7 @@ def test_executive_role_map_flow(
     assert response.status_code == 204
 
 
-def test_landmark_flow(landmark_url: str, landmark_data: dict, token_headers: dict):
+def test_landmark_endpoint(landmark_url: str, landmark_data: dict, token_headers: dict):
     print("Creating landmark")
     response = requests.post(landmark_url, headers=token_headers, json=landmark_data)
     assert response.status_code == 201
@@ -248,14 +240,8 @@ def test_landmark_flow(landmark_url: str, landmark_data: dict, token_headers: di
     assert response.status_code == 204
 
 
-def test_bus_stop_flow(
-    bus_stop_url: str,
-    landmark: LandmarkSchema,
-    bus_stop_data: dict,
-    token_headers: dict,
-):
+def test_bus_stop_endpoint(bus_stop_url: str, bus_stop_data: dict, token_headers: dict):
     print("Creating bus stop")
-    bus_stop_data["landmark_id"] = landmark.id
     response = requests.post(bus_stop_url, headers=token_headers, json=bus_stop_data)
     assert response.status_code == 201
     bus_stop = BusStopSchema.model_validate(response.json())
@@ -278,7 +264,7 @@ def test_bus_stop_flow(
     assert response.status_code == 204
 
 
-def test_company_flow(company_url: str, company_data: dict, token_headers: dict):
+def test_company_endpoint(company_url: str, company_data: dict, token_headers: dict):
     print("Creating company")
     response = requests.post(company_url, headers=token_headers, json=company_data)
     assert response.status_code == 201
@@ -302,11 +288,10 @@ def test_company_flow(company_url: str, company_data: dict, token_headers: dict)
     assert response.status_code == 204
 
 
-def test_operator_account_flow(
-    operator_url: str, company: CompanySchema, operator_data: dict, token_headers: dict
+def test_operator_account_endpoint(
+    operator_url: str, operator_data: dict, token_headers: dict
 ):
     print("Creating operator")
-    operator_data["company_id"] = company.id
     response = requests.post(operator_url, headers=token_headers, json=operator_data)
     assert response.status_code == 201
     operator = OperatorSchema.model_validate(response.json())
@@ -329,11 +314,8 @@ def test_operator_account_flow(
     assert response.status_code == 204
 
 
-def test_operator_role_flow(
-    role_url: str, company: CompanySchema, role_data: dict, token_headers: dict
-):
+def test_operator_role_endpoint(role_url: str, role_data: dict, token_headers: dict):
     print("Creating operator role")
-    role_data["company_id"] = company.id
     response = requests.post(role_url, headers=token_headers, json=role_data)
     assert response.status_code == 201
     role = OperatorRoleSchema.model_validate(response.json())
@@ -356,7 +338,7 @@ def test_operator_role_flow(
     assert response.status_code == 204
 
 
-def test_operator_role_map_flow(
+def test_operator_role_map_endpoint(
     operator_role_map_url: str,
     operator: OperatorSchema,
     role_1: OperatorRoleSchema,
@@ -397,7 +379,7 @@ def test_operator_role_map_flow(
     assert response.status_code == 204
 
 
-def test_operator_image_flow(
+def test_operator_image_endpoint(
     picture_url: str,
     operator: OperatorSchema,
     company: CompanySchema,
@@ -428,11 +410,8 @@ def test_operator_image_flow(
     assert response.status_code == 204
 
 
-def test_fare_flow(
-    fare_url: str, company: CompanySchema, fare_data: dict, token_headers: dict
-):
+def test_fare_endpoint(fare_url: str, fare_data: dict, token_headers: dict):
     print("Creating fare")
-    fare_data["company_id"] = company.id
     response = requests.post(fare_url, headers=token_headers, json=fare_data)
     assert response.status_code == 201
     fare = FareSchema.model_validate(response.json())
@@ -455,11 +434,8 @@ def test_fare_flow(
     assert response.status_code == 204
 
 
-def test_vehicle_flow(
-    vehicle_url: str, company: CompanySchema, vehicle_data: dict, token_headers: dict
-):
+def test_vehicle_endpoint(vehicle_url: str, vehicle_data: dict, token_headers: dict):
     print("Creating vehicle")
-    vehicle_data["company_id"] = company.id
     response = requests.post(vehicle_url, headers=token_headers, json=vehicle_data)
     assert response.status_code == 201
     vehicle = VehicleSchema.model_validate(response.json())
@@ -482,7 +458,7 @@ def test_vehicle_flow(
     assert response.status_code == 204
 
 
-def test_vehicle_image_flow(
+def test_vehicle_image_endpoint(
     picture_url: str,
     company: CompanySchema,
     vehicle: VehicleSchema,
@@ -513,11 +489,8 @@ def test_vehicle_image_flow(
     assert response.status_code == 204
 
 
-def test_route_flow(
-    route_url: str, company: CompanySchema, route_data: dict, token_headers: dict
-):
+def test_route_endpoint(route_url: str, route_data: dict, token_headers: dict):
     print("Creating route")
-    route_data["company_id"] = company.id
     response = requests.post(route_url, headers=token_headers, json=route_data)
     assert response.status_code == 201
     route = RouteSchema.model_validate(response.json())
@@ -540,30 +513,25 @@ def test_route_flow(
     assert response.status_code == 204
 
 
-def test_landmark_in_route_flow(
-    landmark_in_route_url: str,
-    route: RouteSchema,
-    landmark_payload: dict,
-    token_headers: dict,
+def test_landmark_in_route_endpoint(
+    landmark_in_route_url: str, landmark_in_route_data: dict, token_headers: dict
 ):
-    # use provided payload template and set the route id
-    payload = dict(landmark_payload)
-    payload["route_id"] = route.id
-
     print("Creating landmark in route")
-    response = requests.post(landmark_in_route_url, headers=token_headers, json=payload)
+    response = requests.post(
+        landmark_in_route_url, headers=token_headers, json=landmark_in_route_data
+    )
     assert response.status_code == 201
     lir = LandmarkInRouteSchema.model_validate(response.json())
 
     print("Fetching landmarks in route")
     response = requests.get(
-        f"{landmark_in_route_url}?route_id={route.id}", headers=token_headers
+        f"{landmark_in_route_url}?route_id={lir.route_id}", headers=token_headers
     )
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list) and len(data) >= 1
 
-    print("Updating landmark in route (increase distance)")
+    print("Updating landmark in route")
     update_payload = {"distance_from_start": (lir.distance_from_start or 0) + 10}
     response = requests.patch(
         f"{landmark_in_route_url}/{lir.id}", headers=token_headers, json=update_payload
@@ -574,6 +542,38 @@ def test_landmark_in_route_flow(
     response = requests.delete(
         f"{landmark_in_route_url}/{lir.id}", headers=token_headers
     )
+    assert response.status_code == 204
+
+
+def test_service_endpoint(service_url: str, service_data: dict, token_headers: dict):
+
+    from datetime import datetime, timedelta, timezone
+
+    print("Creating service")
+    payload = dict(service_data)
+    payload["starting_at"] = (
+        datetime.now(timezone.utc) + timedelta(minutes=5)
+    ).isoformat()
+
+    response = requests.post(service_url, headers=token_headers, json=payload)
+    assert response.status_code == 201
+    svc = ServiceSchema.model_validate(response.json())
+
+    print("Fetching service by id")
+    response = requests.get(f"{service_url}?id={svc.id}", headers=token_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list) and len(data) == 1
+
+    print("Updating service")
+    update_payload = {"remark": "updated via test"}
+    response = requests.patch(
+        f"{service_url}/{svc.id}", headers=token_headers, json=update_payload
+    )
+    assert response.status_code == 200
+
+    print("Deleting service")
+    response = requests.delete(f"{service_url}/{svc.id}", headers=token_headers)
     assert response.status_code == 204
 
 
@@ -593,6 +593,7 @@ def run_test(target_url):
     VEHICLE_URL = f"{target_url}/executive{URL_VEHICLE}"
     VEHICLE_PICTURE_URL = f"{target_url}/executive{URL_VEHICLE_PICTURE}"
     FARE_URL = f"{target_url}/executive{URL_FARE}"
+    SERVICE_URL = f"{target_url}/executive{URL_SERVICE}"
     ROUTE_URL = f"{target_url}/executive{URL_ROUTE}"
     LANDMARK_IN_ROUTE_URL = f"{target_url}/executive{URL_LANDMARK_IN_ROUTE}"
     print("Testing happy flow for executive")
@@ -607,140 +608,204 @@ def run_test(target_url):
 
     # Executive
     print("Creating executive account")
-    response = requests.post(ACCOUNT_URL, headers=admin_headers, json=EX_ACCOUNT_1)
+    response = requests.post(
+        ACCOUNT_URL, headers=admin_headers, json=generate_executive_account_payload()
+    )
     assert response.status_code == 201
     account = ExecutiveSchema.model_validate(response.json())
 
     # Company
     print("Creating company")
-    response = requests.post(COMPANY_URL, headers=admin_headers, json=COMPANY_1)
+    response = requests.post(
+        COMPANY_URL, headers=admin_headers, json=generate_company_payload()
+    )
     assert response.status_code == 201
     company = CompanySchema.model_validate(response.json())
 
     # Operator account
     print("Creating operator")
-    OP_ACCOUNT_1["company_id"] = company.id
-    response = requests.post(OPERATOR_URL, headers=admin_headers, json=OP_ACCOUNT_1)
+    op_account_payload = generate_operator_account_payload(company.id)
+    response = requests.post(
+        OPERATOR_URL, headers=admin_headers, json=op_account_payload
+    )
     assert response.status_code == 201
     operator = OperatorSchema.model_validate(response.json())
 
     # Operator admin role
     print("Creating operator admin role")
-    OP_ADMIN_ROLE["company_id"] = company.id
+    op_admin_role_payload = generate_operator_role_payload(
+        company.id, PermissionSchemaOP.all_granted().model_dump()
+    )
     response = requests.post(
-        OPERATOR_ROLE_URL, headers=admin_headers, json=OP_ADMIN_ROLE
+        OPERATOR_ROLE_URL, headers=admin_headers, json=op_admin_role_payload
     )
     assert response.status_code == 201
     op_admin_role = OperatorRoleSchema.model_validate(response.json())
 
     # Operator guest role
     print("Creating operator guest role")
-    OP_GUEST_ROLE["company_id"] = company.id
+    op_guest_role_payload = generate_operator_role_payload(
+        company.id, PermissionSchemaOP.all_denied().model_dump()
+    )
     response = requests.post(
-        OPERATOR_ROLE_URL, headers=admin_headers, json=OP_GUEST_ROLE
+        OPERATOR_ROLE_URL, headers=admin_headers, json=op_guest_role_payload
     )
     assert response.status_code == 201
     op_guest_role = OperatorRoleSchema.model_validate(response.json())
 
     # Vehicle
     print("Creating vehicle")
-    VEHICLE_1["company_id"] = company.id
-    response = requests.post(VEHICLE_URL, headers=admin_headers, json=VEHICLE_1)
+    response = requests.post(
+        VEHICLE_URL,
+        headers=admin_headers,
+        json=generate_vehicle_payload(company.id),
+    )
     assert response.status_code == 201
     vehicle = VehicleSchema.model_validate(response.json())
 
     # Landmark 1
     print("Creating landmark 1")
-    response = requests.post(LANDMARK_URL, headers=admin_headers, json=LANDMARK_1)
+    response = requests.post(
+        LANDMARK_URL, headers=admin_headers, json=generate_landmark_payload()
+    )
     assert response.status_code == 201
     landmark_1 = LandmarkSchema.model_validate(response.json())
 
     # Landmark 2
     print("Creating landmark 2")
-    response = requests.post(LANDMARK_URL, headers=admin_headers, json=LANDMARK_2)
+    response = requests.post(
+        LANDMARK_URL, headers=admin_headers, json=generate_landmark_payload()
+    )
     assert response.status_code == 201
     landmark_2 = LandmarkSchema.model_validate(response.json())
 
     # Route 1
     print("Creating route")
-    ROUTE_1["company_id"] = company.id
-    response = requests.post(ROUTE_URL, headers=admin_headers, json=ROUTE_1)
+    response = requests.post(
+        ROUTE_URL, headers=admin_headers, json=generate_route_payload(company.id)
+    )
     assert response.status_code == 201
     route = RouteSchema.model_validate(response.json())
 
     # Landmark in Route 1
     print("Adding landmark 1 to route")
-    LANDMARK_1_IN_ROUTE_1["route_id"] = route.id
-    LANDMARK_1_IN_ROUTE_1["landmark_id"] = landmark_1.id
     response = requests.post(
-        LANDMARK_IN_ROUTE_URL, headers=admin_headers, json=LANDMARK_1_IN_ROUTE_1
+        LANDMARK_IN_ROUTE_URL,
+        headers=admin_headers,
+        json=generate_landmark_in_route_payload(route.id, landmark_1.id, 0, 0, 0),
     )
     assert response.status_code == 201
     landmark_1_in_route_1 = LandmarkInRouteSchema.model_validate(response.json())
 
     # Landmark 2 in Route 1
     print("Adding landmark 2 to route")
-    LANDMARK_2_IN_ROUTE_1["route_id"] = route.id
-    LANDMARK_2_IN_ROUTE_1["landmark_id"] = landmark_2.id
     response = requests.post(
-        LANDMARK_IN_ROUTE_URL, headers=admin_headers, json=LANDMARK_2_IN_ROUTE_1
+        LANDMARK_IN_ROUTE_URL,
+        headers=admin_headers,
+        json=generate_landmark_in_route_payload(route.id, landmark_2.id, 1000, 5, 5),
     )
     assert response.status_code == 201
     landmark_2_in_route_1 = LandmarkInRouteSchema.model_validate(response.json())
-    
+
+    # Fare
+    print("Creating fare")
+    response = requests.post(
+        FARE_URL, headers=admin_headers, json=generate_fare_payload(company.id)
+    )
+    assert response.status_code == 201
+    fare = FareSchema.model_validate(response.json())
+
     try:
         # Test executive token creation, retrieval, refreshing, revoking and deletion
-        test_executive_token_flow(TOKEN_URL, EX_ADMIN_CREDENTIALS)
+        test_executive_token_endpoint(TOKEN_URL, EX_ADMIN_CREDENTIALS)
         # Test executive image upload, retrieval, download and deletion
-        test_executive_image_flow(PICTURE_URL, admin_headers)
+        test_executive_image_endpoint(PICTURE_URL, admin_headers)
         # Test executive role creation, retrieval, updating and deletion
-        test_executive_role_flow(ROLE_URL, EX_ADMIN_ROLE, admin_headers)
+        test_executive_role_endpoint(
+            ROLE_URL,
+            generate_executive_role_payload(
+                PermissionSchemaEX.all_granted().model_dump()
+            ),
+            admin_headers,
+        )
         # Test executive account creation, retrieval, updating and deletion
-        test_executive_account_flow(ACCOUNT_URL, EX_ACCOUNT_2, admin_headers)
+        test_executive_account_endpoint(
+            ACCOUNT_URL, generate_executive_account_payload(), admin_headers
+        )
         # Test executive role mapping creation, updating and deletion
-        test_executive_role_map_flow(ROLE_MAP_URL, ROLE_URL, account, admin_headers)
+        test_executive_role_map_endpoint(ROLE_MAP_URL, ROLE_URL, account, admin_headers)
 
         # Test landmark creation, retrieval, updating and deletion
-        test_landmark_flow(LANDMARK_URL, LANDMARK_3, admin_headers)
+        test_landmark_endpoint(LANDMARK_URL, generate_landmark_payload(), admin_headers)
         # Test bus stop creation, retrieval, updating and deletion
-        test_bus_stop_flow(
-            BUS_STOP_URL, landmark_1, BUS_STOP_IN_LANDMARK_1, admin_headers
+        test_bus_stop_endpoint(
+            BUS_STOP_URL,
+            generate_bus_stop_payload(landmark_1.id, landmark_1.boundary),
+            admin_headers,
         )
 
         # Test company creation, retrieval, updating and deletion
-        test_company_flow(COMPANY_URL, COMPANY_2, admin_headers)
+        test_company_endpoint(COMPANY_URL, generate_company_payload(), admin_headers)
         # Test operator creation, retrieval, updating and deletion
-        test_operator_account_flow(OPERATOR_URL, company, OP_ACCOUNT_2, admin_headers)
+        test_operator_account_endpoint(
+            OPERATOR_URL,
+            generate_operator_account_payload(company.id),
+            admin_headers,
+        )
         # Test operator role creation, retrieval, updating and deletion
-        test_operator_role_flow(OPERATOR_ROLE_URL, company, OP_TEST_ROLE, admin_headers)
+        test_operator_role_endpoint(
+            OPERATOR_ROLE_URL,
+            generate_operator_role_payload(
+                company.id, PermissionSchemaOP.all_denied().model_dump()
+            ),
+            admin_headers,
+        )
         # Test operator role map creation, updating and deletion
-        test_operator_role_map_flow(
+        test_operator_role_map_endpoint(
             OPERATOR_ROLE_MAP_URL, operator, op_admin_role, op_guest_role, admin_headers
         )
         # Test operator image upload, retrieval, download and deletion
-        test_operator_image_flow(OPERATOR_PICTURE_URL, operator, company, admin_headers)
+        test_operator_image_endpoint(
+            OPERATOR_PICTURE_URL, operator, company, admin_headers
+        )
 
         # Test fare creation, retrieval, updating and deletion
-        test_fare_flow(FARE_URL, company, FARE_2, admin_headers)
+        test_fare_endpoint(FARE_URL, generate_fare_payload(company.id), admin_headers)
         # Test vehicle creation, retrieval, updating and deletion
-        test_vehicle_flow(VEHICLE_URL, company, VEHICLE_2, admin_headers)
+        test_vehicle_endpoint(
+            VEHICLE_URL, generate_vehicle_payload(company.id), admin_headers
+        )
         # Test vehicle image upload, retrieval, download and deletion
-        test_vehicle_image_flow(VEHICLE_PICTURE_URL, company, vehicle, admin_headers)
+        test_vehicle_image_endpoint(
+            VEHICLE_PICTURE_URL, company, vehicle, admin_headers
+        )
         # Test route creation, retrieval, updating and deletion
-        test_route_flow(ROUTE_URL, company, ROUTE_2, admin_headers)
+        test_route_endpoint(
+            ROUTE_URL, generate_route_payload(company.id), admin_headers
+        )
         # Test landmark in route creation, retrieval, updating and deletion
-        test_landmark_in_route_flow(
-            LANDMARK_IN_ROUTE_URL, route, LANDMARK_3_IN_ROUTE_1, admin_headers
+        test_landmark_in_route_endpoint(
+            LANDMARK_IN_ROUTE_URL,
+            generate_landmark_in_route_payload(route.id, landmark_1.id, 2000, 3, 3),
+            admin_headers,
+        )
+
+        # Test service creation, retrieval, updating and deletion
+        test_service_endpoint(
+            SERVICE_URL,
+            generate_service_payload(company.id, route.id, fare.id, vehicle.id),
+            admin_headers,
         )
     except Exception as e:
         print(f"Error during test execution: {e}")
 
     ## Deleting the primary resources created for tests
-    # Landmark 1
+    # Route
     print("Deleting route")
     response = requests.delete(f"{ROUTE_URL}/{route.id}", headers=admin_headers)
     assert response.status_code == 204
 
+    # Landmark 1
     print("Deleting landmark 1")
     response = requests.delete(f"{LANDMARK_URL}/{landmark_1.id}", headers=admin_headers)
     assert response.status_code == 204
