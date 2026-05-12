@@ -128,6 +128,21 @@ OP_GUEST_ROLE = {
     "name": "op-guest-role-1",
     "permissions": PermissionSchemaOP.all_denied().model_dump(),
 }
+LANDMARK_1_IN_ROUTE_1 = {
+    "route_id": 0,  # to be updated with actual route id during test execution
+    "landmark_id": 0,  # to be updated with actual landmark id during test execution
+    "distance_from_start": 0,
+    "arrival_delta": 0,
+    "departure_delta": 1,
+}
+LANDMARK_2_IN_ROUTE_1 = {
+    "route_id": 0,  # to be updated with actual route id during test execution
+    "landmark_id": 0,  # to be updated with actual landmark id during test execution
+    "distance_from_start": 1000,
+    "arrival_delta": 2,
+    "departure_delta": 3,
+}
+
 
 # Common input resources
 EX_ADMIN_ROLE = {
@@ -216,6 +231,13 @@ ROUTE_2 = {
     "company_id": 0,  # to be updated with actual company id during test execution
     "name": "route-2",
     "start_time": "09:00:00",
+}
+LANDMARK_3_IN_ROUTE_1 = {
+    "route_id": 0,  # to be updated with actual route id during test execution
+    "landmark_id": 0,  # to be updated with actual landmark id during test execution
+    "distance_from_start": 2000,
+    "arrival_delta": 3,
+    "departure_delta": 4,
 }
 
 

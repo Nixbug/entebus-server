@@ -6,6 +6,7 @@ from app.api.executive_role import ExecutiveRoleSchema
 from app.api.executive_role_map import ExecutiveRoleMapSchema
 from app.api.executive_token import ExecutiveTokenSchema
 from app.api.landmark import LandmarkSchema
+from app.api.landmark_in_route import LandmarkInRouteSchema
 from app.api.bus_stop import BusStopSchema
 from app.api.operator_role import OperatorRoleSchema
 from app.api.operator_role_map import OperatorRoleMapSchema
@@ -13,6 +14,7 @@ from app.api.vehicle import VehicleSchema
 from app.api.vehicle_image import VehicleImageSchema
 from app.src.urls import (
     URL_COMPANY,
+    URL_LANDMARK_IN_ROUTE,
     URL_OPERATOR_ACCOUNT,
     URL_OPERATOR_PICTURE,
     URL_EXECUTIVE_PICTURE,
@@ -35,8 +37,11 @@ from tests.inputs import (
     COMPANY_2,
     EX_GUEST_CREDENTIALS,
     FARE_2,
+    LANDMARK_1_IN_ROUTE_1,
     LANDMARK_2,
+    LANDMARK_2_IN_ROUTE_1,
     LANDMARK_3,
+    LANDMARK_3_IN_ROUTE_1,
     OP_ACCOUNT_1,
     EX_ACCOUNT_1,
     EX_ACCOUNT_2,
@@ -535,6 +540,43 @@ def test_route_flow(
     assert response.status_code == 204
 
 
+def test_landmark_in_route_flow(
+    landmark_in_route_url: str,
+    route: RouteSchema,
+    landmark_payload: dict,
+    token_headers: dict,
+):
+    # use provided payload template and set the route id
+    payload = dict(landmark_payload)
+    payload["route_id"] = route.id
+
+    print("Creating landmark in route")
+    response = requests.post(landmark_in_route_url, headers=token_headers, json=payload)
+    assert response.status_code == 201
+    lir = LandmarkInRouteSchema.model_validate(response.json())
+
+    print("Fetching landmarks in route")
+    response = requests.get(
+        f"{landmark_in_route_url}?route_id={route.id}", headers=token_headers
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list) and len(data) >= 1
+
+    print("Updating landmark in route (increase distance)")
+    update_payload = {"distance_from_start": (lir.distance_from_start or 0) + 10}
+    response = requests.patch(
+        f"{landmark_in_route_url}/{lir.id}", headers=token_headers, json=update_payload
+    )
+    assert response.status_code == 200
+
+    print("Deleting landmark in route")
+    response = requests.delete(
+        f"{landmark_in_route_url}/{lir.id}", headers=token_headers
+    )
+    assert response.status_code == 204
+
+
 def run_test(target_url):
     ACCOUNT_URL = f"{target_url}/executive{URL_EXECUTIVE_ACCOUNT}"
     ROLE_URL = f"{target_url}/executive{URL_EXECUTIVE_ROLE}"
@@ -552,6 +594,7 @@ def run_test(target_url):
     VEHICLE_PICTURE_URL = f"{target_url}/executive{URL_VEHICLE_PICTURE}"
     FARE_URL = f"{target_url}/executive{URL_FARE}"
     ROUTE_URL = f"{target_url}/executive{URL_ROUTE}"
+    LANDMARK_IN_ROUTE_URL = f"{target_url}/executive{URL_LANDMARK_IN_ROUTE}"
     print("Testing happy flow for executive")
 
     ## Creating primary resources for tests
@@ -618,6 +661,33 @@ def run_test(target_url):
     assert response.status_code == 201
     landmark_2 = LandmarkSchema.model_validate(response.json())
 
+    # Route 1
+    print("Creating route")
+    ROUTE_1["company_id"] = company.id
+    response = requests.post(ROUTE_URL, headers=admin_headers, json=ROUTE_1)
+    assert response.status_code == 201
+    route = RouteSchema.model_validate(response.json())
+
+    # Landmark in Route 1
+    print("Adding landmark 1 to route")
+    LANDMARK_1_IN_ROUTE_1["route_id"] = route.id
+    LANDMARK_1_IN_ROUTE_1["landmark_id"] = landmark_1.id
+    response = requests.post(
+        LANDMARK_IN_ROUTE_URL, headers=admin_headers, json=LANDMARK_1_IN_ROUTE_1
+    )
+    assert response.status_code == 201
+    landmark_1_in_route_1 = LandmarkInRouteSchema.model_validate(response.json())
+
+    # Landmark 2 in Route 1
+    print("Adding landmark 2 to route")
+    LANDMARK_2_IN_ROUTE_1["route_id"] = route.id
+    LANDMARK_2_IN_ROUTE_1["landmark_id"] = landmark_2.id
+    response = requests.post(
+        LANDMARK_IN_ROUTE_URL, headers=admin_headers, json=LANDMARK_2_IN_ROUTE_1
+    )
+    assert response.status_code == 201
+    landmark_2_in_route_1 = LandmarkInRouteSchema.model_validate(response.json())
+    
     try:
         # Test executive token creation, retrieval, refreshing, revoking and deletion
         test_executive_token_flow(TOKEN_URL, EX_ADMIN_CREDENTIALS)
@@ -658,11 +728,19 @@ def run_test(target_url):
         test_vehicle_image_flow(VEHICLE_PICTURE_URL, company, vehicle, admin_headers)
         # Test route creation, retrieval, updating and deletion
         test_route_flow(ROUTE_URL, company, ROUTE_2, admin_headers)
+        # Test landmark in route creation, retrieval, updating and deletion
+        test_landmark_in_route_flow(
+            LANDMARK_IN_ROUTE_URL, route, LANDMARK_3_IN_ROUTE_1, admin_headers
+        )
     except Exception as e:
         print(f"Error during test execution: {e}")
 
     ## Deleting the primary resources created for tests
     # Landmark 1
+    print("Deleting route")
+    response = requests.delete(f"{ROUTE_URL}/{route.id}", headers=admin_headers)
+    assert response.status_code == 204
+
     print("Deleting landmark 1")
     response = requests.delete(f"{LANDMARK_URL}/{landmark_1.id}", headers=admin_headers)
     assert response.status_code == 204
