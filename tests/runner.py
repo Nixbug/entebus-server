@@ -1,8 +1,8 @@
 """
 Test runner for invoking automated tests.
-make sure that the server is running before executing this script.
+Make sure that the server is running before executing this script.
 Usage:
-    python tests/runner.py --url http://localhost:8000
+    python -m tests.runner --url http://localhost:8080
 """
 
 import argparse
