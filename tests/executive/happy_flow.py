@@ -16,6 +16,7 @@ from app.api.vehicle import VehicleSchema
 from app.api.vehicle_image import VehicleImageSchema
 from app.src.urls import (
     URL_COMPANY,
+    URL_SERVICE_ASSIGNMENT,
     URL_LANDMARK_IN_ROUTE,
     URL_OPERATOR_ACCOUNT,
     URL_OPERATOR_PICTURE,
@@ -35,6 +36,7 @@ from app.src.urls import (
     URL_ROUTE,
 )
 from app.api.service import ServiceSchema
+from app.api.service_assignment import ServiceAssignmentSchema
 from tests.inputs import (
     generate_company_payload,
     generate_fare_payload,
@@ -50,6 +52,7 @@ from tests.inputs import (
     generate_vehicle_payload,
     generate_landmark_payload,
     generate_bus_stop_payload,
+    generate_service_assignment_payload,
 )
 from app.api.fare import FareSchema
 from app.api.route import RouteSchema
@@ -546,18 +549,16 @@ def test_landmark_in_route_endpoint(
 
 
 def test_service_endpoint(service_url: str, service_data: dict, token_headers: dict):
-
-    from datetime import datetime, timedelta, timezone
-
     print("Creating service")
-    payload = dict(service_data)
-    payload["starting_at"] = (
-        datetime.now(timezone.utc) + timedelta(minutes=5)
-    ).isoformat()
-
-    response = requests.post(service_url, headers=token_headers, json=payload)
+    response = requests.post(service_url, headers=token_headers, json=service_data)
     assert response.status_code == 201
     svc = ServiceSchema.model_validate(response.json())
+
+    print("Fetching service list")
+    response = requests.get(f"{service_url}?id={svc.id}", headers=token_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list) and len(data) >= 1
 
     print("Fetching service by id")
     response = requests.get(f"{service_url}?id={svc.id}", headers=token_headers)
@@ -574,6 +575,46 @@ def test_service_endpoint(service_url: str, service_data: dict, token_headers: d
 
     print("Deleting service")
     response = requests.delete(f"{service_url}/{svc.id}", headers=token_headers)
+    assert response.status_code == 204
+
+
+def test_service_assignment(
+    service_assignment_url: str,
+    service: ServiceSchema,
+    operator_1: OperatorSchema,
+    operator_2: OperatorSchema,
+    company: CompanySchema,
+    token_headers: dict,
+):
+    print("Creating service assignment")
+    payload = generate_service_assignment_payload(service.id, operator_1.id, company.id)
+    response = requests.post(
+        service_assignment_url, headers=token_headers, json=payload
+    )
+    assert response.status_code == 201
+    assignment = ServiceAssignmentSchema.model_validate(response.json())
+
+    print("Fetching service assignment by id")
+    response = requests.get(
+        f"{service_assignment_url}?id={assignment.id}", headers=token_headers
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list) and len(data) == 1
+
+    print("Updating service assignment")
+    update_payload = {"operator_id": operator_2.id}
+    response = requests.patch(
+        f"{service_assignment_url}/{assignment.id}",
+        headers=token_headers,
+        json=update_payload,
+    )
+    assert response.status_code == 200
+
+    print("Deleting service assignment")
+    response = requests.delete(
+        f"{service_assignment_url}/{assignment.id}", headers=token_headers
+    )
     assert response.status_code == 204
 
 
@@ -594,6 +635,7 @@ def run_test(target_url):
     VEHICLE_PICTURE_URL = f"{target_url}/executive{URL_VEHICLE_PICTURE}"
     FARE_URL = f"{target_url}/executive{URL_FARE}"
     SERVICE_URL = f"{target_url}/executive{URL_SERVICE}"
+    SERVICE_ASSIGNMENT_URL = f"{target_url}/executive{URL_SERVICE_ASSIGNMENT}"
     ROUTE_URL = f"{target_url}/executive{URL_ROUTE}"
     LANDMARK_IN_ROUTE_URL = f"{target_url}/executive{URL_LANDMARK_IN_ROUTE}"
     print("Testing happy flow for executive")
@@ -622,33 +664,46 @@ def run_test(target_url):
     assert response.status_code == 201
     company = CompanySchema.model_validate(response.json())
 
-    # Operator account
-    print("Creating operator")
-    op_account_payload = generate_operator_account_payload(company.id)
+    # Operator 1
+    print("Creating operator 1")
     response = requests.post(
-        OPERATOR_URL, headers=admin_headers, json=op_account_payload
+        OPERATOR_URL,
+        headers=admin_headers,
+        json=generate_operator_account_payload(company.id),
     )
     assert response.status_code == 201
-    operator = OperatorSchema.model_validate(response.json())
+    operator_1 = OperatorSchema.model_validate(response.json())
+
+    # Operator 2
+    print("Creating operator 2")
+    response = requests.post(
+        OPERATOR_URL,
+        headers=admin_headers,
+        json=generate_operator_account_payload(company.id),
+    )
+    assert response.status_code == 201
+    operator_2 = OperatorSchema.model_validate(response.json())
 
     # Operator admin role
     print("Creating operator admin role")
-    op_admin_role_payload = generate_operator_role_payload(
-        company.id, PermissionSchemaOP.all_granted().model_dump()
-    )
     response = requests.post(
-        OPERATOR_ROLE_URL, headers=admin_headers, json=op_admin_role_payload
+        OPERATOR_ROLE_URL,
+        headers=admin_headers,
+        json=generate_operator_role_payload(
+            company.id, PermissionSchemaOP.all_granted().model_dump()
+        ),
     )
     assert response.status_code == 201
     op_admin_role = OperatorRoleSchema.model_validate(response.json())
 
     # Operator guest role
     print("Creating operator guest role")
-    op_guest_role_payload = generate_operator_role_payload(
-        company.id, PermissionSchemaOP.all_denied().model_dump()
-    )
     response = requests.post(
-        OPERATOR_ROLE_URL, headers=admin_headers, json=op_guest_role_payload
+        OPERATOR_ROLE_URL,
+        headers=admin_headers,
+        json=generate_operator_role_payload(
+            company.id, PermissionSchemaOP.all_denied().model_dump()
+        ),
     )
     assert response.status_code == 201
     op_guest_role = OperatorRoleSchema.model_validate(response.json())
@@ -715,6 +770,16 @@ def run_test(target_url):
     assert response.status_code == 201
     fare = FareSchema.model_validate(response.json())
 
+    # Service
+    print("Creating service")
+    response = requests.post(
+        SERVICE_URL,
+        headers=admin_headers,
+        json=generate_service_payload(company.id, route.id, fare.id, vehicle.id),
+    )
+    assert response.status_code == 201
+    service = ServiceSchema.model_validate(response.json())
+
     try:
         # Test executive token creation, retrieval, refreshing, revoking and deletion
         test_executive_token_endpoint(TOKEN_URL, EX_ADMIN_CREDENTIALS)
@@ -762,11 +827,15 @@ def run_test(target_url):
         )
         # Test operator role map creation, updating and deletion
         test_operator_role_map_endpoint(
-            OPERATOR_ROLE_MAP_URL, operator, op_admin_role, op_guest_role, admin_headers
+            OPERATOR_ROLE_MAP_URL,
+            operator_1,
+            op_admin_role,
+            op_guest_role,
+            admin_headers,
         )
         # Test operator image upload, retrieval, download and deletion
         test_operator_image_endpoint(
-            OPERATOR_PICTURE_URL, operator, company, admin_headers
+            OPERATOR_PICTURE_URL, operator_1, company, admin_headers
         )
 
         # Test fare creation, retrieval, updating and deletion
@@ -796,10 +865,24 @@ def run_test(target_url):
             generate_service_payload(company.id, route.id, fare.id, vehicle.id),
             admin_headers,
         )
+        # Test service assignment create/update/delete
+        test_service_assignment(
+            SERVICE_ASSIGNMENT_URL,
+            service,
+            operator_1,
+            operator_2,
+            company,
+            admin_headers,
+        )
     except Exception as e:
         print(f"Error during test execution: {e}")
 
     ## Deleting the primary resources created for tests
+    # Service
+    print("Deleting service")
+    response = requests.delete(f"{SERVICE_URL}/{service.id}", headers=admin_headers)
+    assert response.status_code == 204
+
     # Route
     print("Deleting route")
     response = requests.delete(f"{ROUTE_URL}/{route.id}", headers=admin_headers)
