@@ -785,9 +785,7 @@ def run_test(target_url):
     # Test executive role creation, retrieval, updating and deletion
     test_executive_role_endpoint(
         ROLE_URL,
-        generate_executive_role_payload(
-            PermissionSchemaEX.all_granted().model_dump()
-        ),
+        generate_executive_role_payload(PermissionSchemaEX.all_granted().model_dump()),
         admin_headers,
     )
     # Test executive account creation, retrieval, updating and deletion
@@ -842,9 +840,7 @@ def run_test(target_url):
     # Test vehicle image upload, retrieval, download and deletion
     test_vehicle_image_endpoint(VEHICLE_PICTURE_URL, vehicle, admin_headers)
     # Test route creation, retrieval, updating and deletion
-    test_route_endpoint(
-        ROUTE_URL, generate_route_payload(company.id), admin_headers
-    )
+    test_route_endpoint(ROUTE_URL, generate_route_payload(company.id), admin_headers)
     # Test landmark in route creation, retrieval, updating and deletion
     test_landmark_in_route_endpoint(
         LANDMARK_IN_ROUTE_URL,
