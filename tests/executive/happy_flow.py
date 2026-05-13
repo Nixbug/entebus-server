@@ -385,12 +385,11 @@ def test_operator_role_map_endpoint(
 def test_operator_image_endpoint(
     picture_url: str,
     operator: OperatorSchema,
-    company: CompanySchema,
     token_headers: dict,
 ):
     print("Uploading operator image")
     files = generate_test_image()
-    data = {"company_id": str(company.id), "operator_id": str(operator.id)}
+    data = {"operator_id": str(operator.id)}
     response = requests.post(picture_url, headers=token_headers, files=files, data=data)
     assert response.status_code == 201
     img_meta = OperatorImageSchema.model_validate(response.json())
@@ -463,13 +462,12 @@ def test_vehicle_endpoint(vehicle_url: str, vehicle_data: dict, token_headers: d
 
 def test_vehicle_image_endpoint(
     picture_url: str,
-    company: CompanySchema,
     vehicle: VehicleSchema,
     token_headers: dict,
 ):
     print("Uploading vehicle image")
     files = generate_test_image()
-    data = {"company_id": str(company.id), "vehicle_id": str(vehicle.id)}
+    data = {"vehicle_id": str(vehicle.id)}
     response = requests.post(picture_url, headers=token_headers, files=files, data=data)
     assert response.status_code == 201
     img_meta = VehicleImageSchema.model_validate(response.json())
@@ -834,9 +832,7 @@ def run_test(target_url):
             admin_headers,
         )
         # Test operator image upload, retrieval, download and deletion
-        test_operator_image_endpoint(
-            OPERATOR_PICTURE_URL, operator_1, company, admin_headers
-        )
+        test_operator_image_endpoint(OPERATOR_PICTURE_URL, operator_1, admin_headers)
 
         # Test fare creation, retrieval, updating and deletion
         test_fare_endpoint(FARE_URL, generate_fare_payload(company.id), admin_headers)
@@ -845,9 +841,7 @@ def run_test(target_url):
             VEHICLE_URL, generate_vehicle_payload(company.id), admin_headers
         )
         # Test vehicle image upload, retrieval, download and deletion
-        test_vehicle_image_endpoint(
-            VEHICLE_PICTURE_URL, company, vehicle, admin_headers
-        )
+        test_vehicle_image_endpoint(VEHICLE_PICTURE_URL, vehicle, admin_headers)
         # Test route creation, retrieval, updating and deletion
         test_route_endpoint(
             ROUTE_URL, generate_route_payload(company.id), admin_headers
