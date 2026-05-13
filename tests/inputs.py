@@ -23,15 +23,15 @@ EX_ADMIN_CREDENTIALS = {
     "username": "admin",
     "password": "password",
     "client_details": "client_details",
-    "platform_type": PlatformType.WEB,
-    "grant_type": GrantType.PASSWORD,
+    "platform_type": PlatformType.WEB.value,
+    "grant_type": GrantType.PASSWORD.value,
 }
 EX_GUEST_CREDENTIALS = {
     "username": "guest",
     "password": "password",
     "client_details": "client_details",
-    "platform_type": PlatformType.WEB,
-    "grant_type": GrantType.PASSWORD,
+    "platform_type": PlatformType.WEB.value,
+    "grant_type": GrantType.PASSWORD.value,
 }
 
 
