@@ -106,7 +106,7 @@ class CreateFormForOP(ImageUploadForm):
 class CreateFormForEX(CreateFormForOP):
     """Form data for creating a new vehicle image for an executive."""
 
-    company_id: int = Field(Form())
+    pass
 
 
 class CreateForm(CreateFormForEX):
@@ -164,21 +164,24 @@ class ImageQueryParams(BaseModel):
 
 
 # Functions
-def create_image(session: Session, form_param: CreateForm, file_bytes: bytes) -> dict:
+def create_image(
+    session: Session, form_param: CreateForm, vehicle: Vehicle, file_bytes: bytes
+) -> dict:
     """
     Creates a new vehicle image record in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a vehicle image.
+        vehicle (Vehicle): The vehicle instance associated with the image.
         file_bytes (bytes): The image file bytes.
 
     Returns:
         dict: The created vehicle image data.
     """
     vehicle_image = VehicleImage(
-        company_id=form_param.company_id,
-        vehicle_id=form_param.vehicle_id,
+        company_id=vehicle.company_id,
+        vehicle_id=vehicle.id,
         file_name=form_param.file.filename,
         file_type=form_param.file.content_type,
         file_size=len(file_bytes),
@@ -310,10 +313,6 @@ def download_image(
             exceptions.NoPermission(),
             exceptions.InvalidImageFile(),
             exceptions.UnknownValue(VehicleImage.vehicle_id),
-            exceptions.UnknownValue(VehicleImage.company_id),
-            exceptions.InvalidAssociation(
-                VehicleImage.vehicle_id, VehicleImage.company_id
-            ),
         ]
     ),
     description=(
@@ -335,20 +334,15 @@ async def upload_vehicle_image_for_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_VEHICLE)
 
-        validate_id(session, Company, form_param.company_id, VehicleImage.company_id)
         vehicle = validate_id(
             session, Vehicle, form_param.vehicle_id, VehicleImage.vehicle_id
         )
-        if vehicle.company_id != form_param.company_id:
-            raise exceptions.InvalidAssociation(
-                VehicleImage.vehicle_id, VehicleImage.company_id
-            )
 
         file_bytes = await form_param.file.read()
         validate_image(file_bytes, form_param.file.filename)
 
         vehicle_image_data = create_image(
-            session, CreateForm(**form_param.model_dump()), file_bytes
+            session, CreateForm(**form_param.model_dump()), vehicle, file_bytes
         )
         log_event(token, request_info, vehicle_image_data)
         return vehicle_image_data
@@ -494,7 +488,7 @@ async def upload_vehicle_image_for_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_VEHICLE)
 
-        validate_id(
+        vehicle = validate_id(
             session,
             Vehicle,
             form_param.vehicle_id,
@@ -506,7 +500,8 @@ async def upload_vehicle_image_for_operator(
 
         vehicle_image_data = create_image(
             session,
-            CreateForm(**form_param.model_dump(), company_id=token.company_id),
+            CreateForm(**form_param.model_dump()),
+            vehicle,
             file_bytes,
         )
         log_event(token, request_info, vehicle_image_data)
