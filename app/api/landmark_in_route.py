@@ -553,7 +553,7 @@ async def fetch_landmark_in_route_for_executive(
             exceptions.InvalidValue(LandmarkInRoute.arrival_delta),
             exceptions.UnknownValue(LandmarkInRoute.route_id),
             exceptions.UnknownValue(LandmarkInRoute.landmark_id),
-            exceptions.LimitExceeded(orm_class=LandmarkInRoute),
+            exceptions.LimitExceeded(LandmarkInRoute),
         ]
     ),
     description=(
@@ -564,7 +564,7 @@ async def fetch_landmark_in_route_for_executive(
             - Logged-in operator can only add landmarks to routes belonging to their company.    
             - Departure delta must be greater than arrival delta.    
             - When creating a landmark in a route, the route will be validated and status of the route will be updated.  
-            - Max {MAX_LANDMARKS_PER_ROUTE} landmarks allowed per route
+            - Maximum `{MAX_LANDMARKS_PER_ROUTE}` landmarks allowed per route
         """
     ),
 )
