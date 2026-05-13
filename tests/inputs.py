@@ -197,8 +197,8 @@ def generate_landmark_in_route_payload(
 def generate_service_payload(
     company_id: int, route_id: int, fare_id: int, vehicle_id: int
 ):
-    # choose a random start offset in minutes between 0 and 1440 (24 hours)
-    minutes_offset = int(np.random.randint(0, 1441))
+    # choose a start offset in minutes (5–1439) to avoid `starting_at` == now
+    minutes_offset = int(np.random.randint(5, 1440))
     return {
         "starting_at": (
             datetime.now(timezone.utc) + timedelta(minutes=minutes_offset)
