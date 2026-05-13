@@ -778,98 +778,95 @@ def run_test(target_url):
     assert response.status_code == 201
     service = ServiceSchema.model_validate(response.json())
 
-    try:
-        # Test executive token creation, retrieval, refreshing, revoking and deletion
-        test_executive_token_endpoint(TOKEN_URL, EX_ADMIN_CREDENTIALS)
-        # Test executive image upload, retrieval, download and deletion
-        test_executive_image_endpoint(PICTURE_URL, admin_headers)
-        # Test executive role creation, retrieval, updating and deletion
-        test_executive_role_endpoint(
-            ROLE_URL,
-            generate_executive_role_payload(
-                PermissionSchemaEX.all_granted().model_dump()
-            ),
-            admin_headers,
-        )
-        # Test executive account creation, retrieval, updating and deletion
-        test_executive_account_endpoint(
-            ACCOUNT_URL, generate_executive_account_payload(), admin_headers
-        )
-        # Test executive role mapping creation, updating and deletion
-        test_executive_role_map_endpoint(ROLE_MAP_URL, ROLE_URL, account, admin_headers)
+    # Test executive token creation, retrieval, refreshing, revoking and deletion
+    test_executive_token_endpoint(TOKEN_URL, EX_ADMIN_CREDENTIALS)
+    # Test executive image upload, retrieval, download and deletion
+    test_executive_image_endpoint(PICTURE_URL, admin_headers)
+    # Test executive role creation, retrieval, updating and deletion
+    test_executive_role_endpoint(
+        ROLE_URL,
+        generate_executive_role_payload(
+            PermissionSchemaEX.all_granted().model_dump()
+        ),
+        admin_headers,
+    )
+    # Test executive account creation, retrieval, updating and deletion
+    test_executive_account_endpoint(
+        ACCOUNT_URL, generate_executive_account_payload(), admin_headers
+    )
+    # Test executive role mapping creation, updating and deletion
+    test_executive_role_map_endpoint(ROLE_MAP_URL, ROLE_URL, account, admin_headers)
 
-        # Test landmark creation, retrieval, updating and deletion
-        test_landmark_endpoint(LANDMARK_URL, generate_landmark_payload(), admin_headers)
-        # Test bus stop creation, retrieval, updating and deletion
-        test_bus_stop_endpoint(
-            BUS_STOP_URL,
-            generate_bus_stop_payload(landmark_1.id, landmark_1.boundary),
-            admin_headers,
-        )
+    # Test landmark creation, retrieval, updating and deletion
+    test_landmark_endpoint(LANDMARK_URL, generate_landmark_payload(), admin_headers)
+    # Test bus stop creation, retrieval, updating and deletion
+    test_bus_stop_endpoint(
+        BUS_STOP_URL,
+        generate_bus_stop_payload(landmark_1.id, landmark_1.boundary),
+        admin_headers,
+    )
 
-        # Test company creation, retrieval, updating and deletion
-        test_company_endpoint(COMPANY_URL, generate_company_payload(), admin_headers)
-        # Test operator creation, retrieval, updating and deletion
-        test_operator_account_endpoint(
-            OPERATOR_URL,
-            generate_operator_account_payload(company.id),
-            admin_headers,
-        )
-        # Test operator role creation, retrieval, updating and deletion
-        test_operator_role_endpoint(
-            OPERATOR_ROLE_URL,
-            generate_operator_role_payload(
-                company.id, PermissionSchemaOP.all_denied().model_dump()
-            ),
-            admin_headers,
-        )
-        # Test operator role map creation, updating and deletion
-        test_operator_role_map_endpoint(
-            OPERATOR_ROLE_MAP_URL,
-            operator_1,
-            op_admin_role,
-            op_guest_role,
-            admin_headers,
-        )
-        # Test operator image upload, retrieval, download and deletion
-        test_operator_image_endpoint(OPERATOR_PICTURE_URL, operator_1, admin_headers)
+    # Test company creation, retrieval, updating and deletion
+    test_company_endpoint(COMPANY_URL, generate_company_payload(), admin_headers)
+    # Test operator creation, retrieval, updating and deletion
+    test_operator_account_endpoint(
+        OPERATOR_URL,
+        generate_operator_account_payload(company.id),
+        admin_headers,
+    )
+    # Test operator role creation, retrieval, updating and deletion
+    test_operator_role_endpoint(
+        OPERATOR_ROLE_URL,
+        generate_operator_role_payload(
+            company.id, PermissionSchemaOP.all_denied().model_dump()
+        ),
+        admin_headers,
+    )
+    # Test operator role map creation, updating and deletion
+    test_operator_role_map_endpoint(
+        OPERATOR_ROLE_MAP_URL,
+        operator_1,
+        op_admin_role,
+        op_guest_role,
+        admin_headers,
+    )
+    # Test operator image upload, retrieval, download and deletion
+    test_operator_image_endpoint(OPERATOR_PICTURE_URL, operator_1, admin_headers)
 
-        # Test fare creation, retrieval, updating and deletion
-        test_fare_endpoint(FARE_URL, generate_fare_payload(company.id), admin_headers)
-        # Test vehicle creation, retrieval, updating and deletion
-        test_vehicle_endpoint(
-            VEHICLE_URL, generate_vehicle_payload(company.id), admin_headers
-        )
-        # Test vehicle image upload, retrieval, download and deletion
-        test_vehicle_image_endpoint(VEHICLE_PICTURE_URL, vehicle, admin_headers)
-        # Test route creation, retrieval, updating and deletion
-        test_route_endpoint(
-            ROUTE_URL, generate_route_payload(company.id), admin_headers
-        )
-        # Test landmark in route creation, retrieval, updating and deletion
-        test_landmark_in_route_endpoint(
-            LANDMARK_IN_ROUTE_URL,
-            generate_landmark_in_route_payload(route.id, landmark_1.id, 2000, 3, 3),
-            admin_headers,
-        )
+    # Test fare creation, retrieval, updating and deletion
+    test_fare_endpoint(FARE_URL, generate_fare_payload(company.id), admin_headers)
+    # Test vehicle creation, retrieval, updating and deletion
+    test_vehicle_endpoint(
+        VEHICLE_URL, generate_vehicle_payload(company.id), admin_headers
+    )
+    # Test vehicle image upload, retrieval, download and deletion
+    test_vehicle_image_endpoint(VEHICLE_PICTURE_URL, vehicle, admin_headers)
+    # Test route creation, retrieval, updating and deletion
+    test_route_endpoint(
+        ROUTE_URL, generate_route_payload(company.id), admin_headers
+    )
+    # Test landmark in route creation, retrieval, updating and deletion
+    test_landmark_in_route_endpoint(
+        LANDMARK_IN_ROUTE_URL,
+        generate_landmark_in_route_payload(route.id, landmark_1.id, 2000, 3, 3),
+        admin_headers,
+    )
 
-        # Test service creation, retrieval, updating and deletion
-        test_service_endpoint(
-            SERVICE_URL,
-            generate_service_payload(company.id, route.id, fare.id, vehicle.id),
-            admin_headers,
-        )
-        # Test service assignment create/update/delete
-        test_service_assignment(
-            SERVICE_ASSIGNMENT_URL,
-            service,
-            operator_1,
-            operator_2,
-            company,
-            admin_headers,
-        )
-    except Exception as e:
-        print(f"Error during test execution: {e}")
+    # Test service creation, retrieval, updating and deletion
+    test_service_endpoint(
+        SERVICE_URL,
+        generate_service_payload(company.id, route.id, fare.id, vehicle.id),
+        admin_headers,
+    )
+    # Test service assignment create/update/delete
+    test_service_assignment(
+        SERVICE_ASSIGNMENT_URL,
+        service,
+        operator_1,
+        operator_2,
+        company,
+        admin_headers,
+    )
 
     ## Deleting the primary resources created for tests
     # Service
