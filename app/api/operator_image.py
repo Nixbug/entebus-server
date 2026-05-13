@@ -99,7 +99,6 @@ class ImageUploadForm(BaseModel):
 class CreateFormForEX(ImageUploadForm):
     """Form data for creating a new operator image for an executive."""
 
-    company_id: int = Field(Form())
     operator_id: int = Field(Form())
 
 
@@ -158,21 +157,24 @@ class ImageQueryParams(BaseModel):
 
 
 # Functions
-def create_image(session: Session, form_param: CreateForm, file_bytes: bytes) -> dict:
+def create_image(
+    session: Session, form_param: CreateForm, operator: Operator, file_bytes: bytes
+) -> dict:
     """
     Creates a new operator image record in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating an operator image.
+        operator (Operator): The operator instance associated with the image.
         file_bytes (bytes): The image file bytes.
 
     Returns:
         dict: The created operator image data.
     """
     operator_image = OperatorImage(
-        company_id=form_param.company_id,
-        operator_id=form_param.operator_id,
+        company_id=operator.company_id,
+        operator_id=operator.id,
         file_name=form_param.file.filename,
         file_type=form_param.file.content_type,
         file_size=len(file_bytes),
@@ -304,10 +306,6 @@ def download_image(
             exceptions.NoPermission(),
             exceptions.InvalidImageFile(),
             exceptions.UnknownValue(OperatorImage.operator_id),
-            exceptions.UnknownValue(OperatorImage.company_id),
-            exceptions.InvalidAssociation(
-                OperatorImage.operator_id, OperatorImage.company_id
-            ),
         ]
     ),
     description=(
@@ -329,20 +327,15 @@ async def upload_operator_image_for_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR)
 
-        validate_id(session, Company, form_param.company_id, OperatorImage.company_id)
         operator = validate_id(
             session, Operator, form_param.operator_id, OperatorImage.operator_id
         )
-        if operator.company_id != form_param.company_id:
-            raise exceptions.InvalidAssociation(
-                OperatorImage.operator_id, OperatorImage.company_id
-            )
 
         file_bytes = await form_param.file.read()
         validate_image(file_bytes, form_param.file.filename)
 
         operator_image_data = create_image(
-            session, CreateForm(**form_param.model_dump()), file_bytes
+            session, CreateForm(**form_param.model_dump()), operator, file_bytes
         )
         log_event(token, request_info, operator_image_data)
         return operator_image_data
@@ -494,7 +487,7 @@ async def upload_operator_image_for_operator(
             roles = get_operator_roles(session, token)
             verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR)
 
-        validate_id(
+        operator = validate_id(
             session,
             Operator,
             form_param.operator_id,
@@ -506,7 +499,8 @@ async def upload_operator_image_for_operator(
 
         operator_image_data = create_image(
             session,
-            CreateForm(**form_param.model_dump(), company_id=token.company_id),
+            CreateForm(**form_param.model_dump()),
+            operator,
             file_bytes,
         )
         log_event(token, request_info, operator_image_data)
