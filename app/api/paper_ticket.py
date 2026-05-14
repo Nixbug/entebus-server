@@ -273,6 +273,7 @@ def search_paper_tickets(
 # ---------------------------------------------------------------------------
 @route_executive.get(
     URL_PAPER_TICKET,
+    summary="Fetch paper ticket",
     tags=["Paper Ticket"],
     response_model=List[PaperTicketSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -307,6 +308,7 @@ async def fetch_paper_ticket_executive(
 
 @route_operator.post(
     URL_PAPER_TICKET,
+    summary="Create paper ticket",
     tags=["Paper Ticket"],
     response_model=PaperTicketSchema,
     status_code=status.HTTP_201_CREATED,
@@ -360,6 +362,7 @@ async def create_paper_ticket_operator(
 
 @route_operator.get(
     URL_PAPER_TICKET,
+    summary="Fetch paper ticket",
     tags=["Paper Ticket"],
     response_model=List[PaperTicketSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),

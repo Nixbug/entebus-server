@@ -297,6 +297,7 @@ def download_image(
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_VENDOR_PICTURE,
+    summary="Create vendor image",
     tags=["Vendor Account Image"],
     response_model=VendorImageSchema,
     status_code=status.HTTP_201_CREATED,
@@ -347,6 +348,7 @@ async def upload_vendor_image_for_executive(
 
 @route_executive.delete(
     f"{URL_VENDOR_PICTURE}/{{id}}",
+    summary="Delete vendor image",
     tags=["Vendor Account Image"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -385,6 +387,7 @@ async def delete_vendor_image_for_executive(
 
 @route_executive.get(
     URL_VENDOR_PICTURE,
+    summary="Fetch vendor images",
     tags=["Vendor Account Image"],
     response_model=List[VendorImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -414,6 +417,7 @@ async def fetch_vendor_image_for_executive(
 
 @route_executive.get(
     f"{URL_VENDOR_PICTURE}/{{id}}",
+    summary="Download vendor image",
     tags=["Vendor Account Image"],
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(VendorImage.id)]
@@ -447,6 +451,7 @@ async def download_vendor_image_for_executive(
 # ---------------------------------------------------------------------------
 @route_vendor.post(
     URL_VENDOR_PICTURE,
+    summary="Create vendor image",
     tags=["Account Image"],
     response_model=VendorImageSchema,
     status_code=status.HTTP_201_CREATED,
@@ -509,6 +514,7 @@ async def upload_vendor_image_for_vendor(
 
 @route_vendor.delete(
     f"{URL_VENDOR_PICTURE}/{{id}}",
+    summary="Delete vendor image",
     tags=["Account Image"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -554,6 +560,7 @@ async def delete_vendor_image_for_vendor(
 
 @route_vendor.get(
     URL_VENDOR_PICTURE,
+    summary="Fetch vendor image",
     tags=["Account Image"],
     response_model=List[VendorImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -584,6 +591,7 @@ async def fetch_vendor_image_for_vendor(
 
 @route_vendor.get(
     f"{URL_VENDOR_PICTURE}/{{id}}",
+    summary="Download vendor image",
     tags=["Account Image"],
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(VendorImage.id)]

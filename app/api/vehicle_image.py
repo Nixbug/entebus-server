@@ -304,6 +304,7 @@ def download_image(
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_VEHICLE_PICTURE,
+    summary="Create vehicle image",
     tags=["Vehicle Image"],
     response_model=VehicleImageSchema,
     status_code=status.HTTP_201_CREATED,
@@ -354,6 +355,7 @@ async def upload_vehicle_image_for_executive(
 
 @route_executive.delete(
     f"{URL_VEHICLE_PICTURE}/{{id}}",
+    summary="Delete vehicle image",
     tags=["Vehicle Image"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -394,6 +396,7 @@ async def delete_vehicle_image_for_executive(
 
 @route_executive.get(
     URL_VEHICLE_PICTURE,
+    summary="Fetch vehicle image",
     tags=["Vehicle Image"],
     response_model=List[VehicleImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -423,6 +426,7 @@ async def fetch_vehicle_image_for_executive(
 
 @route_executive.get(
     f"{URL_VEHICLE_PICTURE}/{{id}}",
+    summary="Download vehicle image",
     tags=["Vehicle Image"],
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(VehicleImage.id)]
@@ -458,6 +462,7 @@ async def download_vehicle_image_for_executive(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_VEHICLE_PICTURE,
+    summary="Create vehicle image",
     tags=["Vehicle Image"],
     response_model=VehicleImageSchema,
     status_code=status.HTTP_201_CREATED,
@@ -514,6 +519,7 @@ async def upload_vehicle_image_for_operator(
 
 @route_operator.delete(
     f"{URL_VEHICLE_PICTURE}/{{id}}",
+    summary="Delete vehicle image",
     tags=["Vehicle Image"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -556,6 +562,7 @@ async def delete_vehicle_image_for_operator(
 
 @route_operator.get(
     URL_VEHICLE_PICTURE,
+    summary="Fetch vehicle image",
     tags=["Vehicle Image"],
     response_model=List[VehicleImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -586,6 +593,7 @@ async def fetch_vehicle_image_for_operator(
 
 @route_operator.get(
     f"{URL_VEHICLE_PICTURE}/{{id}}",
+    summary="Download vehicle image",
     tags=["Vehicle Image"],
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(VehicleImage.id)]
@@ -623,6 +631,7 @@ async def download_vehicle_image_for_operator(
 # ---------------------------------------------------------------------------
 @route_public.get(
     URL_VEHICLE_PICTURE,
+    summary="Fetch vehicle image",
     tags=["Vehicle Image"],
     response_model=List[VehicleImageSchema],
     description=(
@@ -648,6 +657,7 @@ async def fetch_vehicle_image_for_public(query_params: QueryParamsForPU = Depend
 @route_public.get(
     f"{URL_VEHICLE_PICTURE}/{{id}}",
     tags=["Vehicle Image"],
+    summary="Download vehicle image",
     description=(
         """
             **Download vehicle image in original or resized resolution.**    

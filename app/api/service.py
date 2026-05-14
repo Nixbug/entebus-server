@@ -1052,6 +1052,7 @@ def delete_service(session: Session, service: Service) -> dict:
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_SERVICE,
+    summary="Create service",
     tags=["Service"],
     response_model=ServiceSchema,
     status_code=status.HTTP_201_CREATED,
@@ -1138,6 +1139,7 @@ async def create_service_executive(
 
 @route_executive.patch(
     f"{URL_SERVICE}/{{id}}",
+    summary="Update service",
     tags=["Service"],
     response_model=ServiceSchema,
     responses=fuse_exception_responses(
@@ -1235,6 +1237,7 @@ async def update_service_executive(
 
 @route_executive.get(
     URL_SERVICE,
+    summary="Fetch service",
     tags=["Service"],
     response_model=List[ServiceSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -1264,6 +1267,7 @@ async def fetch_service_executive(
 
 @route_executive.get(
     f"{URL_SERVICE}/{{id}}",
+    summary="Fetch service details",
     tags=["Service"],
     response_model=PublicServiceSchema,
     responses=fuse_exception_responses(
@@ -1294,6 +1298,7 @@ async def fetch_service_details_for_executive(
 
 @route_executive.delete(
     f"{URL_SERVICE}/{{id}}",
+    summary="Delete service",
     tags=["Service"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -1342,6 +1347,7 @@ async def delete_service_executive(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_SERVICE,
+    summary="Create service",
     tags=["Service"],
     response_model=ServiceSchema,
     status_code=status.HTTP_201_CREATED,
@@ -1426,6 +1432,7 @@ async def create_service_operator(
 
 @route_operator.patch(
     f"{URL_SERVICE}/{{id}}",
+    summary="Update service",
     tags=["Service"],
     response_model=ServiceSchema,
     status_code=status.HTTP_200_OK,
@@ -1530,6 +1537,7 @@ async def update_service_operator(
 
 @route_operator.get(
     URL_SERVICE,
+    summary="Fetch service",
     tags=["Service"],
     response_model=List[ServiceSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -1559,6 +1567,7 @@ async def fetch_service_operator(
 
 @route_operator.get(
     f"{URL_SERVICE}/{{id}}",
+    summary="Fetch service details",
     tags=["Service"],
     response_model=PrivateServiceSchema,
     responses=fuse_exception_responses(
@@ -1601,6 +1610,7 @@ async def fetch_service_details_for_operator(
 
 @route_operator.delete(
     f"{URL_SERVICE}/{{id}}",
+    summary="Delete service",
     tags=["Service"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -1657,6 +1667,7 @@ async def delete_service_operator(
 # ---------------------------------------------------------------------------
 @route_vendor.get(
     URL_SERVICE,
+    summary="Fetch service",
     tags=["Service"],
     response_model=List[ServiceSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -1686,6 +1697,7 @@ async def fetch_service_vendor(
 
 @route_vendor.get(
     f"{URL_SERVICE}/{{id}}",
+    summary="Fetch service details",
     tags=["Service"],
     response_model=PublicServiceSchema,
     responses=fuse_exception_responses(
@@ -1719,6 +1731,7 @@ async def fetch_service_details_for_vendor(
 # ---------------------------------------------------------------------------
 @route_public.get(
     URL_SERVICE,
+    summary="Fetch service",
     tags=["Service"],
     response_model=List[ServiceSchema],
     description=(
@@ -1747,6 +1760,7 @@ async def fetch_service_public(query_params: QueryParamsForPU = Depends()):
 
 @route_public.get(
     f"{URL_SERVICE}/{{id}}",
+    summary="Fetch service details",
     tags=["Service"],
     response_model=PublicServiceSchema,
     responses=fuse_exception_responses([exceptions.UnknownValue(Service.id)]),

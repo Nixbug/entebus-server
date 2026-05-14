@@ -297,6 +297,7 @@ def download_image(
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_OPERATOR_PICTURE,
+    summary="Create operator image",
     tags=["Operator Account Image"],
     response_model=OperatorImageSchema,
     status_code=status.HTTP_201_CREATED,
@@ -347,6 +348,7 @@ async def upload_operator_image_for_executive(
 
 @route_executive.delete(
     f"{URL_OPERATOR_PICTURE}/{{id}}",
+    summary="Delete operator image",
     tags=["Operator Account Image"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -387,6 +389,7 @@ async def delete_operator_image_for_executive(
 
 @route_executive.get(
     URL_OPERATOR_PICTURE,
+    summary="Fetch operator image",
     tags=["Operator Account Image"],
     response_model=List[OperatorImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -416,6 +419,7 @@ async def fetch_operator_image_for_executive(
 
 @route_executive.get(
     f"{URL_OPERATOR_PICTURE}/{{id}}",
+    summary="Download operator image",
     tags=["Operator Account Image"],
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(OperatorImage.id)]
@@ -451,6 +455,7 @@ async def download_operator_image_for_executive(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_OPERATOR_PICTURE,
+    summary="Create operator image",
     tags=["Account Image"],
     response_model=OperatorImageSchema,
     status_code=status.HTTP_201_CREATED,
@@ -513,6 +518,7 @@ async def upload_operator_image_for_operator(
 
 @route_operator.delete(
     f"{URL_OPERATOR_PICTURE}/{{id}}",
+    summary="Delete operator image",
     tags=["Account Image"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -560,6 +566,7 @@ async def delete_operator_image_for_operator(
 
 @route_operator.get(
     URL_OPERATOR_PICTURE,
+    summary="Fetch operator image",
     tags=["Account Image"],
     response_model=List[OperatorImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -590,6 +597,7 @@ async def fetch_operator_image_for_operator(
 
 @route_operator.get(
     f"{URL_OPERATOR_PICTURE}/{{id}}",
+    summary="Download operator image",
     tags=["Account Image"],
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(OperatorImage.id)]

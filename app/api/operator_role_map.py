@@ -170,6 +170,7 @@ def delete_role_map(session: Session, role_map: OperatorRoleMap) -> dict:
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_OPERATOR_ROLE_MAP,
+    summary="Create operator role map",
     tags=["Operator Role Map"],
     response_model=OperatorRoleMapSchema,
     status_code=status.HTTP_201_CREATED,
@@ -233,6 +234,7 @@ async def create_role_map_executive(
 
 @route_executive.patch(
     f"{URL_OPERATOR_ROLE_MAP}/{{id}}",
+    summary="Update operator role map",
     tags=["Operator Role Map"],
     response_model=OperatorRoleMapSchema,
     status_code=status.HTTP_200_OK,
@@ -305,6 +307,7 @@ async def update_role_map_executive(
 
 @route_executive.delete(
     f"{URL_OPERATOR_ROLE_MAP}/{{id}}",
+    summary="Delete operator role map",
     tags=["Operator Role Map"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -345,6 +348,7 @@ async def delete_role_map_executive(
 
 @route_executive.get(
     URL_OPERATOR_ROLE_MAP,
+    summary="Fetch operator role map",
     tags=["Operator Role Map"],
     response_model=List[OperatorRoleMapSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -377,6 +381,7 @@ async def fetch_role_map_executive(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_OPERATOR_ROLE_MAP,
+    summary="Create operator role map",
     tags=["Role Map"],
     response_model=OperatorRoleMapSchema,
     status_code=status.HTTP_201_CREATED,
@@ -441,6 +446,7 @@ async def create_role_map_operator(
 
 @route_operator.patch(
     f"{URL_OPERATOR_ROLE_MAP}/{{id}}",
+    summary="Update operator role map",
     tags=["Role Map"],
     response_model=OperatorRoleMapSchema,
     status_code=status.HTTP_200_OK,
@@ -509,6 +515,7 @@ async def update_role_map_operator(
 
 @route_operator.delete(
     f"{URL_OPERATOR_ROLE_MAP}/{{id}}",
+    summary="Delete operator role map",
     tags=["Role Map"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -553,6 +560,7 @@ async def delete_role_map_operator(
 
 @route_operator.get(
     URL_OPERATOR_ROLE_MAP,
+    summary="Fetch operator role map",
     tags=["Role Map"],
     response_model=List[OperatorRoleMapSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),

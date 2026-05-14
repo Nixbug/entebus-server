@@ -96,6 +96,7 @@ class QueryParams(
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_EXECUTIVE_ROLE,
+    summary="Create executive role",
     tags=["Role"],
     response_model=ExecutiveRoleSchema,
     status_code=status.HTTP_201_CREATED,
@@ -139,6 +140,7 @@ async def create_role(
 
 @route_executive.patch(
     f"{URL_EXECUTIVE_ROLE}/{{id}}",
+    summary="Update executive role",
     tags=["Role"],
     response_model=ExecutiveRoleSchema,
     status_code=status.HTTP_200_OK,
@@ -191,6 +193,7 @@ async def update_role(
 
 @route_executive.delete(
     f"{URL_EXECUTIVE_ROLE}/{{id}}",
+    summary="Delete executive role",
     tags=["Role"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -231,6 +234,7 @@ async def delete_role(
 
 @route_executive.get(
     URL_EXECUTIVE_ROLE,
+    summary="Fetch executive role",
     tags=["Role"],
     response_model=list[ExecutiveRoleSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),

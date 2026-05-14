@@ -210,6 +210,7 @@ def search_service_assignments(
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_SERVICE_ASSIGNMENT,
+    summary="Create service assignment",
     tags=["Service Assignment"],
     response_model=ServiceAssignmentSchema,
     status_code=status.HTTP_201_CREATED,
@@ -282,6 +283,7 @@ async def create_assignment_executive(
 
 @route_executive.patch(
     f"{URL_SERVICE_ASSIGNMENT}/{{id}}",
+    summary="Update service assignment",
     tags=["Service Assignment"],
     response_model=ServiceAssignmentSchema,
     status_code=status.HTTP_200_OK,
@@ -355,6 +357,7 @@ async def update_assignment_executive(
 
 @route_executive.delete(
     f"{URL_SERVICE_ASSIGNMENT}/{{id}}",
+    summary="Delete service assignment",
     tags=["Service Assignment"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -399,6 +402,7 @@ async def delete_assignment_executive(
 
 @route_executive.get(
     URL_SERVICE_ASSIGNMENT,
+    summary="Fetch service assignment",
     tags=["Service Assignment"],
     response_model=list[ServiceAssignmentSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -431,6 +435,7 @@ async def fetch_assignment_executive(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_SERVICE_ASSIGNMENT,
+    summary="Create service assignment",
     tags=["Service Assignment"],
     response_model=ServiceAssignmentSchema,
     status_code=status.HTTP_201_CREATED,
@@ -491,6 +496,7 @@ async def create_assignment_operator(
 
 @route_operator.patch(
     f"{URL_SERVICE_ASSIGNMENT}/{{id}}",
+    summary="Update service assignment",
     tags=["Service Assignment"],
     response_model=ServiceAssignmentSchema,
     status_code=status.HTTP_200_OK,
@@ -562,6 +568,7 @@ async def update_assignment_operator(
 
 @route_operator.delete(
     f"{URL_SERVICE_ASSIGNMENT}/{{id}}",
+    summary="Delete service assignment",
     tags=["Service Assignment"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -611,6 +618,7 @@ async def delete_assignment_operator(
 
 @route_operator.get(
     URL_SERVICE_ASSIGNMENT,
+    summary="Fetch service assignment",
     tags=["Service Assignment"],
     response_model=List[ServiceAssignmentSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),

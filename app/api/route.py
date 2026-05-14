@@ -275,6 +275,7 @@ def search_route(session: Session, query_params: QueryParams) -> List[Route]:
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_ROUTE,
+    summary="Create route",
     tags=["Route"],
     response_model=RouteSchema,
     status_code=status.HTTP_201_CREATED,
@@ -319,6 +320,7 @@ async def create_route_executive(
 
 @route_executive.patch(
     f"{URL_ROUTE}/{{id}}",
+    summary="Update route",
     tags=["Route"],
     response_model=RouteSchema,
     responses=fuse_exception_responses(
@@ -365,6 +367,7 @@ async def update_route_executive(
 
 @route_executive.delete(
     f"{URL_ROUTE}/{{id}}",
+    summary="Delete route",
     tags=["Route"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -403,6 +406,7 @@ async def delete_route_executive(
 
 @route_executive.get(
     URL_ROUTE,
+    summary="Fetch route",
     tags=["Route"],
     response_model=List[RouteSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -435,6 +439,7 @@ async def fetch_route_executive(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_ROUTE,
+    summary="Create route",
     tags=["Route"],
     response_model=RouteSchema,
     status_code=status.HTTP_201_CREATED,
@@ -474,6 +479,7 @@ async def create_route_operator(
 
 @route_operator.patch(
     f"{URL_ROUTE}/{{id}}",
+    summary="Update route",
     tags=["Route"],
     response_model=RouteSchema,
     responses=fuse_exception_responses(
@@ -521,6 +527,7 @@ async def update_route_operator(
 
 @route_operator.delete(
     f"{URL_ROUTE}/{{id}}",
+    summary="Delete route",
     tags=["Route"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -563,6 +570,7 @@ async def delete_route_operator(
 
 @route_operator.get(
     URL_ROUTE,
+    summary="Fetch route",
     tags=["Route"],
     response_model=List[RouteSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -595,6 +603,7 @@ async def fetch_route_operator(
 # ---------------------------------------------------------------------------
 @route_vendor.get(
     URL_ROUTE,
+    summary="Fetch route",
     tags=["Route"],
     response_model=List[RouteSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -627,6 +636,7 @@ async def fetch_route_vendor(
 # ---------------------------------------------------------------------------
 @route_public.get(
     URL_ROUTE,
+    summary="Fetch route",
     tags=["Route"],
     response_model=List[RouteSchema],
     description=(

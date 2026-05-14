@@ -180,6 +180,7 @@ def search_vendor_tokens(
 # ---------------------------------------------------------------------------
 @route_vendor.post(
     URL_VENDOR_TOKEN,
+    summary="Create vendor token",
     tags=["Token"],
     response_model=VendorTokenSchema,
     responses=fuse_exception_responses(
@@ -245,6 +246,7 @@ async def create_token(
 
 @route_vendor.post(
     f"{URL_VENDOR_TOKEN}/refresh",
+    summary="Refresh vendor token",
     tags=["Token"],
     response_model=VendorTokenSchema,
     responses=fuse_exception_responses(
@@ -308,6 +310,7 @@ async def refresh_token(
 
 @route_vendor.post(
     f"{URL_VENDOR_TOKEN}/revoke",
+    summary="Revoke vendor token",
     tags=["Token"],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
     description=(
@@ -356,6 +359,7 @@ async def revoke_token(
 
 @route_vendor.get(
     URL_VENDOR_TOKEN,
+    summary="Fetch vendor tokens",
     tags=["Token"],
     response_model=list[MaskedVendorTokenSchema],
     responses=fuse_exception_responses(
@@ -400,6 +404,7 @@ async def fetch_tokens_vendor(
 
 @route_vendor.delete(
     f"{URL_VENDOR_TOKEN}/{{id}}",
+    summary="Delete vendor token",
     tags=["Token"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -461,6 +466,7 @@ async def delete_token_vendor(
 # ---------------------------------------------------------------------------
 @route_executive.get(
     URL_VENDOR_TOKEN,
+    summary="Fetch vendor token",
     tags=["Vendor Token"],
     response_model=list[MaskedVendorTokenSchema],
     responses=fuse_exception_responses(
@@ -496,6 +502,7 @@ async def fetch_tokens_executive(
 
 @route_executive.delete(
     f"{URL_VENDOR_TOKEN}/{{id}}",
+    summary="Delete vendor token",
     tags=["Vendor Token"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(

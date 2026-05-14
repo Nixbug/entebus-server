@@ -304,6 +304,7 @@ def delete_operator(session: Session, operator: Operator) -> dict:
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_OPERATOR_ACCOUNT,
+    summary="Create operator account",
     tags=["Operator Account"],
     response_model=OperatorSchema,
     status_code=status.HTTP_201_CREATED,
@@ -358,6 +359,7 @@ async def create_account_executive(
 
 @route_executive.patch(
     f"{URL_OPERATOR_ACCOUNT}/{{id}}",
+    summary="Update operator account",
     tags=["Operator Account"],
     response_model=OperatorSchema,
     responses=fuse_exception_responses(
@@ -401,6 +403,7 @@ async def update_account_executive(
 
 @route_executive.get(
     URL_OPERATOR_ACCOUNT,
+    summary="Fetch operator account",
     tags=["Operator Account"],
     response_model=List[OperatorSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -431,6 +434,7 @@ async def fetch_account_executive(
 
 @route_executive.delete(
     f"{URL_OPERATOR_ACCOUNT}/{{id}}",
+    summary="Delete operator account",
     tags=["Operator Account"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -472,6 +476,7 @@ async def delete_account_executive(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_OPERATOR_ACCOUNT,
+    summary="Create operator account",
     tags=["Account"],
     response_model=OperatorSchema,
     status_code=status.HTTP_201_CREATED,
@@ -526,6 +531,7 @@ async def create_account_operator(
 
 @route_operator.patch(
     f"{URL_OPERATOR_ACCOUNT}/{{id}}",
+    summary="Update operator account",
     tags=["Account"],
     response_model=OperatorSchema,
     responses=fuse_exception_responses(
@@ -582,6 +588,7 @@ async def update_account_operator(
 
 @route_operator.get(
     URL_OPERATOR_ACCOUNT,
+    summary="Fetch operator account",
     tags=["Account"],
     response_model=List[OperatorSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -613,6 +620,7 @@ async def fetch_account_operator(
 
 @route_operator.delete(
     f"{URL_OPERATOR_ACCOUNT}/{{id}}",
+    summary="Delete operator account",
     tags=["Account"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(

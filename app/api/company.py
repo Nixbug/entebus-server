@@ -354,6 +354,7 @@ def search_company(session: Session, query_params: QueryParams) -> List[Company]
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_COMPANY,
+    summary="Create company",
     tags=["Company"],
     response_model=CompanySchema,
     status_code=status.HTTP_201_CREATED,
@@ -426,6 +427,7 @@ async def create_company(
 
 @route_executive.patch(
     f"{URL_COMPANY}/{{id}}",
+    summary="Update company",
     tags=["Company"],
     response_model=CompanySchema,
     responses=fuse_exception_responses(
@@ -476,6 +478,7 @@ async def update_company_executive(
 
 @route_executive.get(
     URL_COMPANY,
+    summary="Fetch company",
     tags=["Company"],
     response_model=List[CompanySchema],
     responses=fuse_exception_responses(
@@ -514,6 +517,7 @@ async def fetch_company_executive(
 
 @route_executive.delete(
     f"{URL_COMPANY}/{{id}}",
+    summary="Delete company",
     tags=["Company"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -574,6 +578,7 @@ async def delete_company_executive(
 # ---------------------------------------------------------------------------
 @route_operator.patch(
     f"{URL_COMPANY}/{{id}}",
+    summary="Update company",
     tags=["Company"],
     response_model=CompanySchema,
     responses=fuse_exception_responses(
@@ -625,6 +630,7 @@ async def update_company_operator(
 
 @route_operator.get(
     URL_COMPANY,
+    summary="Fetch company",
     tags=["Company"],
     response_model=List[CompanySchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -655,6 +661,7 @@ async def fetch_company_operator(access_token=Depends(bearer_operator)):
 # ---------------------------------------------------------------------------
 @route_public.get(
     URL_COMPANY,
+    summary="Fetch company",
     tags=["Company"],
     response_model=List[MaskedCompanySchema],
     responses=fuse_exception_responses(

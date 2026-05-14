@@ -223,6 +223,7 @@ def delete_role(session: Session, role: OperatorRole) -> dict:
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_OPERATOR_ROLE,
+    summary="Create operator role",
     tags=["Operator Role"],
     response_model=OperatorRoleSchema,
     status_code=status.HTTP_201_CREATED,
@@ -270,6 +271,7 @@ async def create_role_executive(
 
 @route_executive.patch(
     f"{URL_OPERATOR_ROLE}/{{id}}",
+    summary="Update operator role",
     tags=["Operator Role"],
     response_model=OperatorRoleSchema,
     status_code=status.HTTP_200_OK,
@@ -320,6 +322,7 @@ async def update_role_executive(
 
 @route_executive.delete(
     f"{URL_OPERATOR_ROLE}/{{id}}",
+    summary="Delete operator role",
     tags=["Operator Role"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -358,6 +361,7 @@ async def delete_role_executive(
 
 @route_executive.get(
     URL_OPERATOR_ROLE,
+    summary="Fetch operator role",
     tags=["Operator Role"],
     response_model=List[OperatorRoleSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -390,6 +394,7 @@ async def fetch_role_executive(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_OPERATOR_ROLE,
+    summary="Create operator role",
     tags=["Role"],
     response_model=OperatorRoleSchema,
     status_code=status.HTTP_201_CREATED,
@@ -437,6 +442,7 @@ async def create_role_operator(
 
 @route_operator.patch(
     f"{URL_OPERATOR_ROLE}/{{id}}",
+    summary="Update operator role",
     tags=["Role"],
     response_model=OperatorRoleSchema,
     status_code=status.HTTP_200_OK,
@@ -488,6 +494,7 @@ async def update_role_operator(
 
 @route_operator.delete(
     f"{URL_OPERATOR_ROLE}/{{id}}",
+    summary="Delete operator role",
     tags=["Role"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -530,6 +537,7 @@ async def delete_role_operator(
 
 @route_operator.get(
     URL_OPERATOR_ROLE,
+    summary="Fetch operator role",
     tags=["Role"],
     response_model=List[OperatorRoleSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),

@@ -284,6 +284,7 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_LANDMARK,
+    summary="Create landmark",
     tags=["Landmark"],
     response_model=LandmarkSchema,
     status_code=status.HTTP_201_CREATED,
@@ -350,6 +351,7 @@ async def create_landmark(
 
 @route_executive.patch(
     f"{URL_LANDMARK}/{{id}}",
+    summary="Update landmark",
     tags=["Landmark"],
     response_model=LandmarkSchema,
     responses=fuse_exception_responses(
@@ -440,6 +442,7 @@ async def update_landmark(
 
 @route_executive.delete(
     f"{URL_LANDMARK}/{{id}}",
+    summary="Delete landmark",
     tags=["Landmark"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -484,6 +487,7 @@ async def delete_landmark(
 
 @route_executive.get(
     URL_LANDMARK,
+    summary="Fetch landmark",
     tags=["Landmark"],
     response_model=List[LandmarkSchema],
     responses=fuse_exception_responses(
@@ -522,6 +526,7 @@ async def fetch_landmark_executive(
 # ---------------------------------------------------------------------------
 @route_vendor.get(
     URL_LANDMARK,
+    summary="Fetch landmark",
     tags=["Landmark"],
     response_model=List[LandmarkSchema],
     responses=fuse_exception_responses(
@@ -560,6 +565,7 @@ async def fetch_landmark_vendor(
 # ---------------------------------------------------------------------------
 @route_operator.get(
     URL_LANDMARK,
+    summary="Fetch landmark",
     tags=["Landmark"],
     response_model=List[LandmarkSchema],
     responses=fuse_exception_responses(
@@ -598,6 +604,7 @@ async def fetch_landmark_operator(
 # ---------------------------------------------------------------------------
 @route_public.get(
     URL_LANDMARK,
+    summary="Fetch landmark",
     tags=["Landmark"],
     response_model=List[LandmarkSchema],
     responses=fuse_exception_responses(
