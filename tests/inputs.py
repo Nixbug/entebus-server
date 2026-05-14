@@ -41,7 +41,7 @@ def generate_executive_account_payload():
     return {
         "username": f"account{suffix}",
         "password": "password",
-        "gender": GenderType.OTHER,
+        "gender": GenderType.OTHER.value,
         "full_name": f"Account {suffix}",
         "designation": f"Tester {suffix}",
         "phone_number": f"+91-949680{suffix}",
@@ -55,11 +55,11 @@ def generate_operator_account_payload(company_id: int):
         "username": f"operator{suffix}",
         "password": "password",
         "company_id": company_id,
-        "gender": GenderType.OTHER,
+        "gender": GenderType.OTHER.value,
         "description": f"Operator {suffix} for company {company_id}",
-        "type": OperatorType.NORMAL,
+        "type": OperatorType.NORMAL.value,
         "full_name": f"Operator {suffix}",
-        "status": AccountStatus.ACTIVE,
+        "status": AccountStatus.ACTIVE.value,
         "phone_number": f"+91-900000{suffix}",
         "email_id": f"operator{suffix}@example.com",
     }
@@ -86,8 +86,8 @@ def generate_company_payload():
     suffix = str(np.random.randint(1000, 9999))
     return {
         "name": f"Company {suffix}",
-        "status": CompanyStatus.VERIFIED,
-        "type": CompanyType.PRIVATE,
+        "status": CompanyStatus.VERIFIED.value,
+        "type": CompanyType.PRIVATE.value,
         "description": f"A sample company {suffix} used in tests",
         "address": f"{suffix} Main St, City",
         "contact_number": f"+91-949680{suffix}",
@@ -108,7 +108,7 @@ def generate_vehicle_payload(company_id: int):
         "pollution_upto": None,
         "fitness_upto": None,
         "road_tax_upto": None,
-        "status": VehicleStatus.ACTIVE,
+        "status": VehicleStatus.ACTIVE.value,
     }
 
 
@@ -134,7 +134,7 @@ def generate_fare_payload(company_id: int):
             "extras": {},
         },
         "function": "function getFare(type, distance, extras) { return 10; }",
-        "scope": FareScope.LOCAL,
+        "scope": FareScope.LOCAL.value,
     }
 
 
@@ -153,7 +153,7 @@ def generate_landmark_payload():
     return {
         "name": f"Landmark {suffix}",
         "boundary": boundary,
-        "type": LandmarkType.LOCAL,
+        "type": LandmarkType.LOCAL.value,
         "alias_names": [f"lm{suffix}"],
     }
 
