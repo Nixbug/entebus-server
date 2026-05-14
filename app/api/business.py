@@ -356,7 +356,7 @@ def search_business(session: Session, query_params: QueryParams) -> List[Busines
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_BUSINESS,
-    summary = "Create business",
+    summary="Create business",
     tags=["Business"],
     response_model=BusinessSchema,
     status_code=status.HTTP_201_CREATED,
