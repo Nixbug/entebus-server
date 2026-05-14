@@ -114,6 +114,7 @@ class ImageQueryParams(BaseModel):
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_EXECUTIVE_PICTURE,
+    summary="Create executive image",
     tags=["Account Image"],
     response_model=ExecutiveImageSchema,
     status_code=status.HTTP_201_CREATED,
@@ -186,6 +187,7 @@ async def upload_executive_image(
 
 @route_executive.delete(
     f"{URL_EXECUTIVE_PICTURE}/{{id}}",
+    summary="Delete executive image",
     tags=["Account Image"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -237,6 +239,7 @@ async def delete_executive_image(
 
 @route_executive.get(
     URL_EXECUTIVE_PICTURE,
+    summary="Fetch executive image",
     tags=["Account Image"],
     response_model=list[ExecutiveImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -286,6 +289,7 @@ async def fetch_executive_image(
 
 @route_executive.get(
     f"{URL_EXECUTIVE_PICTURE}/{{id}}",
+    summary="Download executive image",
     tags=["Account Image"],
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(ExecutiveImage.id)]

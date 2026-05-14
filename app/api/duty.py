@@ -224,6 +224,7 @@ def search_duty(session: Session, query_params: QueryParams) -> List[Duty]:
 # ---------------------------------------------------------------------------
 @route_executive.patch(
     f"{URL_DUTY}/{{id}}",
+    summary="Update duty",
     tags=["Duty"],
     response_model=DutySchema,
     responses=fuse_exception_responses(
@@ -277,6 +278,7 @@ async def update_duty_executive(
 
 @route_executive.get(
     URL_DUTY,
+    summary="Fetch duty",
     tags=["Duty"],
     response_model=List[DutySchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -307,6 +309,7 @@ async def fetch_duty_executive(
 # ---------------------------------------------------------------------------
 @route_operator.patch(
     f"{URL_DUTY}/{{id}}",
+    summary="Update duty",
     tags=["Duty"],
     response_model=DutySchema,
     status_code=status.HTTP_200_OK,
@@ -363,6 +366,7 @@ async def update_duty_operator(
 
 @route_operator.get(
     URL_DUTY,
+    summary="Fetch duty",
     tags=["Duty"],
     response_model=List[DutySchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),

@@ -343,6 +343,7 @@ def search_landmark_in_route(
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_LANDMARK_IN_ROUTE,
+    summary="Create landmark in route",
     tags=["Landmark In Route"],
     response_model=LandmarkInRouteSchema,
     status_code=status.HTTP_201_CREATED,
@@ -398,6 +399,7 @@ async def create_landmark_in_route_for_executive(
 
 @route_executive.patch(
     f"{URL_LANDMARK_IN_ROUTE}/{{id}}",
+    summary="Update landmark in route",
     tags=["Landmark In Route"],
     response_model=LandmarkInRouteSchema,
     responses=fuse_exception_responses(
@@ -457,6 +459,7 @@ async def update_landmark_in_route_for_executive(
 
 @route_executive.delete(
     f"{URL_LANDMARK_IN_ROUTE}/{{id}}",
+    summary="Delete landmark in route",
     tags=["Landmark In Route"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -510,6 +513,7 @@ async def delete_landmark_in_route_for_executive(
 
 @route_executive.get(
     URL_LANDMARK_IN_ROUTE,
+    summary="Fetch landmark in route",
     tags=["Landmark In Route"],
     response_model=List[LandmarkInRouteSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -542,6 +546,7 @@ async def fetch_landmark_in_route_for_executive(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_LANDMARK_IN_ROUTE,
+    summary="Create landmark in route",
     tags=["Landmark In Route"],
     response_model=LandmarkInRouteSchema,
     status_code=status.HTTP_201_CREATED,
@@ -602,6 +607,7 @@ async def create_landmark_in_route_for_operator(
 
 @route_operator.patch(
     f"{URL_LANDMARK_IN_ROUTE}/{{id}}",
+    summary="Update landmark in route",
     tags=["Landmark In Route"],
     response_model=LandmarkInRouteSchema,
     responses=fuse_exception_responses(
@@ -666,6 +672,7 @@ async def update_landmark_in_route_for_operator(
 
 @route_operator.delete(
     f"{URL_LANDMARK_IN_ROUTE}/{{id}}",
+    summary="Delete landmark in route",
     tags=["Landmark In Route"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -724,6 +731,7 @@ async def delete_landmark_in_route_for_operator(
 
 @route_operator.get(
     URL_LANDMARK_IN_ROUTE,
+    summary="Fetch landmark in route",
     tags=["Landmark In Route"],
     response_model=List[LandmarkInRouteSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -756,6 +764,7 @@ async def fetch_landmark_in_route_for_operator(
 # ---------------------------------------------------------------------------
 @route_vendor.get(
     URL_LANDMARK_IN_ROUTE,
+    summary="Fetch landmark in route",
     tags=["Landmark In Route"],
     response_model=List[LandmarkInRouteSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -788,6 +797,7 @@ async def fetch_landmark_in_route_for_vendor(
 # ---------------------------------------------------------------------------
 @route_public.get(
     URL_LANDMARK_IN_ROUTE,
+    summary="Fetch landmark in route",
     tags=["Landmark In Route"],
     response_model=List[LandmarkInRouteSchema],
     description=(

@@ -90,6 +90,7 @@ class QueryParams(UpdatedOnFilter, CreatedOnFilter, IDFilter, PaginationFilter):
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_EXECUTIVE_ROLE_MAP,
+    summary="Create executive role map",
     tags=["Role Map"],
     response_model=ExecutiveRoleMapSchema,
     status_code=status.HTTP_201_CREATED,
@@ -140,6 +141,7 @@ async def create_role_map(
 
 @route_executive.patch(
     f"{URL_EXECUTIVE_ROLE_MAP}/{{id}}",
+    summary="Update executive role map",
     tags=["Role Map"],
     response_model=ExecutiveRoleMapSchema,
     status_code=status.HTTP_200_OK,
@@ -196,6 +198,7 @@ async def update_role_map(
 
 @route_executive.delete(
     f"{URL_EXECUTIVE_ROLE_MAP}/{{id}}",
+    summary="Delete executive role map",
     tags=["Role Map"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -238,6 +241,7 @@ async def delete_role_map(
 
 @route_executive.get(
     URL_EXECUTIVE_ROLE_MAP,
+    summary="Fetch executive role map",
     tags=["Role Map"],
     response_model=list[ExecutiveRoleMapSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),

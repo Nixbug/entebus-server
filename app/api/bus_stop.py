@@ -242,6 +242,7 @@ def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusSto
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_BUS_STOP,
+    summary="Create bus stop",
     tags=["Bus Stop"],
     response_model=BusStopSchema,
     status_code=status.HTTP_201_CREATED,
@@ -307,6 +308,7 @@ async def create_bus_stop(
 
 @route_executive.patch(
     f"{URL_BUS_STOP}/{{id}}",
+    summary="Update bus stop",
     tags=["Bus Stop"],
     response_model=BusStopSchema,
     responses=fuse_exception_responses(
@@ -376,6 +378,7 @@ async def update_bus_stop(
 
 @route_executive.delete(
     f"{URL_BUS_STOP}/{{id}}",
+    summary="Delete bus stop",
     tags=["Bus Stop"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -419,6 +422,7 @@ async def delete_bus_stop(
 
 @route_executive.get(
     URL_BUS_STOP,
+    summary="Fetch bus stop",
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
     responses=fuse_exception_responses(
@@ -457,6 +461,7 @@ async def fetch_bus_stop_executive(
 # ---------------------------------------------------------------------------
 @route_vendor.get(
     URL_BUS_STOP,
+    summary="Fetch bus stop",
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
     responses=fuse_exception_responses(
@@ -495,6 +500,7 @@ async def fetch_bus_stop_vendor(
 # ---------------------------------------------------------------------------
 @route_operator.get(
     URL_BUS_STOP,
+    summary="Fetch bus stop",
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
     responses=fuse_exception_responses(
@@ -533,6 +539,7 @@ async def fetch_bus_stop_operator(
 # ---------------------------------------------------------------------------
 @route_public.get(
     URL_BUS_STOP,
+    summary="Fetch bus stop",
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
     responses=fuse_exception_responses(
