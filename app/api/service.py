@@ -672,8 +672,8 @@ def update_service(
     """
     Updates an existing service record.
 
-    Supports service status transitions CREATED -> CACHED, STARTED -> ENDED,
-    and ENDED -> STARTED. When a service is ended, all STARTED duties on that
+    Supports service status transitions CREATED -> CACHED, CACHED -> ENDED,
+    STARTED -> ENDED, and ENDED -> STARTED. When a service is ended, all STARTED duties on that
     service are ended at the same UTC timestamp and their collection totals are
     finalized from related paper tickets. Reactivating a service does not
     reactivate duties.
@@ -691,6 +691,7 @@ def update_service(
     """
     _allowed_service_status_transitions = {
         ServiceStatus.CREATED: [ServiceStatus.CACHED],
+        ServiceStatus.CACHED: [ServiceStatus.ENDED],
         ServiceStatus.STARTED: [ServiceStatus.ENDED],
         ServiceStatus.ENDED: [ServiceStatus.STARTED],
     }
@@ -1167,6 +1168,7 @@ async def create_service_executive(
             - Logged in executive must have `company.service.update` permission.    
             - Allowed status transitions:    
                 - CREATED -> CACHED   
+                - CACHED -> ENDED
                 - STARTED -> ENDED    
                 - ENDED -> STARTED    
             - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
@@ -1451,6 +1453,7 @@ async def create_service_operator(
             - Logged in operator must have `company.service.update` permission.    
             - Allowed status transitions:    
                 - CREATED -> CACHED    
+                - CACHED -> ENDED
                 - STARTED -> ENDED    
                 - ENDED -> STARTED     
             - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
