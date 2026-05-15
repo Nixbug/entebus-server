@@ -1745,9 +1745,7 @@ async def fetch_service_public(query_params: QueryParamsForPU = Depends()):
     try:
         session = SessionLocal()
 
-        query_params = resolve_model_defaults(
-            QueryParams, **query_params.model_dump()
-        )
+        query_params = resolve_model_defaults(QueryParams, **query_params.model_dump())
         return search_service(session, query_params)
     except Exception as e:
         exceptions.handle(e)
