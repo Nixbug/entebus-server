@@ -82,8 +82,8 @@ MAX_LANDMARK_UPDATE_DISTANCE = 1000  # 1 km
 # Route/landmarks constraints
 # ---------------------------------------------------------------------------
 MIN_LANDMARKS_PER_ROUTE = 2  # Minimum number of landmarks per route
-MAX_LANDMARKS_PER_ROUTE = 100  # Max landmarks per route
-MAX_ROUTE_DISTANCE = 10000 * 1000  # Max route length in meters (10000 km)
+MAX_LANDMARKS_PER_ROUTE = 100  # Maximum  landmarks per route
+MAX_ROUTE_DISTANCE = 10000 * 1000  # Maximum  route length in meters (10000 km)
 # ---------------------------------------------------------------------------
 # Service/duty constraints
 # ---------------------------------------------------------------------------

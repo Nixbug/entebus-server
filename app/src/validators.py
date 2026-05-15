@@ -32,7 +32,7 @@ from app.src.db import (
     Business,
     LandmarkInRoute,
 )
-from app.src.constants import DYNAMIC_FARE_VERSION, MIN_LANDMARK_IN_ROUTE
+from app.src.constants import DYNAMIC_FARE_VERSION, MIN_LANDMARKS_PER_ROUTE
 from app.src.dynamic_fare.v1 import DynamicFare
 
 
@@ -328,7 +328,7 @@ def validate_route(route_id: int, session: Session) -> bool:
     Validate that a route has a correct sequence of landmarks.
 
     Conditions:
-        - Must contain at least MIN_LANDMARK_IN_ROUTE landmarks.
+        - Must contain at least MIN_LANDMARKS_PER_ROUTE landmarks.
         - The first landmark must start at distance 0.
         - The first landmark cannot have arrival/departure deltas set.
         - The last landmark must have matching arrival and departure deltas.
@@ -350,7 +350,10 @@ def validate_route(route_id: int, session: Session) -> bool:
     )
 
     # Minimum landmarks & must start at 0
-    if len(landmarks) < MIN_LANDMARK_IN_ROUTE or landmarks[0].distance_from_start != 0:
+    if (
+        len(landmarks) < MIN_LANDMARKS_PER_ROUTE
+        or landmarks[0].distance_from_start != 0
+    ):
         return False
 
     # First landmark must not have deltas
