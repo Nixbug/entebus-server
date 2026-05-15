@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 # Application metadata
 # ---------------------------------------------------------------------------
 API_TITLE = "Entebus Server"
-API_VERSION = "0.0.0"
+API_VERSION = "1.0.0"
 
 
 # ---------------------------------------------------------------------------
