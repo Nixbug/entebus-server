@@ -39,7 +39,6 @@ from app.src.functions import (
     get_executive_roles,
     get_operator_roles,
     fuse_exception_responses,
-    resolve_model_defaults,
     update_if_changed,
     apply_created_on_filters,
     apply_updated_on_filters,
