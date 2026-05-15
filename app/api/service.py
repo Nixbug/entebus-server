@@ -42,6 +42,7 @@ from app.src.db import (
 from app.src import exceptions
 from app.src.functions import (
     apply_id_filters,
+    resolve_model_defaults,
     get_request_info,
     get_executive_roles,
     get_operator_roles,
@@ -1744,14 +1745,10 @@ async def fetch_service_public(query_params: QueryParamsForPU = Depends()):
     try:
         session = SessionLocal()
 
-        return search_service(
-            session,
-            QueryParams(
-                **query_params.model_dump(),
-                company_id=None,
-                id_excluding=None,
-            ),
+        query_params = resolve_model_defaults(
+            QueryParams, **query_params.model_dump()
         )
+        return search_service(session, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:
