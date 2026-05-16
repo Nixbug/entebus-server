@@ -673,7 +673,7 @@ async def fetch_company_operator(access_token=Depends(bearer_operator)):
             - Only verified companies are returned.    
             - Only id, name, type are returned.    
             - Common search supports searching by id, name and address.    
-            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.        
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
 )
