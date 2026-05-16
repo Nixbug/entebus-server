@@ -592,11 +592,11 @@ async def delete_company_executive(
     ),
     description=(
         """
-            **Updates an existing company.**
-            - Requires a valid access token.
-            - Logged-in operator must have `company.update` permission.
-            - Empty PATCH requests are allowed and will result in no changes.
-            - When updating `location`, it must be a valid SRID 4326 WKT POINT.
+            **Updates an existing company.**    
+            - Requires a valid access token.    
+            - Logged-in operator must have `company.update` permission.    
+            - Empty PATCH requests are allowed and will result in no changes.    
+            - When updating `location`, it must be a valid SRID 4326 WKT POINT.    
         """
     ),
 )
@@ -670,10 +670,10 @@ async def fetch_company_operator(access_token=Depends(bearer_operator)):
     description=(
         """
             **Fetches a list of companies.**    
-            - Only verified companies are returned.
-            - Only id, name, type are returned.
+            - Only verified companies are returned.    
+            - Only id, name, type are returned.    
             - Common search supports searching by id, name and address.    
-            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.        
         """
     ),
 )
