@@ -40,7 +40,13 @@ from app.src import exceptions
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_BUS_STOP
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token, validate_id
+from app.src.validators import (
+    verify_permission,
+    verify_token,
+    validate_id,
+    validate_wkt_string,
+    validate_srid_4326,
+)
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
@@ -51,8 +57,6 @@ from app.src.functions import (
     get_request_info,
     get_executive_roles,
     update_if_changed,
-    validate_wkt_string,
-    validate_srid_4326,
 )
 
 route_executive = APIRouter()
@@ -238,6 +242,7 @@ def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusSto
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_BUS_STOP,
+    summary="Create bus stop",
     tags=["Bus Stop"],
     response_model=BusStopSchema,
     status_code=status.HTTP_201_CREATED,
@@ -303,6 +308,7 @@ async def create_bus_stop(
 
 @route_executive.patch(
     f"{URL_BUS_STOP}/{{id}}",
+    summary="Update bus stop",
     tags=["Bus Stop"],
     response_model=BusStopSchema,
     responses=fuse_exception_responses(
@@ -372,6 +378,7 @@ async def update_bus_stop(
 
 @route_executive.delete(
     f"{URL_BUS_STOP}/{{id}}",
+    summary="Delete bus stop",
     tags=["Bus Stop"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -415,6 +422,7 @@ async def delete_bus_stop(
 
 @route_executive.get(
     URL_BUS_STOP,
+    summary="Fetch bus stop",
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
     responses=fuse_exception_responses(
@@ -453,6 +461,7 @@ async def fetch_bus_stop_executive(
 # ---------------------------------------------------------------------------
 @route_vendor.get(
     URL_BUS_STOP,
+    summary="Fetch bus stop",
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
     responses=fuse_exception_responses(
@@ -491,6 +500,7 @@ async def fetch_bus_stop_vendor(
 # ---------------------------------------------------------------------------
 @route_operator.get(
     URL_BUS_STOP,
+    summary="Fetch bus stop",
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
     responses=fuse_exception_responses(
@@ -529,6 +539,7 @@ async def fetch_bus_stop_operator(
 # ---------------------------------------------------------------------------
 @route_public.get(
     URL_BUS_STOP,
+    summary="Fetch bus stop",
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
     responses=fuse_exception_responses(

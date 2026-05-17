@@ -180,6 +180,7 @@ def search_operator_tokens(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_OPERATOR_TOKEN,
+    summary="Create operator token",
     tags=["Token"],
     response_model=OperatorTokenSchema,
     responses=fuse_exception_responses(
@@ -245,6 +246,7 @@ async def create_token(
 
 @route_operator.post(
     f"{URL_OPERATOR_TOKEN}/refresh",
+    summary="Refresh operator token",
     tags=["Token"],
     response_model=OperatorTokenSchema,
     responses=fuse_exception_responses(
@@ -308,6 +310,7 @@ async def refresh_token(
 
 @route_operator.post(
     f"{URL_OPERATOR_TOKEN}/revoke",
+    summary="Revoke operator token",
     tags=["Token"],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
     description=(
@@ -356,6 +359,7 @@ async def revoke_token(
 
 @route_operator.get(
     URL_OPERATOR_TOKEN,
+    summary="Fetch operator token",
     tags=["Token"],
     response_model=List[MaskedOperatorTokenSchema],
     responses=fuse_exception_responses(
@@ -403,6 +407,7 @@ async def fetch_tokens_operator(
 
 @route_operator.delete(
     f"{URL_OPERATOR_TOKEN}/{{id}}",
+    summary="Delete operator token",
     tags=["Token"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -466,6 +471,7 @@ async def delete_token_operator(
 # ---------------------------------------------------------------------------
 @route_executive.get(
     URL_OPERATOR_TOKEN,
+    summary="Fetch operator token",
     tags=["Operator Token"],
     response_model=List[MaskedOperatorTokenSchema],
     responses=fuse_exception_responses(
@@ -501,6 +507,7 @@ async def fetch_tokens_executive(
 
 @route_executive.delete(
     f"{URL_OPERATOR_TOKEN}/{{id}}",
+    summary="Delete operator token",
     tags=["Operator Token"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(

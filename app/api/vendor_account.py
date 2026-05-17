@@ -300,6 +300,7 @@ def delete_vendor(session: Session, vendor: Vendor) -> dict:
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_VENDOR_ACCOUNT,
+    summary="Create vendor account",
     tags=["Vendor Account"],
     response_model=VendorSchema,
     status_code=status.HTTP_201_CREATED,
@@ -354,6 +355,7 @@ async def create_account_executive(
 
 @route_executive.patch(
     f"{URL_VENDOR_ACCOUNT}/{{id}}",
+    summary="Update vendor account",
     tags=["Vendor Account"],
     response_model=VendorSchema,
     responses=fuse_exception_responses(
@@ -397,6 +399,7 @@ async def update_account_executive(
 
 @route_executive.get(
     URL_VENDOR_ACCOUNT,
+    summary="Fetch vendor account",
     tags=["Vendor Account"],
     response_model=List[VendorSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -427,6 +430,7 @@ async def fetch_account_executive(
 
 @route_executive.delete(
     f"{URL_VENDOR_ACCOUNT}/{{id}}",
+    summary="Delete vendor account",
     tags=["Vendor Account"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -468,6 +472,7 @@ async def delete_account_executive(
 # ---------------------------------------------------------------------------
 @route_vendor.post(
     URL_VENDOR_ACCOUNT,
+    summary="Create vendor account",
     tags=["Account"],
     response_model=VendorSchema,
     status_code=status.HTTP_201_CREATED,
@@ -522,6 +527,7 @@ async def create_account_vendor(
 
 @route_vendor.patch(
     f"{URL_VENDOR_ACCOUNT}/{{id}}",
+    summary="Update vendor account",
     tags=["Account"],
     response_model=VendorSchema,
     responses=fuse_exception_responses(
@@ -578,6 +584,7 @@ async def update_account_vendor(
 
 @route_vendor.get(
     URL_VENDOR_ACCOUNT,
+    summary="Fetch vendor account",
     tags=["Account"],
     response_model=List[VendorSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -609,6 +616,7 @@ async def fetch_account_vendor(
 
 @route_vendor.delete(
     f"{URL_VENDOR_ACCOUNT}/{{id}}",
+    summary="Delete vendor account",
     tags=["Account"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(

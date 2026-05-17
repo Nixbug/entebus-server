@@ -297,6 +297,7 @@ def search_fare(session: Session, query_params: QueryParams) -> List[Fare]:
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_FARE,
+    summary="Create fare",
     tags=["Fare"],
     response_model=FareSchema,
     status_code=status.HTTP_201_CREATED,
@@ -356,6 +357,7 @@ async def create_fare_executive(
 
 @route_executive.patch(
     f"{URL_FARE}/{{id}}",
+    summary="Update fare",
     tags=["Fare"],
     response_model=FareSchema,
     responses=fuse_exception_responses(
@@ -411,6 +413,7 @@ async def update_fare_executive(
 
 @route_executive.delete(
     f"{URL_FARE}/{{id}}",
+    summary="Delete fare",
     tags=["Fare"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -449,6 +452,7 @@ async def delete_fare_executive(
 
 @route_executive.get(
     URL_FARE,
+    summary="Fetch fare",
     tags=["Fare"],
     response_model=List[FareSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -481,6 +485,7 @@ async def fetch_fare_executive(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_FARE,
+    summary="Create fare",
     tags=["Fare"],
     response_model=FareSchema,
     status_code=status.HTTP_201_CREATED,
@@ -538,6 +543,7 @@ async def create_fare_operator(
 
 @route_operator.patch(
     f"{URL_FARE}/{{id}}",
+    summary="Update fare",
     tags=["Fare"],
     response_model=FareSchema,
     responses=fuse_exception_responses(
@@ -596,6 +602,7 @@ async def update_fare_operator(
 
 @route_operator.delete(
     f"{URL_FARE}/{{id}}",
+    summary="Delete fare",
     tags=["Fare"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -638,6 +645,7 @@ async def delete_fare_operator(
 
 @route_operator.get(
     URL_FARE,
+    summary="Fetch fare",
     tags=["Fare"],
     response_model=List[FareSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -670,6 +678,7 @@ async def fetch_fare_operator(
 # ---------------------------------------------------------------------------
 @route_vendor.get(
     URL_FARE,
+    summary="Fetch fare",
     tags=["Fare"],
     response_model=List[FareSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),

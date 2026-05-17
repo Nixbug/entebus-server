@@ -54,6 +54,7 @@ from app.src.functions import (
     apply_status_filters,
     apply_name_filters,
     resolve_model_defaults,
+    normalize_timestamp,
 )
 from app.src.filters import (
     IDFilter,
@@ -213,11 +214,7 @@ def validate_manufactured_on(
     if manufactured_on is None:
         return None
 
-    if manufactured_on.tzinfo is None:
-        manufactured_on = manufactured_on.replace(tzinfo=TMZ_PRIMARY)
-    else:
-        manufactured_on = manufactured_on.astimezone(TMZ_PRIMARY)
-
+    manufactured_on = normalize_timestamp(manufactured_on)
     if manufactured_on > datetime.now(tz=TMZ_PRIMARY):
         raise exceptions.InvalidValue(Vehicle.manufactured_on)
     return manufactured_on
@@ -385,6 +382,7 @@ def search_vehicle(session: Session, query_params: QueryParams) -> List[Vehicle]
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_VEHICLE,
+    summary="Create vehicle",
     tags=["Vehicle"],
     response_model=VehicleSchema,
     status_code=status.HTTP_201_CREATED,
@@ -431,6 +429,7 @@ async def create_vehicle_executive(
 
 @route_executive.patch(
     f"{URL_VEHICLE}/{{id}}",
+    summary="Update vehicle",
     tags=["Vehicle"],
     response_model=VehicleSchema,
     responses=fuse_exception_responses(
@@ -479,6 +478,7 @@ async def update_vehicle_executive(
 
 @route_executive.delete(
     f"{URL_VEHICLE}/{{id}}",
+    summary="Delete vehicle",
     tags=["Vehicle"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -517,6 +517,7 @@ async def delete_vehicle_executive(
 
 @route_executive.get(
     URL_VEHICLE,
+    summary="Fetch vehicle",
     tags=["Vehicle"],
     response_model=List[VehicleSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -549,6 +550,7 @@ async def fetch_vehicle_executive(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_VEHICLE,
+    summary="Create vehicle",
     tags=["Vehicle"],
     response_model=VehicleSchema,
     status_code=status.HTTP_201_CREATED,
@@ -599,6 +601,7 @@ async def create_vehicle_operator(
 
 @route_operator.patch(
     f"{URL_VEHICLE}/{{id}}",
+    summary="Update vehicle",
     tags=["Vehicle"],
     response_model=VehicleSchema,
     responses=fuse_exception_responses(
@@ -663,6 +666,7 @@ async def update_vehicle_operator(
 
 @route_operator.delete(
     f"{URL_VEHICLE}/{{id}}",
+    summary="Delete vehicle",
     tags=["Vehicle"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -705,6 +709,7 @@ async def delete_vehicle_operator(
 
 @route_operator.get(
     URL_VEHICLE,
+    summary="Fetch vehicle",
     tags=["Vehicle"],
     response_model=List[VehicleSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -737,6 +742,7 @@ async def fetch_vehicle_operator(
 # ---------------------------------------------------------------------------
 @route_vendor.get(
     URL_VEHICLE,
+    summary="Fetch vehicle",
     tags=["Vehicle"],
     response_model=List[VehicleSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -769,6 +775,7 @@ async def fetch_vehicle_vendor(
 # ---------------------------------------------------------------------------
 @route_public.get(
     URL_VEHICLE,
+    summary="Fetch vehicle",
     tags=["Vehicle"],
     response_model=List[MaskedVehicleSchema],
     description=(

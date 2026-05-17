@@ -31,13 +31,17 @@ from app.src import exceptions
 from app.src.urls import URL_OPERATOR_PICTURE
 from app.src.minio import delete_file, upload_file, download_file
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token, validate_id
+from app.src.validators import (
+    verify_permission,
+    verify_token,
+    validate_id,
+    validate_image,
+)
 from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
     get_executive_roles,
     get_operator_roles,
-    validate_image,
     apply_created_on_filters,
     apply_id_filters,
     apply_picture_filters,
@@ -95,7 +99,6 @@ class ImageUploadForm(BaseModel):
 class CreateFormForEX(ImageUploadForm):
     """Form data for creating a new operator image for an executive."""
 
-    company_id: int = Field(Form())
     operator_id: int = Field(Form())
 
 
@@ -154,21 +157,24 @@ class ImageQueryParams(BaseModel):
 
 
 # Functions
-def create_image(session: Session, form_param: CreateForm, file_bytes: bytes) -> dict:
+def create_image(
+    session: Session, form_param: CreateForm, operator: Operator, file_bytes: bytes
+) -> dict:
     """
     Creates a new operator image record in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating an operator image.
+        operator (Operator): The operator instance associated with the image.
         file_bytes (bytes): The image file bytes.
 
     Returns:
         dict: The created operator image data.
     """
     operator_image = OperatorImage(
-        company_id=form_param.company_id,
-        operator_id=form_param.operator_id,
+        company_id=operator.company_id,
+        operator_id=operator.id,
         file_name=form_param.file.filename,
         file_type=form_param.file.content_type,
         file_size=len(file_bytes),
@@ -291,6 +297,7 @@ def download_image(
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_OPERATOR_PICTURE,
+    summary="Create operator image",
     tags=["Operator Account Image"],
     response_model=OperatorImageSchema,
     status_code=status.HTTP_201_CREATED,
@@ -300,10 +307,6 @@ def download_image(
             exceptions.NoPermission(),
             exceptions.InvalidImageFile(),
             exceptions.UnknownValue(OperatorImage.operator_id),
-            exceptions.UnknownValue(OperatorImage.company_id),
-            exceptions.InvalidAssociation(
-                OperatorImage.operator_id, OperatorImage.company_id
-            ),
         ]
     ),
     description=(
@@ -325,20 +328,15 @@ async def upload_operator_image_for_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR)
 
-        validate_id(session, Company, form_param.company_id, OperatorImage.company_id)
         operator = validate_id(
             session, Operator, form_param.operator_id, OperatorImage.operator_id
         )
-        if operator.company_id != form_param.company_id:
-            raise exceptions.InvalidAssociation(
-                OperatorImage.operator_id, OperatorImage.company_id
-            )
 
         file_bytes = await form_param.file.read()
         validate_image(file_bytes, form_param.file.filename)
 
         operator_image_data = create_image(
-            session, CreateForm(**form_param.model_dump()), file_bytes
+            session, CreateForm(**form_param.model_dump()), operator, file_bytes
         )
         log_event(token, request_info, operator_image_data)
         return operator_image_data
@@ -350,6 +348,7 @@ async def upload_operator_image_for_executive(
 
 @route_executive.delete(
     f"{URL_OPERATOR_PICTURE}/{{id}}",
+    summary="Delete operator image",
     tags=["Operator Account Image"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -390,6 +389,7 @@ async def delete_operator_image_for_executive(
 
 @route_executive.get(
     URL_OPERATOR_PICTURE,
+    summary="Fetch operator image",
     tags=["Operator Account Image"],
     response_model=List[OperatorImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -419,6 +419,7 @@ async def fetch_operator_image_for_executive(
 
 @route_executive.get(
     f"{URL_OPERATOR_PICTURE}/{{id}}",
+    summary="Download operator image",
     tags=["Operator Account Image"],
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(OperatorImage.id)]
@@ -454,6 +455,7 @@ async def download_operator_image_for_executive(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_OPERATOR_PICTURE,
+    summary="Create operator image",
     tags=["Account Image"],
     response_model=OperatorImageSchema,
     status_code=status.HTTP_201_CREATED,
@@ -490,7 +492,7 @@ async def upload_operator_image_for_operator(
             roles = get_operator_roles(session, token)
             verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR)
 
-        validate_id(
+        operator = validate_id(
             session,
             Operator,
             form_param.operator_id,
@@ -502,7 +504,8 @@ async def upload_operator_image_for_operator(
 
         operator_image_data = create_image(
             session,
-            CreateForm(**form_param.model_dump(), company_id=token.company_id),
+            CreateForm(**form_param.model_dump()),
+            operator,
             file_bytes,
         )
         log_event(token, request_info, operator_image_data)
@@ -515,6 +518,7 @@ async def upload_operator_image_for_operator(
 
 @route_operator.delete(
     f"{URL_OPERATOR_PICTURE}/{{id}}",
+    summary="Delete operator image",
     tags=["Account Image"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -562,6 +566,7 @@ async def delete_operator_image_for_operator(
 
 @route_operator.get(
     URL_OPERATOR_PICTURE,
+    summary="Fetch operator image",
     tags=["Account Image"],
     response_model=List[OperatorImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -592,6 +597,7 @@ async def fetch_operator_image_for_operator(
 
 @route_operator.get(
     f"{URL_OPERATOR_PICTURE}/{{id}}",
+    summary="Download operator image",
     tags=["Account Image"],
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(OperatorImage.id)]

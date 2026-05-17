@@ -95,6 +95,7 @@ class QueryParamsForOP(PaginationFilter, IDFilter, CreatedOnFilter, UpdatedOnFil
     """Query parameters for operators."""
 
     service_id: int | None = Field(Query(default=None))
+    service_id_excluding: List[int] | None = Field(Query(default=None))
     operator_id: int | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
@@ -178,6 +179,10 @@ def search_service_assignments(
         query = query.filter(ServiceAssignment.company_id == query_params.company_id)
     if query_params.service_id is not None:
         query = query.filter(ServiceAssignment.service_id == query_params.service_id)
+    if query_params.service_id_excluding:
+        query = query.filter(
+            ServiceAssignment.service_id.notin_(query_params.service_id_excluding)
+        )
     if query_params.operator_id is not None:
         query = query.filter(ServiceAssignment.operator_id == query_params.operator_id)
 
@@ -205,6 +210,7 @@ def search_service_assignments(
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_SERVICE_ASSIGNMENT,
+    summary="Create service assignment",
     tags=["Service Assignment"],
     response_model=ServiceAssignmentSchema,
     status_code=status.HTTP_201_CREATED,
@@ -277,6 +283,7 @@ async def create_assignment_executive(
 
 @route_executive.patch(
     f"{URL_SERVICE_ASSIGNMENT}/{{id}}",
+    summary="Update service assignment",
     tags=["Service Assignment"],
     response_model=ServiceAssignmentSchema,
     status_code=status.HTTP_200_OK,
@@ -350,6 +357,7 @@ async def update_assignment_executive(
 
 @route_executive.delete(
     f"{URL_SERVICE_ASSIGNMENT}/{{id}}",
+    summary="Delete service assignment",
     tags=["Service Assignment"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -394,6 +402,7 @@ async def delete_assignment_executive(
 
 @route_executive.get(
     URL_SERVICE_ASSIGNMENT,
+    summary="Fetch service assignment",
     tags=["Service Assignment"],
     response_model=list[ServiceAssignmentSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -426,6 +435,7 @@ async def fetch_assignment_executive(
 # ---------------------------------------------------------------------------
 @route_operator.post(
     URL_SERVICE_ASSIGNMENT,
+    summary="Create service assignment",
     tags=["Service Assignment"],
     response_model=ServiceAssignmentSchema,
     status_code=status.HTTP_201_CREATED,
@@ -486,6 +496,7 @@ async def create_assignment_operator(
 
 @route_operator.patch(
     f"{URL_SERVICE_ASSIGNMENT}/{{id}}",
+    summary="Update service assignment",
     tags=["Service Assignment"],
     response_model=ServiceAssignmentSchema,
     status_code=status.HTTP_200_OK,
@@ -557,6 +568,7 @@ async def update_assignment_operator(
 
 @route_operator.delete(
     f"{URL_SERVICE_ASSIGNMENT}/{{id}}",
+    summary="Delete service assignment",
     tags=["Service Assignment"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -606,6 +618,7 @@ async def delete_assignment_operator(
 
 @route_operator.get(
     URL_SERVICE_ASSIGNMENT,
+    summary="Fetch service assignment",
     tags=["Service Assignment"],
     response_model=List[ServiceAssignmentSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),

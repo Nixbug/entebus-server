@@ -1,4 +1,5 @@
 import argparse
+import os
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
@@ -33,9 +34,15 @@ from app.src.db import (
     VendorRoleMap,
 )
 
+from app.src.permissions.executive import PermissionSchema as PermissionSchemaEX
+from app.src.permissions.vendor import PermissionSchema as PermissionSchemaVN
+from app.src.permissions.operator import PermissionSchema as PermissionSchemaOP
+
 
 def _alembic_cfg() -> Config:
-    alembic_cfg = Config("app/alembic.ini")
+    current_dir = os.path.dirname(__file__)
+    alembic_ini = os.path.join(current_dir, "alembic.ini")
+    alembic_cfg = Config(alembic_ini)
     alembic_cfg.set_main_option("sqlalchemy.url", get_db_url())
     return alembic_cfg
 
@@ -114,6 +121,7 @@ def initialize():
     """Initialize the database with default users with default permissions."""
     session = SessionLocal()
 
+    # Create default executives admin and guest
     admin = Executive(
         username="admin",
         password="password",
@@ -126,126 +134,23 @@ def initialize():
         full_name="Entebus guest",
         designation="Guest",
     )
-
     session.add_all([admin, guest])
     session.flush()
 
-    admin_permissions = {
-        "landmark": {
-            "create": True,
-            "update": True,
-            "delete": True,
-            "bus_stop": {"create": True, "update": True, "delete": True},
-        },
-        "fare": {"create": True, "update": True, "delete": True},
-        "executive": {
-            "create": True,
-            "update": True,
-            "delete": True,
-            "role": {"create": True, "update": True, "delete": True},
-            "token": {"fetch": True, "delete": True},
-        },
-        "business": {
-            "create": True,
-            "update": True,
-            "delete": True,
-            "vendor": {
-                "create": True,
-                "update": True,
-                "delete": True,
-                "role": {"create": True, "update": True, "delete": True},
-                "token": {"fetch": True, "delete": True},
-            },
-        },
-        "company": {
-            "create": True,
-            "update": True,
-            "delete": True,
-            "vehicle": {"create": True, "update": True, "delete": True},
-            "fare": {"create": True, "update": True, "delete": True},
-            "route": {"create": True, "update": True, "delete": True},
-            "operator": {
-                "create": True,
-                "update": True,
-                "delete": True,
-                "role": {"create": True, "update": True, "delete": True},
-                "token": {"fetch": True, "delete": True},
-            },
-            "service": {
-                "create": True,
-                "update": True,
-                "delete": True,
-                "duty": {"update": True},
-                "assignment": {"create": True, "update": True, "delete": True},
-                "statement": {"create": True},
-            },
-            "schedule": {"create": True, "update": True, "delete": True},
-        },
-    }
-
-    guest_permissions = {
-        "landmark": {
-            "create": False,
-            "update": False,
-            "delete": False,
-            "bus_stop": {"create": False, "update": False, "delete": False},
-        },
-        "fare": {"create": False, "update": False, "delete": False},
-        "executive": {
-            "create": False,
-            "update": False,
-            "delete": False,
-            "role": {"create": False, "update": False, "delete": False},
-            "token": {"fetch": False, "delete": False},
-        },
-        "business": {
-            "create": False,
-            "update": False,
-            "delete": False,
-            "vendor": {
-                "create": False,
-                "update": False,
-                "delete": False,
-                "role": {"create": False, "update": False, "delete": False},
-                "token": {"fetch": False, "delete": False},
-            },
-        },
-        "company": {
-            "create": False,
-            "update": False,
-            "delete": False,
-            "vehicle": {"create": False, "update": False, "delete": False},
-            "fare": {"create": False, "update": False, "delete": False},
-            "route": {"create": False, "update": False, "delete": False},
-            "operator": {
-                "create": False,
-                "update": False,
-                "delete": False,
-                "role": {"create": False, "update": False, "delete": False},
-                "token": {"fetch": False, "delete": False},
-            },
-            "service": {
-                "create": False,
-                "update": False,
-                "delete": False,
-                "duty": {"update": False},
-                "assignment": {"create": False, "update": False, "delete": False},
-                "statement": {"create": False},
-            },
-            "schedule": {"create": False, "update": False, "delete": False},
-        },
-    }
-
+    # Create roles for executives
+    admin_permissions = PermissionSchemaEX.all_granted().model_dump()
+    guest_permissions = PermissionSchemaEX.all_denied().model_dump()
     admin_role = ExecutiveRole(name="Admin", permissions=admin_permissions)
     guest_role = ExecutiveRole(name="Guest", permissions=guest_permissions)
-
     session.add_all([admin_role, guest_role])
     session.flush()
 
+    # Map executives to roles
     admin_role_map = ExecutiveRoleMap(role_id=admin_role.id, executive_id=admin.id)
     guest_role_map = ExecutiveRoleMap(role_id=guest_role.id, executive_id=guest.id)
     session.add_all([admin_role_map, guest_role_map])
 
+    # Create a default company
     company = Company(
         name="Nixbug Softwares OPC Pvt Ltd",
         status=CompanyStatus.VERIFIED,
@@ -254,14 +159,19 @@ def initialize():
     )
     session.add(company)
     session.flush()
+
+    # Create company wallet
     wallet = Wallet(balance=0.0, name=company.name)
     session.add(wallet)
     session.flush()
+
+    # Map the company to its wallet
     company_wallet_map = CompanyWallet(company_id=company.id, wallet_id=wallet.id)
     session.add(company_wallet_map)
     session.flush()
 
-    operator = Operator(
+    # Create default operators admin and guest for the company
+    admin = Operator(
         company_id=company.id,
         username="admin",
         password="password",
@@ -272,35 +182,6 @@ def initialize():
         phone_number="+91-9496801157",
         email_id="contact@nixbug.com",
     )
-    session.add(operator)
-    session.flush()
-
-    admin_permissions = {
-        "company": {
-            "update": True,
-            "vehicle": {"create": True, "update": True, "delete": True},
-            "fare": {"create": True, "update": True, "delete": True},
-            "route": {"create": True, "update": True, "delete": True},
-            "operator": {
-                "create": True,
-                "update": True,
-                "delete": True,
-                "role": {"create": True, "update": True, "delete": True},
-                "token": {"fetch": True, "delete": True},
-            },
-            "service": {
-                "create": True,
-                "update": True,
-                "delete": True,
-                "duty": {"update": True},
-                "assignment": {"create": True, "update": True, "delete": True},
-                "ticket": {"create": True},
-                "statement": {"create": True},
-            },
-            "schedule": {"create": True, "update": True, "delete": True},
-        },
-    }
-
     guest = Operator(
         company_id=company.id,
         username="guest",
@@ -312,55 +193,32 @@ def initialize():
         phone_number="+91-9496801111",
         email_id="contact@nixbug.com",
     )
-    session.add(guest)
+    session.add_all([admin, guest])
     session.flush()
 
-    guest_permissions = {
-        "company": {
-            "update": False,
-            "vehicle": {"create": False, "update": False, "delete": False},
-            "fare": {"create": False, "update": False, "delete": False},
-            "route": {"create": False, "update": False, "delete": False},
-            "operator": {
-                "create": False,
-                "update": False,
-                "delete": False,
-                "role": {"create": False, "update": False, "delete": False},
-                "token": {"fetch": False, "delete": False},
-            },
-            "service": {
-                "create": False,
-                "update": False,
-                "delete": False,
-                "duty": {"update": False},
-                "assignment": {"create": False, "update": False, "delete": False},
-                "ticket": {"create": False},
-                "statement": {"create": False},
-            },
-            "schedule": {"create": False, "update": False, "delete": False},
-        },
-    }
-
+    # Create roles for operators within the company
+    admin_permissions = PermissionSchemaOP.all_granted().model_dump()
+    guest_permissions = PermissionSchemaOP.all_denied().model_dump()
     admin_role = OperatorRole(
         company_id=company.id, name="Admin", permissions=admin_permissions
     )
     guest_role = OperatorRole(
         company_id=company.id, name="Guest", permissions=guest_permissions
     )
-
     session.add_all([admin_role, guest_role])
     session.flush()
 
+    # Map operators to roles
     admin_role_map = OperatorRoleMap(
-        company_id=company.id, role_id=admin_role.id, operator_id=operator.id
+        company_id=company.id, role_id=admin_role.id, operator_id=admin.id
     )
-    session.add_all([admin_role_map])
-
     guest_role_map = OperatorRoleMap(
         company_id=company.id, role_id=guest_role.id, operator_id=guest.id
     )
-    session.add_all([guest_role_map])
+    session.add_all([admin_role_map, guest_role_map])
+    session.flush()
 
+    # Create a default business
     business = Business(
         name="Nixbug Softwares OPC Pvt Ltd",
         status=BusinessStatus.ACTIVE,
@@ -370,7 +228,8 @@ def initialize():
     session.add(business)
     session.flush()
 
-    admin_vendor = Vendor(
+    # Create default vendors admin and guest for the business
+    admin = Vendor(
         business_id=business.id,
         username="admin",
         password="password",
@@ -381,10 +240,7 @@ def initialize():
         phone_number="+91-9496801157",
         email_id="contact@nixbug.com",
     )
-    session.add(admin_vendor)
-    session.flush()
-
-    guest_vendor = Vendor(
+    guest = Vendor(
         business_id=business.id,
         username="guest",
         password="password",
@@ -395,68 +251,30 @@ def initialize():
         phone_number="+91-9496801111",
         email_id="contacthr@nixbug.com",
     )
-    session.add(guest_vendor)
+    session.add_all([admin, guest])
     session.flush()
 
-    admin_permissions = {
-        "business": {
-            "update": True,
-            "vendor": {
-                "create": True,
-                "update": True,
-                "delete": True,
-                "role": {
-                    "create": True,
-                    "update": True,
-                    "delete": True,
-                },
-                "token": {
-                    "fetch": True,
-                    "delete": True,
-                },
-            },
-        }
-    }
-
-    guest_permissions = {
-        "business": {
-            "update": False,
-            "vendor": {
-                "create": False,
-                "update": False,
-                "delete": False,
-                "role": {
-                    "create": False,
-                    "update": False,
-                    "delete": False,
-                },
-                "token": {
-                    "fetch": False,
-                    "delete": False,
-                },
-            },
-        }
-    }
-
+    # Create roles for vendors within the business
+    admin_permissions = PermissionSchemaVN.all_granted().model_dump()
+    guest_permissions = PermissionSchemaVN.all_denied().model_dump()
     admin_role = VendorRole(
         business_id=business.id, name="Admin", permissions=admin_permissions
     )
     guest_role = VendorRole(
         business_id=business.id, name="Guest", permissions=guest_permissions
     )
-
     session.add_all([admin_role, guest_role])
     session.flush()
 
+    # Map vendors to roles
     admin_role_map = VendorRoleMap(
-        business_id=business.id, role_id=admin_role.id, vendor_id=admin_vendor.id
+        business_id=business.id, role_id=admin_role.id, vendor_id=admin.id
     )
-    session.add_all([admin_role_map])
-
     guest_role_map = VendorRoleMap(
-        business_id=business.id, role_id=guest_role.id, vendor_id=guest_vendor.id
+        business_id=business.id, role_id=guest_role.id, vendor_id=guest.id
     )
-    session.add_all([guest_role_map])
+    session.add_all([admin_role_map, guest_role_map])
+    session.flush()
 
     session.commit()
     print("* Initialization completed")
