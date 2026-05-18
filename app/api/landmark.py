@@ -301,14 +301,14 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
     ),
     description=(
         f"""
-        **Create a new landmark.**       
-        - The executive must provide a valid access token.  
-        - The authenticated executive must have `landmark.create` permission.        
-        - The boundary field must be a valid WKT string.     
-        - The coordinates must be in `longitude/latitude` format.       
-        - Use WGS84 compatible coordinates within `SRID 4326` bounds.     
-        - Form a valid Axis-Aligned Bounding Box (AABB).        
-        - The boundary must not intersect or overlap with any existing landmark boundary.     
+        **Create a new landmark.**    
+        - The executive must provide a valid access token.    
+        - The authenticated executive must have `landmark.create` permission.    
+        - The boundary field must be a valid WKT string.    
+        - The coordinates must be in `longitude/latitude` format.    
+        - Use WGS84 compatible coordinates within `SRID 4326` bounds.    
+        - Form a valid Axis-Aligned Bounding Box (AABB).    
+        - The boundary must not intersect or overlap with any existing landmark boundary.    
     """
     ),
 )
@@ -370,12 +370,12 @@ async def create_landmark(
     ),
     description=(
         f"""
-            **Updates an existing landmark.**   
+            **Updates an existing landmark.**    
             - Requires a valid access token.    
-            - Logged-in executive must have `landmark.update` permission.   
-            - Empty PATCH requests are allowed and will result in no changes.   
-            - When updating the boundary, the new centroid cannot be more than `{MAX_LANDMARK_UPDATE_DISTANCE / 1000}` km from the original centroid.     
-            - All bus stops associated with the landmark must remain within the updated boundary.   
+            - Logged-in executive must have `landmark.update` permission.    
+            - Empty PATCH requests are allowed and will result in no changes.    
+            - When updating the boundary, the new centroid cannot be more than `{MAX_LANDMARK_UPDATE_DISTANCE / 1000}` km from the original centroid.    
+            - All bus stops associated with the landmark must remain within the updated boundary.    
         """
     ),
 )
@@ -450,10 +450,10 @@ async def update_landmark(
     ),
     description=(
         f"""
-            **Deletes an existing landmark.**   
-            - Requires a valid access token for authentication.         
-            - The logged-in executive must have the `landmark.delete` permission.       
-            - Returns 204 No Content even if the specified landmark does not exist.         
+            **Deletes an existing landmark.**    
+            - Requires a valid access token for authentication.    
+            - The logged-in executive must have the `landmark.delete` permission.    
+            - Returns 204 No Content even if the specified landmark does not exist.    
             - A foreign key constraint error will occur if the landmark is referenced in any other table.    
         """
     ),

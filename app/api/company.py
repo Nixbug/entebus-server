@@ -368,12 +368,12 @@ def search_company(session: Session, query_params: QueryParams) -> List[Company]
     ),
     description=(
         """
-            **Creates a new company.**  
-            - Executive must have a valid access token.     
-            - Logged-in executive must have `company.create` permission.       
-            - Duplicate names are not allowed.   
-            - By default the company is created in `under verification` status.   
-            - By default the company type is `other`.     
+            **Creates a new company.**    
+            - Executive must have a valid access token.    
+            - Logged-in executive must have `company.create` permission.    
+            - Duplicate names are not allowed.    
+            - By default the company is created in `under verification` status.    
+            - By default the company type is `other`.    
         """
     ),
 )

@@ -129,8 +129,8 @@ class ImageQueryParams(BaseModel):
     description=(
         """
             **Uploads an executive image.**    
-            - Executive must have a valid access token.   
-            - Logged-in executive must have `executive.update` permission to upload other executive images.   
+            - Executive must have a valid access token.    
+            - Logged-in executive must have `executive.update` permission to upload other executive images.    
             - Executive can update their own image without permission.    
         """
     ),
@@ -246,7 +246,7 @@ async def delete_executive_image(
     description=(
         """
             **Fetches executive images.**    
-            - Requires a valid access token for authentication.     
+            - Requires a valid access token for authentication.    
         """
     ),
 )
@@ -296,8 +296,8 @@ async def fetch_executive_image(
     ),
     description=(
         """
-            **Download executive profile picture in original or resized resolution.**       
-            - Requires a valid access token for authentication.     
+            **Download executive profile picture in original or resized resolution.**    
+            - Requires a valid access token for authentication.    
         """
     ),
 )

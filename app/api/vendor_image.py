@@ -357,7 +357,7 @@ async def upload_vendor_image_for_executive(
     description=(
         """
             **Deletes a vendor image.**    
-            - Executive must have a valid access token.       
+            - Executive must have a valid access token.    
             - To delete a vendor's image, the `business.vendor.update` permission is required.    
             - Returns 204 No Content even if the specified image does not exist.    
         """

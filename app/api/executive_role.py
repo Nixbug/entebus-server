@@ -106,9 +106,9 @@ class QueryParams(
     description=(
         """
             **Creates a new executive role.**    
-            - Executive must have a valid access token.     
-            - Logged-in executive must have `executive.role.create` permission.     
-            - Duplicate names are not allowed.      
+            - Executive must have a valid access token.    
+            - Logged-in executive must have `executive.role.create` permission.    
+            - Duplicate names are not allowed.    
         """
     ),
 )
@@ -155,9 +155,9 @@ async def create_role(
         """
             **Updates an existing executive role.**    
             - Requires a valid access token.    
-            - Logged-in executive must have `executive.role.update` permission.       
-            - Duplicate names are not allowed.     
-            - Empty PATCH requests are allowed and will result in no changes.   
+            - Logged-in executive must have `executive.role.update` permission.    
+            - Duplicate names are not allowed.    
+            - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
 )
@@ -202,9 +202,9 @@ async def update_role(
     description=(
         """
             **Deletes an existing executive role.**    
-            - Requires a valid access token for authentication.     
-            - The logged-in executive must have the `executive.role.delete` permission.     
-            - Returns 204 No Content even if the specified role does not exist.     
+            - Requires a valid access token for authentication.    
+            - The logged-in executive must have the `executive.role.delete` permission.    
+            - Returns 204 No Content even if the specified role does not exist.    
         """
     ),
 )
@@ -241,7 +241,7 @@ async def delete_role(
     description=(
         """
             **Fetches all executive roles.**    
-            - Requires a valid access token for authentication.     
+            - Requires a valid access token for authentication.    
         """
     ),
 )

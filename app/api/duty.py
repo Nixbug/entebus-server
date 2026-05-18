@@ -240,9 +240,9 @@ def search_duty(session: Session, query_params: QueryParams) -> List[Duty]:
             **Updates an existing duty for a service.**    
             - Requires a valid executive access token.    
             - Logged in executive must have `company.service.duty.update` permission.    
-            - Allowed status transitions:
-                - STARTED → ENDED: Mark duty as finished and calculate collection  
-                - ENDED → STARTED: Reactivate duty and clear finished_on and collection  
+            - Allowed status transitions:    
+                - STARTED → ENDED: Mark duty as finished and calculate collection    
+                - ENDED → STARTED: Reactivate duty and clear finished_on and collection    
             - When status transitions to ENDED, collection is calculated from PaperTickets.    
             - Invalid state transitions will raise an exception.    
             - Empty PATCH requests are allowed and will result in no changes.    

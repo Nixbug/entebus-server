@@ -1086,7 +1086,7 @@ def delete_service(session: Session, service: Service) -> dict:
             - Status of vehicle must be ACTIVE, company must be VERIFIED, and route must be VALID.    
             - `starting_at` must be between now and `{SERVICE_CREATION_LEAD_TIME_DAYS}` days from now.    
             - The service name is auto-generated based on the name of the route, vehicle, and starting date.    
-            - By default the status of the service is set to CREATED.   
+            - By default the status of the service is set to CREATED.    
         """
     ),
 )
@@ -1171,7 +1171,7 @@ async def create_service_executive(
             - Logged in executive must have `company.service.update` permission.    
             - Allowed status transitions:    
                 - CREATED -> CACHED   
-                - CACHED -> ENDED
+                - CACHED -> ENDED    
                 - STARTED -> ENDED    
                 - ENDED -> STARTED    
             - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
@@ -1377,7 +1377,7 @@ async def delete_service_executive(
             - Status of vehicle must be ACTIVE, company must be VERIFIED, and route must be VALID.    
             - `starting_at` must be between now and `{SERVICE_CREATION_LEAD_TIME_DAYS}` days from now.    
             - The service name is auto-generated based on the name of the route, vehicle, and starting date.    
-            - By default the status of the service is set to CREATED.   
+            - By default the status of the service is set to CREATED.    
         """
     ),
 )
@@ -1461,9 +1461,9 @@ async def create_service_operator(
             - Logged in operator must have `company.service.update` permission.    
             - Allowed status transitions:    
                 - CREATED -> CACHED    
-                - CACHED -> ENDED
+                - CACHED -> ENDED    
                 - STARTED -> ENDED    
-                - ENDED -> STARTED     
+                - ENDED -> STARTED    
             - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
             - `vehicle_id`, `route_id`, `fare_id`, and `starting_at` can only be updated when service status is CREATED.    
             - `starting_at` must be between now and `{SERVICE_CREATION_LEAD_TIME_DAYS}` days from now.    

@@ -364,7 +364,7 @@ async def upload_vehicle_image_for_executive(
     description=(
         """
             **Deletes a vehicle image.**    
-            - Executive must have a valid access token.       
+            - Executive must have a valid access token.    
             - To delete a vehicle image, the `company.vehicle.update` permission is required.    
             - Returns 204 No Content even if the specified image does not exist.    
         """

@@ -370,12 +370,12 @@ def search_business(session: Session, query_params: QueryParams) -> List[Busines
     ),
     description=(
         """
-            **Creates a new business.**  
-            - Executive must have a valid access token.     
-            - Logged-in executive must have `business.create` permission.       
-            - Duplicate names are not allowed.   
-            - By default the business is created in `active` status.   
-            - By default the business type is `other`.     
+            **Creates a new business.**    
+            - Executive must have a valid access token.    
+            - Logged-in executive must have `business.create` permission.    
+            - Duplicate names are not allowed.    
+            - By default the business is created in `active` status.    
+            - By default the business type is `other`.    
         """
     ),
 )
@@ -680,7 +680,7 @@ async def fetch_business_vendor(access_token=Depends(bearer_vendor)):
             - Only active businesses are returned.    
             - Only id, name, type are returned.    
             - Common search supports searching by id, name and address.    
-            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.       
+            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),
 )
