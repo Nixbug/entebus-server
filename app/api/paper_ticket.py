@@ -273,6 +273,7 @@ def search_paper_tickets(
 # ---------------------------------------------------------------------------
 @route_executive.get(
     URL_PAPER_TICKET,
+    summary="Fetch paper ticket",
     tags=["Paper Ticket"],
     response_model=List[PaperTicketSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -307,6 +308,7 @@ async def fetch_paper_ticket_executive(
 
 @route_operator.post(
     URL_PAPER_TICKET,
+    summary="Create paper ticket",
     tags=["Paper Ticket"],
     response_model=PaperTicketSchema,
     status_code=status.HTTP_201_CREATED,
@@ -341,7 +343,6 @@ async def fetch_paper_ticket_executive(
 async def create_paper_ticket_operator(
     form_param: CreateForm,
     access_token=Depends(bearer_operator),
-    request_info=Depends(get_request_info),
 ):
     try:
         session = SessionLocal()
@@ -350,7 +351,6 @@ async def create_paper_ticket_operator(
         verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_SERVICE_TICKET)
 
         paper_ticket_data = create_paper_ticket(session, token, form_param)
-        log_event(token, request_info, paper_ticket_data)
         return paper_ticket_data
     except Exception as e:
         exceptions.handle(e)
@@ -360,6 +360,7 @@ async def create_paper_ticket_operator(
 
 @route_operator.get(
     URL_PAPER_TICKET,
+    summary="Fetch paper ticket",
     tags=["Paper Ticket"],
     response_model=List[PaperTicketSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),

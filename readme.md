@@ -64,41 +64,44 @@ pip-compile --upgrade requirements.in --no-strip-extras
 **PostgreSQL + PostGIS**
 
 ```bash
-docker run --name postgis \
+docker run -d --name postgis \
+    --restart unless-stopped \
     -e POSTGRES_PASSWORD=password \
     -p 5432:5432 \
-    -d postgis/postgis
+    postgis/postgis:18-3.6-alpine
 ```
 
 **MinIO (object storage)**
 
 ```bash
-docker run --name minio \
+docker run -d --name minio \
+    --restart unless-stopped \
     -e MINIO_ROOT_USER=minio \
     -e MINIO_ROOT_PASSWORD=password \
     -p 9000:9000 \
     -p 9001:9001 \
-    -d minio/minio server /data --console-address ":9001"
+    minio/minio:RELEASE.2025-09-07T16-13-09Z server /data --console-address ":9001"
 ```
 
 **OpenObserve (logs, traces, metrics)**
 
 ```bash
-docker run -d \
-    --name openobserve \
+docker run -d --name openobserve \
+    --restart unless-stopped \
     -p 5080:5080 \
     -e ZO_ROOT_USER_EMAIL="admin@entebus.com" \
     -e ZO_ROOT_USER_PASSWORD="password" \
-    public.ecr.aws/zinclabs/openobserve:latest
+    openobserve/openobserve:v0.80.3
 ```
 
 **Redis DB**
 
 ```bash
-docker run --name redis \
+docker run -d --name redis \
+    --restart unless-stopped \
     -p 6379:6379 \
-    -d redis \
-    redis-server --requirepass "password"
+    redis:8.6.3-alpine \
+    redis-server --requirepass "password" --save "" --appendonly no
 ```
 
 
@@ -111,11 +114,8 @@ All database migrations and schema management are handled via **Alembic** and th
 Run the following commands from the project root:
 
 ```bash
-# Create a new migration (revision) from model changes
-python -m app.setup tables revise "added new table"
-
-# Apply migrations (bring DB schema to latest head)
-python -m app.setup tables migrate
+python -m app.setup tables revise "added new table" # Create a new migration (revision) from model changes
+python -m app.setup tables migrate                  # Apply migrations (bring DB schema to latest head)
 
 # Reset the database (drop + recreate schema)
 # Note: Reinstall PostGIS extension when you do so
@@ -125,25 +125,13 @@ python -m app.setup tables reset
 python -m app.setup tables downgrade
 python -m app.setup tables downgrade -2
 
-# Create all tables directly (without migrations)
-# Note: Use with caution (not for production)
-python -m app.setup tables create
+# Note: Use with caution (not for production/regular use)
+python -m app.setup tables create                   # Create all tables directly (without migrations)
+python -m app.setup tables delete                   # Delete all tables (without migrations)
+python -m app.setup tables init                     # Initialize the database with default data
 
-# Delete all tables (without migrations)
-# Note: Use with caution (not for production)
-python -m app.setup tables delete
-
-# Initialize the database with default data
-python -m app.setup tables init
-
-# Create all MinIO buckets (defined in app/src/buckets.py)
-python -m app.setup buckets create
-
-# Delete all MinIO buckets
-python -m app.setup buckets delete
-
-# To run the tests (Make sure the server is running)
-python -m tests.setup test api
+python -m app.setup buckets create                  # Create all MinIO buckets (defined in app/src/buckets.py)
+python -m app.setup buckets delete                  # Delete all MinIO buckets
 ```
 
 

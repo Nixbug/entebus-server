@@ -121,6 +121,7 @@ class QueryParams(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter)
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_EXECUTIVE_TOKEN,
+    summary="Create executive token",
     tags=["Token"],
     response_model=ExecutiveTokenSchema,
     responses=fuse_exception_responses(
@@ -184,6 +185,7 @@ async def create_token(
 
 @route_executive.post(
     f"{URL_EXECUTIVE_TOKEN}/refresh",
+    summary="Refresh executive token",
     tags=["Token"],
     response_model=ExecutiveTokenSchema,
     responses=fuse_exception_responses(
@@ -246,6 +248,7 @@ async def refresh_token(
 
 @route_executive.post(
     f"{URL_EXECUTIVE_TOKEN}/revoke",
+    summary="Revoke executive token",
     tags=["Token"],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
     description=(
@@ -295,6 +298,7 @@ async def revoke_token(
 
 @route_executive.delete(
     f"{URL_EXECUTIVE_TOKEN}/{{id}}",
+    summary="Delete executive token",
     tags=["Token"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -355,6 +359,7 @@ async def delete_token(
 
 @route_executive.get(
     URL_EXECUTIVE_TOKEN,
+    summary="Fetch executive token",
     tags=["Token"],
     response_model=list[MaskedExecutiveTokenSchema],
     responses=fuse_exception_responses(

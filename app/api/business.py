@@ -44,7 +44,13 @@ from app.src.regex import NAME_PATTERN
 from app.src.enums import BusinessStatus, BusinessType, OrderIn
 from app.src.urls import URL_BUSINESS
 from app.src.openobserve import log_event
-from app.src.validators import validate_id, verify_permission, verify_token
+from app.src.validators import (
+    validate_id,
+    verify_permission,
+    verify_token,
+    validate_srid_4326,
+    validate_wkt_string,
+)
 from app.src.functions import (
     apply_created_on_filters,
     apply_updated_on_filters,
@@ -56,8 +62,6 @@ from app.src.functions import (
     get_vendor_roles,
     get_request_info,
     update_if_changed,
-    validate_srid_4326,
-    validate_wkt_string,
     resolve_model_defaults,
     apply_status_filters,
     apply_type_filters,
@@ -352,6 +356,7 @@ def search_business(session: Session, query_params: QueryParams) -> List[Busines
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_BUSINESS,
+    summary="Create business",
     tags=["Business"],
     response_model=BusinessSchema,
     status_code=status.HTTP_201_CREATED,
@@ -424,6 +429,7 @@ async def create_business(
 
 @route_executive.patch(
     f"{URL_BUSINESS}/{{id}}",
+    summary="Update business",
     tags=["Business"],
     response_model=BusinessSchema,
     responses=fuse_exception_responses(
@@ -476,6 +482,7 @@ async def update_business_executive(
 
 @route_executive.get(
     URL_BUSINESS,
+    summary="Fetch business",
     tags=["Business"],
     response_model=List[BusinessSchema],
     responses=fuse_exception_responses(
@@ -514,6 +521,7 @@ async def fetch_business_executive(
 
 @route_executive.delete(
     f"{URL_BUSINESS}/{{id}}",
+    summary="Delete business",
     tags=["Business"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -572,6 +580,7 @@ async def delete_business_executive(
 # ---------------------------------------------------------------------------
 @route_vendor.patch(
     f"{URL_BUSINESS}/{{id}}",
+    summary="Update business",
     tags=["Business"],
     response_model=BusinessSchema,
     responses=fuse_exception_responses(
@@ -627,6 +636,7 @@ async def update_business_vendor(
 
 @route_vendor.get(
     URL_BUSINESS,
+    summary="Fetch business",
     tags=["Business"],
     response_model=List[BusinessSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -658,6 +668,7 @@ async def fetch_business_vendor(access_token=Depends(bearer_vendor)):
 # ---------------------------------------------------------------------------
 @route_public.get(
     URL_BUSINESS,
+    summary="Fetch business",
     tags=["Business"],
     response_model=List[MaskedBusinessSchema],
     responses=fuse_exception_responses(

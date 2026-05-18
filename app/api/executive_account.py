@@ -136,6 +136,7 @@ class QueryParams(
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_EXECUTIVE_ACCOUNT,
+    summary="Create executive account",
     tags=["Account"],
     response_model=ExecutiveSchema,
     status_code=status.HTTP_201_CREATED,
@@ -187,6 +188,7 @@ async def create_account(
 
 @route_executive.patch(
     f"{URL_EXECUTIVE_ACCOUNT}/{{id}}",
+    summary="Update executive account",
     tags=["Account"],
     response_model=ExecutiveSchema,
     responses=fuse_exception_responses(
@@ -256,6 +258,7 @@ async def update_account(
 
 @route_executive.delete(
     f"{URL_EXECUTIVE_ACCOUNT}/{{id}}",
+    summary="Delete executive account",
     tags=["Account"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -310,6 +313,7 @@ async def delete_account(
 
 @route_executive.get(
     URL_EXECUTIVE_ACCOUNT,
+    summary="Fetch executive account",
     tags=["Account"],
     response_model=list[ExecutiveSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),

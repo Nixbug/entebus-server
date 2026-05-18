@@ -31,13 +31,17 @@ from app.src import exceptions
 from app.src.urls import URL_VENDOR_PICTURE
 from app.src.minio import delete_file, upload_file, download_file
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token, validate_id
+from app.src.validators import (
+    verify_permission,
+    verify_token,
+    validate_id,
+    validate_image,
+)
 from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
     get_executive_roles,
     get_vendor_roles,
-    validate_image,
     apply_created_on_filters,
     apply_id_filters,
     apply_picture_filters,
@@ -95,7 +99,6 @@ class ImageUploadForm(BaseModel):
 class CreateFormForEX(ImageUploadForm):
     """Form data for creating a new vendor image for an executive."""
 
-    business_id: int = Field(Form())
     vendor_id: int = Field(Form())
 
 
@@ -154,21 +157,24 @@ class ImageQueryParams(BaseModel):
 
 
 # Functions
-def create_image(session: Session, form_param: CreateForm, file_bytes: bytes) -> dict:
+def create_image(
+    session: Session, form_param: CreateForm, vendor: Vendor, file_bytes: bytes
+) -> dict:
     """
     Creates a new vendor image record in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a vendor image.
+        vendor (Vendor): The vendor instance associated with the image.
         file_bytes (bytes): The image file bytes.
 
     Returns:
         dict: The created vendor image data.
     """
     vendor_image = VendorImage(
-        business_id=form_param.business_id,
-        vendor_id=form_param.vendor_id,
+        business_id=vendor.business_id,
+        vendor_id=vendor.id,
         file_name=form_param.file.filename,
         file_type=form_param.file.content_type,
         file_size=len(file_bytes),
@@ -291,6 +297,7 @@ def download_image(
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_VENDOR_PICTURE,
+    summary="Create vendor image",
     tags=["Vendor Account Image"],
     response_model=VendorImageSchema,
     status_code=status.HTTP_201_CREATED,
@@ -300,10 +307,6 @@ def download_image(
             exceptions.NoPermission(),
             exceptions.InvalidImageFile(),
             exceptions.UnknownValue(VendorImage.vendor_id),
-            exceptions.UnknownValue(VendorImage.business_id),
-            exceptions.InvalidAssociation(
-                VendorImage.vendor_id, VendorImage.business_id
-            ),
         ]
     ),
     description=(
@@ -325,20 +328,15 @@ async def upload_vendor_image_for_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.UPDATE_BUSINESS_VENDOR)
 
-        validate_id(session, Business, form_param.business_id, VendorImage.business_id)
         vendor = validate_id(
             session, Vendor, form_param.vendor_id, VendorImage.vendor_id
         )
-        if vendor.business_id != form_param.business_id:
-            raise exceptions.InvalidAssociation(
-                VendorImage.vendor_id, VendorImage.business_id
-            )
 
         file_bytes = await form_param.file.read()
         validate_image(file_bytes, form_param.file.filename)
 
         vendor_image_data = create_image(
-            session, CreateForm(**form_param.model_dump()), file_bytes
+            session, CreateForm(**form_param.model_dump()), vendor, file_bytes
         )
         log_event(token, request_info, vendor_image_data)
         return vendor_image_data
@@ -350,6 +348,7 @@ async def upload_vendor_image_for_executive(
 
 @route_executive.delete(
     f"{URL_VENDOR_PICTURE}/{{id}}",
+    summary="Delete vendor image",
     tags=["Vendor Account Image"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -388,6 +387,7 @@ async def delete_vendor_image_for_executive(
 
 @route_executive.get(
     URL_VENDOR_PICTURE,
+    summary="Fetch vendor images",
     tags=["Vendor Account Image"],
     response_model=List[VendorImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -417,6 +417,7 @@ async def fetch_vendor_image_for_executive(
 
 @route_executive.get(
     f"{URL_VENDOR_PICTURE}/{{id}}",
+    summary="Download vendor image",
     tags=["Vendor Account Image"],
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(VendorImage.id)]
@@ -450,6 +451,7 @@ async def download_vendor_image_for_executive(
 # ---------------------------------------------------------------------------
 @route_vendor.post(
     URL_VENDOR_PICTURE,
+    summary="Create vendor image",
     tags=["Account Image"],
     response_model=VendorImageSchema,
     status_code=status.HTTP_201_CREATED,
@@ -486,7 +488,7 @@ async def upload_vendor_image_for_vendor(
             roles = get_vendor_roles(session, token)
             verify_permission(roles, VendorPermissionPath.UPDATE_BUSINESS_VENDOR)
 
-        validate_id(
+        vendor = validate_id(
             session,
             Vendor,
             form_param.vendor_id,
@@ -498,7 +500,8 @@ async def upload_vendor_image_for_vendor(
 
         vendor_image_data = create_image(
             session,
-            CreateForm(**form_param.model_dump(), business_id=token.business_id),
+            CreateForm(**form_param.model_dump()),
+            vendor,
             file_bytes,
         )
         log_event(token, request_info, vendor_image_data)
@@ -511,6 +514,7 @@ async def upload_vendor_image_for_vendor(
 
 @route_vendor.delete(
     f"{URL_VENDOR_PICTURE}/{{id}}",
+    summary="Delete vendor image",
     tags=["Account Image"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -556,6 +560,7 @@ async def delete_vendor_image_for_vendor(
 
 @route_vendor.get(
     URL_VENDOR_PICTURE,
+    summary="Fetch vendor image",
     tags=["Account Image"],
     response_model=List[VendorImageSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
@@ -586,6 +591,7 @@ async def fetch_vendor_image_for_vendor(
 
 @route_vendor.get(
     f"{URL_VENDOR_PICTURE}/{{id}}",
+    summary="Download vendor image",
     tags=["Account Image"],
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(VendorImage.id)]

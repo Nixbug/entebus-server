@@ -13,8 +13,13 @@ from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.orm.session import Session
 from sqlalchemy.sql.elements import ClauseElement
 import math
+import mimetypes
+from io import BytesIO
+from PIL import Image, UnidentifiedImageError
+from shapely.geometry.base import BaseGeometry
+from shapely import Polygon, wkt, errors
 
-from app.src.functions import get_by_path, is_valid_transition
+from app.src.functions import get_by_path
 from app.src import argon2, exceptions
 from app.src.enums import AccountStatus, BusinessStatus, CompanyStatus, GrantType
 from app.src.db import (
@@ -32,7 +37,14 @@ from app.src.db import (
     Business,
     LandmarkInRoute,
 )
-from app.src.constants import DYNAMIC_FARE_VERSION, MIN_LANDMARKS_PER_ROUTE
+from app.src.constants import (
+    DYNAMIC_FARE_VERSION,
+    MIN_LANDMARKS_PER_ROUTE,
+    MAX_IMAGE_FILE_SIZE,
+    MIN_IMAGE_FILE_SIZE,
+    MAX_IMAGE_RESOLUTION,
+    MIN_IMAGE_RESOLUTION,
+)
 from app.src.dynamic_fare.v1 import DynamicFare
 
 
@@ -288,6 +300,174 @@ def verify_permission(
     if raise_exception:
         raise exceptions.NoPermission()
     return False
+
+
+# Set decompression bomb guard
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_RESOLUTION * MAX_IMAGE_RESOLUTION
+
+
+def validate_image(file_bytes: bytes, filename: str) -> None:
+    """
+    Validate an image file based on its content type and size.
+
+    Args:
+        file_bytes (bytes): The bytes of the image file.
+        filename (str): The filename of the image file.
+
+    Raises:
+        InvalidImageFile: If the image file is invalid.
+    """
+    try:
+        guessed_mime, _ = mimetypes.guess_type(filename)
+        if not guessed_mime or not guessed_mime.startswith("image/"):
+            raise exceptions.InvalidImageFile()
+
+        size = len(file_bytes)
+        if size > MAX_IMAGE_FILE_SIZE or size < MIN_IMAGE_FILE_SIZE:
+            raise exceptions.InvalidImageFile()
+
+        with Image.open(BytesIO(file_bytes)) as image:
+            image.load()
+            width, height = image.size
+            if not (MIN_IMAGE_RESOLUTION <= width <= MAX_IMAGE_RESOLUTION) or not (
+                MIN_IMAGE_RESOLUTION <= height <= MAX_IMAGE_RESOLUTION
+            ):
+                raise exceptions.InvalidImageFile()
+    except (
+        Image.DecompressionBombError,
+        UnidentifiedImageError,
+        OSError,
+        ValueError,
+    ):
+        raise exceptions.InvalidImageFile()
+
+
+def validate_srid_4326(geometry: BaseGeometry) -> bool:
+    """
+    Validate that a Shapely geometry contains WGS84 (SRID 4326) compatible coordinates.
+
+    This function checks if all coordinates within the geometry fall within the
+    valid WGS84 lon/lat ranges. The validation supports both singular and composite geometries and inspects:
+        - Exterior coordinates for polygons
+        - Direct coordinates for simple geometries
+        - Coordinates of each geometry in multi-geometries (recursively)
+
+    Args:
+        geometry (BaseGeometry): Shapely geometry instance.
+
+    Returns:
+        bool: True if all coordinates fall within valid WGS84 lon/lat ranges.
+
+    Raises:
+        InvalidSRID4326: If any coordinate lies outside SRID 4326 bounds.
+    """
+
+    def check_coords(coords):
+        # Handle variable-length coordinate tuples to support 3D geometries (e.g., POINT Z)
+        for coord in coords:
+            try:
+                if len(coord) < 2:
+                    raise exceptions.InvalidSRID4326()
+                longitude, latitude = coord[0], coord[1]
+                if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+                    raise exceptions.InvalidSRID4326()
+            except (TypeError, ValueError):
+                raise exceptions.InvalidSRID4326()
+        return True
+
+    # Check single geometries
+    if hasattr(geometry, "exterior"):
+        check_coords(geometry.exterior.coords)
+    elif hasattr(geometry, "coords"):
+        check_coords(geometry.coords)
+
+    # Check Multi* geometries recursively
+    if hasattr(geometry, "geoms"):
+        for geom in geometry.geoms:
+            validate_srid_4326(geom)
+
+    return True
+
+
+def validate_wkt_string(
+    wkt_string: str, expected_type: Type[BaseGeometry]
+) -> BaseGeometry:
+    """
+    Validate and parse a WKT string into a Shapely geometry of the expected type.
+
+    Args:
+        wkt_string (str): Well-Known Text (WKT) geometry string.
+        expected_type (Type[BaseGeometry]): Expected Shapely geometry class.
+
+    Returns:
+        BaseGeometry: Parsed Shapely geometry instance.
+
+    Raises:
+        InvalidWKTStringOrType: If WKT parsing fails or type does not match `expected_type`.
+    """
+    try:
+        geom = wkt.loads(wkt_string)
+    except errors.ShapelyError:
+        raise exceptions.InvalidWKTStringOrType()
+
+    if not isinstance(geom, expected_type):
+        raise exceptions.InvalidWKTStringOrType()
+
+    return geom
+
+
+def validate_AABB(geometry: BaseGeometry) -> bool:
+    """
+    Validate that the provided geometry is a valid Axis-Aligned Bounding Box (AABB).
+
+    Args:
+        geometry (BaseGeometry): Shapely geometry instance to validate.
+
+    Returns:
+        bool: True if the geometry is a valid AABB.
+
+    Raises:
+        InvalidAABB: If the geometry violates AABB structural or alignment rules.
+    """
+    if not isinstance(geometry, Polygon):
+        raise exceptions.InvalidAABB()
+
+    coords = list(geometry.exterior.coords)
+    if len(coords) != 5:
+        raise exceptions.InvalidAABB()
+
+    rect = coords[:-1]  # Remove duplicate closing coordinate
+
+    for i in range(4):
+        x1, y1 = rect[i]
+        x2, y2 = rect[(i + 1) % 4]
+        if not (x1 == x2 or y1 == y2):
+            raise exceptions.InvalidAABB()
+
+    return True
+
+
+def is_valid_transition(
+    transitions: dict[Any, list[Any]], old_state: Any, new_state: Any
+) -> bool:
+    """
+    Check if a state transition is valid.
+
+    Args:
+        transitions (dict[Any, list[Any]]): A mapping of valid state transitions.
+        old_state (Any): The current state before the transition.
+        new_state (Any): The desired state after the transition.
+
+    Returns:
+        bool: True if the transition is valid.
+    """
+    if new_state is None or old_state == new_state:
+        return True
+    if not transitions:
+        return False
+    if old_state not in transitions:
+        return False
+    return new_state in transitions[old_state]
 
 
 def validate_id(

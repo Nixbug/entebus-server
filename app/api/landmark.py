@@ -47,7 +47,14 @@ from app.src import exceptions
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_LANDMARK
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token, validate_id
+from app.src.validators import (
+    verify_permission,
+    verify_token,
+    validate_id,
+    validate_wkt_string,
+    validate_AABB,
+    validate_srid_4326,
+)
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
@@ -59,9 +66,6 @@ from app.src.functions import (
     get_request_info,
     get_executive_roles,
     update_if_changed,
-    validate_wkt_string,
-    validate_AABB,
-    validate_srid_4326,
     apply_type_filters,
 )
 
@@ -280,6 +284,7 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_LANDMARK,
+    summary="Create landmark",
     tags=["Landmark"],
     response_model=LandmarkSchema,
     status_code=status.HTTP_201_CREATED,
@@ -346,6 +351,7 @@ async def create_landmark(
 
 @route_executive.patch(
     f"{URL_LANDMARK}/{{id}}",
+    summary="Update landmark",
     tags=["Landmark"],
     response_model=LandmarkSchema,
     responses=fuse_exception_responses(
@@ -436,6 +442,7 @@ async def update_landmark(
 
 @route_executive.delete(
     f"{URL_LANDMARK}/{{id}}",
+    summary="Delete landmark",
     tags=["Landmark"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(
@@ -480,6 +487,7 @@ async def delete_landmark(
 
 @route_executive.get(
     URL_LANDMARK,
+    summary="Fetch landmark",
     tags=["Landmark"],
     response_model=List[LandmarkSchema],
     responses=fuse_exception_responses(
@@ -518,6 +526,7 @@ async def fetch_landmark_executive(
 # ---------------------------------------------------------------------------
 @route_vendor.get(
     URL_LANDMARK,
+    summary="Fetch landmark",
     tags=["Landmark"],
     response_model=List[LandmarkSchema],
     responses=fuse_exception_responses(
@@ -556,6 +565,7 @@ async def fetch_landmark_vendor(
 # ---------------------------------------------------------------------------
 @route_operator.get(
     URL_LANDMARK,
+    summary="Fetch landmark",
     tags=["Landmark"],
     response_model=List[LandmarkSchema],
     responses=fuse_exception_responses(
@@ -594,6 +604,7 @@ async def fetch_landmark_operator(
 # ---------------------------------------------------------------------------
 @route_public.get(
     URL_LANDMARK,
+    summary="Fetch landmark",
     tags=["Landmark"],
     response_model=List[LandmarkSchema],
     responses=fuse_exception_responses(
