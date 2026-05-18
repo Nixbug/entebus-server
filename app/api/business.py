@@ -594,7 +594,7 @@ async def delete_business_executive(
     ),
     description=(
         """
-            **Updates an existing business.**   
+            **Updates an existing business.**    
             - Requires a valid access token.    
             - Logged-in vendor must have `business.update` permission.    
             - Vendor can only update the business they belong to.    

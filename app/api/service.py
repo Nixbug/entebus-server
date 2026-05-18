@@ -1170,7 +1170,7 @@ async def create_service_executive(
             - Requires a valid access token.    
             - Logged in executive must have `company.service.update` permission.    
             - Allowed status transitions:    
-                - CREATED -> CACHED   
+                - CREATED -> CACHED    
                 - CACHED -> ENDED    
                 - STARTED -> ENDED    
                 - ENDED -> STARTED    
