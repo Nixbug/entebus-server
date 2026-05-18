@@ -330,7 +330,7 @@ class LimitExceeded(APIException):
 
     def __init__(self, orm_class: DeclarativeMeta):
         detail = (
-            f"Number of entries into {orm_class.__name__} exceeded the allowed limits."
+            f"The number of entries in {orm_class.__name__} exceeds the allowed limit."
         )
         super().__init__(detail=detail)
 
