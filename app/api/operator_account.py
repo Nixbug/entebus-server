@@ -55,6 +55,7 @@ from app.src.functions import (
     apply_status_filters,
     apply_type_filters,
 )
+from app.src.constants import MAX_OPERATORS_PER_COMPANY
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -312,12 +313,13 @@ def delete_operator(session: Session, operator: Operator) -> dict:
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
     description=(
-        """
+        f"""
             **Creates a new operator account.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.operator.create` permission.    
             - Duplicate usernames are not allowed.    
-            - By default the user is created in active status.    
+            - By default the user is created in active status. 
+            - Maximum `{MAX_OPERATORS_PER_COMPANY}` operators allowed per company   
         """
     ),
 )
@@ -331,6 +333,17 @@ async def create_account_executive(
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY_OPERATOR)
+
+        operator_count = (
+            session.query(Operator)
+            .filter(
+                Operator.company_id == form_param.company_id,
+            )
+            .count()
+        )
+
+        if operator_count >= MAX_OPERATORS_PER_COMPANY:
+            raise exceptions.LimitExceeded(Operator)
 
         operator = Operator(
             company_id=form_param.company_id,
