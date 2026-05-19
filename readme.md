@@ -20,7 +20,7 @@ The **Entebus Server** is a high-performance API server built with [FastAPI](htt
 
 ### Prerequisites
 
-- Ubuntu 26.04+ (WSL2 supported)  
+- Ubuntu 24.04+ (WSL2 supported)  
 - Python 3.12+  
 - Docker
 - Kubernetes (optional, for cluster deployment)  
