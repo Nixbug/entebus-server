@@ -34,15 +34,20 @@ from app.src.urls import (
     URL_LANDMARK,
     URL_BUS_STOP,
     URL_ROUTE,
+    URL_BUSINESS,
+    URL_VENDOR_PICTURE,
+    URL_VENDOR_ACCOUNT,
 )
 from app.api.service import ServiceSchema
 from app.api.service_assignment import ServiceAssignmentSchema
 from tests.inputs import (
     generate_company_payload,
+    generate_business_payload,
     generate_fare_payload,
     generate_landmark_in_route_payload,
     generate_operator_account_payload,
     generate_executive_account_payload,
+    generate_vendor_account_payload,
     EX_ADMIN_CREDENTIALS,
     generate_executive_role_payload,
     generate_operator_role_payload,
@@ -59,6 +64,9 @@ from app.api.route import RouteSchema
 from app.api.operator_account import OperatorSchema
 from app.api.executive_image import ExecutiveImageSchema
 from app.api.operator_image import OperatorImageSchema
+from app.api.business import BusinessSchema
+from app.api.vendor_account import VendorSchema
+from app.api.vendor_image import VendorImageSchema
 
 
 def test_executive_token_endpoint(token_url: str, credentials: dict):
@@ -616,6 +624,86 @@ def test_service_assignment(
     assert response.status_code == 204
 
 
+def test_business_endpoint(business_url: str, business_data: dict, token_headers: dict):
+    print("Creating business")
+    response = requests.post(business_url, headers=token_headers, json=business_data)
+    assert response.status_code == 201
+    business = BusinessSchema.model_validate(response.json())
+
+    print("Fetching business by id")
+    response = requests.get(f"{business_url}?id={business.id}", headers=token_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list) and len(data) == 1
+
+    print("Updating business location")
+    update_payload = {"location": "POINT(77.59466 12.97166)"}
+    response = requests.patch(
+        f"{business_url}/{business.id}", headers=token_headers, json=update_payload
+    )
+    assert response.status_code == 200
+
+    print("Deleting business")
+    response = requests.delete(f"{business_url}/{business.id}", headers=token_headers)
+    assert response.status_code == 204
+
+
+def test_vendor_account_endpoint(
+    vendor_url: str, vendor_data: dict, token_headers: dict
+):
+    print("Creating vendor")
+    response = requests.post(vendor_url, headers=token_headers, json=vendor_data)
+    assert response.status_code == 201
+    vendor = VendorSchema.model_validate(response.json())
+
+    print("Fetching vendor by id")
+    response = requests.get(f"{vendor_url}?id={vendor.id}", headers=token_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list) and len(data) == 1
+
+    print("Updating vendor")
+    update_payload = {"full_name": f"{vendor.full_name or 'Updated'} Updated"}
+    response = requests.patch(
+        f"{vendor_url}/{vendor.id}", headers=token_headers, json=update_payload
+    )
+    assert response.status_code == 200
+
+    print("Deleting vendor")
+    response = requests.delete(f"{vendor_url}/{vendor.id}", headers=token_headers)
+    assert response.status_code == 204
+
+
+def test_vendor_image_endpoint(
+    picture_url: str,
+    vendor: VendorSchema,
+    token_headers: dict,
+):
+    print("Uploading vendor image")
+    files = generate_test_image()
+    data = {"vendor_id": str(vendor.id)}
+    response = requests.post(picture_url, headers=token_headers, files=files, data=data)
+    assert response.status_code == 201
+    img_meta = VendorImageSchema.model_validate(response.json())
+
+    print("Fetching vendor image list")
+    response = requests.get(
+        f"{picture_url}?vendor_id={vendor.id}", headers=token_headers
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list) and len(data) >= 1
+
+    print("Downloading the uploaded vendor image")
+    response = requests.get(f"{picture_url}/{img_meta.id}", headers=token_headers)
+    assert response.status_code == 200
+    assert int(response.headers.get("Content-Length", len(response.content))) > 0
+
+    print("Deleting the vendor image")
+    response = requests.delete(f"{picture_url}/{img_meta.id}", headers=token_headers)
+    assert response.status_code == 204
+
+
 def run_test(target_url):
     ACCOUNT_URL = f"{target_url}/executive{URL_EXECUTIVE_ACCOUNT}"
     ROLE_URL = f"{target_url}/executive{URL_EXECUTIVE_ROLE}"
@@ -636,6 +724,9 @@ def run_test(target_url):
     SERVICE_ASSIGNMENT_URL = f"{target_url}/executive{URL_SERVICE_ASSIGNMENT}"
     ROUTE_URL = f"{target_url}/executive{URL_ROUTE}"
     LANDMARK_IN_ROUTE_URL = f"{target_url}/executive{URL_LANDMARK_IN_ROUTE}"
+    BUSINESS_URL = f"{target_url}/executive{URL_BUSINESS}"
+    VENDOR_URL = f"{target_url}/executive{URL_VENDOR_ACCOUNT}"
+    VENDOR_PICTURE_URL = f"{target_url}/executive{URL_VENDOR_PICTURE}"
     print("Testing happy flow for executive")
 
     ## Creating primary resources for tests
@@ -778,6 +869,24 @@ def run_test(target_url):
     assert response.status_code == 201
     service = ServiceSchema.model_validate(response.json())
 
+    # Business
+    print("Creating business")
+    response = requests.post(
+        BUSINESS_URL, headers=admin_headers, json=generate_business_payload()
+    )
+    assert response.status_code == 201
+    business = BusinessSchema.model_validate(response.json())
+
+    # Vendor
+    print("Creating vendor")
+    response = requests.post(
+        VENDOR_URL,
+        headers=admin_headers,
+        json=generate_vendor_account_payload(business.id),
+    )
+    assert response.status_code == 201
+    vendor = VendorSchema.model_validate(response.json())
+
     # Test executive token creation, retrieval, refreshing, revoking and deletion
     test_executive_token_endpoint(TOKEN_URL, EX_ADMIN_CREDENTIALS)
     # Test executive image upload, retrieval, download and deletion
@@ -864,6 +973,19 @@ def run_test(target_url):
         admin_headers,
     )
 
+    # Test business creation, retrieval, updating and deletion
+    test_business_endpoint(BUSINESS_URL, generate_business_payload(), admin_headers)
+
+    # Test vendor creation, retrieval, updating and deletion
+    test_vendor_account_endpoint(
+        VENDOR_URL,
+        generate_vendor_account_payload(business.id),
+        admin_headers,
+    )
+
+    # Test vendor image upload, retrieval, download and deletion
+    test_vendor_image_endpoint(VENDOR_PICTURE_URL, vendor, admin_headers)
+
     ## Deleting the primary resources created for tests
     # Service
     print("Deleting service")
@@ -888,6 +1010,11 @@ def run_test(target_url):
     # Company
     print("Deleting company")
     response = requests.delete(f"{COMPANY_URL}/{company.id}", headers=admin_headers)
+    assert response.status_code == 204
+
+    # Business
+    print("Deleting business")
+    response = requests.delete(f"{BUSINESS_URL}/{business.id}", headers=admin_headers)
     assert response.status_code == 204
 
     # Executive account
