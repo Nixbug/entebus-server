@@ -623,6 +623,7 @@ def test_service_assignment(
     )
     assert response.status_code == 204
 
+
 def test_business_endpoint(business_url: str, business_data: dict, token_headers: dict):
     print("Creating business")
     response = requests.post(business_url, headers=token_headers, json=business_data)
