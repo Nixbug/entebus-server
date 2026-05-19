@@ -178,6 +178,26 @@ class QueryParams(QueryParamsForEX):
 
 
 ## Functions
+def validate_operator_limit(
+    session: Session,
+    company_id: int,
+):
+    """
+    Validate maximum operator count per company.
+    """
+
+    operator_count = (
+        session.query(Operator)
+        .filter(
+            Operator.company_id == company_id,
+        )
+        .count()
+    )
+
+    if operator_count >= MAX_OPERATORS_PER_COMPANY:
+        raise exceptions.LimitExceeded(Operator)
+
+
 def update_operator(
     session: Session, operator: Operator, form_param: UpdateForm
 ) -> Tuple[bool, dict]:
@@ -318,8 +338,8 @@ def delete_operator(session: Session, operator: Operator) -> dict:
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.operator.create` permission.    
             - Duplicate usernames are not allowed.    
-            - By default the user is created in active status. 
-            - Maximum `{MAX_OPERATORS_PER_COMPANY}` operators allowed per company   
+            - By default, the user is created with active status.     
+            - Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company.  
         """
     ),
 )
@@ -334,16 +354,10 @@ async def create_account_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY_OPERATOR)
 
-        operator_count = (
-            session.query(Operator)
-            .filter(
-                Operator.company_id == form_param.company_id,
-            )
-            .count()
+        validate_operator_limit(
+            session,
+            form_param.company_id,
         )
-
-        if operator_count >= MAX_OPERATORS_PER_COMPANY:
-            raise exceptions.LimitExceeded(Operator)
 
         operator = Operator(
             company_id=form_param.company_id,
@@ -516,7 +530,10 @@ async def create_account_operator(
         token = verify_token(session, OperatorToken, access_token.credentials)
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_OPERATOR)
-
+        validate_operator_limit(
+            session,
+            token.company_id,
+        )
         operator = Operator(
             company_id=token.company_id,
             username=form_param.username,
