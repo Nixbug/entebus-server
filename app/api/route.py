@@ -290,7 +290,7 @@ def search_route(session: Session, query_params: QueryParams) -> List[Route]:
             **Creates a new route.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.route.create` permission.    
-            - Duplicate route names are not allowed.       
+            - Duplicate route names are not allowed.    
             - By default the status of the route is INVALID.    
         """
     ),
@@ -450,7 +450,7 @@ async def fetch_route_executive(
             **Creates a new route.**    
             - Operator must have a valid access token.    
             - Logged-in operator must have `company.route.create` permission.    
-            - Duplicate route names are not allowed.       
+            - Duplicate route names are not allowed.    
         """
     ),
 )

@@ -399,7 +399,7 @@ def search_vehicle(session: Session, query_params: QueryParams) -> List[Vehicle]
             **Creates a new vehicle for a company.**    
             - Requires a valid access token.    
             - Logged-in executive must have `company.vehicle.create` permission.    
-            - Duplicate registration numbers are not allowed.   
+            - Duplicate registration numbers are not allowed.    
             - Manufactured date cannot be in the future.    
             - By default, the vehicle status is set to `CREATED`.    
         """

@@ -363,7 +363,7 @@ def search_landmark_in_route(
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.route.create` or `company.route.update` permission.    
             - Departure delta must be greater than arrival delta.    
-            - When creating a new landmark in a route, the route will be validated and status of the route will be updated.      
+            - When creating a new landmark in a route, the route will be validated and status of the route will be updated.    
         """
     ),
 )

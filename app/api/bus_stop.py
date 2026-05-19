@@ -258,13 +258,13 @@ def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusSto
     ),
     description=(
         """
-            **Create a new bus stop.**  
-            - The executive must provide a valid access token.  
-            - The authenticated executive must have `landmark.bus_stop.create` permission.  
+            **Create a new bus stop.**    
+            - The executive must provide a valid access token.    
+            - The authenticated executive must have `landmark.bus_stop.create` permission.    
             - The location field must be a valid WKT string.    
-            - The coordinates must be in `longitude/latitude` format.  
-            - Use WGS84 compatible coordinates within `SRID 4326` bounds.  
-            - The location must be within the boundary of the landmark.     
+            - The coordinates must be in `longitude/latitude` format.    
+            - Use WGS84 compatible coordinates within `SRID 4326` bounds.    
+            - The location must be within the boundary of the landmark.    
         """
     ),
 )
@@ -386,10 +386,10 @@ async def update_bus_stop(
     ),
     description=(
         """
-        **Deletes an existing bus stop.**  
-        - Requires a valid access token for authentication.  
-        - The logged-in executive must have `landmark.bus_stop.delete` permission.  
-        - Returns 204 No Content even if the specified bus stop does not exist.  
+        **Deletes an existing bus stop.**    
+        - Requires a valid access token for authentication.    
+        - The logged-in executive must have `landmark.bus_stop.delete` permission.    
+        - Returns 204 No Content even if the specified bus stop does not exist.    
         """
     ),
 )
@@ -548,7 +548,7 @@ async def fetch_bus_stop_operator(
     description=(
         """
             **Fetches a list of Bus Stops.**    
-            - Common search supports searching by id and name.  
+            - Common search supports searching by id and name.    
             - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
         """
     ),

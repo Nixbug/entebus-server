@@ -146,10 +146,10 @@ class QueryParams(
     description=(
         """
             **Creates a new executive account.**    
-            - Executive must have a valid access token. 
-            - Logged-in executive must have `executive.create` permission.  
-            - Duplicate usernames are not allowed.  
-            - By default the user is created in active status.  
+            - Executive must have a valid access token.    
+            - Logged-in executive must have `executive.create` permission.    
+            - Duplicate usernames are not allowed.    
+            - By default the user is created in active status.    
         """
     ),
 )
@@ -202,9 +202,9 @@ async def create_account(
         """
             **Updates an existing executive account.**    
             - Requires a valid access token.    
-            - Logged-in executive must have `executive.update` permission to update other executives.       
-            - Executive can update their own account except status.     
-            - Empty PATCH requests are allowed and will result in no changes.   
+            - Logged-in executive must have `executive.update` permission to update other executives.    
+            - Executive can update their own account except status.    
+            - Empty PATCH requests are allowed and will result in no changes.    
         """
     ),
 )

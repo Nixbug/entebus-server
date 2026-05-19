@@ -313,7 +313,7 @@ def delete_vendor(session: Session, vendor: Vendor) -> dict:
             - Executive must have a valid access token.    
             - Logged-in executive must have `business.vendor.create` permission.    
             - Duplicate usernames within the same business are not allowed.    
-            - By default the user is created in active status.     
+            - By default the user is created in active status.    
         """
     ),
 )

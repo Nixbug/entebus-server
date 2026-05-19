@@ -317,7 +317,7 @@ def delete_operator(session: Session, operator: Operator) -> dict:
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.operator.create` permission.    
             - Duplicate usernames are not allowed.    
-            - By default the user is created in active status.     
+            - By default the user is created in active status.    
         """
     ),
 )

@@ -357,7 +357,7 @@ async def upload_operator_image_for_executive(
     description=(
         """
             **Deletes an operator image.**    
-            - Executive must have a valid access token.       
+            - Executive must have a valid access token.    
             - To delete operator's image, the `company.operator.update` permission is required.    
             - Returns 204 No Content even if the specified image does not exist.    
         """
