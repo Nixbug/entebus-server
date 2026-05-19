@@ -8,7 +8,7 @@ from PIL import Image
 import numpy as np
 from shapely import wkt
 
-from app.src.enums import GenderType, GrantType, PlatformType
+from app.src.enums import BusinessType, GenderType, GrantType, PlatformType
 from app.src.enums import (
     LandmarkType,
     CompanyStatus,
@@ -17,6 +17,7 @@ from app.src.enums import (
     AccountStatus,
     VehicleStatus,
     FareScope,
+    BusinessStatus,
 )
 
 EX_ADMIN_CREDENTIALS = {
@@ -65,6 +66,21 @@ def generate_operator_account_payload(company_id: int):
     }
 
 
+def generate_vendor_account_payload(business_id: int):
+    suffix = str(np.random.randint(1000, 9999))
+    return {
+        "username": f"vendor{suffix}",
+        "password": "password",
+        "business_id": business_id,
+        "gender": GenderType.OTHER.value,
+        "description": f"Vendor {suffix} for business {business_id}",
+        "full_name": f"Vendor {suffix}",
+        "status": AccountStatus.ACTIVE.value,
+        "phone_number": f"+91-900000{suffix}",
+        "email_id": f"vendor{suffix}@example.com",
+    }
+
+
 def generate_operator_role_payload(company_id: int, permissions: dict):
     suffix = str(np.random.randint(1000, 9999))
     return {
@@ -90,8 +106,18 @@ def generate_company_payload():
         "type": CompanyType.PRIVATE.value,
         "description": f"A sample company {suffix} used in tests",
         "address": f"{suffix} Main St, City",
-        "contact_number": f"+91-949680{suffix}",
-        "email_id": f"company{suffix}@example.com",
+        "location": f"POINT(77.59{suffix} 12.97{suffix})",
+    }
+
+
+def generate_business_payload():
+    suffix = str(np.random.randint(1000, 9999))
+    return {
+        "name": f"Business {suffix}",
+        "status": BusinessStatus.ACTIVE.value,
+        "type": BusinessType.ORGANIZATION.value,
+        "description": f"A sample business {suffix} used in tests",
+        "address": f"{suffix} Market St, City",
         "location": f"POINT(77.59{suffix} 12.97{suffix})",
     }
 
