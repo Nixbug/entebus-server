@@ -320,6 +320,21 @@ class DataInUse(APIException):
         super().__init__(detail=detail)
 
 
+class LimitExceeded(APIException):
+    """
+    Raised when the number of entries in a table reaches the allowed maximum.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    headers = {"X-Error": "LimitExceeded"}
+
+    def __init__(self, orm_class: DeclarativeMeta):
+        detail = (
+            f"The number of entries in {orm_class.__name__} exceeds the allowed limit."
+        )
+        super().__init__(detail=detail)
+
+
 class NoPermission(APIException):
     """
     Raised when a user does not have permission to perform an action.

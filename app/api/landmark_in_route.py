@@ -53,6 +53,7 @@ from app.src.openobserve import log_event
 from app.src import exceptions
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
+from app.src.constants import MAX_LANDMARKS_PER_ROUTE
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -557,16 +558,18 @@ async def fetch_landmark_in_route_for_executive(
             exceptions.InvalidValue(LandmarkInRoute.arrival_delta),
             exceptions.UnknownValue(LandmarkInRoute.route_id),
             exceptions.UnknownValue(LandmarkInRoute.landmark_id),
+            exceptions.LimitExceeded(LandmarkInRoute),
         ]
     ),
     description=(
-        """
+        f"""
             **Creates a new landmark in route.**    
             - Operator must have a valid access token.    
             - Logged-in operator must have `company.route.create` or `company.route.update` permission.    
             - Logged-in operator can only add landmarks to routes belonging to their company.    
             - Departure delta must be greater than arrival delta.    
-            - When creating a landmark in a route, the route will be validated and status of the route will be updated.    
+            - When creating a landmark in a route, the route will be validated and status of the route will be updated.  
+            - Maximum `{MAX_LANDMARKS_PER_ROUTE}` landmarks allowed per route
         """
     ),
 )
@@ -595,8 +598,18 @@ async def create_landmark_in_route_for_operator(
             LandmarkInRoute.route_id,
             extra_filter=(Route.company_id == token.company_id),
         )
-        landmark_in_route_data = create_landmark_in_route(session, route, form_param)
+        landmark_count = (
+            session.query(LandmarkInRoute)
+            .filter(
+                LandmarkInRoute.route_id == route.id,
+            )
+            .count()
+        )
 
+        if landmark_count >= MAX_LANDMARKS_PER_ROUTE:
+            raise exceptions.LimitExceeded(LandmarkInRoute)
+
+        landmark_in_route_data = create_landmark_in_route(session, route, form_param)
         log_event(token, request_info, landmark_in_route_data)
         return landmark_in_route_data
     except Exception as e:
