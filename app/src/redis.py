@@ -46,7 +46,6 @@ def acquire_lock(
 
     try:
         lock = redis_client.lock(lock_name, timeout=timeout)
-
         acquired = lock.acquire(
             blocking=True,
             blocking_timeout=blocking_timeout,
@@ -57,7 +56,6 @@ def acquire_lock(
 
     if not acquired:
         raise exceptions.LockAcquireTimeout()
-
     return lock
 
 
