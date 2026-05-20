@@ -199,7 +199,6 @@ def validate_operator_limit(
         )
         .count()
     )
-
     if operator_count >= MAX_OPERATORS_PER_COMPANY:
         raise exceptions.LimitExceeded(Operator)
 
@@ -344,8 +343,8 @@ def delete_operator(session: Session, operator: Operator) -> dict:
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.operator.create` permission.    
             - Duplicate usernames are not allowed.    
-            - By default, the user is created with active status.     
-            - Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company.  
+            - By default, the user is created with active status.    
+            - Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company.    
         """
     ),
 )
