@@ -184,8 +184,14 @@ def validate_operator_limit(
 ):
     """
     Validate maximum operator count per company.
-    """
 
+    Args:
+        session (Session): SQLAlchemy database session.
+        company_id (int): ID of the company to validate.
+
+    Raises:
+        LimitExceeded: If the company has reached MAX_OPERATORS_PER_COMPANY limit.
+    """
     operator_count = (
         session.query(Operator)
         .filter(
@@ -511,12 +517,13 @@ async def delete_account_executive(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
     description=(
-        """
+        f"""
             **Creates a new operator account.**    
             - Operator must have a valid access token.    
             - Logged-in operator must have `company.operator.create` permission.    
             - Duplicate usernames are not allowed.    
-            - By default the user is created in active status.    
+            - By default the user is created in active status.   
+            - Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company. 
         """
     ),
 )
