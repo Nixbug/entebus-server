@@ -70,7 +70,7 @@ def release_lock(lock: Optional[Lock]) -> None:
 
     Notes:
         - Ensures only the owner can release the lock.
-        - Silently ignores invalid/unowned locks.
+        - Handles LockError if the lock is already released or not owned by the caller.
     """
     if lock and lock.locked() and lock.owned():
         try:
