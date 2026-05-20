@@ -1,5 +1,6 @@
 from redis import Redis
 from typing import Optional
+from redis.exceptions import LockError
 from redis.lock import Lock
 
 from app.src import exceptions
@@ -53,7 +54,6 @@ def acquire_lock(
 
     except Exception as e:
         exceptions.handle(e)
-        raise
 
     if not acquired:
         raise exceptions.LockAcquireTimeout()
@@ -73,4 +73,9 @@ def release_lock(lock: Optional[Lock]) -> None:
         - Silently ignores invalid/unowned locks.
     """
     if lock and lock.locked() and lock.owned():
-        lock.release()
+        try:
+            lock.release()
+        except LockError:
+            return
+        except Exception as e:
+            exceptions.handle(e)
