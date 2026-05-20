@@ -514,3 +514,13 @@ class UnknownTicketType(APIException):
     status_code = status.HTTP_406_NOT_ACCEPTABLE
     detail = "Unknown ticket type"
     headers = {"X-Error": "UnknownTicketType"}
+
+
+class LockAcquireTimeout(APIException):
+    """
+    Raised when a Redis lock cannot be acquired within the specified timeout.
+    """
+
+    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    detail = "Lock acquisition timed out"
+    headers = {"X-Error": "LockAcquireTimeout"}

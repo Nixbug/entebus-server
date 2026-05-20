@@ -14,7 +14,7 @@ from app.src.constants import (
 # Shared Redis client
 redis_client = Redis(
     host=REDIS_HOST,
-    port=REDIS_PORT,
+    port=int(REDIS_PORT),
     password=REDIS_PASSWORD,
     decode_responses=True,
 )
