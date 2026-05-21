@@ -521,8 +521,8 @@ async def delete_account_executive(
             - Operator must have a valid access token.    
             - Logged-in operator must have `company.operator.create` permission.    
             - Duplicate usernames are not allowed.    
-            - By default the user is created in active status.   
-            - Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company. 
+            - By default the user is created in active status.    
+            - Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company.    
         """
     ),
 )
