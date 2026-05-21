@@ -62,11 +62,23 @@ jobs:
           (kubectl -n entebus rollout undo deployment/entebus-server && exit 1)
 
       - name: Clean up old develop images
-        uses: actions/delete-package-versions@v6
-        with:
-          package-name: ${{ github.event.repository.name }}
-          package-type: container
-          min-versions-to-keep: 5
-          delete-only-package-versions-matching: "^develop-[0-9a-f]{7}$"
-          ignore-versions: "^develop-latest$"
-          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OWNER_TYPE=$(gh api "/repos/${{ github.repository }}" --jq '.owner.type')
+          OWNER="${{ github.repository_owner }}"
+          PKG="${{ github.event.repository.name }}"
+
+          if [ "$OWNER_TYPE" = "Organization" ]; then
+            API_PATH="/orgs/${OWNER}/packages/container/${PKG}/versions"
+          else
+            API_PATH="/user/packages/container/${PKG}/versions"
+          fi
+
+          VERSIONS=$(gh api "$API_PATH" \
+            --paginate \
+            --jq '[.[] | select(any(.metadata.container.tags[]; test("^develop-[0-9a-f]{7}$")))] | sort_by(.created_at) | reverse | .[5:] | .[].id')
+
+          for VERSION_ID in $VERSIONS; do
+            gh api --method DELETE "${API_PATH}/${VERSION_ID}"
+          done
