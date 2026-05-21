@@ -22,8 +22,7 @@ redis_client = Redis(
 
 
 def acquire_lock(
-    table_name: str,
-    pk: Optional[int] = None,
+    lock_id: str,
     timeout: int = LOCK_TIMEOUT_SECONDS,
     blocking_timeout: int = LOCK_MAX_WAIT_SECONDS,
 ) -> Lock:
@@ -31,8 +30,7 @@ def acquire_lock(
     Acquire a Redis-based mutex lock for a table or specific row.
 
     Args:
-        table_name (str): Name of the table/resource to lock.
-        pk (Optional[int]): Optional primary key for row-level locking.
+        lock_id (str): Identifier for the lock.
         timeout (int): Lock expiration in seconds (auto-released after this).
         blocking_timeout (int): Maximum time (in seconds) to wait for lock acquisition.
 
@@ -42,7 +40,7 @@ def acquire_lock(
     Raises:
         exceptions.LockAcquireTimeout: If the lock could not be acquired within blocking_timeout.
     """
-    lock_name = f"lock:{table_name}" if pk is None else f"lock:{table_name}:{pk}"
+    lock_name = f"lock:{lock_id}"
 
     try:
         lock = redis_client.lock(lock_name, timeout=timeout)
