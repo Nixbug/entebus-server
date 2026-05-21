@@ -69,6 +69,6 @@ jobs:
           package-name: ${{ github.event.repository.name }}
           package-type: container
           min-versions-to-keep: 5
-          delete-only-package-versions-matching: "^develop-\\d"
+          delete-only-package-versions-matching: "^develop-[0-9a-f]{7}$"
           ignore-versions: "^develop-latest$"
           token: ${{ secrets.GITHUB_TOKEN }}
