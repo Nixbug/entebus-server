@@ -29,15 +29,20 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set lowercased image name
-        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+        run: |
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
 
       - name: Build Docker image
         run: |
-          docker build -t "${IMAGE_NAME}:develop" .
+          docker build \
+            -t "${IMAGE_NAME}:develop-latest" \
+            -t "${IMAGE_NAME}:develop-${SHORT_SHA}" \
 
       - name: Push Docker image
         run: |
-          docker push "${IMAGE_NAME}:develop"
+          docker push "${IMAGE_NAME}:develop-latest"
+          docker push "${IMAGE_NAME}:develop-${SHORT_SHA}"
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
@@ -51,6 +56,15 @@ jobs:
 
       - name: Deploy to K8s
         run: |
-          (kubectl -n entebus set image deployment/entebus-server entebus-server=${IMAGE_NAME}:develop && \
+          (kubectl -n entebus set image deployment/entebus-server entebus-server=${IMAGE_NAME}:develop-${SHORT_SHA} && \
           kubectl -n entebus rollout status deployment/entebus-server --timeout=180s) || \
           (kubectl -n entebus rollout undo deployment/entebus-server && exit 1)
+
+      - name: Clean up old develop images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ github.event.repository.name }}
+          package-type: container
+          min-versions-to-keep: 5
+          ignore-versions: "^develop-latest$"
+          token: ${{ secrets.GITHUB_TOKEN }}
