@@ -37,16 +37,31 @@ jobs:
         run: |
           echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
 
+      - name: Validate and normalize version input
+        run: |
+          VERSION="${{ inputs.version }}"
+
+          # Strip any whitespace or newlines
+          VERSION=$(echo "${VERSION}" | tr -d '[:space:]')
+
+          # Enforce semver format: v1.2.3 or v1.2.3-suffix (e.g. v1.0.0-beta.1)
+          if [[ ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9._-]+)?$ ]]; then
+            echo "Invalid version format: '${VERSION}'. Expected format: v1.2.3 or v1.2.3-beta.1"
+            exit 1
+          fi
+
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
       - name: Build Docker image
         run: |
           docker build \
-            -t "${IMAGE_NAME}:${{ inputs.version }}" \
-            ${{ inputs.tag_as_latest == true && format('-t "{0}:latest"', env.IMAGE_NAME) || '' }} \
+            -t "${IMAGE_NAME}:${VERSION}" \
+            ${{ inputs.tag_as_latest == true && '-t "${IMAGE_NAME}:latest"' || '' }} \
             .
 
       - name: Push Docker image
         run: |
-          docker push "${IMAGE_NAME}:${{ inputs.version }}"
+          docker push "${IMAGE_NAME}:${VERSION}"
           if [[ "${{ inputs.tag_as_latest }}" == "true" ]]; then
             docker push "${IMAGE_NAME}:latest"
           fi
@@ -63,6 +78,6 @@ jobs:
 
       - name: Deploy to K8s
         run: |
-          (kubectl -n entebus set image deployment/entebus-server entebus-server=${IMAGE_NAME}:${{ inputs.version }} && \
+          (kubectl -n entebus set image deployment/entebus-server entebus-server=${IMAGE_NAME}:${VERSION} && \
           kubectl -n entebus rollout status deployment/entebus-server --timeout=180s) || \
           (kubectl -n entebus rollout undo deployment/entebus-server && exit 1)
