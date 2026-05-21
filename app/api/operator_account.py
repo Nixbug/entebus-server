@@ -335,7 +335,11 @@ def delete_operator(session: Session, operator: Operator) -> dict:
     response_model=OperatorSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.LimitExceeded(Operator),
+        ]
     ),
     description=(
         f"""
