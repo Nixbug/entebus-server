@@ -15,6 +15,8 @@ on:
 
 jobs:
   build-and-deploy:
+    env:
+      IMAGE_NAME: ghcr.io/${{ toLower(github.repository) }}
     runs-on: ubuntu-latest
     environment: production
 
@@ -56,8 +58,11 @@ jobs:
         run: |
           docker build \
             -t "${IMAGE_NAME}:${VERSION}" \
-            ${{ inputs.tag_as_latest == true && '-t "${IMAGE_NAME}:latest"' || '' }} \
             .
+
+          if [ "${{ inputs.tag_as_latest }}" = "true" ]; then
+            docker tag "${IMAGE_NAME}:${VERSION}" "${IMAGE_NAME}:latest"
+          fi
 
       - name: Push Docker image
         run: |
