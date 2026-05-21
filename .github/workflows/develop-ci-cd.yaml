@@ -10,8 +10,6 @@ on:
 jobs:
   build-and-deploy:
     if: github.event.pull_request.merged == true
-    env:
-      IMAGE_NAME: ghcr.io/${{ toLower(github.repository) }}
     runs-on: ubuntu-latest
     environment: develop
 
