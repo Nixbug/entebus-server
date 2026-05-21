@@ -30,7 +30,7 @@ def acquire_lock(
     Acquire a Redis-based mutex lock for a table or specific row.
 
     Args:
-        lock_id (str): Identifier for the lock.
+        lock_id (str): Unique identifier for the lock.
         timeout (int): Lock expiration in seconds (auto-released after this).
         blocking_timeout (int): Maximum time (in seconds) to wait for lock acquisition.
 
