@@ -39,6 +39,7 @@ jobs:
             -t "${IMAGE_NAME}:develop-latest" \
             -t "${IMAGE_NAME}:develop-${SHORT_SHA}" \
             .
+
       - name: Push Docker image
         run: |
           docker push "${IMAGE_NAME}:develop-latest"
