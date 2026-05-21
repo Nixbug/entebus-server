@@ -232,7 +232,7 @@ class InvalidAssociation(APIException):
     Raised when an association between two columns is invalid.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     headers = {"X-Error": "InvalidAssociation"}
 
     def __init__(
@@ -247,7 +247,7 @@ class InvalidValue(APIException):
     Raised when an invalid id or value is provided.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     headers = {"X-Error": "InvalidValue"}
 
     def __init__(self, column: InstrumentedAttribute):
@@ -260,7 +260,7 @@ class InvalidStateTransition(APIException):
     Raised when an attempted state transition is not permitted.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_409_CONFLICT
     headers = {"X-Error": "InvalidStateTransition"}
 
     def __init__(self, column: InstrumentedAttribute):
@@ -273,7 +273,7 @@ class MissingParameter(APIException):
     Raised when a required parameter is missing from the request.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     headers = {"X-Error": "MissingParameter"}
 
     def __init__(self, column: InstrumentedAttribute):
@@ -284,7 +284,7 @@ class MissingParameter(APIException):
 class UnexpectedParameter(APIException):
     """Raised when an unexpected parameter is provided in the request."""
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     headers = {"X-Error": "UnexpectedParameter"}
 
     def __init__(self, column: InstrumentedAttribute):
@@ -312,7 +312,7 @@ class DataInUse(APIException):
     Raised when trying to delete a resource that is currently in use or not in a deletable state.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_409_CONFLICT
     headers = {"X-Error": "DataInUse"}
 
     def __init__(self, orm_class: DeclarativeMeta):
@@ -325,7 +325,7 @@ class LimitExceeded(APIException):
     Raised when the number of entries in a table reaches the allowed maximum.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_409_CONFLICT
     headers = {"X-Error": "LimitExceeded"}
 
     def __init__(self, orm_class: DeclarativeMeta):
@@ -350,7 +350,7 @@ class InvalidGrantType(APIException):
     Raised when an invalid grant type is provided.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     detail = "Invalid grant type"
     headers = {"X-Error": "InvalidGrantType"}
 
@@ -360,7 +360,7 @@ class InvalidImageFile(APIException):
     Raised when an invalid image file is provided.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     headers = {"X-Error": "InvalidImageFile"}
     detail = "Invalid image provided"
 
@@ -370,7 +370,7 @@ class InvalidWKTStringOrType(APIException):
     Raised when an invalid WKT string or type is provided.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     detail = "Invalid WKT string or type"
     headers = {"X-Error": "InvalidWKTStringOrType"}
 
@@ -380,7 +380,7 @@ class InvalidSRID4326(APIException):
     Raised when the SRID of a geometry is not 4326.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     detail = "Coordinates are outside valid WGS84 (SRID 4326) bounds"
     headers = {"X-Error": "InvalidSRID4326"}
 
@@ -390,7 +390,7 @@ class InvalidAABB(APIException):
     Raised when the geometry is not a valid Axis-Aligned Bounding Box.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     detail = "The geometry is not a valid Axis-Aligned Bounding Box"
     headers = {"X-Error": "InvalidAABB"}
 
@@ -400,7 +400,7 @@ class OverlappingLandmarkBoundary(APIException):
     Raised when a landmark boundary overlaps with another landmark boundary.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_409_CONFLICT
     detail = "Boundary overlaps with another landmark's boundary"
     headers = {"X-Error": "OverlappingLandmarkBoundary"}
 
@@ -411,7 +411,7 @@ class OverlappingService(APIException):
     whose time window overlaps with the requested service time.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_409_CONFLICT
     detail = "Vehicle is already assigned to another service during the requested time"
     headers = {"X-Error": "OverlappingService"}
 
@@ -421,7 +421,7 @@ class InvalidBoundaryArea(APIException):
     Raised when the area of a landmark boundary is not within the prescribed limits.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     detail = "Boundary area not within the prescribed limits"
     headers = {"X-Error": "InvalidBoundaryArea"}
 
@@ -431,7 +431,7 @@ class BusStopOutsideLandmark(APIException):
     Raised when the bus stop location is not within the landmark boundary.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     detail = "The bus stop location is not within the landmark boundary"
     headers = {"X-Error": "BusStopOutsideLandmark"}
 
@@ -441,7 +441,7 @@ class LandmarkDistanceLimitExceeded(APIException):
     Raised when the updated landmark boundary is beyond the allowed distance limit.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     detail = "Landmark centroid movement exceeds allowed limit"
     headers = {"X-Error": "LandmarkDistanceLimitExceeded"}
 
@@ -451,7 +451,7 @@ class InvalidFareVersion(APIException):
     Raised when an invalid fare version is provided.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     detail = "Invalid dynamic fare version"
     headers = {"X-Error": "InvalidFareVersion"}
 
@@ -461,7 +461,7 @@ class InvalidFareFunction(APIException):
     Raised when an invalid fare function is provided.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     detail = "Invalid fare function"
     headers = {"X-Error": "InvalidFareFunction"}
 
@@ -471,7 +471,7 @@ class InvalidTicketVersion(APIException):
     Raised when an invalid ticket version is provided.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     detail = "Invalid ticket version"
     headers = {"X-Error": "InvalidTicketVersion"}
 
@@ -481,7 +481,7 @@ class InvalidDigitalTicket(APIException):
     Raised when an invalid digital ticket is provided.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     detail = "Invalid digital ticket"
     headers = {"X-Error": "InvalidDigitalTicket"}
 
@@ -491,7 +491,7 @@ class JSTimeLimitExceeded(APIException):
     Raised when JavaScript execution exceeds the time limit.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     detail = "JavaScript execution timed out"
     headers = {"X-Error": "JSTimeLimitExceeded"}
 
@@ -501,7 +501,7 @@ class JSMemoryLimitExceeded(APIException):
     Raised when JavaScript execution exceeds the memory limit.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     detail = "JavaScript memory limit exceeded"
     headers = {"X-Error": "JSMemoryLimitExceeded"}
 
@@ -511,7 +511,7 @@ class UnknownTicketType(APIException):
     Raised when an unknown ticket type is provided to the fare function.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     detail = "Unknown ticket type"
     headers = {"X-Error": "UnknownTicketType"}
 
@@ -521,6 +521,6 @@ class LockAcquireTimeout(APIException):
     Raised when a Redis lock cannot be acquired within the specified timeout.
     """
 
-    status_code = status.HTTP_406_NOT_ACCEPTABLE
+    status_code = status.HTTP_423_LOCKED
     detail = "Lock acquisition timed out"
     headers = {"X-Error": "LockAcquireTimeout"}
