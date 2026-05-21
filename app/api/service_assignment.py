@@ -98,8 +98,8 @@ class QueryParamsForOP(PaginationFilter, IDFilter, CreatedOnFilter, UpdatedOnFil
     service_id: int | None = Field(Query(default=None))
     service_id_excluding: List[int] | None = Field(Query(default=None))
     operator_id: int | None = Field(Query(default=None))
-    starting_at__ge: datetime | None = Field(Query(default=None))
-    starting_at__le: datetime | None = Field(Query(default=None))
+    starting_at_ge: datetime | None = Field(Query(default=None))
+    starting_at_le: datetime | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
@@ -191,10 +191,10 @@ def search_service_assignments(
         )
     if query_params.operator_id is not None:
         query = query.filter(ServiceAssignment.operator_id == query_params.operator_id)
-    if query_params.starting_at__ge is not None:
-        query = query.filter(Service.starting_at >= query_params.starting_at__ge)
-    if query_params.starting_at__le is not None:
-        query = query.filter(Service.starting_at <= query_params.starting_at__le)
+    if query_params.starting_at_ge is not None:
+        query = query.filter(Service.starting_at >= query_params.starting_at_ge)
+    if query_params.starting_at_le is not None:
+        query = query.filter(Service.starting_at <= query_params.starting_at_le)
 
     # Generalized filters
     query = apply_id_filters(query, ServiceAssignment, query_params)
@@ -642,7 +642,6 @@ async def delete_assignment_operator(
             **Fetches a list of service assignments.**    
             - Requires a valid access token for authentication.    
             - Operators can filter service assignments by service, operator, and service starting time.    
-            - 
         """
     ),
 )
