@@ -16,7 +16,7 @@ on:
 jobs:
   build-and-deploy:
     env:
-      IMAGE_NAME: ghcr.io/${{ toLower(github.repository) }}
+      IMAGE_NAME: ghcr.io/${{ lower(github.repository) }}
     runs-on: ubuntu-latest
     environment: production
 
