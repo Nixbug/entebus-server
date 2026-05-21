@@ -178,9 +178,14 @@ def search_service_assignments(
     Returns:
         List[ServiceAssignment]: List of ServiceAssignments that match the search criteria.
     """
-    query = session.query(ServiceAssignment).join(
-        Service, Service.id == ServiceAssignment.service_id
+    query = session.query(ServiceAssignment)
+    need_service_join = (
+        query_params.starting_at_ge is not None
+        or query_params.starting_at_le is not None
+        or query_params.order_by == OrderBy.STARTING_AT
     )
+    if need_service_join:
+        query = query.join(Service, Service.id == ServiceAssignment.service_id)
     if query_params.company_id is not None:
         query = query.filter(ServiceAssignment.company_id == query_params.company_id)
     if query_params.service_id is not None:
