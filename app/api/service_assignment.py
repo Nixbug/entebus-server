@@ -89,6 +89,7 @@ class OrderBy(StrEnum):
     ID = "id"
     CREATED_ON = "created_on"
     UPDATED_ON = "updated_on"
+    STARTING_AT = "starting_at"
 
 
 class QueryParamsForOP(PaginationFilter, IDFilter, CreatedOnFilter, UpdatedOnFilter):
@@ -97,6 +98,8 @@ class QueryParamsForOP(PaginationFilter, IDFilter, CreatedOnFilter, UpdatedOnFil
     service_id: int | None = Field(Query(default=None))
     service_id_excluding: List[int] | None = Field(Query(default=None))
     operator_id: int | None = Field(Query(default=None))
+    starting_at_ge: datetime | None = Field(Query(default=None))
+    starting_at_le: datetime | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
@@ -164,8 +167,9 @@ def search_service_assignments(
     """
     Search for ServiceAssignments based on provided query parameters.
 
-    This function supports multiple filtering, searching, ordering, and
-    pagination capabilities to retrieve service assignments that match various criteria.
+    This function supports filtering, ordering, and pagination
+    to retrieve service assignments that match the provided criteria,
+    including service starting time filters and ordering.
 
     Args:
         session (Session): SQLAlchemy database session.
@@ -175,6 +179,13 @@ def search_service_assignments(
         List[ServiceAssignment]: List of ServiceAssignments that match the search criteria.
     """
     query = session.query(ServiceAssignment)
+    need_service_join = (
+        query_params.starting_at_ge is not None
+        or query_params.starting_at_le is not None
+        or query_params.order_by == OrderBy.STARTING_AT
+    )
+    if need_service_join:
+        query = query.join(Service, Service.id == ServiceAssignment.service_id)
     if query_params.company_id is not None:
         query = query.filter(ServiceAssignment.company_id == query_params.company_id)
     if query_params.service_id is not None:
@@ -185,6 +196,10 @@ def search_service_assignments(
         )
     if query_params.operator_id is not None:
         query = query.filter(ServiceAssignment.operator_id == query_params.operator_id)
+    if query_params.starting_at_ge is not None:
+        query = query.filter(Service.starting_at >= query_params.starting_at_ge)
+    if query_params.starting_at_le is not None:
+        query = query.filter(Service.starting_at <= query_params.starting_at_le)
 
     # Generalized filters
     query = apply_id_filters(query, ServiceAssignment, query_params)
@@ -192,7 +207,11 @@ def search_service_assignments(
     query = apply_updated_on_filters(query, ServiceAssignment, query_params)
 
     # Ordering and pagination
-    ordering_attr = getattr(ServiceAssignment, query_params.order_by.value)
+    ordering_attr = (
+        Service.starting_at
+        if query_params.order_by == OrderBy.STARTING_AT
+        else getattr(ServiceAssignment, query_params.order_by.value)
+    )
     ordering_func = (
         ordering_attr.asc
         if query_params.order_in == OrderIn.ASCENDING
@@ -410,6 +429,7 @@ async def delete_assignment_executive(
         """
             **Fetches a list of service assignments.**    
             - Requires a valid access token for authentication.    
+            - Executives can filter service assignments by company, service, operator, and service starting time.    
         """
     ),
 )
@@ -626,6 +646,7 @@ async def delete_assignment_operator(
         """
             **Fetches a list of service assignments.**    
             - Requires a valid access token for authentication.    
+            - Operators can filter service assignments by service, operator, and service starting time.    
         """
     ),
 )
