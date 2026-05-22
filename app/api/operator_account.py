@@ -367,7 +367,6 @@ async def create_account_executive(
             session,
             form_param.company_id,
         )
-
         operator = Operator(
             company_id=form_param.company_id,
             username=form_param.username,
@@ -529,7 +528,7 @@ async def delete_account_executive(
             - Operator must have a valid access token.    
             - Logged-in operator must have `company.operator.create` permission.    
             - Duplicate usernames are not allowed.    
-            - By default the user is created in active status.    
+            - By default, the user is created with active status.    
             - Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company.    
         """
     ),
@@ -544,6 +543,7 @@ async def create_account_operator(
         token = verify_token(session, OperatorToken, access_token.credentials)
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_OPERATOR)
+
         validate_operator_limit(
             session,
             token.company_id,
