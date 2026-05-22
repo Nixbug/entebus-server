@@ -317,7 +317,7 @@ def delete_vendor(session: Session, vendor: Vendor) -> dict:
         """
     ),
 )
-async def create_account_executive(
+async def create_vendor_account_for_executive(
     form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -374,7 +374,7 @@ async def create_account_executive(
         """
     ),
 )
-async def update_account_executive(
+async def update_vendor_account_for_executive(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
@@ -411,7 +411,7 @@ async def update_account_executive(
         """
     ),
 )
-async def fetch_account_executive(
+async def fetch_vendor_account_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
 ):
     try:
@@ -445,7 +445,7 @@ async def fetch_account_executive(
         """
     ),
 )
-async def delete_account_executive(
+async def delete_vendor_account_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -489,7 +489,7 @@ async def delete_account_executive(
         """
     ),
 )
-async def create_account_vendor(
+async def create_vendor_account_for_vendor(
     form_param: CreateFormForVE,
     access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),
@@ -547,7 +547,7 @@ async def create_account_vendor(
         """
     ),
 )
-async def update_account_vendor(
+async def update_vendor_account_for_vendor(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(bearer_vendor),
@@ -597,7 +597,7 @@ async def update_account_vendor(
         """
     ),
 )
-async def fetch_account_vendor(
+async def fetch_vendor_account_for_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
 ):
     try:
@@ -632,7 +632,7 @@ async def fetch_account_vendor(
         """
     ),
 )
-async def delete_account_vendor(
+async def delete_vendor_account_for_vendor(
     id: int,
     access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),

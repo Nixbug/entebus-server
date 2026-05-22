@@ -295,7 +295,7 @@ def search_route(session: Session, query_params: QueryParams) -> List[Route]:
         """
     ),
 )
-async def create_route_executive(
+async def create_route_for_executive(
     form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -338,7 +338,7 @@ async def create_route_executive(
         """
     ),
 )
-async def update_route_executive(
+async def update_route_for_executive(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
@@ -381,7 +381,7 @@ async def update_route_executive(
         """
     ),
 )
-async def delete_route_executive(
+async def delete_route_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -416,7 +416,7 @@ async def delete_route_executive(
         """
     ),
 )
-async def fetch_route_executive(
+async def fetch_route_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
 ):
     try:
@@ -454,7 +454,7 @@ async def fetch_route_executive(
         """
     ),
 )
-async def create_route_operator(
+async def create_route_for_operator(
     form_param: CreateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
@@ -497,7 +497,7 @@ async def create_route_operator(
         """
     ),
 )
-async def update_route_operator(
+async def update_route_for_operator(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(bearer_operator),
@@ -541,7 +541,7 @@ async def update_route_operator(
         """
     ),
 )
-async def delete_route_operator(
+async def delete_route_for_operator(
     id: int,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
@@ -580,7 +580,7 @@ async def delete_route_operator(
         """
     ),
 )
-async def fetch_route_operator(
+async def fetch_route_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
 ):
     try:
@@ -613,7 +613,7 @@ async def fetch_route_operator(
         """
     ),
 )
-async def fetch_route_vendor(
+async def fetch_route_for_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
 ):
     try:
@@ -645,7 +645,7 @@ async def fetch_route_vendor(
         """
     ),
 )
-async def fetch_route_public(query_params: QueryParamsForPU = Depends()):
+async def fetch_route_for_public(query_params: QueryParamsForPU = Depends()):
     try:
         session = SessionLocal()
 

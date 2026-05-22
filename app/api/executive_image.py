@@ -135,7 +135,7 @@ class ImageQueryParams(BaseModel):
         """
     ),
 )
-async def upload_executive_image(
+async def upload_executive_image_for_executive(
     form_param: CreateForm = Depends(),
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -203,7 +203,7 @@ async def upload_executive_image(
         """
     ),
 )
-async def delete_executive_image(
+async def delete_executive_image_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -250,7 +250,7 @@ async def delete_executive_image(
         """
     ),
 )
-async def fetch_executive_image(
+async def fetch_executive_image_for_executive(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
 ):
@@ -301,7 +301,7 @@ async def fetch_executive_image(
         """
     ),
 )
-async def download_executive_image(
+async def download_executive_image_for_executive(
     id: int,
     query_params: ImageQueryParams = Depends(),
     access_token=Depends(oauth2_executive),

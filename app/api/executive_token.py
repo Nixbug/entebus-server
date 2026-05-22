@@ -144,7 +144,7 @@ class QueryParams(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter)
         """
     ),
 )
-async def create_token(
+async def create_executive_token_for_executive(
     form_param: CreateForm = Depends(),
     credentials: OAuth2PasswordRequestForm = Depends(),
     request_info=Depends(get_request_info),
@@ -207,7 +207,7 @@ async def create_token(
         """
     ),
 )
-async def refresh_token(
+async def refresh_executive_token_for_executive(
     form_param: UpdateForm = Depends(),
     request_info=Depends(get_request_info),
 ):
@@ -260,7 +260,7 @@ async def refresh_token(
         """
     ),
 )
-async def revoke_token(
+async def revoke_executive_token_for_executive(
     form_param: LogoutForm = Depends(),
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -315,7 +315,7 @@ async def revoke_token(
         """
     ),
 )
-async def delete_token(
+async def delete_executive_token_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -373,7 +373,7 @@ async def delete_token(
         """
     ),
 )
-async def fetch_token(
+async def fetch_executive_token_for_executive(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
 ):

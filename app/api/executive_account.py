@@ -153,7 +153,7 @@ class QueryParams(
         """
     ),
 )
-async def create_account(
+async def create_executive_account_for_executive(
     form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -208,7 +208,7 @@ async def create_account(
         """
     ),
 )
-async def update_account(
+async def update_executive_account_for_executive(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
@@ -274,7 +274,7 @@ async def update_account(
         """
     ),
 )
-async def delete_account(
+async def delete_executive_account_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -325,7 +325,7 @@ async def delete_account(
         """
     ),
 )
-async def fetch_account(
+async def fetch_executive_account_for_executive(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
 ):
