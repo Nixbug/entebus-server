@@ -58,6 +58,7 @@ pip-compile --upgrade requirements.in --no-strip-extras
 * Python (ms-python.python)
 * Black Formatter (ms-python.black-formatter)
 * autoDocstring (njpwerner.autodocstring)
+* GitHub Actions (github.vscode-github-actions)
 
 ### Dependencies via Docker
 
