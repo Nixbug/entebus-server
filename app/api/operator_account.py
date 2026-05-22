@@ -55,6 +55,7 @@ from app.src.functions import (
     apply_status_filters,
     apply_type_filters,
 )
+from app.src.constants import MAX_OPERATORS_PER_COMPANY
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -177,6 +178,31 @@ class QueryParams(QueryParamsForEX):
 
 
 ## Functions
+def validate_operator_limit(
+    session: Session,
+    company_id: int,
+):
+    """
+    Validate maximum operator count per company.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        company_id (int): ID of the company to validate.
+
+    Raises:
+        LimitExceeded: If the company has reached MAX_OPERATORS_PER_COMPANY limit.
+    """
+    operator_count = (
+        session.query(Operator)
+        .filter(
+            Operator.company_id == company_id,
+        )
+        .count()
+    )
+    if operator_count >= MAX_OPERATORS_PER_COMPANY:
+        raise exceptions.LimitExceeded(Operator)
+
+
 def update_operator(
     session: Session, operator: Operator, form_param: UpdateForm
 ) -> Tuple[bool, dict]:
@@ -309,15 +335,20 @@ def delete_operator(session: Session, operator: Operator) -> dict:
     response_model=OperatorSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.LimitExceeded(Operator),
+        ]
     ),
     description=(
-        """
+        f"""
             **Creates a new operator account.**    
             - Executive must have a valid access token.    
             - Logged-in executive must have `company.operator.create` permission.    
             - Duplicate usernames are not allowed.    
-            - By default the user is created in active status.    
+            - By default, the user is created with active status.    
+            - Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company.    
         """
     ),
 )
@@ -332,6 +363,10 @@ async def create_account_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY_OPERATOR)
 
+        validate_operator_limit(
+            session,
+            form_param.company_id,
+        )
         operator = Operator(
             company_id=form_param.company_id,
             username=form_param.username,
@@ -481,15 +516,20 @@ async def delete_account_executive(
     response_model=OperatorSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
+        [
+            exceptions.InvalidToken(),
+            exceptions.NoPermission(),
+            exceptions.LimitExceeded(Operator),
+        ]
     ),
     description=(
-        """
+        f"""
             **Creates a new operator account.**    
             - Operator must have a valid access token.    
             - Logged-in operator must have `company.operator.create` permission.    
             - Duplicate usernames are not allowed.    
-            - By default the user is created in active status.    
+            - By default, the user is created with active status.    
+            - Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company.    
         """
     ),
 )
@@ -504,6 +544,10 @@ async def create_account_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_OPERATOR)
 
+        validate_operator_limit(
+            session,
+            token.company_id,
+        )
         operator = Operator(
             company_id=token.company_id,
             username=form_param.username,
