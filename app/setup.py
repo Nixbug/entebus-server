@@ -1,15 +1,48 @@
 import argparse
+import os
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
 from alembic.script import ScriptDirectory
+from app.src.enums import (
+    CompanyStatus,
+    GenderType,
+    OperatorType,
+    AccountStatus,
+    VendorType,
+    BusinessStatus,
+)
 
 from app.src import buckets, minio
-from app.src.db import get_db_url, engine, ORMbase, SessionLocal
+from app.src.db import (
+    CompanyWallet,
+    ORMbase,
+    Executive,
+    ExecutiveRole,
+    ExecutiveRoleMap,
+    Wallet,
+    get_db_url,
+    engine,
+    SessionLocal,
+    Company,
+    Operator,
+    OperatorRole,
+    OperatorRoleMap,
+    Business,
+    Vendor,
+    VendorRole,
+    VendorRoleMap,
+)
+
+from app.src.permissions.executive import PermissionSchema as PermissionSchemaEX
+from app.src.permissions.vendor import PermissionSchema as PermissionSchemaVN
+from app.src.permissions.operator import PermissionSchema as PermissionSchemaOP
 
 
 def _alembic_cfg() -> Config:
-    alembic_cfg = Config("app/alembic.ini")
+    current_dir = os.path.dirname(__file__)
+    alembic_ini = os.path.join(current_dir, "alembic.ini")
+    alembic_cfg = Config(alembic_ini)
     alembic_cfg.set_main_option("sqlalchemy.url", get_db_url())
     return alembic_cfg
 
@@ -84,52 +117,244 @@ def delete_tables():
     session.close()
 
 
-# ---- Argparse setup ----
+def initialize():
+    """Initialize the database with default users with default permissions."""
+    session = SessionLocal()
+
+    # Create default executives admin and guest
+    admin = Executive(
+        username="admin",
+        password="password",
+        full_name="Entebus admin",
+        designation="Administrator",
+    )
+    guest = Executive(
+        username="guest",
+        password="password",
+        full_name="Entebus guest",
+        designation="Guest",
+    )
+    session.add_all([admin, guest])
+    session.flush()
+
+    # Create roles for executives
+    admin_permissions = PermissionSchemaEX.all_granted().model_dump()
+    guest_permissions = PermissionSchemaEX.all_denied().model_dump()
+    admin_role = ExecutiveRole(name="Admin", permissions=admin_permissions)
+    guest_role = ExecutiveRole(name="Guest", permissions=guest_permissions)
+    session.add_all([admin_role, guest_role])
+    session.flush()
+
+    # Map executives to roles
+    admin_role_map = ExecutiveRoleMap(role_id=admin_role.id, executive_id=admin.id)
+    guest_role_map = ExecutiveRoleMap(role_id=guest_role.id, executive_id=guest.id)
+    session.add_all([admin_role_map, guest_role_map])
+
+    # Create a default company
+    company = Company(
+        name="Nixbug Softwares OPC Pvt Ltd",
+        status=CompanyStatus.VERIFIED,
+        address="Edava, Thiruvananthapuram, Kerala 695311",
+        location="POINT(76.68899711264336 8.761725176790257)",
+    )
+    session.add(company)
+    session.flush()
+
+    # Create company wallet
+    wallet = Wallet(balance=0.0, name=company.name)
+    session.add(wallet)
+    session.flush()
+
+    # Map the company to its wallet
+    company_wallet_map = CompanyWallet(company_id=company.id, wallet_id=wallet.id)
+    session.add(company_wallet_map)
+    session.flush()
+
+    # Create default operators admin and guest for the company
+    admin = Operator(
+        company_id=company.id,
+        username="admin",
+        password="password",
+        gender=GenderType.OTHER,
+        type=OperatorType.ADMIN,
+        full_name="Admin",
+        status=AccountStatus.ACTIVE,
+        phone_number="+91-9496801157",
+        email_id="contact@nixbug.com",
+    )
+    guest = Operator(
+        company_id=company.id,
+        username="guest",
+        password="password",
+        gender=GenderType.OTHER,
+        type=OperatorType.NORMAL,
+        full_name="Guest",
+        status=AccountStatus.ACTIVE,
+        phone_number="+91-9496801111",
+        email_id="contact@nixbug.com",
+    )
+    session.add_all([admin, guest])
+    session.flush()
+
+    # Create roles for operators within the company
+    admin_permissions = PermissionSchemaOP.all_granted().model_dump()
+    guest_permissions = PermissionSchemaOP.all_denied().model_dump()
+    admin_role = OperatorRole(
+        company_id=company.id, name="Admin", permissions=admin_permissions
+    )
+    guest_role = OperatorRole(
+        company_id=company.id, name="Guest", permissions=guest_permissions
+    )
+    session.add_all([admin_role, guest_role])
+    session.flush()
+
+    # Map operators to roles
+    admin_role_map = OperatorRoleMap(
+        company_id=company.id, role_id=admin_role.id, operator_id=admin.id
+    )
+    guest_role_map = OperatorRoleMap(
+        company_id=company.id, role_id=guest_role.id, operator_id=guest.id
+    )
+    session.add_all([admin_role_map, guest_role_map])
+    session.flush()
+
+    # Create a default business
+    business = Business(
+        name="Nixbug Softwares OPC Pvt Ltd",
+        status=BusinessStatus.ACTIVE,
+        address="Edava, Thiruvananthapuram, Kerala 695311",
+        location="POINT(76.69065175172149 8.761272913919761)",
+    )
+    session.add(business)
+    session.flush()
+
+    # Create default vendors admin and guest for the business
+    admin = Vendor(
+        business_id=business.id,
+        username="admin",
+        password="password",
+        gender=GenderType.OTHER,
+        type=VendorType.ADMIN,
+        full_name="Admin",
+        status=AccountStatus.ACTIVE,
+        phone_number="+91-9496801157",
+        email_id="contact@nixbug.com",
+    )
+    guest = Vendor(
+        business_id=business.id,
+        username="guest",
+        password="password",
+        gender=GenderType.OTHER,
+        type=VendorType.NORMAL,
+        full_name="Guest",
+        status=AccountStatus.ACTIVE,
+        phone_number="+91-9496801111",
+        email_id="contacthr@nixbug.com",
+    )
+    session.add_all([admin, guest])
+    session.flush()
+
+    # Create roles for vendors within the business
+    admin_permissions = PermissionSchemaVN.all_granted().model_dump()
+    guest_permissions = PermissionSchemaVN.all_denied().model_dump()
+    admin_role = VendorRole(
+        business_id=business.id, name="Admin", permissions=admin_permissions
+    )
+    guest_role = VendorRole(
+        business_id=business.id, name="Guest", permissions=guest_permissions
+    )
+    session.add_all([admin_role, guest_role])
+    session.flush()
+
+    # Map vendors to roles
+    admin_role_map = VendorRoleMap(
+        business_id=business.id, role_id=admin_role.id, vendor_id=admin.id
+    )
+    guest_role_map = VendorRoleMap(
+        business_id=business.id, role_id=guest_role.id, vendor_id=guest.id
+    )
+    session.add_all([admin_role_map, guest_role_map])
+    session.flush()
+
+    session.commit()
+    print("* Initialization completed")
+    session.close()
+
+
+# ---------------------------------------------------------------------------
+## Setup main entry point
+# ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(
         description="Database migration and management tool"
     )
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(
+        dest="group", required=True, help="Command group"
+    )
 
-    # downgrade
-    p_downgrade = subparsers.add_parser("downgrade", help="Downgrade the schema")
-    p_downgrade.add_argument(
+    tables_parser = subparsers.add_parser("tables", help="Table and migration commands")
+    tables_subparsers = tables_parser.add_subparsers(
+        dest="command", required=True, help="Table command"
+    )
+
+    tables_subparsers.add_parser("create", help="Create all tables")
+    tables_subparsers.add_parser("delete", help="Delete all tables")
+    tables_subparsers.add_parser(
+        "init", help="Initialize the database with default data"
+    )
+    tables_subparsers.add_parser("reset", help="Reset the database schema")
+    tables_subparsers.add_parser("migrate", help="Run migrations to head")
+
+    # Downgrade with optional steps
+    downgrade_sp = tables_subparsers.add_parser(
+        "downgrade", help="Downgrade the schema"
+    )
+    downgrade_sp.add_argument(
         "steps",
         nargs="?",
         default="-1",
         help="Number of steps to downgrade (default: -1)",
     )
 
-    # revise
-    p_revise = subparsers.add_parser("revise", help="Create a new migration revision")
-    p_revise.add_argument(
+    # Revise with optional message
+    revise_sp = tables_subparsers.add_parser(
+        "revise", help="Create a new migration revision"
+    )
+    revise_sp.add_argument(
         "message", nargs="?", default="auto revise", help="Revision message"
     )
 
-    subparsers.add_parser("reset_db", help="Reset the database")
-    subparsers.add_parser("migrate", help="Run migrations")
-    subparsers.add_parser("create_tables", help="Create all tables")
-    subparsers.add_parser("delete_tables", help="Delete all tables")
-    subparsers.add_parser("create_buckets", help="Create storage buckets")
-    subparsers.add_parser("delete_buckets", help="Delete storage buckets")
+    buckets_parser = subparsers.add_parser("buckets", help="Storage bucket commands")
+    buckets_subparsers = buckets_parser.add_subparsers(
+        dest="command", required=True, help="Bucket command"
+    )
+
+    buckets_subparsers.add_parser("create", help="Create storage buckets")
+    buckets_subparsers.add_parser("delete", help="Delete storage buckets")
+
     args = parser.parse_args()
 
-    if args.command == "downgrade":
-        downgrade(args.steps)
-    elif args.command == "reset_db":
-        reset_db()
-    elif args.command == "migrate":
-        migrate()
-    elif args.command == "revise":
-        revise(args.message)
-    elif args.command == "create_tables":
-        create_tables()
-    elif args.command == "delete_tables":
-        delete_tables()
-    elif args.command == "create_buckets":
-        create_buckets()
-    elif args.command == "delete_buckets":
-        delete_buckets()
+    # Dispatch based on group and command
+    if args.group == "tables":
+        if args.command == "create":
+            create_tables()
+        elif args.command == "delete":
+            delete_tables()
+        elif args.command == "init":
+            initialize()
+        elif args.command == "reset":
+            reset_db()
+        elif args.command == "migrate":
+            migrate()
+        elif args.command == "downgrade":
+            downgrade(args.steps)
+        elif args.command == "revise":
+            revise(args.message)
+    elif args.group == "buckets":
+        if args.command == "create":
+            create_buckets()
+        elif args.command == "delete":
+            delete_buckets()
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ They are primarily used for:
     - Consistent state management across services.
 """
 
-from enum import IntEnum
+from enum import IntEnum, StrEnum
 
 
 class AppID(IntEnum):
@@ -19,6 +19,20 @@ class AppID(IntEnum):
     VENDOR = 2
     OPERATOR = 3
     PUBLIC = 4
+
+
+class GrantType(StrEnum):
+    """Authentication grant types."""
+
+    PASSWORD = "password"
+    REFRESH_TOKEN = "refresh_token"
+
+
+class OrderIn(StrEnum):
+    """Enum for ordering results."""
+
+    ASCENDING = "asc"
+    DESCENDING = "desc"
 
 
 class AccountStatus(IntEnum):
@@ -97,12 +111,13 @@ class BankAccountType(IntEnum):
     SALARY_ACCOUNT = 4
 
 
-class BusStatus(IntEnum):
-    """Operational status of a bus."""
+class VehicleStatus(IntEnum):
+    """Operational status of a vehicle."""
 
-    ACTIVE = 1
-    MAINTENANCE = 2
-    SUSPENDED = 3
+    CREATED = 1
+    ACTIVE = 2
+    MAINTENANCE = 3
+    SUSPENDED = 4
 
 
 class TicketingMode(IntEnum):
@@ -128,27 +143,26 @@ class Day(IntEnum):
 class TriggeringMode(IntEnum):
     """Service triggering configuration."""
 
-    AUTO = 2
-    MANUAL = 3
+    AUTO = 1
+    MANUAL = 2
 
 
 class ServiceStatus(IntEnum):
     """Lifecycle states of a service."""
 
     CREATED = 1
-    STARTED = 2
-    TERMINATED = 3
+    CACHED = 2
+    STARTED = 3
     ENDED = 4
+    AUDITED = 5
 
 
 class DutyStatus(IntEnum):
     """Lifecycle states of a duty."""
 
-    ASSIGNED = 1
-    STARTED = 2
-    TERMINATED = 3
-    ENDED = 4
-    NOT_USED = 5
+    STARTED = 1
+    ENDED = 2
+    AUDITED = 3
 
 
 class RouteStatus(IntEnum):
@@ -156,3 +170,34 @@ class RouteStatus(IntEnum):
 
     VALID = 1
     INVALID = 2
+
+
+class OperatorType(IntEnum):
+    """User type of the operator."""
+
+    NORMAL = 1
+    OWNER = 2
+    MANAGER = 3
+    HR = 4
+    LEGAL = 5
+    ADMIN = 6
+    BOT = 7
+
+
+class VendorType(IntEnum):
+    """User type of the vendor."""
+
+    NORMAL = 1
+    OWNER = 2
+    MANAGER = 3
+    HR = 4
+    LEGAL = 5
+    ADMIN = 6
+    BOT = 7
+
+
+class FareScope(IntEnum):
+    """Scope of fare applicability."""
+
+    GLOBAL = 1
+    LOCAL = 2

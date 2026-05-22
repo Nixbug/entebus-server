@@ -20,7 +20,7 @@ The **Entebus Server** is a high-performance API server built with [FastAPI](htt
 
 ### Prerequisites
 
-- Ubuntu 22.04+ (WSL2 supported)  
+- Ubuntu 24.04+ (WSL2 supported)  
 - Python 3.12+  
 - Docker
 - Kubernetes (optional, for cluster deployment)  
@@ -64,41 +64,44 @@ pip-compile --upgrade requirements.in --no-strip-extras
 **PostgreSQL + PostGIS**
 
 ```bash
-docker run --name postgis \
+docker run -d --name postgis \
+    --restart unless-stopped \
     -e POSTGRES_PASSWORD=password \
     -p 5432:5432 \
-    -d postgis/postgis
+    postgis/postgis:18-3.6-alpine
 ```
 
 **MinIO (object storage)**
 
 ```bash
-docker run --name minio \
+docker run -d --name minio \
+    --restart unless-stopped \
     -e MINIO_ROOT_USER=minio \
     -e MINIO_ROOT_PASSWORD=password \
     -p 9000:9000 \
     -p 9001:9001 \
-    -d minio/minio server /data --console-address ":9001"
+    minio/minio:RELEASE.2025-09-07T16-13-09Z server /data --console-address ":9001"
 ```
 
 **OpenObserve (logs, traces, metrics)**
 
 ```bash
-docker run -d \
-    --name openobserve \
+docker run -d --name openobserve \
+    --restart unless-stopped \
     -p 5080:5080 \
     -e ZO_ROOT_USER_EMAIL="admin@entebus.com" \
     -e ZO_ROOT_USER_PASSWORD="password" \
-    public.ecr.aws/zinclabs/openobserve:latest
+    openobserve/openobserve:v0.80.3
 ```
 
 **Redis DB**
 
 ```bash
-docker run --name redis \
+docker run -d --name redis \
+    --restart unless-stopped \
     -p 6379:6379 \
-    -d redis \
-    redis-server --requirepass "password"
+    redis:8.6.3-alpine \
+    redis-server --requirepass "password" --save "" --appendonly no
 ```
 
 
@@ -111,33 +114,24 @@ All database migrations and schema management are handled via **Alembic** and th
 Run the following commands from the project root:
 
 ```bash
-# Create a new migration (revision) from model changes
-python -m app.setup revise "added new table"
-
-# Apply migrations (bring DB schema to latest head)
-python -m app.setup migrate
+python -m app.setup tables revise "added new table" # Create a new migration (revision) from model changes
+python -m app.setup tables migrate                  # Apply migrations (bring DB schema to latest head)
 
 # Reset the database (drop + recreate schema)
 # Note: Reinstall PostGIS extension when you do so
-python -m app.setup reset_db
+python -m app.setup tables reset
 
 # Downgrade the database by one step (use -N for multiple steps)
-python -m app.setup downgrade
-python -m app.setup downgrade -2
+python -m app.setup tables downgrade
+python -m app.setup tables downgrade -2
 
-# Create all tables directly (without migrations)
-# Note: Use with caution (not for production)
-python -m app.setup create_tables
+# Note: Use with caution (not for production/regular use)
+python -m app.setup tables create                   # Create all tables directly (without migrations)
+python -m app.setup tables delete                   # Delete all tables (without migrations)
+python -m app.setup tables init                     # Initialize the database with default data
 
-# Delete all tables (without migrations)
-# Note: Use with caution (not for production)
-python -m app.setup delete_tables
-
-# Create all MinIO buckets (defined in app/src/buckets.py)
-python -m app.setup create_buckets
-
-# Delete all MinIO buckets
-python -m app.setup delete_buckets
+python -m app.setup buckets create                  # Create all MinIO buckets (defined in app/src/buckets.py)
+python -m app.setup buckets delete                  # Delete all MinIO buckets
 ```
 
 
@@ -178,6 +172,33 @@ docker push <registry>/<namespace>/entebus-server:<branch>-<commit-id>
 # Pull the docker image from nexus repository
 docker pull <registry>/<namespace>/entebus-server:<branch>-<commit-id>
 ```
+
+## 🧹 Code Formatting & CI
+
+This project enforces Python code formatting using [Black](https://black.readthedocs.io/).
+
+- All code must be formatted with Black before merging.
+- A GitHub Actions workflow automatically checks formatting on every pull request.
+- If any file is not properly formatted, the PR will fail the check and cannot be merged until fixed.
+
+**How to check and fix formatting locally (without Black Formatter extension in VS Code):**
+
+```bash
+# Install black (once)
+pip install black==25.1.0
+
+# Check formatting (shows files that need changes)
+black --check .
+
+# Auto-format all files in place
+black .
+```
+
+**CI Workflow:**
+- The workflow runs on every PR and uses `black==25.1.0` (the same version shown in the local install example above).
+- To pass the check, ensure you run Black 25.1.0 locally (via CLI or your editor/VS Code `ms-python.black-formatter` extension configured to use this version) before pushing your changes.
+
+See `.github/workflows/black-format.yaml` for details.
 
 ## 🤝 Contributing
 

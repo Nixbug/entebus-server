@@ -1,8 +1,17 @@
 {
     "cSpell.words": [
+        "AABB",
         "Entebus",
         "geoalchemy",
+        "geofence",
+        "geospatial",
+        "ilike",
+        "jsonable",
         "Nixbug",
-        "sessionmaker"
+        "onupdate",
+        "ondelete",
+        "OPENOBSERVE",
+        "sessionmaker",
+        "sqlstate"
     ]
 }
