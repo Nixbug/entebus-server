@@ -111,6 +111,12 @@ class CreateFormForEX(CreateFormForOP):
     company_id: int = Field()
 
 
+class CreateForm(CreateFormForEX):
+    """Generic combined form data for creating a new operator account."""
+
+    pass
+
+
 class UpdateForm(BaseModel):
     """Form data for updating an operator account."""
 
@@ -178,29 +184,44 @@ class QueryParams(QueryParamsForEX):
 
 
 ## Functions
-def validate_operator_limit(
-    session: Session,
-    company_id: int,
-):
+def create_operator_account(session: Session, form_param: CreateForm) -> dict:
     """
-    Validate maximum operator count per company.
+    Create a new operator account with the provided form data.
+    Also checks if the maximum operator limit per company has been reached before creating the account.
 
     Args:
         session (Session): SQLAlchemy database session.
-        company_id (int): ID of the company to validate.
+        form_param (CreateForm): Form data for creating the operator.
 
-    Raises:
-        LimitExceeded: If the company has reached MAX_OPERATORS_PER_COMPANY limit.
+    Returns:
+        dict: The created operator data.
     """
     operator_count = (
         session.query(Operator)
         .filter(
-            Operator.company_id == company_id,
+            Operator.company_id == form_param.company_id,
         )
         .count()
     )
     if operator_count >= MAX_OPERATORS_PER_COMPANY:
         raise exceptions.LimitExceeded(Operator)
+    operator = Operator(
+        company_id=form_param.company_id,
+        username=form_param.username,
+        password=form_param.password,
+        gender=form_param.gender,
+        description=form_param.description,
+        type=form_param.type,
+        full_name=form_param.full_name,
+        status=form_param.status,
+        phone_number=form_param.phone_number,
+        email_id=form_param.email_id,
+    )
+    session.add(operator)
+    session.commit()
+    session.refresh(operator)
+    operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
+    return operator_data
 
 
 def update_operator(
@@ -363,27 +384,7 @@ async def create_operator_account_for_executive(
         roles = get_executive_roles(session, token)
         verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY_OPERATOR)
 
-        validate_operator_limit(
-            session,
-            form_param.company_id,
-        )
-        operator = Operator(
-            company_id=form_param.company_id,
-            username=form_param.username,
-            password=form_param.password,
-            gender=form_param.gender,
-            description=form_param.description,
-            type=form_param.type,
-            full_name=form_param.full_name,
-            status=form_param.status,
-            phone_number=form_param.phone_number,
-            email_id=form_param.email_id,
-        )
-        session.add(operator)
-        session.commit()
-        session.refresh(operator)
-
-        operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
+        operator_data = create_operator_account(session, CreateForm(**form_param.model_dump()))
         log_event(token, request_info, operator_data)
         return operator_data
     except Exception as e:
@@ -544,27 +545,7 @@ async def create_operator_account_for_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_OPERATOR)
 
-        validate_operator_limit(
-            session,
-            token.company_id,
-        )
-        operator = Operator(
-            company_id=token.company_id,
-            username=form_param.username,
-            password=form_param.password,
-            gender=form_param.gender,
-            description=form_param.description,
-            type=form_param.type,
-            full_name=form_param.full_name,
-            status=form_param.status,
-            phone_number=form_param.phone_number,
-            email_id=form_param.email_id,
-        )
-        session.add(operator)
-        session.commit()
-        session.refresh(operator)
-
-        operator_data = jsonable_encoder(operator, exclude={Operator.password.name})
+        operator_data = create_operator_account(session, CreateForm(**form_param.model_dump(), company_id=token.company_id))
         log_event(token, request_info, operator_data)
         return operator_data
     except Exception as e:
