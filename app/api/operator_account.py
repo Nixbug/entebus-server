@@ -40,7 +40,13 @@ from app.src import exceptions
 from app.src.regex import PASSWORD_PATTERN, USERNAME_PATTERN
 from app.src.urls import URL_OPERATOR_ACCOUNT
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token, validate_id, verify_user_permission
+from app.src.validators import (
+    authorize_executive,
+    verify_permission,
+    verify_token,
+    validate_id,
+    verify_user_permission,
+)
 from app.src.functions import (
     COMMON_AUTH_RESPONSES,
     apply_account_filters,
@@ -63,7 +69,9 @@ route_executive = APIRouter()
 route_operator = APIRouter()
 
 
-## Output Schema
+# ---------------------------------------------------------------------------
+## Output Schemas
+# ---------------------------------------------------------------------------
 class OperatorSchema(BaseModel):
     """Schema for operator account response."""
 
@@ -81,7 +89,9 @@ class OperatorSchema(BaseModel):
     created_on: datetime
 
 
+# ---------------------------------------------------------------------------
 ## Input Forms
+# ---------------------------------------------------------------------------
 class CreateFormForOP(BaseModel):
     """Form data for creating a new operator account for an operator."""
 
@@ -141,7 +151,9 @@ class UpdateForm(BaseModel):
     )
 
 
-# Query parameters
+# ---------------------------------------------------------------------------
+## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering results."""
 
@@ -185,7 +197,9 @@ class QueryParams(QueryParamsForEX):
     pass
 
 
+# ---------------------------------------------------------------------------
 ## Functions
+# ---------------------------------------------------------------------------
 def create_operator_account(session: Session, form_param: CreateForm) -> dict:
     """
     Create a new operator account with the provided form data.
@@ -349,6 +363,38 @@ def delete_operator(session: Session, operator: Operator) -> dict:
 
 
 # ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.LimitExceeded(Operator),
+]
+PATCH_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue(Operator.id),
+]
+
+COMMON_AUTH_RESPONSES = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common descriptions
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = f"""
+    **Updates an existing operator account.**    
+    - Requires a valid access token.    
+    - Logged-in operator must have `company.operator.update` permission to update other operators.    
+    - Operator can update their own account except status.    
+    - Empty PATCH requests are allowed and will result in no changes.    
+"""
+
+
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
@@ -363,16 +409,10 @@ def delete_operator(session: Session, operator: Operator) -> dict:
             exceptions.LimitExceeded(Operator),
         ]
     ),
-    description=create_description(
-        model="operator account",
-        role="Executive",
-        extra_rules=[
-            "Logged-in executive must have `company.operator.create` permission.",
-            "Duplicate usernames are not allowed.",
-            "By default, the user is created with active status.",
-            f"Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company.",
-        ],
-    ),
+    description=(f"""
+            {POST_DESCRIPTION} 
+            - Need `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company.    
+        """),
 )
 async def create_operator_account_for_executive(
     form_param: CreateFormForEX,
@@ -381,15 +421,20 @@ async def create_operator_account_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_user_permission(
-            session,
-            ExecutiveToken,
-            access_token,
-            get_executive_roles,
-            ExecutivePermissionPath.CREATE_COMPANY_OPERATOR,
+        # token = verify_user_permission(
+        #     session,
+        #     ExecutiveToken,
+        #     access_token,
+        #     get_executive_roles,
+        #     ExecutivePermissionPath.CREATE_COMPANY_OPERATOR,
+        # )
+        token = authorize_executive(
+            session, access_token, ExecutivePermissionPath.CREATE_COMPANY_OPERATOR
         )
 
-        operator_data = create_operator_account(session, CreateForm(**form_param.model_dump()))
+        operator_data = create_operator_account(
+            session, CreateForm(**form_param.model_dump())
+        )
         log_event(token, request_info, operator_data)
         return operator_data
     except Exception as e:
@@ -410,14 +455,12 @@ async def create_operator_account_for_executive(
             exceptions.UnknownValue(Operator.id),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Updates an existing operator account.**    
             - Requires a valid access token.    
             - Logged-in executive must have `company.operator.update` permission to update other operators.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+        """),
 )
 async def update_operator_account_for_executive(
     id: int,
@@ -448,13 +491,11 @@ async def update_operator_account_for_executive(
     tags=["Operator Account"],
     response_model=List[OperatorSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches a list of operators.**    
             - Requires a valid access token for authentication.    
             - Common search supports searching by id, username, full_name, description, phone_number, and email_id.    
-        """
-    ),
+        """),
 )
 async def fetch_operator_accounts_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -481,14 +522,12 @@ async def fetch_operator_accounts_for_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Deletes an existing operator account.**    
             - Requires a valid access token for authentication.    
             - The logged-in executive must have the `company.operator.delete` permission.    
             - Returns 204 No Content even if the specified account does not exist.    
-        """
-    ),
+        """),
 )
 async def delete_operator_account_for_executive(
     id: int,
@@ -528,16 +567,14 @@ async def delete_operator_account_for_executive(
             exceptions.LimitExceeded(Operator),
         ]
     ),
-    description=(
-        f"""
+    description=(f"""
             **Creates a new operator account.**    
             - Operator must have a valid access token.    
             - Logged-in operator must have `company.operator.create` permission.    
             - Duplicate usernames are not allowed.    
             - By default, the user is created with active status.    
             - Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company.    
-        """
-    ),
+        """),
 )
 async def create_operator_account_for_operator(
     form_param: CreateFormForOP,
@@ -550,7 +587,9 @@ async def create_operator_account_for_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_OPERATOR)
 
-        operator_data = create_operator_account(session, CreateForm(**form_param.model_dump(), company_id=token.company_id))
+        operator_data = create_operator_account(
+            session, CreateForm(**form_param.model_dump(), company_id=token.company_id)
+        )
         log_event(token, request_info, operator_data)
         return operator_data
     except Exception as e:
@@ -571,15 +610,13 @@ async def create_operator_account_for_operator(
             exceptions.UnknownValue(Operator.id),
         ]
     ),
-    description=(
-        """
+    description=("""
             **Updates an existing operator account.**    
             - Requires a valid access token.    
             - Logged-in operator must have `company.operator.update` permission to update other operators.    
             - Operator can update their own account except status.    
             - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+        """),
 )
 async def update_operator_account_for_operator(
     id: int,
@@ -622,14 +659,12 @@ async def update_operator_account_for_operator(
     tags=["Account"],
     response_model=List[OperatorSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
+    description=("""
             **Fetches a list of operators.**    
             - Requires a valid access token for authentication.    
             - Only operators belonging to the same company as the logged-in operator will be returned.    
             - Common search supports searching by id, username, full_name, description, phone_number, and email_id.    
-        """
-    ),
+        """),
 )
 async def fetch_operator_accounts_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
@@ -656,15 +691,13 @@ async def fetch_operator_accounts_for_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
-    description=(
-        """
+    description=("""
             **Deletes an existing operator account.**    
             - Requires a valid access token for authentication.    
             - The logged-in operator must have the `company.operator.delete` permission.    
             - Self-deletion is not allowed for safety reasons.    
             - Returns 204 No Content even if the specified account does not exist.    
-        """
-    ),
+        """),
 )
 async def delete_operator_account_for_operator(
     id: int,

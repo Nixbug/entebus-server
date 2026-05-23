@@ -579,16 +579,6 @@ def normalize_timestamp(timestamp: datetime) -> datetime:
     return timestamp
 
 
-COMMON_TOKEN_RESPONSES = [
-    exceptions.InvalidToken(),
-]
-
-COMMON_AUTH_RESPONSES = [
-    exceptions.InvalidToken(),
-    exceptions.NoPermission(),
-]
-
-
 def create_description(
     model: str,
     role: str,

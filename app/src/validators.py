@@ -6,7 +6,7 @@ making it easier for developers to integrate them into their projects.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Type, Union, Callable
+from typing import Any, List, Type, Union, Callable
 from dns.enum import IntEnum
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import InstrumentedAttribute
@@ -19,7 +19,7 @@ from PIL import Image, UnidentifiedImageError
 from shapely.geometry.base import BaseGeometry
 from shapely import Polygon, wkt, errors
 
-from app.src.functions import get_by_path
+from app.src.functions import get_by_path, get_executive_roles
 from app.src import argon2, exceptions
 from app.src.enums import AccountStatus, BusinessStatus, CompanyStatus, GrantType
 from app.src.db import (
@@ -637,29 +637,51 @@ def validate_state_transition(
     return True
 
 
-def verify_user_permission(
-    session: Session,
-    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
-    token_value: str,
-    get_roles: Callable[[Session, Union[ExecutiveToken, OperatorToken, VendorToken]], list],
-    permission: str,
-) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
+# def verify_user_permission(
+#     session: Session,
+#     model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
+#     token_value: str,
+#     get_roles: Callable[[Session, Union[ExecutiveToken, OperatorToken, VendorToken]], list],
+#     permission: str,
+# ) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
+#     """
+#     Verify if the user associated with the provided token has the required permission.
+#     Args:
+#         session (Session): Active SQLAlchemy session.
+#         model_cls (Type[Union[ExecutiveToken, OperatorToken, VendorToken]]): The token model class.
+#         token_value (str): The access token value to be verified.
+#         get_roles (Callable): Function to retrieve roles based on the token.
+#         permission (str): The specific permission to check for.
+    
+#     Returns:
+#         The token object if the user has the required permission.
+#     Raises:
+#         exceptions.InvalidToken: If the token is invalid or cannot be verified.
+#         exceptions.NoPermission: If the user does not have the required permission.
+#     """
+#     token = verify_token(session, model_cls, token_value)
+#     roles = get_roles(session, token)
+#     verify_permission(roles, permission)
+#     return token
+
+def authorize_executive(session: Session, token_value: str, permission: List[str]) -> ExecutiveToken:
     """
-    Verify if the user associated with the provided token has the required permission.
+    Authorize an executive based on their access token and required permission.
+
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[Union[ExecutiveToken, OperatorToken, VendorToken]]): The token model class.
         token_value (str): The access token value to be verified.
-        get_roles (Callable): Function to retrieve roles based on the token.
-        permission (str): The specific permission to check for.
-    
+        permission (List[str]): The specific permissions to check for.
+
     Returns:
-        The token object if the user has the required permission.
+        ExecutiveToken: The token object if the executive has the required permissions.
+
     Raises:
         exceptions.InvalidToken: If the token is invalid or cannot be verified.
-        exceptions.NoPermission: If the user does not have the required permission.
+        exceptions.NoPermission: If the executive does not have the required permission.
     """
-    token = verify_token(session, model_cls, token_value)
-    roles = get_roles(session, token)
-    verify_permission(roles, permission)
+    token = verify_token(session, ExecutiveToken, token_value)
+    roles = get_executive_roles(session, token)
+    for perm in permission:
+        verify_permission(roles, perm)
     return token
