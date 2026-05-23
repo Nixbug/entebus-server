@@ -8,7 +8,7 @@ import pyproj
 from enum import Enum
 from io import BytesIO
 from PIL import Image
-from typing import Any, List, Dict, Type, Union
+from typing import Any, List, Dict, Type, Union, Callable
 from fastapi import Query, Request
 from pydantic import BaseModel
 from sqlalchemy import Column, asc, desc
@@ -577,3 +577,87 @@ def normalize_timestamp(timestamp: datetime) -> datetime:
     else:
         timestamp = timestamp.astimezone(TMZ_PRIMARY)
     return timestamp
+
+
+COMMON_TOKEN_RESPONSES = [
+    exceptions.InvalidToken(),
+]
+
+COMMON_AUTH_RESPONSES = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+
+def create_description(
+    model: str,
+    role: str,
+    extra_rules: list[str] | None = None,
+):
+    rules = [
+        f"{role} must have a valid access token.",
+    ]
+
+    if extra_rules:
+        rules.extend(extra_rules)
+
+    return (
+        f"**Creates a new {model}.**\n"
+        + "\n".join(f"- {rule}" for rule in rules)
+    )
+
+
+def update_description(
+    model: str,
+    role: str,
+    extra_rules: list[str] | None = None,
+):
+    rules = [
+        f"{role} must have a valid access token.",
+        "Empty PATCH requests are allowed and will result in no changes.",
+    ]
+
+    if extra_rules:
+        rules.extend(extra_rules)
+
+    return (
+        f"**Updates an existing {model}.**\n"
+        + "\n".join(f"- {rule}" for rule in rules)
+    )
+
+
+def delete_description(
+    model: str,
+    role: str,
+    extra_rules: list[str] | None = None,
+):
+    rules = [
+        f"{role} must have a valid access token.",
+        "Returns 204 No Content even if resource does not exist.",
+    ]
+
+    if extra_rules:
+        rules.extend(extra_rules)
+
+    return (
+        f"**Deletes an existing {model}.**\n"
+        + "\n".join(f"- {rule}" for rule in rules)
+    )
+
+
+def fetch_description(
+    model: str,
+    role: str,
+    extra_rules: list[str] | None = None,
+):
+    rules = [
+        f"{role} must have a valid access token.",
+    ]
+
+    if extra_rules:
+        rules.extend(extra_rules)
+
+    return (
+        f"**Fetches a list of {model}.**\n"
+        + "\n".join(f"- {rule}" for rule in rules)
+    )

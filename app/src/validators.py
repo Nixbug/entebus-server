@@ -6,7 +6,7 @@ making it easier for developers to integrate them into their projects.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Type, Union
+from typing import Any, Type, Union, Callable
 from dns.enum import IntEnum
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import InstrumentedAttribute
@@ -635,3 +635,31 @@ def validate_state_transition(
     if not is_valid_transition(transitions, old_state, new_state):
         raise exceptions.InvalidStateTransition(column)
     return True
+
+
+def verify_user_permission(
+    session: Session,
+    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
+    token_value: str,
+    get_roles: Callable[[Session, Union[ExecutiveToken, OperatorToken, VendorToken]], list],
+    permission: str,
+) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
+    """
+    Verify if the user associated with the provided token has the required permission.
+    Args:
+        session (Session): Active SQLAlchemy session.
+        model_cls (Type[Union[ExecutiveToken, OperatorToken, VendorToken]]): The token model class.
+        token_value (str): The access token value to be verified.
+        get_roles (Callable): Function to retrieve roles based on the token.
+        permission (str): The specific permission to check for.
+    
+    Returns:
+        The token object if the user has the required permission.
+    Raises:
+        exceptions.InvalidToken: If the token is invalid or cannot be verified.
+        exceptions.NoPermission: If the user does not have the required permission.
+    """
+    token = verify_token(session, model_cls, token_value)
+    roles = get_roles(session, token)
+    verify_permission(roles, permission)
+    return token

@@ -40,12 +40,14 @@ from app.src import exceptions
 from app.src.regex import PASSWORD_PATTERN, USERNAME_PATTERN
 from app.src.urls import URL_OPERATOR_ACCOUNT
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token, validate_id
+from app.src.validators import verify_permission, verify_token, validate_id, verify_user_permission
 from app.src.functions import (
+    COMMON_AUTH_RESPONSES,
     apply_account_filters,
     apply_created_on_filters,
     apply_id_filters,
     apply_updated_on_filters,
+    create_description,
     enum_str,
     fuse_exception_responses,
     get_executive_roles,
@@ -357,20 +359,19 @@ def delete_operator(session: Session, operator: Operator) -> dict:
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
         [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
+            *COMMON_AUTH_RESPONSES,
             exceptions.LimitExceeded(Operator),
         ]
     ),
-    description=(
-        f"""
-            **Creates a new operator account.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `company.operator.create` permission.    
-            - Duplicate usernames are not allowed.    
-            - By default, the user is created with active status.    
-            - Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company.    
-        """
+    description=create_description(
+        model="operator account",
+        role="Executive",
+        extra_rules=[
+            "Logged-in executive must have `company.operator.create` permission.",
+            "Duplicate usernames are not allowed.",
+            "By default, the user is created with active status.",
+            f"Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company.",
+        ],
     ),
 )
 async def create_operator_account_for_executive(
@@ -380,9 +381,13 @@ async def create_operator_account_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY_OPERATOR)
+        token = verify_user_permission(
+            session,
+            ExecutiveToken,
+            access_token,
+            get_executive_roles,
+            ExecutivePermissionPath.CREATE_COMPANY_OPERATOR,
+        )
 
         operator_data = create_operator_account(session, CreateForm(**form_param.model_dump()))
         log_event(token, request_info, operator_data)
