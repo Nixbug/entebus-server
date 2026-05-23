@@ -377,7 +377,7 @@ def search_company(session: Session, query_params: QueryParams) -> List[Company]
         """
     ),
 )
-async def create_company(
+async def create_company_for_executive(
     form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -450,7 +450,7 @@ async def create_company(
         """
     ),
 )
-async def update_company_executive(
+async def update_company_for_executive(
     id: int,
     form_param: UpdateFormForEX,
     access_token=Depends(oauth2_executive),
@@ -497,7 +497,7 @@ async def update_company_executive(
         """
     ),
 )
-async def fetch_company_executive(
+async def fetch_companies_for_executive(
     query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
 ):
@@ -533,7 +533,7 @@ async def fetch_company_executive(
         """
     ),
 )
-async def delete_company_executive(
+async def delete_company_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -600,7 +600,7 @@ async def delete_company_executive(
         """
     ),
 )
-async def update_company_operator(
+async def update_company_for_operator(
     id: int,
     form_param: UpdateFormForOP,
     access_token=Depends(bearer_operator),
@@ -641,7 +641,7 @@ async def update_company_operator(
         """
     ),
 )
-async def fetch_company_operator(access_token=Depends(bearer_operator)):
+async def fetch_companies_for_operator(access_token=Depends(bearer_operator)):
     try:
         session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
@@ -677,7 +677,7 @@ async def fetch_company_operator(access_token=Depends(bearer_operator)):
         """
     ),
 )
-async def fetch_company_public(
+async def fetch_companies_for_public(
     query_params: QueryParamsForPU = Depends(),
 ):
     try:

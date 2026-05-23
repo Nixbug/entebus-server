@@ -379,7 +379,7 @@ def search_business(session: Session, query_params: QueryParams) -> List[Busines
         """
     ),
 )
-async def create_business(
+async def create_business_for_executive(
     form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -452,7 +452,7 @@ async def create_business(
         """
     ),
 )
-async def update_business_executive(
+async def update_business_for_executive(
     id: int,
     form_param: UpdateFormForEX,
     access_token=Depends(oauth2_executive),
@@ -501,7 +501,7 @@ async def update_business_executive(
         """
     ),
 )
-async def fetch_business_executive(
+async def fetch_businesses_for_executive(
     query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
 ):
@@ -537,7 +537,7 @@ async def fetch_business_executive(
         """
     ),
 )
-async def delete_business_executive(
+async def delete_business_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -604,7 +604,7 @@ async def delete_business_executive(
         """
     ),
 )
-async def update_business_vendor(
+async def update_business_for_vendor(
     id: int,
     form_param: UpdateFormForVE,
     access_token=Depends(bearer_vendor),
@@ -648,7 +648,7 @@ async def update_business_vendor(
         """
     ),
 )
-async def fetch_business_vendor(access_token=Depends(bearer_vendor)):
+async def fetch_businesses_for_vendor(access_token=Depends(bearer_vendor)):
     try:
         session = SessionLocal()
         token = verify_token(session, VendorToken, access_token.credentials)
@@ -684,7 +684,7 @@ async def fetch_business_vendor(access_token=Depends(bearer_vendor)):
         """
     ),
 )
-async def fetch_business_public(
+async def fetch_businesses_for_public(
     query_params: QueryParamsForPU = Depends(),
 ):
     try:

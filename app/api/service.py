@@ -1090,7 +1090,7 @@ def delete_service(session: Session, service: Service) -> dict:
         """
     ),
 )
-async def create_service_executive(
+async def create_service_for_executive(
     form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -1181,7 +1181,7 @@ async def create_service_executive(
         """
     ),
 )
-async def update_service_executive(
+async def update_service_for_executive(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
@@ -1249,7 +1249,7 @@ async def update_service_executive(
         """
     ),
 )
-async def fetch_service_executive(
+async def fetch_services_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
 ):
     try:
@@ -1319,7 +1319,7 @@ async def fetch_service_details_for_executive(
         """
     ),
 )
-async def delete_service_executive(
+async def delete_service_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -1381,7 +1381,7 @@ async def delete_service_executive(
         """
     ),
 )
-async def create_service_operator(
+async def create_service_for_operator(
     form_param: CreateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
@@ -1471,7 +1471,7 @@ async def create_service_operator(
         """
     ),
 )
-async def update_service_operator(
+async def update_service_for_operator(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(bearer_operator),
@@ -1549,7 +1549,7 @@ async def update_service_operator(
         """
     ),
 )
-async def fetch_service_operator(
+async def fetch_services_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
 ):
     try:
@@ -1632,7 +1632,7 @@ async def fetch_service_details_for_operator(
         """
     ),
 )
-async def delete_service_operator(
+async def delete_service_for_operator(
     id: int,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
@@ -1679,7 +1679,7 @@ async def delete_service_operator(
         """
     ),
 )
-async def fetch_service_vendor(
+async def fetch_services_for_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
 ):
     try:
@@ -1741,7 +1741,7 @@ async def fetch_service_details_for_vendor(
         """
     ),
 )
-async def fetch_service_public(query_params: QueryParamsForPU = Depends()):
+async def fetch_services_for_public(query_params: QueryParamsForPU = Depends()):
     try:
         session = SessionLocal()
 
@@ -1765,7 +1765,7 @@ async def fetch_service_public(query_params: QueryParamsForPU = Depends()):
         """
     ),
 )
-async def fetch_service_details_public(id: int):
+async def fetch_service_details_for_public(id: int):
     try:
         session = SessionLocal()
 

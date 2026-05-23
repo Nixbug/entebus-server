@@ -204,7 +204,7 @@ def search_operator_tokens(
         """
     ),
 )
-async def create_token(
+async def create_operator_token_for_operator(
     form_param: CreateForm = Depends(),
     credentials: OAuth2PasswordRequestForm = Depends(),
     request_info=Depends(get_request_info),
@@ -268,7 +268,7 @@ async def create_token(
         """
     ),
 )
-async def refresh_token(
+async def refresh_operator_token_for_operator(
     form_param: UpdateForm = Depends(),
     request_info=Depends(get_request_info),
 ):
@@ -322,7 +322,7 @@ async def refresh_token(
         """
     ),
 )
-async def revoke_token(
+async def revoke_operator_token_for_operator(
     form_param: LogoutForm = Depends(),
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
@@ -377,7 +377,7 @@ async def revoke_token(
         """
     ),
 )
-async def fetch_tokens_operator(
+async def fetch_operator_tokens_for_operator(
     query_params: QueryParamsForOP = Depends(),
     access_token=Depends(bearer_operator),
 ):
@@ -424,7 +424,7 @@ async def fetch_tokens_operator(
         """
     ),
 )
-async def delete_token_operator(
+async def delete_operator_token_for_operator(
     id: int,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
@@ -488,7 +488,7 @@ async def delete_token_operator(
         """
     ),
 )
-async def fetch_tokens_executive(
+async def fetch_operator_tokens_for_executive(
     query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
 ):
@@ -523,7 +523,7 @@ async def fetch_tokens_executive(
         """
     ),
 )
-async def delete_token_executive(
+async def delete_operator_token_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),

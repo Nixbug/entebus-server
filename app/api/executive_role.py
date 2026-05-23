@@ -112,7 +112,7 @@ class QueryParams(
         """
     ),
 )
-async def create_role(
+async def create_executive_role_for_executive(
     form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -161,7 +161,7 @@ async def create_role(
         """
     ),
 )
-async def update_role(
+async def update_executive_role_for_executive(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
@@ -208,7 +208,7 @@ async def update_role(
         """
     ),
 )
-async def delete_role(
+async def delete_executive_role_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -245,7 +245,7 @@ async def delete_role(
         """
     ),
 )
-async def fetch_role(
+async def fetch_executive_roles_for_executive(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
 ):

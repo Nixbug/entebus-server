@@ -239,7 +239,7 @@ def delete_role(session: Session, role: OperatorRole) -> dict:
         """
     ),
 )
-async def create_role_executive(
+async def create_operator_role_for_executive(
     form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -292,7 +292,7 @@ async def create_role_executive(
         """
     ),
 )
-async def update_role_executive(
+async def update_operator_role_for_executive(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
@@ -337,7 +337,7 @@ async def update_role_executive(
         """
     ),
 )
-async def delete_role_executive(
+async def delete_operator_role_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -372,7 +372,7 @@ async def delete_role_executive(
         """
     ),
 )
-async def fetch_role_executive(
+async def fetch_operator_roles_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
 ):
     try:
@@ -410,7 +410,7 @@ async def fetch_role_executive(
         """
     ),
 )
-async def create_role_operator(
+async def create_operator_role_for_operator(
     form_param: CreateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
@@ -463,7 +463,7 @@ async def create_role_operator(
         """
     ),
 )
-async def update_role_operator(
+async def update_operator_role_for_operator(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(bearer_operator),
@@ -509,7 +509,7 @@ async def update_role_operator(
         """
     ),
 )
-async def delete_role_operator(
+async def delete_operator_role_for_operator(
     id: int,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
@@ -549,7 +549,7 @@ async def delete_role_operator(
         """
     ),
 )
-async def fetch_role_operator(
+async def fetch_operator_roles_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
 ):
     try:

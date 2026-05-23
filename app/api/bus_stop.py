@@ -268,7 +268,7 @@ def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusSto
         """
     ),
 )
-async def create_bus_stop(
+async def create_bus_stop_for_executive(
     form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -331,7 +331,7 @@ async def create_bus_stop(
         """
     ),
 )
-async def update_bus_stop(
+async def update_bus_stop_for_executive(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
@@ -393,7 +393,7 @@ async def update_bus_stop(
         """
     ),
 )
-async def delete_bus_stop(
+async def delete_bus_stop_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -441,7 +441,7 @@ async def delete_bus_stop(
         """
     ),
 )
-async def fetch_bus_stop_executive(
+async def fetch_bus_stops_for_executive(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
 ):
@@ -480,7 +480,7 @@ async def fetch_bus_stop_executive(
         """
     ),
 )
-async def fetch_bus_stop_vendor(
+async def fetch_bus_stops_for_vendor(
     query_params: QueryParams = Depends(),
     access_token=Depends(bearer_vendor),
 ):
@@ -519,7 +519,7 @@ async def fetch_bus_stop_vendor(
         """
     ),
 )
-async def fetch_bus_stop_operator(
+async def fetch_bus_stops_for_operator(
     query_params: QueryParams = Depends(),
     access_token=Depends(bearer_operator),
 ):
@@ -553,7 +553,7 @@ async def fetch_bus_stop_operator(
         """
     ),
 )
-async def fetch_bus_stop_public(query_params: QueryParams = Depends()):
+async def fetch_bus_stops_for_public(query_params: QueryParams = Depends()):
     try:
         session = SessionLocal()
 

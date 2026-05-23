@@ -312,7 +312,7 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
     """
     ),
 )
-async def create_landmark(
+async def create_landmark_for_executive(
     form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -379,7 +379,7 @@ async def create_landmark(
         """
     ),
 )
-async def update_landmark(
+async def update_landmark_for_executive(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
@@ -458,7 +458,7 @@ async def update_landmark(
         """
     ),
 )
-async def delete_landmark(
+async def delete_landmark_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -506,7 +506,7 @@ async def delete_landmark(
         """
     ),
 )
-async def fetch_landmark_executive(
+async def fetch_landmarks_for_executive(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
 ):
@@ -545,7 +545,7 @@ async def fetch_landmark_executive(
         """
     ),
 )
-async def fetch_landmark_vendor(
+async def fetch_landmarks_for_vendor(
     query_params: QueryParams = Depends(),
     access_token=Depends(bearer_vendor),
 ):
@@ -584,7 +584,7 @@ async def fetch_landmark_vendor(
         """
     ),
 )
-async def fetch_landmark_operator(
+async def fetch_landmarks_for_operator(
     query_params: QueryParams = Depends(),
     access_token=Depends(bearer_operator),
 ):
@@ -618,7 +618,7 @@ async def fetch_landmark_operator(
         """
     ),
 )
-async def fetch_landmark_public(query_params: QueryParams = Depends()):
+async def fetch_landmarks_for_public(query_params: QueryParams = Depends()):
     try:
         session = SessionLocal()
 

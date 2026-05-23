@@ -249,7 +249,7 @@ def search_duty(session: Session, query_params: QueryParams) -> List[Duty]:
         """
     ),
 )
-async def update_duty_executive(
+async def update_duty_for_executive(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
@@ -289,7 +289,7 @@ async def update_duty_executive(
         """
     ),
 )
-async def fetch_duty_executive(
+async def fetch_duties_for_executive(
     query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
 ):
@@ -335,7 +335,7 @@ async def fetch_duty_executive(
         """
     ),
 )
-async def update_duty_operator(
+async def update_duty_for_operator(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(bearer_operator),
@@ -377,7 +377,7 @@ async def update_duty_operator(
         """
     ),
 )
-async def fetch_duty_operator(
+async def fetch_duties_for_operator(
     query_params: QueryParamsForOP = Depends(),
     access_token=Depends(bearer_operator),
 ):
