@@ -497,7 +497,7 @@ async def update_company_for_executive(
         """
     ),
 )
-async def fetch_company_for_executive(
+async def fetch_companies_for_executive(
     query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
 ):
@@ -641,7 +641,7 @@ async def update_company_for_operator(
         """
     ),
 )
-async def fetch_company_for_operator(access_token=Depends(bearer_operator)):
+async def fetch_companies_for_operator(access_token=Depends(bearer_operator)):
     try:
         session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
@@ -677,7 +677,7 @@ async def fetch_company_for_operator(access_token=Depends(bearer_operator)):
         """
     ),
 )
-async def fetch_company_for_public(
+async def fetch_companies_for_public(
     query_params: QueryParamsForPU = Depends(),
 ):
     try:

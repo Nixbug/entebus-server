@@ -374,7 +374,7 @@ async def revoke_vendor_token_for_vendor(
         """
     ),
 )
-async def fetch_vendor_token_for_vendor(
+async def fetch_vendor_tokens_for_vendor(
     query_params: QueryParamsForVE = Depends(),
     access_token=Depends(bearer_vendor),
 ):
@@ -483,7 +483,7 @@ async def delete_vendor_token_for_vendor(
         """
     ),
 )
-async def fetch_vendor_token_for_executive(
+async def fetch_vendor_tokens_for_executive(
     query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
 ):

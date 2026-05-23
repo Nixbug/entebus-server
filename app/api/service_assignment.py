@@ -433,7 +433,7 @@ async def delete_service_assignment_for_executive(
         """
     ),
 )
-async def fetch_service_assignment_for_executive(
+async def fetch_service_assignments_for_executive(
     query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
 ):
@@ -650,7 +650,7 @@ async def delete_service_assignment_for_operator(
         """
     ),
 )
-async def fetch_service_assignment_for_operator(
+async def fetch_service_assignments_for_operator(
     query_params: QueryParamsForOP = Depends(),
     access_token=Depends(bearer_operator),
 ):

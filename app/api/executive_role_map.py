@@ -252,7 +252,7 @@ async def delete_executive_role_map_for_executive(
         """
     ),
 )
-async def fetch_executive_role_map_for_executive(
+async def fetch_executive_role_maps_for_executive(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
 ):

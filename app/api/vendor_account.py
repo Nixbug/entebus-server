@@ -411,7 +411,7 @@ async def update_vendor_account_for_executive(
         """
     ),
 )
-async def fetch_vendor_account_for_executive(
+async def fetch_vendor_accounts_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
 ):
     try:
@@ -597,7 +597,7 @@ async def update_vendor_account_for_vendor(
         """
     ),
 )
-async def fetch_vendor_account_for_vendor(
+async def fetch_vendor_accounts_for_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
 ):
     try:

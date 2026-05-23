@@ -373,7 +373,7 @@ async def delete_executive_token_for_executive(
         """
     ),
 )
-async def fetch_executive_token_for_executive(
+async def fetch_executive_tokens_for_executive(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
 ):

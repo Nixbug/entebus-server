@@ -289,7 +289,7 @@ async def update_duty_for_executive(
         """
     ),
 )
-async def fetch_duty_for_executive(
+async def fetch_duties_for_executive(
     query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
 ):
@@ -377,7 +377,7 @@ async def update_duty_for_operator(
         """
     ),
 )
-async def fetch_duty_for_operator(
+async def fetch_duties_for_operator(
     query_params: QueryParamsForOP = Depends(),
     access_token=Depends(bearer_operator),
 ):

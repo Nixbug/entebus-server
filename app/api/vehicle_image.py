@@ -407,7 +407,7 @@ async def delete_vehicle_image_for_executive(
         """
     ),
 )
-async def fetch_vehicle_image_for_executive(
+async def fetch_vehicle_images_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
 ):
     try:
@@ -574,7 +574,7 @@ async def delete_vehicle_image_for_operator(
         """
     ),
 )
-async def fetch_vehicle_image_for_operator(
+async def fetch_vehicle_images_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
 ):
     try:
@@ -640,7 +640,7 @@ async def download_vehicle_image_for_operator(
         """
     ),
 )
-async def fetch_vehicle_image_for_public(query_params: QueryParamsForPU = Depends()):
+async def fetch_vehicle_images_for_public(query_params: QueryParamsForPU = Depends()):
     try:
         session = SessionLocal()
 

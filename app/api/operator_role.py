@@ -372,7 +372,7 @@ async def delete_operator_role_for_executive(
         """
     ),
 )
-async def fetch_operator_role_for_executive(
+async def fetch_operator_roles_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
 ):
     try:
@@ -549,7 +549,7 @@ async def delete_operator_role_for_operator(
         """
     ),
 )
-async def fetch_operator_role_for_operator(
+async def fetch_operator_roles_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
 ):
     try:

@@ -501,7 +501,7 @@ async def update_business_for_executive(
         """
     ),
 )
-async def fetch_business_for_executive(
+async def fetch_businesses_for_executive(
     query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
 ):
@@ -648,7 +648,7 @@ async def update_business_for_vendor(
         """
     ),
 )
-async def fetch_business_for_vendor(access_token=Depends(bearer_vendor)):
+async def fetch_businesses_for_vendor(access_token=Depends(bearer_vendor)):
     try:
         session = SessionLocal()
         token = verify_token(session, VendorToken, access_token.credentials)
@@ -684,7 +684,7 @@ async def fetch_business_for_vendor(access_token=Depends(bearer_vendor)):
         """
     ),
 )
-async def fetch_business_for_public(
+async def fetch_businesses_for_public(
     query_params: QueryParamsForPU = Depends(),
 ):
     try:

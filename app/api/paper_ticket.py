@@ -284,7 +284,7 @@ def search_paper_tickets(
         """
     ),
 )
-async def fetch_paper_ticket_for_executive(
+async def fetch_paper_tickets_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
 ):
     try:
@@ -371,7 +371,7 @@ async def create_paper_ticket_for_operator(
         """
     ),
 )
-async def fetch_paper_ticket_for_operator(
+async def fetch_paper_tickets_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
 ):
     try:

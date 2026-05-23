@@ -528,7 +528,7 @@ async def delete_vehicle_for_executive(
         """
     ),
 )
-async def fetch_vehicle_for_executive(
+async def fetch_vehicles_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
 ):
     try:
@@ -720,7 +720,7 @@ async def delete_vehicle_for_operator(
         """
     ),
 )
-async def fetch_vehicle_for_operator(
+async def fetch_vehicles_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
 ):
     try:
@@ -753,7 +753,7 @@ async def fetch_vehicle_for_operator(
         """
     ),
 )
-async def fetch_vehicle_for_vendor(
+async def fetch_vehicles_for_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
 ):
     try:
@@ -786,7 +786,7 @@ async def fetch_vehicle_for_vendor(
         """
     ),
 )
-async def fetch_vehicle_for_public(query_params: QueryParamsForPU = Depends()):
+async def fetch_vehicles_for_public(query_params: QueryParamsForPU = Depends()):
     try:
         session = SessionLocal()
 
