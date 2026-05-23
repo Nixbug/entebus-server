@@ -6,7 +6,7 @@ making it easier for developers to integrate them into their projects.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, List, Type, Union, Callable
+from typing import Any, List, Type, Union
 from dns.enum import IntEnum
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import InstrumentedAttribute
@@ -646,7 +646,9 @@ def authorize_executive(
     Args:
         session (Session): Active SQLAlchemy session.
         token_value (str): The access token value to be verified.
-        permission (List[str]): The specific permissions to check for.
+        permission (str | List[str]): A permission path string or a list/tuple of permission
+            path strings. If a single string is provided it will be normalized to a list
+            before checking.
 
     Returns:
         ExecutiveToken: The token object if the executive has the required permissions.
@@ -672,7 +674,9 @@ def authorize_operator(
     Args:
         session (Session): Active SQLAlchemy session.
         token_value (str): The access token value to be verified.
-        permission (List[str]): The specific permissions to check for.
+        permission (str | List[str]): A permission path string or a list/tuple of permission
+            path strings. If a single string is provided it will be normalized to a list
+            before checking.
 
     Returns:
         OperatorToken: The token object if the operator has the required permissions.
@@ -698,7 +702,9 @@ def authorize_vendor(
     Args:
         session (Session): Active SQLAlchemy session.
         token_value (str): The access token value to be verified.
-        permission (List[str]): The specific permissions to check for.
+        permission (str | List[str]): A permission path string or a list/tuple of permission
+            path strings. If a single string is provided it will be normalized to a list
+            before checking.
 
     Returns:
         VendorToken: The token object if the vendor has the required permissions.

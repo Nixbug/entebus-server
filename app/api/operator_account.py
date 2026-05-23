@@ -395,9 +395,8 @@ GET_EXCEPTIONS = [
 ## Common descriptions
 # ---------------------------------------------------------------------------
 POST_DESCRIPTION = f""" 
-    **Updates an existing operator account.**    
+    **Creates a new operator account.**    
     - Requires a valid access token.    
-    - Operator can update their own account except status.    
     - Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company.    
 """
 
