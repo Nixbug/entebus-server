@@ -431,10 +431,12 @@ GET_DESCRIPTION = """
     response_model=OperatorSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
-    description=(f"""
+    description=(
+        f"""
             {POST_DESCRIPTION.strip()}    
             - Logged-in executive must have `company.operator.create` permission.    
-        """),
+        """
+    ),
 )
 async def create_operator_account_for_executive(
     form_param: CreateFormForEX,
@@ -464,10 +466,12 @@ async def create_operator_account_for_executive(
     tags=["Operator Account"],
     response_model=OperatorSchema,
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
-    description=(f"""
+    description=(
+        f"""
             {PATCH_DESCRIPTION.strip()}        
             - Logged-in executive must have `company.operator.update` permission.   
-        """),
+        """
+    ),
 )
 async def update_operator_account_for_executive(
     id: int,
@@ -497,9 +501,11 @@ async def update_operator_account_for_executive(
     tags=["Operator Account"],
     response_model=List[OperatorSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
-    description=(f"""
+    description=(
+        f"""
             {GET_DESCRIPTION}
-        """),
+        """
+    ),
 )
 async def fetch_operator_accounts_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -524,10 +530,12 @@ async def fetch_operator_accounts_for_executive(
     tags=["Operator Account"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
-    description=(f"""
+    description=(
+        f"""
             {DELETE_DESCRIPTION.strip()}    
             - The logged-in executive must have the `company.operator.delete` permission.    
-        """),
+        """
+    ),
 )
 async def delete_operator_account_for_executive(
     id: int,
@@ -561,10 +569,12 @@ async def delete_operator_account_for_executive(
     response_model=OperatorSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
-    description=(f"""
+    description=(
+        f"""
             {POST_DESCRIPTION.strip()}    
             - Logged-in operator must have `company.operator.create` permission.
-        """),
+        """
+    ),
 )
 async def create_operator_account_for_operator(
     form_param: CreateFormForOP,
@@ -596,11 +606,13 @@ async def create_operator_account_for_operator(
     tags=["Account"],
     response_model=OperatorSchema,
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
-    description=(f"""
+    description=(
+        f"""
             {PATCH_DESCRIPTION.strip()}   
             - Logged-in operator must have `company.operator.update` permission to update other operators.    
             - Operator can update their own account except status.    
-        """),
+        """
+    ),
 )
 async def update_operator_account_for_operator(
     id: int,
@@ -641,10 +653,12 @@ async def update_operator_account_for_operator(
     tags=["Account"],
     response_model=List[OperatorSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
-    description=(f"""
+    description=(
+        f"""
             {GET_DESCRIPTION.strip()}    
             - Only operators belonging to the same company as the logged-in operator will be returned.    
-        """),
+        """
+    ),
 )
 async def fetch_operator_accounts_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
@@ -669,11 +683,13 @@ async def fetch_operator_accounts_for_operator(
     tags=["Account"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
-    description=(f"""
+    description=(
+        f"""
             {DELETE_DESCRIPTION.strip()}   
             - The logged-in operator must have the `company.operator.delete` permission.    
             - Self-deletion is not allowed for safety reasons.    
-        """),
+        """
+    ),
 )
 async def delete_operator_account_for_operator(
     id: int,
