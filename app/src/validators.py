@@ -643,7 +643,7 @@ def validate_state_transition(
 
 
 def authorize_executive(
-    session: Session, token_value: str, permission: str | List[str]
+    session: Session, token_value: str, permission: List[str]
 ) -> ExecutiveToken:
     """
     Authorize an executive based on their access token and required permission.
@@ -651,9 +651,7 @@ def authorize_executive(
     Args:
         session (Session): Active SQLAlchemy session.
         token_value (str): The access token value to be verified.
-        permission (str | List[str]): A permission path string or a list/tuple of permission
-            path strings. If a single string is provided it will be normalized to a list
-            before checking.
+        permissions (List[str]): A list of permission path strings.
 
     Returns:
         ExecutiveToken: The token object if the executive has the required permissions.
@@ -664,14 +662,13 @@ def authorize_executive(
     """
     token = verify_token(session, ExecutiveToken, token_value)
     roles = get_executive_roles(session, token)
-    permissions = permission if isinstance(permission, (list, tuple)) else [permission]
-    for perm in permissions:
-        verify_permission(roles, perm)
+    for permissions in permission:
+        verify_permission(roles, permissions)
     return token
 
 
 def authorize_operator(
-    session: Session, token_value: str, permission: str | List[str]
+    session: Session, token_value: str, permission: List[str]
 ) -> OperatorToken:
     """
     Authorize an operator based on their access token and required permission.
@@ -679,9 +676,8 @@ def authorize_operator(
     Args:
         session (Session): Active SQLAlchemy session.
         token_value (str): The access token value to be verified.
-        permission (str | List[str]): A permission path string or a list/tuple of permission
-            path strings. If a single string is provided it will be normalized to a list
-            before checking.
+        permissions (List[str]): A list of permission path strings.
+
 
     Returns:
         OperatorToken: The token object if the operator has the required permissions.
@@ -692,14 +688,13 @@ def authorize_operator(
     """
     token = verify_token(session, OperatorToken, token_value)
     roles = get_operator_roles(session, token)
-    permissions = permission if isinstance(permission, (list, tuple)) else [permission]
-    for perm in permissions:
-        verify_permission(roles, perm)
+    for permissions in permission:
+        verify_permission(roles, permissions)
     return token
 
 
 def authorize_vendor(
-    session: Session, token_value: str, permission: str | List[str]
+    session: Session, token_value: str, permission: List[str]
 ) -> VendorToken:
     """
     Authorize a vendor based on their access token and required permission.
@@ -707,9 +702,7 @@ def authorize_vendor(
     Args:
         session (Session): Active SQLAlchemy session.
         token_value (str): The access token value to be verified.
-        permission (str | List[str]): A permission path string or a list/tuple of permission
-            path strings. If a single string is provided it will be normalized to a list
-            before checking.
+        permissions (List[str]): A list of permission path strings.
 
     Returns:
         VendorToken: The token object if the vendor has the required permissions.
@@ -720,7 +713,6 @@ def authorize_vendor(
     """
     token = verify_token(session, VendorToken, token_value)
     roles = get_vendor_roles(session, token)
-    permissions = permission if isinstance(permission, (list, tuple)) else [permission]
-    for perm in permissions:
-        verify_permission(roles, perm)
+    for permissions in permission:
+        verify_permission(roles, permissions)
     return token
