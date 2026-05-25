@@ -37,9 +37,7 @@ from app.src.validators import (
 )
 from app.src.functions import (
     fuse_exception_responses,
-    get_executive_roles,
     get_request_info,
-    get_operator_roles,
     apply_id_filters,
     apply_created_on_filters,
     apply_updated_on_filters,

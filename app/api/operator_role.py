@@ -33,7 +33,6 @@ from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_OPERATOR_ROLE
 from app.src.validators import (
     authorize_executive,
-    verify_permission,
     verify_token,
     validate_id,
     authorize_operator,
