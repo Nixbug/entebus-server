@@ -19,7 +19,12 @@ from PIL import Image, UnidentifiedImageError
 from shapely.geometry.base import BaseGeometry
 from shapely import Polygon, wkt, errors
 
-from app.src.functions import get_by_path, get_executive_roles, get_operator_roles, get_vendor_roles
+from app.src.functions import (
+    get_by_path,
+    get_executive_roles,
+    get_operator_roles,
+    get_vendor_roles,
+)
 from app.src import argon2, exceptions
 from app.src.enums import AccountStatus, BusinessStatus, CompanyStatus, GrantType
 from app.src.db import (

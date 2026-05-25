@@ -54,8 +54,6 @@ from app.src.functions import (
     apply_updated_on_filters,
     enum_str,
     fuse_exception_responses,
-    get_executive_roles,
-    get_operator_roles,
     get_request_info,
     update_if_changed,
     apply_status_filters,
