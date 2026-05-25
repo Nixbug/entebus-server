@@ -116,13 +116,13 @@ GET_EXCEPTIONS = [
 
 
 # ---------------------------------------------------------------------------
-## Common descriptions
+## Common description
 # ---------------------------------------------------------------------------
 POST_DESCRIPTION = (
     Description()
     .add_head("Creates a new executive role mapping.")
     .add_line("Duplicate mappings are not allowed.")
-    .add_line("Logged-in executive must have the `executive.role.create` permission.")
+    .add_line("Logged-in executive must have the `executive.role.update` permission.")
 )
 
 PATCH_DESCRIPTION = (
