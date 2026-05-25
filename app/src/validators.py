@@ -646,7 +646,7 @@ def authorize_executive(
     session: Session, token_value: str, permissions: List[str]
 ) -> ExecutiveToken:
     """
-    Authorize an executive based on their access token and required permission.
+    Authorize an executive based on their access token and required permissions.
 
     Args:
         session (Session): Active SQLAlchemy session.
@@ -658,7 +658,7 @@ def authorize_executive(
 
     Raises:
         exceptions.InvalidToken: If the token is invalid or cannot be verified.
-        exceptions.NoPermission: If the executive does not have the required permission.
+        exceptions.NoPermission: If the executive does not have the required permissions.
     """
     token = verify_token(session, ExecutiveToken, token_value)
     roles = get_executive_roles(session, token)
@@ -671,7 +671,7 @@ def authorize_operator(
     session: Session, token_value: str, permissions: List[str]
 ) -> OperatorToken:
     """
-    Authorize an operator based on their access token and required permission.
+    Authorize an operator based on their access token and required permissions.
 
     Args:
         session (Session): Active SQLAlchemy session.
@@ -684,7 +684,7 @@ def authorize_operator(
 
     Raises:
         exceptions.InvalidToken: If the token is invalid or cannot be verified.
-        exceptions.NoPermission: If the operator does not have the required permission.
+        exceptions.NoPermission: If the operator does not have the required permissions.
     """
     token = verify_token(session, OperatorToken, token_value)
     roles = get_operator_roles(session, token)
@@ -697,7 +697,7 @@ def authorize_vendor(
     session: Session, token_value: str, permissions: List[str]
 ) -> VendorToken:
     """
-    Authorize a vendor based on their access token and required permission.
+    Authorize a vendor based on their access token and required permissions.
 
     Args:
         session (Session): Active SQLAlchemy session.
@@ -709,7 +709,7 @@ def authorize_vendor(
 
     Raises:
         exceptions.InvalidToken: If the token is invalid or cannot be verified.
-        exceptions.NoPermission: If the vendor does not have the required permission.
+        exceptions.NoPermission: If the vendor does not have the required permissions.
     """
     token = verify_token(session, VendorToken, token_value)
     roles = get_vendor_roles(session, token)
