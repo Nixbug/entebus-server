@@ -6,7 +6,7 @@ making it easier for developers to integrate them into their projects.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Type, Union
+from typing import Any, List, Type, Union
 from dns.enum import IntEnum
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import InstrumentedAttribute
@@ -19,7 +19,12 @@ from PIL import Image, UnidentifiedImageError
 from shapely.geometry.base import BaseGeometry
 from shapely import Polygon, wkt, errors
 
-from app.src.functions import get_by_path
+from app.src.functions import (
+    get_by_path,
+    get_executive_roles,
+    get_operator_roles,
+    get_vendor_roles,
+)
 from app.src import argon2, exceptions
 from app.src.enums import AccountStatus, BusinessStatus, CompanyStatus, GrantType
 from app.src.db import (
@@ -635,3 +640,79 @@ def validate_state_transition(
     if not is_valid_transition(transitions, old_state, new_state):
         raise exceptions.InvalidStateTransition(column)
     return True
+
+
+def authorize_executive(
+    session: Session, token_value: str, permissions: List[str]
+) -> ExecutiveToken:
+    """
+    Authorize an executive based on their access token and required permissions.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        token_value (str): The access token value to be verified.
+        permissions (List[str]): A list of permission path strings.
+
+    Returns:
+        ExecutiveToken: The token object if the executive has the required permissions.
+
+    Raises:
+        exceptions.InvalidToken: If the token is invalid or cannot be verified.
+        exceptions.NoPermission: If the executive does not have the required permissions.
+    """
+    token = verify_token(session, ExecutiveToken, token_value)
+    roles = get_executive_roles(session, token)
+    for permission in permissions:
+        verify_permission(roles, permission)
+    return token
+
+
+def authorize_operator(
+    session: Session, token_value: str, permissions: List[str]
+) -> OperatorToken:
+    """
+    Authorize an operator based on their access token and required permissions.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        token_value (str): The access token value to be verified.
+        permissions (List[str]): A list of permission path strings.
+
+
+    Returns:
+        OperatorToken: The token object if the operator has the required permissions.
+
+    Raises:
+        exceptions.InvalidToken: If the token is invalid or cannot be verified.
+        exceptions.NoPermission: If the operator does not have the required permissions.
+    """
+    token = verify_token(session, OperatorToken, token_value)
+    roles = get_operator_roles(session, token)
+    for permission in permissions:
+        verify_permission(roles, permission)
+    return token
+
+
+def authorize_vendor(
+    session: Session, token_value: str, permissions: List[str]
+) -> VendorToken:
+    """
+    Authorize a vendor based on their access token and required permissions.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        token_value (str): The access token value to be verified.
+        permissions (List[str]): A list of permission path strings.
+
+    Returns:
+        VendorToken: The token object if the vendor has the required permissions.
+
+    Raises:
+        exceptions.InvalidToken: If the token is invalid or cannot be verified.
+        exceptions.NoPermission: If the vendor does not have the required permissions.
+    """
+    token = verify_token(session, VendorToken, token_value)
+    roles = get_vendor_roles(session, token)
+    for permission in permissions:
+        verify_permission(roles, permission)
+    return token
