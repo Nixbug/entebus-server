@@ -422,7 +422,9 @@ async def create_operator_account_for_executive(
     try:
         session = SessionLocal()
         token = authorize_executive(
-            session, access_token, [ExecutivePermissionPath.CREATE_COMPANY_OPERATOR]
+            session,
+            access_token,
+            [ExecutivePermissionPath.CREATE_COMPANY_OPERATOR],
         )
 
         operator_data = create_operator_account(
@@ -460,7 +462,9 @@ async def update_operator_account_for_executive(
     try:
         session = SessionLocal()
         token = authorize_executive(
-            session, access_token, [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR]
+            session,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR],
         )
 
         have_updates, operator_data = update_operator(session, id, form_param)
@@ -527,7 +531,9 @@ async def delete_operator_account_for_executive(
     try:
         session = SessionLocal()
         token = authorize_executive(
-            session, access_token, [ExecutivePermissionPath.DELETE_COMPANY_OPERATOR]
+            session,
+            access_token,
+            [ExecutivePermissionPath.DELETE_COMPANY_OPERATOR],
         )
 
         operator = session.query(Operator).filter(Operator.id == id).first()
@@ -572,7 +578,7 @@ async def create_operator_account_for_operator(
         token = authorize_operator(
             session,
             access_token.credentials,
-            [OperatorPermissionPath.CREATE_COMPANY_OPERATOR]
+            [OperatorPermissionPath.CREATE_COMPANY_OPERATOR],
         )
 
         operator_data = create_operator_account(
@@ -692,7 +698,7 @@ async def delete_operator_account_for_operator(
         token = authorize_operator(
             session,
             access_token.credentials,
-            [OperatorPermissionPath.DELETE_COMPANY_OPERATOR]
+            [OperatorPermissionPath.DELETE_COMPANY_OPERATOR],
         )
 
         if token.operator_id == id:
