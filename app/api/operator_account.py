@@ -419,10 +419,7 @@ DELETE_DESCRIPTION = (
     .add_line("Returns 204 No Content even if the specified account does not exist.")
 )
 
-GET_DESCRIPTION = (
-    Description()
-    .add_head("Fetches a list of operators.")
-)
+GET_DESCRIPTION = Description().add_head("Fetches a list of operators.")
 
 
 # ---------------------------------------------------------------------------
