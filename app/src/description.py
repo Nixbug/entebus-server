@@ -3,7 +3,7 @@ class Description:
     def __init__(self):
         self.parts: list[str] = []
 
-    def add_header(self, text: str):
+    def add_head(self, text: str):
         self.parts.append(f"\n{text}")
         return self
 
