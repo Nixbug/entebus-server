@@ -3,6 +3,7 @@ This module defines the `Description` class, which is used to build
 multi-line descriptions for API endpoints in a structured way.
 """
 
+
 class Description:
     def __init__(self):
         self.parts: list[str] = []
