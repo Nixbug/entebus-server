@@ -643,7 +643,7 @@ def validate_state_transition(
 
 
 def authorize_executive(
-    session: Session, token_value: str, permission: List[str]
+    session: Session, token_value: str, permissions: List[str]
 ) -> ExecutiveToken:
     """
     Authorize an executive based on their access token and required permission.
@@ -662,13 +662,13 @@ def authorize_executive(
     """
     token = verify_token(session, ExecutiveToken, token_value)
     roles = get_executive_roles(session, token)
-    for permissions in permission:
-        verify_permission(roles, permissions)
+    for permission in permissions:
+        verify_permission(roles, permission)
     return token
 
 
 def authorize_operator(
-    session: Session, token_value: str, permission: List[str]
+    session: Session, token_value: str, permissions: List[str]
 ) -> OperatorToken:
     """
     Authorize an operator based on their access token and required permission.
@@ -688,13 +688,13 @@ def authorize_operator(
     """
     token = verify_token(session, OperatorToken, token_value)
     roles = get_operator_roles(session, token)
-    for permissions in permission:
-        verify_permission(roles, permissions)
+    for permission in permissions:
+        verify_permission(roles, permission)
     return token
 
 
 def authorize_vendor(
-    session: Session, token_value: str, permission: List[str]
+    session: Session, token_value: str, permissions: List[str]
 ) -> VendorToken:
     """
     Authorize a vendor based on their access token and required permission.
@@ -713,6 +713,6 @@ def authorize_vendor(
     """
     token = verify_token(session, VendorToken, token_value)
     roles = get_vendor_roles(session, token)
-    for permissions in permission:
-        verify_permission(roles, permissions)
+    for permission in permissions:
+        verify_permission(roles, permission)
     return token
