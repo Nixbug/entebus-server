@@ -400,7 +400,6 @@ GET_EXCEPTIONS = [
 POST_DESCRIPTION = (
     Description()
     .add_head("Creates a new operator account.")
-    .add_line("Requires a valid access token.")
     .add_line("Duplicate usernames are not allowed.")
     .add_line("By default the user is created in active status.")
     .add_line(
@@ -411,24 +410,18 @@ POST_DESCRIPTION = (
 PATCH_DESCRIPTION = (
     Description()
     .add_head("Updates an existing operator account.")
-    .add_line("Requires a valid access token.")
     .add_line("Empty PATCH requests are allowed and will result in no changes.")
 )
 
 DELETE_DESCRIPTION = (
     Description()
     .add_head("Deletes an existing operator account.")
-    .add_line("Requires a valid access token.")
     .add_line("Returns 204 No Content even if the specified account does not exist.")
 )
 
 GET_DESCRIPTION = (
     Description()
     .add_head("Fetches a list of operators.")
-    .add_line("Requires a valid access token.")
-    .add_line(
-        "Common search supports searching by id, username, full_name, designation, phone_number, and email_id."
-    )
 )
 
 
