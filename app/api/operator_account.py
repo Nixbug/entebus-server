@@ -252,9 +252,8 @@ def update_operator(
         extra_filter (Optional): Additional filter to apply when validating the operator ID.
 
     Returns:
-    Tuple[bool, dict]:
-            - bool: True if the operator was modified and the changes were committed.
-            - dict: JSON-encoded representation of the updated operator.
+        Tuple[bool, dict]: A tuple containing a boolean indicating if the operator
+        was modified and the JSON-encoded representation of the updated operator.
     """
     operator = validate_id(
         session,
