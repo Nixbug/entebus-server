@@ -32,7 +32,6 @@ from app.src.openobserve import log_event
 from app.src.validators import (
     authorize_executive,
     authorize_operator,
-    verify_permission,
     verify_token,
     validate_id,
 )

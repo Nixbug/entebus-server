@@ -245,7 +245,7 @@ def create_role(session: Session, form_param: CreateForm) -> dict:
 
     Args:
         session (Session): SQLAlchemy database session.
-        form_param: Form data for creating a route.
+        form_param: Form data for creating an operator role.
 
     Returns:
         dict: The created role data.
