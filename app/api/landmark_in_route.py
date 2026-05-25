@@ -50,6 +50,7 @@ from app.src.filters import (
     PaginationFilter,
 )
 from app.src.openobserve import log_event
+from app.src.description import Description
 from app.src import exceptions
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
@@ -61,7 +62,9 @@ route_vendor = APIRouter()
 route_public = APIRouter()
 
 
-# Output schema
+# ---------------------------------------------------------------------------
+## Output Schema
+# ---------------------------------------------------------------------------
 class LandmarkInRouteSchema(BaseModel):
     """Schema for landmark in route response."""
 
@@ -76,7 +79,9 @@ class LandmarkInRouteSchema(BaseModel):
     created_on: datetime
 
 
-# Input Forms
+# ---------------------------------------------------------------------------
+## Input Forms
+# ---------------------------------------------------------------------------
 class CreateForm(BaseModel):
     """Form data for creating a new landmark in route."""
 
@@ -95,7 +100,9 @@ class UpdateForm(BaseModel):
     departure_delta: int = Field(default=None, gt=-1)
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering landmark in route results."""
 
@@ -146,7 +153,9 @@ class QueryParams(QueryParamsForEX):
     pass
 
 
-# Functions
+# ---------------------------------------------------------------------------
+## Functions
+# ---------------------------------------------------------------------------
 def create_landmark_in_route(
     session: Session, route: Route, form_param: CreateForm
 ) -> dict:
@@ -189,20 +198,28 @@ def create_landmark_in_route(
 
 
 def update_landmark_in_route(
-    session: Session, landmark_in_route: LandmarkInRoute, form_param: UpdateForm
+    session: Session, id: int, form_param: UpdateForm, extra_filter=None
 ) -> Tuple[bool, dict]:
     """
     Updates an existing landmark in route record in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
-        landmark_in_route (LandmarkInRoute): The existing landmark in route record to be updated.
+        id (int): ID of the landmark in route to update.
         form_param (UpdateForm): Form data for updating the landmark in route.
-
+        extra_filter (optional): Additional filter to apply when validating the landmark in route ID.
 
     Returns:
         Tuple[bool, dict]: A tuple containing a boolean indicating if updates were made and the updated landmark in route data.
     """
+    landmark_in_route = validate_id(
+        session,
+        LandmarkInRoute,
+        id,
+        LandmarkInRoute.id,
+        extra_filter=extra_filter,
+    )
+
     arrival_delta = (
         form_param.arrival_delta
         if form_param.arrival_delta is not None
@@ -340,6 +357,62 @@ def search_landmark_in_route(
 
 
 # ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.InvalidValue(LandmarkInRoute.arrival_delta),
+    exceptions.UnknownValue(LandmarkInRoute.route_id),
+    exceptions.UnknownValue(LandmarkInRoute.landmark_id),
+    exceptions.LimitExceeded(LandmarkInRoute),
+]
+
+PATCH_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.InvalidValue(LandmarkInRoute.arrival_delta),
+    exceptions.UnknownValue(LandmarkInRoute.id),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common description
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Creates a new landmark in route.")
+    .add_line("Departure delta must be greater than arrival delta.")
+    .add_line("When creating a landmark in a route, the route will be validated and status of the route will be updated.")
+)
+
+PATCH_DESCRIPTION = (
+    Description()
+    .add_head("Updates an existing landmark in route.")
+    .add_line("Departure delta must be greater than arrival delta.")
+    .add_line("When updating a landmark in a route, the route will be validated and status of the route will be updated.")
+)
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes a specific landmark assigned to a route.")
+    .add_line("When deleting a landmark in a route, the route will be validated and status will be updated.")
+    .add_line("Returns 204 No Content even if the specified landmark in route does not exist.")
+)
+
+GET_DESCRIPTION = Description().add_head("Fetches a list of landmarks in route.")
+
+
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
@@ -348,23 +421,11 @@ def search_landmark_in_route(
     tags=["Landmark In Route"],
     response_model=LandmarkInRouteSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidValue(LandmarkInRoute.arrival_delta),
-            exceptions.UnknownValue(LandmarkInRoute.route_id),
-            exceptions.UnknownValue(LandmarkInRoute.landmark_id),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Creates a new landmark in route.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `company.route.create` or `company.route.update` permission.    
-            - Departure delta must be greater than arrival delta.    
-            - When creating a new landmark in a route, the route will be validated and status of the route will be updated.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.route.create` or `company.route.update` permission.")
+        .to_string()
     ),
 )
 async def create_landmark_in_route_for_executive(
@@ -403,22 +464,11 @@ async def create_landmark_in_route_for_executive(
     summary="Update landmark in route",
     tags=["Landmark In Route"],
     response_model=LandmarkInRouteSchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidValue(LandmarkInRoute.arrival_delta),
-            exceptions.UnknownValue(LandmarkInRoute.id),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing landmark in route.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `company.route.create` or `company.route.update` permission.    
-            - Departure delta must be greater than arrival delta.    
-            - When updating a landmark in a route, the route will be validated and status of the route will be updated.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.route.create` or `company.route.update` permission.")
+        .to_string()
     ),
 )
 async def update_landmark_in_route_for_executive(
@@ -440,15 +490,11 @@ async def update_landmark_in_route_for_executive(
         if not (can_create | can_update):
             raise exceptions.NoPermission()
 
-        landmark_in_route = validate_id(
-            session, LandmarkInRoute, id, LandmarkInRoute.id
-        )
         have_updates, landmark_in_route_data = update_landmark_in_route(
             session,
-            landmark_in_route,
+            id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
         )
-
         if have_updates:
             log_event(token, request_info, landmark_in_route_data)
         return landmark_in_route_data
@@ -463,20 +509,11 @@ async def update_landmark_in_route_for_executive(
     summary="Delete landmark in route",
     tags=["Landmark In Route"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-        ]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes a specific landmark assigned to a route.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `company.route.create` or `company.route.update` permission.    
-            - When deleting a landmark in a route, the route will be validated and status will be updated.    
-            - Returns 204 No Content even if the specified landmark in route does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.route.create` or `company.route.update` permission.")
+        .to_string()
     ),
 )
 async def delete_landmark_in_route_for_executive(
@@ -517,13 +554,8 @@ async def delete_landmark_in_route_for_executive(
     summary="Fetch landmark in route",
     tags=["Landmark In Route"],
     response_model=List[LandmarkInRouteSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of landmarks in route.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_landmarks_in_route_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -551,26 +583,12 @@ async def fetch_landmarks_in_route_for_executive(
     tags=["Landmark In Route"],
     response_model=LandmarkInRouteSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidValue(LandmarkInRoute.arrival_delta),
-            exceptions.UnknownValue(LandmarkInRoute.route_id),
-            exceptions.UnknownValue(LandmarkInRoute.landmark_id),
-            exceptions.LimitExceeded(LandmarkInRoute),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        f"""
-            **Creates a new landmark in route.**    
-            - Operator must have a valid access token.    
-            - Logged-in operator must have `company.route.create` or `company.route.update` permission.    
-            - Logged-in operator can only add landmarks to routes belonging to their company.    
-            - Departure delta must be greater than arrival delta.    
-            - When creating a landmark in a route, the route will be validated and status of the route will be updated.  
-            - Maximum `{MAX_LANDMARKS_PER_ROUTE}` landmarks allowed per route
-        """
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in operator must have `company.route.create` or `company.route.update` permission.")
+        .add_line(f"Maximum `{MAX_LANDMARKS_PER_ROUTE}` landmarks allowed per route")
+        .to_string()
     ),
 )
 async def create_landmark_in_route_for_operator(
@@ -623,23 +641,11 @@ async def create_landmark_in_route_for_operator(
     summary="Update landmark in route",
     tags=["Landmark In Route"],
     response_model=LandmarkInRouteSchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidValue(LandmarkInRoute.arrival_delta),
-            exceptions.UnknownValue(LandmarkInRoute.id),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing landmark in route.**    
-            - Operator must have a valid access token.    
-            - Logged-in operator must have `company.route.create` or `company.route.update` permission.    
-            - Logged-in operator can only update landmarks in routes belonging to their company.    
-            - Departure delta must be greater than arrival delta.    
-            - When updating a landmark in a route, the route will be validated and status of the route will be updated.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line("Logged-in operator must have `company.route.create` or `company.route.update` permission.")
+        .to_string()
     ),
 )
 async def update_landmark_in_route_for_operator(
@@ -661,19 +667,12 @@ async def update_landmark_in_route_for_operator(
         if not (can_create | can_update):
             raise exceptions.NoPermission()
 
-        landmark_in_route = validate_id(
-            session,
-            LandmarkInRoute,
-            id,
-            LandmarkInRoute.id,
-            extra_filter=(LandmarkInRoute.company_id == token.company_id),
-        )
         have_updates, landmark_in_route_data = update_landmark_in_route(
             session,
-            landmark_in_route,
+            id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            extra_filter=(LandmarkInRoute.company_id == token.company_id),
         )
-
         if have_updates:
             log_event(token, request_info, landmark_in_route_data)
         return landmark_in_route_data
@@ -688,21 +687,11 @@ async def update_landmark_in_route_for_operator(
     summary="Delete landmark in route",
     tags=["Landmark In Route"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-        ]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes a specific landmark assigned to a route.**    
-            - Operator must have a valid access token.    
-            - Logged-in operator must have `company.route.create` or `company.route.update` permission.    
-            - Logged-in operator can only delete landmarks from routes belonging to their company.    
-            - When deleting a landmark in a route, the route will be validated and status will be updated.    
-            - Returns 204 No Content even if the specified landmark in route does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line("Logged-in operator must have `company.route.create` or `company.route.update` permission.")
+        .to_string()
     ),
 )
 async def delete_landmark_in_route_for_operator(
@@ -747,13 +736,8 @@ async def delete_landmark_in_route_for_operator(
     summary="Fetch landmark in route",
     tags=["Landmark In Route"],
     response_model=List[LandmarkInRouteSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of landmarks in route.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_landmarks_in_route_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
@@ -780,13 +764,8 @@ async def fetch_landmarks_in_route_for_operator(
     summary="Fetch landmark in route",
     tags=["Landmark In Route"],
     response_model=List[LandmarkInRouteSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of landmarks in route.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_landmarks_in_route_for_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
@@ -813,11 +792,7 @@ async def fetch_landmarks_in_route_for_vendor(
     summary="Fetch landmark in route",
     tags=["Landmark In Route"],
     response_model=List[LandmarkInRouteSchema],
-    description=(
-        """
-            **Fetches a list of landmarks in route for public users.**    
-        """
-    ),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_landmarks_in_route_for_public(
     query_params: QueryParamsForPU = Depends(),

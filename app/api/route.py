@@ -26,18 +26,18 @@ from app.src.db import (
 )
 from app.src import exceptions
 from app.src.openobserve import log_event
+from app.src.description import Description
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_ROUTE
 from app.src.validators import (
+    authorize_executive,
+    authorize_operator,
     validate_id,
     verify_token,
-    verify_permission,
 )
 from app.src.functions import (
     enum_str,
     get_request_info,
-    get_executive_roles,
-    get_operator_roles,
     fuse_exception_responses,
     update_if_changed,
     apply_created_on_filters,
@@ -176,18 +176,20 @@ def create_route(session: Session, form_param: CreateForm) -> dict:
     return route_data
 
 
-def update_route(session: Session, route: Route, form_param: UpdateForm):
+def update_route(session: Session, id: int, form_param: UpdateForm, extra_filter=None):
     """
     Updates an existing route record in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
-        route (Route): The existing route record to be updated.
+        id (int): ID of the route to update.
         form_param (UpdateForm): Form data for updating the route.
+        extra_filter (optional): Additional filter to apply when validating the route ID.
 
     Returns:
         dict: The updated route data.
     """
+    route = validate_id(session, Route, id, Route.id, extra_filter=extra_filter)
     update_data = form_param.model_dump(exclude_unset=True)
     update_if_changed(route, update_data)
     have_updates = session.is_modified(route)
@@ -270,6 +272,54 @@ def search_route(session: Session, query_params: QueryParams) -> List[Route]:
 
 
 # ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue(Route.company_id),
+]
+
+PATCH_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue(Route.id),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common descriptions
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Creates a new route.")
+)
+
+PATCH_DESCRIPTION = (
+    Description()
+    .add_head("Updates an existing route.")
+    .add_line("Empty PATCH requests are allowed and will result in no changes.")
+)
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes an existing route.")
+    .add_line("Returns 204 No Content even if the specified route does not exist.")
+)
+
+GET_DESCRIPTION = Description().add_head("Fetches a list of routes.")
+
+
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
@@ -278,21 +328,13 @@ def search_route(session: Session, query_params: QueryParams) -> List[Route]:
     tags=["Route"],
     response_model=RouteSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(Route.company_id),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Creates a new route.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `company.route.create` permission.    
-            - Duplicate route names are not allowed.    
-            - By default the status of the route is INVALID.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.route.create` permission.")
+        .add_line("Duplicate route names are not allowed.")
+        .add_line("By default the status of the route is INVALID.")
+        .to_string()
     ),
 )
 async def create_route_for_executive(
@@ -302,9 +344,11 @@ async def create_route_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY_ROUTE)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.CREATE_COMPANY_ROUTE],
+        )
 
         validate_id(session, Company, form_param.company_id, Route.company_id)
         route_data = create_route(session, CreateForm(**form_param.model_dump()))
@@ -322,20 +366,11 @@ async def create_route_for_executive(
     summary="Update route",
     tags=["Route"],
     response_model=RouteSchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(Route.id),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing route for a company.**    
-            - Requires a valid access token.    
-            - Logged-in executive must have `company.route.update` permission.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.route.update` permission.")
+        .to_string()
     ),
 )
 async def update_route_for_executive(
@@ -346,13 +381,14 @@ async def update_route_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_ROUTE)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_COMPANY_ROUTE],
+        )
 
-        route = validate_id(session, Route, id, Route.id)
         have_updates, route_data = update_route(
-            session, route, UpdateForm(**form_param.model_dump(exclude_unset=True))
+            session, id, UpdateForm(**form_param.model_dump(exclude_unset=True))
         )
 
         if have_updates:
@@ -369,16 +405,11 @@ async def update_route_for_executive(
     summary="Delete route",
     tags=["Route"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes an existing route.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in executive must have the `company.route.delete` permission.    
-            - Returns 204 No Content even if the specified route does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line("The logged-in executive must have the `company.route.delete` permission.")
+        .to_string()
     ),
 )
 async def delete_route_for_executive(
@@ -388,9 +419,11 @@ async def delete_route_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_ROUTE)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.DELETE_COMPANY_ROUTE],
+        )
 
         route = session.query(Route).filter(Route.id == id).first()
         if route is not None:
@@ -408,13 +441,8 @@ async def delete_route_for_executive(
     summary="Fetch route",
     tags=["Route"],
     response_model=List[RouteSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of routes.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_routes_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -446,12 +474,10 @@ async def fetch_routes_for_executive(
         [exceptions.InvalidToken(), exceptions.NoPermission()]
     ),
     description=(
-        """
-            **Creates a new route.**    
-            - Operator must have a valid access token.    
-            - Logged-in operator must have `company.route.create` permission.    
-            - Duplicate route names are not allowed.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in operator must have `company.route.create` permission.")
+        .add_line("Duplicate route names are not allowed.")
+        .to_string()
     ),
 )
 async def create_route_for_operator(
@@ -461,9 +487,11 @@ async def create_route_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_ROUTE)
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.CREATE_COMPANY_ROUTE],
+        )
 
         route_data = create_route(
             session, CreateForm(**form_param.model_dump(), company_id=token.company_id)
@@ -481,20 +509,11 @@ async def create_route_for_operator(
     summary="Update route",
     tags=["Route"],
     response_model=RouteSchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(Route.id),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing route for a company.**    
-            - Requires a valid access token.    
-            - Logged-in operator must have `company.route.update` permission.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line("Logged-in operator must have `company.route.update` permission.")
+        .to_string()
     ),
 )
 async def update_route_for_operator(
@@ -505,15 +524,14 @@ async def update_route_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_ROUTE)
-
-        route = validate_id(
-            session, Route, id, Route.id, (Route.company_id == token.company_id)
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.UPDATE_COMPANY_ROUTE],
         )
+
         have_updates, route_data = update_route(
-            session, route, UpdateForm(**form_param.model_dump(exclude_unset=True))
+            session, id, UpdateForm(**form_param.model_dump(exclude_unset=True)), extra_filter=(Route.company_id == token.company_id)
         )
         if have_updates:
             log_event(token, request_info, route_data)
@@ -529,16 +547,11 @@ async def update_route_for_operator(
     summary="Delete route",
     tags=["Route"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes an existing route.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in operator must have the `company.route.delete` permission.    
-            - Returns 204 No Content even if the specified route does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line("The logged-in operator must have the `company.route.delete` permission.")
+        .to_string()
     ),
 )
 async def delete_route_for_operator(
@@ -548,9 +561,11 @@ async def delete_route_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_ROUTE)
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.DELETE_COMPANY_ROUTE],
+        )
 
         route = (
             session.query(Route)
@@ -572,13 +587,8 @@ async def delete_route_for_operator(
     summary="Fetch route",
     tags=["Route"],
     response_model=List[RouteSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of routes.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_routes_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
@@ -605,13 +615,8 @@ async def fetch_routes_for_operator(
     summary="Fetch route",
     tags=["Route"],
     response_model=List[RouteSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of routes.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_routes_for_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
@@ -639,10 +644,9 @@ async def fetch_routes_for_vendor(
     tags=["Route"],
     response_model=List[RouteSchema],
     description=(
-        """
-            **Fetches a list of routes for public users.**    
-            - By default only valid routes are returned.    
-        """
+        GET_DESCRIPTION.copy()
+        .add_line("By default only valid routes are returned.")
+        .to_string()
     ),
 )
 async def fetch_routes_for_public(query_params: QueryParamsForPU = Depends()):
