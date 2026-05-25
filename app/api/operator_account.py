@@ -572,7 +572,7 @@ async def create_operator_account_for_operator(
         token = authorize_operator(
             session,
             access_token.credentials,
-            [OperatorPermissionPath.CREATE_COMPANY_OPERATOR],
+            [OperatorPermissionPath.CREATE_COMPANY_OPERATOR]
         )
 
         operator_data = create_operator_account(
@@ -692,7 +692,7 @@ async def delete_operator_account_for_operator(
         token = authorize_operator(
             session,
             access_token.credentials,
-            [OperatorPermissionPath.DELETE_COMPANY_OPERATOR,]
+            [OperatorPermissionPath.DELETE_COMPANY_OPERATOR]
         )
 
         if token.operator_id == id:
