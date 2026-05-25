@@ -28,7 +28,7 @@ from app.src import exceptions
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_EXECUTIVE_ROLE
 from app.src.openobserve import log_event
-from app.src.validators import validate_id, verify_permission, verify_token
+from app.src.validators import validate_id, verify_token, authorize_executive
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
@@ -37,14 +37,16 @@ from app.src.functions import (
     enum_str,
     fuse_exception_responses,
     get_request_info,
-    get_executive_roles,
     update_if_changed,
 )
+from app.src.description import Description
 
 route_executive = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class ExecutiveRoleSchema(BaseModel):
     """Schema for executive role response."""
 
@@ -55,7 +57,9 @@ class ExecutiveRoleSchema(BaseModel):
     updated_on: datetime | None
 
 
+# ---------------------------------------------------------------------------
 ## Input Forms
+# ---------------------------------------------------------------------------
 class CreateForm(BaseModel):
     """Form data for creating a new executive role."""
 
@@ -70,7 +74,9 @@ class UpdateForm(BaseModel):
     permissions: PermissionSchema = Field(default=None)
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering results."""
 
@@ -92,6 +98,57 @@ class QueryParams(
 
 
 # ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+PATCH_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue(ExecutiveRole.id),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+]
+
+# ---------------------------------------------------------------------------
+## Common descriptions
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Creates a new executive role.")
+    .add_line("Duplicate names are not allowed.")
+    .add_line("Logged-in executive must have the `executive.role.create` permission.")
+)
+
+PATCH_DESCRIPTION = (
+    Description()
+    .add_head("Updates an existing executive role.")
+    .add_line("Empty PATCH requests are allowed and will result in no changes.")
+    .add_line("Duplicate names are not allowed.")
+    .add_line("Logged-in executive must have the `executive.role.update` permission.")
+)
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes an existing executive role.")
+    .add_line("Returns 204 No Content even if the specified role does not exist.")
+    .add_line("Logged-in executive must have the `executive.role.delete` permission.")
+)
+
+GET_DESCRIPTION = Description().add_head("Fetches all executive roles.")
+
+
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
@@ -100,17 +157,8 @@ class QueryParams(
     tags=["Role"],
     response_model=ExecutiveRoleSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
-    description=(
-        """
-            **Creates a new executive role.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `executive.role.create` permission.    
-            - Duplicate names are not allowed.    
-        """
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
+    description=(POST_DESCRIPTION.to_string()),
 )
 async def create_executive_role_for_executive(
     form_param: CreateForm,
@@ -119,9 +167,9 @@ async def create_executive_role_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, PermissionPath.CREATE_EXECUTIVE_ROLE)
+        token = authorize_executive(
+            session, access_token, [PermissionPath.CREATE_EXECUTIVE_ROLE]
+        )
 
         form_param.permissions = form_param.permissions.model_dump()
         role = ExecutiveRole(name=form_param.name, permissions=form_param.permissions)
@@ -144,22 +192,8 @@ async def create_executive_role_for_executive(
     tags=["Role"],
     response_model=ExecutiveRoleSchema,
     status_code=status.HTTP_200_OK,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(ExecutiveRole.id),
-        ]
-    ),
-    description=(
-        """
-            **Updates an existing executive role.**    
-            - Requires a valid access token.    
-            - Logged-in executive must have `executive.role.update` permission.    
-            - Duplicate names are not allowed.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
+    description=(PATCH_DESCRIPTION.to_string()),
 )
 async def update_executive_role_for_executive(
     id: int,
@@ -169,9 +203,9 @@ async def update_executive_role_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE_ROLE)
+        token = authorize_executive(
+            session, access_token, [PermissionPath.UPDATE_EXECUTIVE_ROLE]
+        )
 
         role = validate_id(session, ExecutiveRole, id, ExecutiveRole.id)
         update_data = form_param.model_dump(exclude_unset=True)
@@ -196,17 +230,8 @@ async def update_executive_role_for_executive(
     summary="Delete executive role",
     tags=["Role"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
-    description=(
-        """
-            **Deletes an existing executive role.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in executive must have the `executive.role.delete` permission.    
-            - Returns 204 No Content even if the specified role does not exist.    
-        """
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
+    description=(DELETE_DESCRIPTION.to_string()),
 )
 async def delete_executive_role_for_executive(
     id: int,
@@ -215,9 +240,9 @@ async def delete_executive_role_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, PermissionPath.DELETE_EXECUTIVE_ROLE)
+        token = authorize_executive(
+            session, access_token, [PermissionPath.DELETE_EXECUTIVE_ROLE]
+        )
 
         role = session.query(ExecutiveRole).filter(ExecutiveRole.id == id).first()
         if role is not None:
@@ -237,13 +262,8 @@ async def delete_executive_role_for_executive(
     summary="Fetch executive role",
     tags=["Role"],
     response_model=list[ExecutiveRoleSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches all executive roles.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_executive_roles_for_executive(
     query_params: QueryParams = Depends(),
