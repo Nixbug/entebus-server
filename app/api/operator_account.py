@@ -602,7 +602,7 @@ async def create_operator_account_for_operator(
         """
             **Updates an existing operator account.**    
             - Requires a valid access token.    
-            - Logged-in executive must have `company.operator.update` permission to update other operators.    
+            - Logged-in operator must have `company.operator.update` permission to update other operators.    
             - Operators can update their own account except status.    
             - Empty PATCH requests are allowed and will result in no changes.    
         """
