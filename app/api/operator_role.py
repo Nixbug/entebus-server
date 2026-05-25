@@ -45,8 +45,6 @@ from app.src.functions import (
     apply_updated_on_filters,
     fuse_exception_responses,
     get_request_info,
-    get_executive_roles,
-    get_operator_roles,
     update_if_changed,
 )
 from app.src.description import Description
@@ -95,7 +93,7 @@ class CreateFormForEX(CreateFormForOP):
 
 
 class CreateForm(CreateFormForEX):
-    """Generic combined form data for creating a new route."""
+    """Generic combined form data for creating a new operator role."""
 
     pass
 
@@ -413,9 +411,11 @@ async def delete_operator_role_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_OPERATOR_ROLE)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.DELETE_COMPANY_OPERATOR_ROLE],
+        )
 
         role = session.query(OperatorRole).filter(OperatorRole.id == id).first()
         if role is not None:
