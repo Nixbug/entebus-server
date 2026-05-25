@@ -24,6 +24,7 @@ from app.src.db import (
     Operator,
     OperatorImage,
 )
+from app.src.description import Description
 from app.src.enums import AccountStatus, GenderType, OperatorType, OrderIn
 from app.src.filters import (
     AccountDataFilter,
@@ -394,6 +395,44 @@ GET_EXCEPTIONS = [
 
 
 # ---------------------------------------------------------------------------
+## Common description
+# ---------------------------------------------------------------------------
+post_description = (
+    Description()
+    .add_header("Creates a new operator account.")
+    .add_line("Requires a valid access token.")
+    .add_line("Duplicate usernames are not allowed.")
+    .add_line("By default the user is created in active status.")
+    .add_line(
+        f"Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company."
+    )
+)
+
+patch_description = (
+    Description()
+    .add_header("Updates an existing operator account.")
+    .add_line("Requires a valid access token.")
+    .add_line("Empty PATCH requests are allowed and will result in no changes.")
+)
+
+delete_description = (
+    Description()
+    .add_header("Deletes an existing operator account.")
+    .add_line("Requires a valid access token.")
+    .add_line("Returns 204 No Content even if the specified account does not exist.")
+)
+
+get_description = (
+    Description()
+    .add_header("Fetches a list of operators.")
+    .add_line("Requires a valid access token.")
+    .add_line(
+        "Common search supports searching by id, username, full_name, designation, phone_number, and email_id."
+    )
+)
+
+
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
@@ -404,14 +443,9 @@ GET_EXCEPTIONS = [
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        f"""
-            **Creates a new operator account.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `company.operator.create` permission.    
-            - Duplicate usernames are not allowed.    
-            - By default the user is created in active status.    
-            - Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company.    
-        """
+        post_description.add_line(
+            "Logged-in executive must have `company.operator.create` permission."
+        ).to_string()
     ),
 )
 async def create_operator_account_for_executive(
@@ -445,12 +479,9 @@ async def create_operator_account_for_executive(
     response_model=OperatorSchema,
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing operator account.**    
-            - Requires a valid access token.    
-            - Logged-in executive must have `company.operator.update` permission to update other operators.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """
+        patch_description.add_line(
+            "Logged-in executive must have `company.operator.update` permission."
+        ).to_string()
     ),
 )
 async def update_operator_account_for_executive(
@@ -483,13 +514,7 @@ async def update_operator_account_for_executive(
     tags=["Operator Account"],
     response_model=List[OperatorSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
-    description=(
-        """
-            **Fetches a list of operators.**    
-            - Requires a valid access token for authentication.    
-            - Common search supports searching by id, username, full_name, designation, phone_number, and email_id.    
-        """
-    ),
+    description=(get_description.to_string()),
 )
 async def fetch_operator_accounts_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -515,12 +540,9 @@ async def fetch_operator_accounts_for_executive(
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes an existing operator account.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in executive must have the `company.operator.delete` permission.    
-            - Returns 204 No Content even if the specified account does not exist.    
-        """
+        delete_description.add_line(
+            "The logged-in executive must have the `company.operator.delete` permission."
+        ).to_string()
     ),
 )
 async def delete_operator_account_for_executive(
@@ -558,14 +580,9 @@ async def delete_operator_account_for_executive(
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        f"""
-            **Creates a new operator account.**    
-            - Operator must have a valid access token.    
-            - Logged-in operator must have `company.operator.create` permission.    
-            - Duplicate usernames are not allowed.    
-            - By default the user is created in active status.    
-            - Maximum `{MAX_OPERATORS_PER_COMPANY}` operators are allowed per company.    
-        """
+        post_description.add_line(
+            "Logged-in operator must have `company.operator.create` permission."
+        ).to_string()
     ),
 )
 async def create_operator_account_for_operator(
@@ -599,13 +616,11 @@ async def create_operator_account_for_operator(
     response_model=OperatorSchema,
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing operator account.**    
-            - Requires a valid access token.    
-            - Logged-in operator must have `company.operator.update` permission to update other operators.    
-            - Operators can update their own account except status.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """
+        patch_description.add_line(
+            "Logged-in operator must have `company.operator.update` permission to update other operators."
+        )
+        .add_line("Operators can update their own account except status.")
+        .to_string()
     ),
 )
 async def update_operator_account_for_operator(
@@ -647,13 +662,7 @@ async def update_operator_account_for_operator(
     tags=["Account"],
     response_model=List[OperatorSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
-    description=(
-        """
-            **Fetches a list of operators.**    
-            - Requires a valid access token for authentication.    
-            - Common search supports searching by id, username, full_name, designation, phone_number, and email_id.    
-        """
-    ),
+    description=(get_description.to_string()),
 )
 async def fetch_operator_accounts_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
@@ -679,13 +688,11 @@ async def fetch_operator_accounts_for_operator(
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes an existing operator account.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in executive must have the `company.operator.delete` permission.    
-            - Self-deletion is not allowed for safety reasons.    
-            - Returns 204 No Content even if the specified account does not exist.    
-        """
+        delete_description.add_line(
+            "The logged-in operator must have the `company.operator.delete` permission."
+        )
+        .add_line("Self-deletion is not allowed for operators.")
+        .to_string()
     ),
 )
 async def delete_operator_account_for_operator(
