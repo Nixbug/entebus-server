@@ -433,9 +433,9 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of operators.")
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        POST_DESCRIPTION.add_line(
-            "Logged-in executive must have `company.operator.create` permission."
-        ).to_string()
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.operator.create` permission.")
+        .to_string()
     ),
 )
 async def create_operator_account_for_executive(
@@ -469,9 +469,9 @@ async def create_operator_account_for_executive(
     response_model=OperatorSchema,
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        PATCH_DESCRIPTION.add_line(
-            "Logged-in executive must have `company.operator.update` permission."
-        ).to_string()
+        PATCH_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.operator.update` permission.")
+        .to_string()
     ),
 )
 async def update_operator_account_for_executive(
@@ -530,9 +530,11 @@ async def fetch_operator_accounts_for_executive(
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        DELETE_DESCRIPTION.add_line(
+        DELETE_DESCRIPTION.copy()
+        .add_line(
             "The logged-in executive must have the `company.operator.delete` permission."
-        ).to_string()
+        )
+        .to_string()
     ),
 )
 async def delete_operator_account_for_executive(
@@ -570,9 +572,9 @@ async def delete_operator_account_for_executive(
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        POST_DESCRIPTION.add_line(
-            "Logged-in operator must have `company.operator.create` permission."
-        ).to_string()
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in operator must have `company.operator.create` permission.")
+        .to_string()
     ),
 )
 async def create_operator_account_for_operator(
@@ -606,7 +608,8 @@ async def create_operator_account_for_operator(
     response_model=OperatorSchema,
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        PATCH_DESCRIPTION.add_line(
+        PATCH_DESCRIPTION.copy()
+        .add_line(
             "Logged-in operator must have `company.operator.update` permission to update other operators."
         )
         .add_line("Operators can update their own account except status.")
@@ -678,7 +681,8 @@ async def fetch_operator_accounts_for_operator(
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        DELETE_DESCRIPTION.add_line(
+        DELETE_DESCRIPTION.copy()
+        .add_line(
             "The logged-in operator must have the `company.operator.delete` permission."
         )
         .add_line("Self-deletion is not allowed for operators.")

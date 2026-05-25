@@ -11,6 +11,11 @@ class Description:
         self.parts.append(f"- {text}")
         return self
 
+    def copy(self):
+        new = Description()
+        new.parts = self.parts.copy()
+        return new
+
     def to_string(self) -> str:
         return "\n".join(self.parts).strip()
 
