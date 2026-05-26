@@ -118,15 +118,14 @@ class QueryParams(QueryParamsForEX):
 ## Functions
 # ---------------------------------------------------------------------------
 def create_role_map(
-    session: Session, role_id: int, operator_id: int, extra_filter=None
+    session: Session, form_param: CreateForm, extra_filter=None
 ) -> dict:
     """
     Creates a new OperatorRoleMap with the given role_id and operator_id.
 
     Args:
         session (Session): SQLAlchemy database session.
-        role_id (int): ID of the OperatorRole to associate.
-        operator_id (int): ID of the Operator to associate.
+        form_param (CreateForm): The form data for creating a new operator role mapping.
         extra_filter: Optional additional filter for validating role and operator.
 
     Returns:
@@ -138,10 +137,14 @@ def create_role_map(
         exceptions.InvalidAssociation: If the specified role and operator do not belong to the same company.
     """
     operator = validate_id(
-        session, Operator, operator_id, OperatorRoleMap.operator_id, extra_filter
+        session,
+        Operator,
+        form_param.operator_id,
+        OperatorRoleMap.operator_id,
+        extra_filter,
     )
     role = validate_id(
-        session, OperatorRole, role_id, OperatorRoleMap.role_id, extra_filter
+        session, OperatorRole, form_param.role_id, OperatorRoleMap.role_id, extra_filter
     )
     if role.company_id != operator.company_id:
         raise exceptions.InvalidAssociation(
@@ -355,11 +358,7 @@ async def create_operator_role_map_for_executive(
             [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
 
-        role_map_data = create_role_map(
-            session,
-            form_param.role_id,
-            form_param.operator_id,
-        )
+        role_map_data = create_role_map(session, form_param)
         log_event(token, request_info, role_map_data)
         return role_map_data
     except Exception as e:
@@ -509,8 +508,7 @@ async def create_operator_role_map_for_operator(
 
         role_map_data = create_role_map(
             session,
-            form_param.role_id,
-            form_param.operator_id,
+            form_param,
             extra_filter=(OperatorRole.company_id == token.company_id),
         )
         log_event(token, request_info, role_map_data)
