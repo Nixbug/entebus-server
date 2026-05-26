@@ -133,7 +133,7 @@ def create_role_map(
         extra_filter_for_role: Optional filter for validating the role.
 
     Returns:
-        dict : The created operator data
+        dict : The created operator role mapping data.
 
     Raises:
         exceptions.UnknownValue: If the specified role_id or operator_id does not exist

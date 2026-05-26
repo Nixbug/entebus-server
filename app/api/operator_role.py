@@ -142,6 +142,30 @@ class QueryParams(QueryParamsForEX):
 # ---------------------------------------------------------------------------
 ## Functions
 # ---------------------------------------------------------------------------
+def create_role(session: Session, form_param: CreateForm) -> dict:
+    """
+    Create a new OperatorRole in the database.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        form_param: Form data for creating an operator role.
+
+    Returns:
+        dict: The created role data.
+    """
+    permissions = form_param.permissions.model_dump()
+    role = OperatorRole(
+        company_id=form_param.company_id,
+        name=form_param.name,
+        permissions=permissions,
+    )
+    session.add(role)
+    session.commit()
+    session.refresh(role)
+    role_data = jsonable_encoder(role)
+    return role_data
+
+
 def update_role(
     session: Session, id: int, form_param: UpdateForm, extra_filter=None
 ) -> Tuple[bool, dict]:
@@ -235,30 +259,6 @@ def delete_role(session: Session, role: OperatorRole) -> dict:
     role_data = jsonable_encoder(role)
     session.delete(role)
     session.commit()
-    return role_data
-
-
-def create_role(session: Session, form_param: CreateForm) -> dict:
-    """
-    Create a new OperatorRole in the database.
-
-    Args:
-        session (Session): SQLAlchemy database session.
-        form_param: Form data for creating an operator role.
-
-    Returns:
-        dict: The created role data.
-    """
-    form_param.permissions = form_param.permissions.model_dump()
-    role = OperatorRole(
-        company_id=form_param.company_id,
-        name=form_param.name,
-        permissions=form_param.permissions,
-    )
-    session.add(role)
-    session.commit()
-    session.refresh(role)
-    role_data = jsonable_encoder(role)
     return role_data
 
 

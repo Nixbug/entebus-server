@@ -97,12 +97,15 @@ class QueryParams(UpdatedOnFilter, CreatedOnFilter, IDFilter, PaginationFilter):
 POST_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
+    exceptions.UnknownValue(ExecutiveRoleMap.executive_id),
+    exceptions.UnknownValue(ExecutiveRoleMap.role_id),
 ]
 
 PATCH_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
     exceptions.UnknownValue(ExecutiveRoleMap.id),
+    exceptions.UnknownValue(ExecutiveRoleMap.role_id),
 ]
 
 DELETE_EXCEPTIONS = [
