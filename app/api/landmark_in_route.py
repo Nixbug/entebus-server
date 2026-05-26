@@ -28,7 +28,6 @@ from app.src.urls import URL_LANDMARK_IN_ROUTE
 from app.src.validators import (
     validate_id,
     verify_token,
-    verify_permission,
     validate_route,
     authorize_executive,
     authorize_operator,
@@ -36,8 +35,6 @@ from app.src.validators import (
 from app.src.functions import (
     enum_str,
     fuse_exception_responses,
-    get_executive_roles,
-    get_operator_roles,
     get_request_info,
     update_if_changed,
     apply_id_filters,
@@ -417,6 +414,7 @@ POST_DESCRIPTION = (
     .add_line(
         "When creating a landmark in a route, the route will be validated and status of the route will be updated."
     )
+    .add_line(f"Maximum `{MAX_LANDMARKS_PER_ROUTE}` landmarks allowed per route")
 )
 
 PATCH_DESCRIPTION = (
@@ -615,7 +613,6 @@ async def fetch_landmarks_in_route_for_executive(
         .add_line(
             "Logged-in operator must have `company.route.create` or `company.route.update` permission."
         )
-        .add_line(f"Maximum `{MAX_LANDMARKS_PER_ROUTE}` landmarks allowed per route")
         .to_string()
     ),
 )
