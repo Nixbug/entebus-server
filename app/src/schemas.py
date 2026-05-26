@@ -6,6 +6,7 @@ that are reused in multiple endpoints (e.g., error responses, health checks).
 """
 
 from pydantic import BaseModel
+from app.src.enums import AppID
 
 
 class RequestInfo(BaseModel):
@@ -15,13 +16,13 @@ class RequestInfo(BaseModel):
     Attributes:
         method (str): The HTTP method used (GET, POST, etc.).
         path (str): The request path (URL without domain).
-        app_id (int): Identifier of the application handling the request
+        app_id (AppID): Identifier of the application handling the request
             (from AppID enum).
     """
 
     method: str
     path: str
-    app_id: int
+    app_id: AppID
 
 
 class HealthStatus(BaseModel):

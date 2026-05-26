@@ -25,6 +25,7 @@ from app.src.db import (
     VendorToken,
 )
 from app.src.enums import (
+    AppID,
     OrderIn,
     VehicleStatus,
 )
@@ -266,6 +267,7 @@ def update_vehicle(
     id: int,
     form_param: UpdateForm,
     extra_filter_for_vehicle=None,
+    app_id: AppID = None,
 ):
     """
     Updates an existing vehicle record in the database.
@@ -274,6 +276,8 @@ def update_vehicle(
         session (Session): SQLAlchemy database session.
         id (int): ID of the vehicle to update.
         form_param (UpdateForm): Form data for updating the vehicle.
+        extra_filter_for_vehicle (optional): Additional filter to apply when validating the vehicle ID.
+        app_id (AppID, optional): Identifier of the application making the request. Used to determine allowed status transitions.
 
     Returns:
         dict: The updated vehicle data.
@@ -283,6 +287,19 @@ def update_vehicle(
     )
     validate_manufactured_on(form_param)
     update_data = form_param.model_dump(exclude_unset=True)
+
+    if app_id == AppID.OPERATOR and "status" in update_data:
+        _allowed_vehicle_status_transitions = {
+            VehicleStatus.ACTIVE: [VehicleStatus.MAINTENANCE],
+            VehicleStatus.MAINTENANCE: [VehicleStatus.ACTIVE],
+        }
+        validate_state_transition(
+            _allowed_vehicle_status_transitions,
+            vehicle.status,
+            update_data.get("status"),
+            Vehicle.status,
+        )
+
     update_if_changed(vehicle, update_data)
     have_updates = session.is_modified(vehicle)
     if have_updates:
@@ -667,27 +684,12 @@ async def update_vehicle_for_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_VEHICLE)
 
-        _allowed_vehicle_status_transitions = {
-            VehicleStatus.ACTIVE: [VehicleStatus.MAINTENANCE],
-            VehicleStatus.MAINTENANCE: [VehicleStatus.ACTIVE],
-        }
-        vehicle = validate_id(
-            session, Vehicle, id, Vehicle.id, (Vehicle.company_id == token.company_id)
-        )
-        update_data = form_param.model_dump(exclude_unset=True)
-        if "status" in update_data:
-            validate_state_transition(
-                _allowed_vehicle_status_transitions,
-                vehicle.status,
-                update_data.get("status"),
-                Vehicle.status,
-            )
-
         have_updates, vehicle_data = update_vehicle(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
             extra_filter_for_vehicle=(Vehicle.company_id == token.company_id),
+            app_id=request_info.app_id,
         )
         if have_updates:
             log_event(token, request_info, vehicle_data)
