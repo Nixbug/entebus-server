@@ -458,7 +458,7 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of vehicles.")
     response_model=VehicleSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
-        [*POST_EXCEPTIONS, exceptions.UnknownValue(Company.id)]
+        [*POST_EXCEPTIONS, exceptions.UnknownValue(Vehicle.company_id)]
     ),
     description=(
         POST_DESCRIPTION.copy()
@@ -803,6 +803,7 @@ async def fetch_vehicles_for_vendor(
     response_model=List[MaskedVehicleSchema],
     description=(
         GET_DESCRIPTION.copy()
+        .add_line("Only masked data is returned.")
         .add_line("By default only active vehicles are returned.")
         .to_string()
     ),

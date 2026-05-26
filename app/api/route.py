@@ -342,7 +342,7 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of routes.")
     response_model=RouteSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
-        [*POST_EXCEPTIONS, exceptions.UnknownValue(Company.id)]
+        [*POST_EXCEPTIONS, exceptions.UnknownValue(Route.company_id)]
     ),
     description=(
         POST_DESCRIPTION.copy()
@@ -486,7 +486,11 @@ async def fetch_routes_for_executive(
     response_model=RouteSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
-    description=(POST_DESCRIPTION.copy().to_string()),
+    description=(
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in operator must have `company.route.create` permission.")
+        .to_string()
+    ),
 )
 async def create_route_for_operator(
     form_param: CreateFormForOP,
