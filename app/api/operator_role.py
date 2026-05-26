@@ -240,7 +240,7 @@ def delete_role(session: Session, role: OperatorRole) -> dict:
 
 def create_role(session: Session, form_param: CreateForm) -> dict:
     """
-    Create an new OperatorRole in the database.
+    Create a new OperatorRole in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
