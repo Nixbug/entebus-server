@@ -9,7 +9,7 @@ input validation and structured output.
 from datetime import datetime
 from fastapi import APIRouter, Response, status, Depends, Query
 from enum import StrEnum
-from typing import List
+from typing import List, Tuple
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
@@ -117,6 +117,97 @@ class QueryParams(QueryParamsForEX):
 # ---------------------------------------------------------------------------
 ## Functions
 # ---------------------------------------------------------------------------
+def create_role_map(
+    session: Session, role_id: int, operator_id: int, extra_filter=None
+) -> dict:
+    """
+    Creates a new OperatorRoleMap with the given role_id and operator_id.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        role_id (int): ID of the OperatorRole to associate.
+        operator_id (int): ID of the Operator to associate.
+        extra_filter: Optional additional filter for validating role and operator.
+
+    Returns:
+        dict : The created operator data
+
+    Raises:
+        exceptions.UnknownValue: If the specified role_id or operator_id does not exist
+            or does not satisfy the extra_filter condition.
+        exceptions.InvalidAssociation: If the specified role and operator do not belong to the same company.
+    """
+    operator = validate_id(
+        session, Operator, operator_id, OperatorRoleMap.operator_id, extra_filter
+    )
+    role = validate_id(
+        session, OperatorRole, role_id, OperatorRoleMap.role_id, extra_filter
+    )
+    if role.company_id != operator.company_id:
+        raise exceptions.InvalidAssociation(
+            OperatorRoleMap.role_id, OperatorRoleMap.operator_id
+        )
+
+    role_map = OperatorRoleMap(
+        role_id=role.id, operator_id=operator.id, company_id=operator.company_id
+    )
+    session.add(role_map)
+    session.commit()
+    session.refresh(role_map)
+    role_map_data = jsonable_encoder(role_map)
+    return role_map_data
+
+
+def update_role_map(
+    session: Session, id: int, form_param: UpdateForm, extra_filter=None
+) -> Tuple[bool, dict]:
+    """
+    Updates an operator role map with the provided form data.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        id (int): The ID of the OperatorRoleMap to update.
+        form_param (UpdateForm): The form data for updating the operator role map.
+        extra_filter: Optional additional filter for validating role mapping.
+
+    Returns:
+        Tuple[bool, dict]: A tuple containing a boolean indicating if updates were made and the updated operator role mapping data.
+
+     Raises:
+        exceptions.UnknownValue: If the specified role_id does not exist or does not satisfy the extra_filter condition.
+        exceptions.InvalidAssociation: If the new role does not belong to the same company as the operator.
+    """
+
+    role_map = validate_id(
+        session,
+        OperatorRoleMap,
+        id,
+        OperatorRoleMap.id,
+        extra_filter=extra_filter,
+    )
+
+    if form_param.role_id is not None and role_map.role_id != form_param.role_id:
+        role = validate_id(
+            session,
+            OperatorRole,
+            form_param.role_id,
+            OperatorRoleMap.role_id,
+            extra_filter=extra_filter,
+        )
+        if role.company_id != role_map.company_id:
+            raise exceptions.InvalidAssociation(
+                OperatorRoleMap.role_id, OperatorRoleMap.operator_id
+            )
+        role_map.role_id = form_param.role_id
+
+    have_updates = session.is_modified(role_map)
+    if have_updates:
+        session.commit()
+        session.refresh(role_map)
+    role_map_data = jsonable_encoder(role_map)
+    return have_updates, role_map_data
+
+
 def search_role_map(
     session: Session, query_params: QueryParams
 ) -> list[OperatorRoleMap]:
@@ -185,6 +276,7 @@ POST_EXCEPTIONS = [
     exceptions.NoPermission(),
     exceptions.UnknownValue(OperatorRoleMap.operator_id),
     exceptions.UnknownValue(OperatorRoleMap.role_id),
+    exceptions.InvalidAssociation(OperatorRoleMap.role_id, OperatorRoleMap.operator_id),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -192,6 +284,7 @@ PATCH_EXCEPTIONS = [
     exceptions.NoPermission(),
     exceptions.UnknownValue(OperatorRoleMap.id),
     exceptions.UnknownValue(OperatorRoleMap.role_id),
+    exceptions.InvalidAssociation(OperatorRoleMap.role_id, OperatorRoleMap.operator_id),
 ]
 
 DELETE_EXCEPTIONS = [
@@ -240,14 +333,7 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of operator role mappin
     tags=["Operator Role Map"],
     response_model=OperatorRoleMapSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            *POST_EXCEPTIONS,
-            exceptions.InvalidAssociation(
-                OperatorRoleMap.role_id, OperatorRoleMap.operator_id
-            ),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
         POST_DESCRIPTION.copy()
         .add_line(
@@ -269,25 +355,11 @@ async def create_operator_role_map_for_executive(
             [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
 
-        operator = validate_id(
-            session, Operator, form_param.operator_id, OperatorRoleMap.operator_id
+        role_map_data = create_role_map(
+            session,
+            form_param.role_id,
+            form_param.operator_id,
         )
-        role = validate_id(
-            session, OperatorRole, form_param.role_id, OperatorRoleMap.role_id
-        )
-        if role.company_id != operator.company_id:
-            raise exceptions.InvalidAssociation(
-                OperatorRoleMap.role_id, OperatorRoleMap.operator_id
-            )
-
-        role_map = OperatorRoleMap(
-            role_id=role.id, operator_id=operator.id, company_id=operator.company_id
-        )
-        session.add(role_map)
-        session.commit()
-        session.refresh(role_map)
-
-        role_map_data = jsonable_encoder(role_map)
         log_event(token, request_info, role_map_data)
         return role_map_data
     except Exception as e:
@@ -302,14 +374,7 @@ async def create_operator_role_map_for_executive(
     tags=["Operator Role Map"],
     response_model=OperatorRoleMapSchema,
     status_code=status.HTTP_200_OK,
-    responses=fuse_exception_responses(
-        [
-            *PATCH_EXCEPTIONS,
-            exceptions.InvalidAssociation(
-                OperatorRoleMap.role_id, OperatorRoleMap.operator_id
-            ),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
         PATCH_DESCRIPTION.copy()
         .add_line(
@@ -332,31 +397,11 @@ async def update_operator_role_map_for_executive(
             [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
 
-        role_map = validate_id(
+        have_updates, role_map_data = update_role_map(
             session,
-            OperatorRoleMap,
             id,
-            OperatorRoleMap.id,
+            form_param,
         )
-        if form_param.role_id is not None and role_map.role_id != form_param.role_id:
-            role = validate_id(
-                session,
-                OperatorRole,
-                form_param.role_id,
-                OperatorRoleMap.role_id,
-            )
-            if role.company_id != role_map.company_id:
-                raise exceptions.InvalidAssociation(
-                    OperatorRoleMap.role_id, OperatorRoleMap.operator_id
-                )
-            role_map.role_id = form_param.role_id
-
-        have_updates = session.is_modified(role_map)
-        if have_updates:
-            session.commit()
-            session.refresh(role_map)
-
-        role_map_data = jsonable_encoder(role_map)
         if have_updates:
             log_event(token, request_info, role_map_data)
         return role_map_data
@@ -462,29 +507,12 @@ async def create_operator_role_map_for_operator(
             [OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
 
-        operator = validate_id(
+        role_map_data = create_role_map(
             session,
-            Operator,
-            form_param.operator_id,
-            OperatorRoleMap.operator_id,
-            extra_filter=(Operator.company_id == token.company_id),
-        )
-        role = validate_id(
-            session,
-            OperatorRole,
             form_param.role_id,
-            OperatorRoleMap.role_id,
+            form_param.operator_id,
             extra_filter=(OperatorRole.company_id == token.company_id),
         )
-
-        role_map = OperatorRoleMap(
-            role_id=role.id, operator_id=operator.id, company_id=token.company_id
-        )
-        session.add(role_map)
-        session.commit()
-        session.refresh(role_map)
-
-        role_map_data = jsonable_encoder(role_map)
         log_event(token, request_info, role_map_data)
         return role_map_data
     except Exception as e:
@@ -522,30 +550,12 @@ async def update_operator_role_map_for_operator(
             [OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
 
-        role_map = validate_id(
+        have_updates, role_map_data = update_role_map(
             session,
-            OperatorRoleMap,
             id,
-            OperatorRoleMap.id,
+            form_param,
             extra_filter=(OperatorRoleMap.company_id == token.company_id),
         )
-
-        if form_param.role_id is not None and role_map.role_id != form_param.role_id:
-            validate_id(
-                session,
-                OperatorRole,
-                form_param.role_id,
-                OperatorRoleMap.role_id,
-                extra_filter=(OperatorRole.company_id == token.company_id),
-            )
-            role_map.role_id = form_param.role_id
-
-        have_updates = session.is_modified(role_map)
-        if have_updates:
-            session.commit()
-            session.refresh(role_map)
-
-        role_map_data = jsonable_encoder(role_map)
         if have_updates:
             log_event(token, request_info, role_map_data)
         return role_map_data
