@@ -28,7 +28,7 @@ from app.src.enums import (
     OrderIn,
     VehicleStatus,
 )
-from app.src.constants import TMZ_PRIMARY
+from app.src.constants import TMZ_PRIMARY, MAX_VEHICLE_CREATION_OPERATOR_LIMIT
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src import exceptions
@@ -559,6 +559,7 @@ async def fetch_vehicles_for_executive(
             exceptions.InvalidToken(),
             exceptions.NoPermission(),
             exceptions.InvalidValue(Vehicle.manufactured_on),
+            exceptions.LimitExceeded(Vehicle),
         ]
     ),
     description=(
@@ -568,7 +569,8 @@ async def fetch_vehicles_for_executive(
             - Logged-in operator must have `company.vehicle.create` permission.    
             - Duplicate registration numbers are not allowed.    
             - Manufactured date cannot be in the future.    
-            - By default, the vehicle status is set to `CREATED`.    
+            - By default, the vehicle status is set to `CREATED`. 
+            - Maximum `{MAX_VEHICLE_CREATION_OPERATOR_LIMIT}` vehicle creation allowed per operator 
         """
     ),
 )
@@ -582,6 +584,15 @@ async def create_vehicle_for_operator(
         token = verify_token(session, OperatorToken, access_token.credentials)
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_VEHICLE)
+
+        vehicle_count = (
+            session.query(Vehicle)
+            .filter(Vehicle.company_id == token.company_id)
+            .count()
+        )
+
+        if vehicle_count >= MAX_VEHICLE_CREATION_OPERATOR_LIMIT:
+            raise exceptions.LimitExceeded(Vehicle)
 
         vehicle_data = create_vehicle(
             session,
