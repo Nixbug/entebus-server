@@ -45,7 +45,6 @@ from app.src.functions import (
     enum_str,
     fuse_exception_responses,
     get_request_info,
-    get_executive_roles,
 )
 from app.src import exceptions
 from app.src.enums import OrderIn
