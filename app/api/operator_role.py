@@ -31,7 +31,12 @@ from app.src.permissions.operator import (
 )
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_OPERATOR_ROLE
-from app.src.validators import verify_permission, verify_token, validate_id
+from app.src.validators import (
+    authorize_executive,
+    verify_token,
+    validate_id,
+    authorize_operator,
+)
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
@@ -39,10 +44,9 @@ from app.src.functions import (
     apply_updated_on_filters,
     fuse_exception_responses,
     get_request_info,
-    get_executive_roles,
-    get_operator_roles,
     update_if_changed,
 )
+from app.src.description import Description
 from app.src.enums import OrderIn
 from app.src.filters import (
     CreatedOnFilter,
@@ -57,7 +61,9 @@ route_executive = APIRouter()
 route_operator = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class OperatorRoleSchema(BaseModel):
     """Schema for operator role response."""
 
@@ -69,7 +75,9 @@ class OperatorRoleSchema(BaseModel):
     updated_on: datetime | None
 
 
+# ---------------------------------------------------------------------------
 ## Input Forms
+# ---------------------------------------------------------------------------
 class CreateFormForOP(BaseModel):
     """Form data for creating a new operator role for an operator."""
 
@@ -83,6 +91,12 @@ class CreateFormForEX(CreateFormForOP):
     company_id: int = Field()
 
 
+class CreateForm(CreateFormForEX):
+    """Generic combined form data for creating a new operator role."""
+
+    pass
+
+
 class UpdateForm(BaseModel):
     """Form data for updating an operator role."""
 
@@ -90,7 +104,9 @@ class UpdateForm(BaseModel):
     permissions: PermissionSchema = Field(default=None)
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering results."""
 
@@ -123,25 +139,53 @@ class QueryParams(QueryParamsForEX):
     pass
 
 
-# Functions
+# ---------------------------------------------------------------------------
+## Functions
+# ---------------------------------------------------------------------------
+def create_role(session: Session, form_param: CreateForm) -> dict:
+    """
+    Create a new OperatorRole in the database.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        form_param: Form data for creating an operator role.
+
+    Returns:
+        dict: The created role data.
+    """
+    permissions = form_param.permissions.model_dump()
+    role = OperatorRole(
+        company_id=form_param.company_id,
+        name=form_param.name,
+        permissions=permissions,
+    )
+    session.add(role)
+    session.commit()
+    session.refresh(role)
+    role_data = jsonable_encoder(role)
+    return role_data
+
+
 def update_role(
-    session: Session,
-    role: OperatorRole,
-    form_param: UpdateForm,
+    session: Session, id: int, form_param: UpdateForm, extra_filter=None
 ) -> Tuple[bool, dict]:
     """
     Updates an OperatorRole with the provided form data.
 
     Args:
         session (Session): SQLAlchemy database session.
-        role (OperatorRole): OperatorRole to update.
+        id (int): ID of the OperatorRole to update.
         form_param (UpdateForm): Form data containing fields to update.
+        extra_filter: Additional filter to apply when validating the role ID.
 
     Returns:
     Tuple[bool, dict]:
             - bool: True if the role was modified and the changes were committed.
             - dict: JSON-encoded representation of the updated role.
     """
+    role = validate_id(
+        session, OperatorRole, id, OperatorRole.id, extra_filter=extra_filter
+    )
     update_data = form_param.model_dump(exclude_unset=True)
     update_if_changed(role, update_data)
     have_updates = session.is_modified(role)
@@ -219,6 +263,54 @@ def delete_role(session: Session, role: OperatorRole) -> dict:
 
 
 # ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+PATCH_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue(OperatorRole.id),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common description
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Creates a new operator role.")
+    .add_line("Duplicate names are not allowed.")
+)
+
+PATCH_DESCRIPTION = (
+    Description()
+    .add_head("Updates an existing operator role.")
+    .add_line("Empty PATCH requests are allowed and will result in no changes.")
+)
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes an existing operator role.")
+    .add_line("Returns 204 No Content even if the specified role does not exist.")
+)
+
+GET_DESCRIPTION = Description().add_head("Fetches a list of operator roles.")
+
+
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
@@ -227,16 +319,13 @@ def delete_role(session: Session, role: OperatorRole) -> dict:
     tags=["Operator Role"],
     response_model=OperatorRoleSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Creates a new operator role.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `company.operator.role.create` permission.    
-            - Duplicate names are not allowed.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line(
+            "Logged-in executive must have `company.operator.role.create` permission."
+        )
+        .to_string()
     ),
 )
 async def create_operator_role_for_executive(
@@ -246,21 +335,13 @@ async def create_operator_role_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY_OPERATOR_ROLE)
-
-        form_param.permissions = form_param.permissions.model_dump()
-        role = OperatorRole(
-            company_id=form_param.company_id,
-            name=form_param.name,
-            permissions=form_param.permissions,
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.CREATE_COMPANY_OPERATOR_ROLE],
         )
-        session.add(role)
-        session.commit()
-        session.refresh(role)
 
-        role_data = jsonable_encoder(role)
+        role_data = create_role(session, CreateForm(**form_param.model_dump()))
         log_event(token, request_info, role_data)
         return role_data
     except Exception as e:
@@ -275,21 +356,13 @@ async def create_operator_role_for_executive(
     tags=["Operator Role"],
     response_model=OperatorRoleSchema,
     status_code=status.HTTP_200_OK,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(OperatorRole.id),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing operator role.**    
-            - Requires a valid access token.    
-            - Logged-in executive must have `company.operator.role.update` permission.    
-            - Duplicate names are not allowed.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line(
+            "Logged-in executive must have `company.operator.role.update` permission."
+        )
+        .to_string()
     ),
 )
 async def update_operator_role_for_executive(
@@ -300,17 +373,13 @@ async def update_operator_role_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
-
-        role = validate_id(
+        token = authorize_executive(
             session,
-            OperatorRole,
-            id,
-            OperatorRole.id,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
-        have_updates, role_data = update_role(session, role, form_param)
+
+        have_updates, role_data = update_role(session, id, form_param)
         if have_updates:
             log_event(token, request_info, role_data)
         return role_data
@@ -325,16 +394,13 @@ async def update_operator_role_for_executive(
     summary="Delete operator role",
     tags=["Operator Role"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes an existing operator role.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in executive must have the `company.operator.role.delete` permission.    
-            - Returns 204 No Content even if the specified role does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line(
+            "The logged-in executive must have the `company.operator.role.delete` permission."
+        )
+        .to_string()
     ),
 )
 async def delete_operator_role_for_executive(
@@ -344,9 +410,11 @@ async def delete_operator_role_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_OPERATOR_ROLE)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.DELETE_COMPANY_OPERATOR_ROLE],
+        )
 
         role = session.query(OperatorRole).filter(OperatorRole.id == id).first()
         if role is not None:
@@ -364,13 +432,8 @@ async def delete_operator_role_for_executive(
     summary="Fetch operator role",
     tags=["Operator Role"],
     response_model=List[OperatorRoleSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of operator roles.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_operator_roles_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -398,16 +461,13 @@ async def fetch_operator_roles_for_executive(
     tags=["Role"],
     response_model=OperatorRoleSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Creates a new operator role.**    
-            - Operator must have a valid access token.    
-            - Logged-in operator must have `company.operator.role.create` permission.    
-            - Duplicate names are not allowed.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line(
+            "Logged-in operator must have `company.operator.role.create` permission."
+        )
+        .to_string()
     ),
 )
 async def create_operator_role_for_operator(
@@ -417,21 +477,15 @@ async def create_operator_role_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_OPERATOR_ROLE)
-
-        form_param.permissions = form_param.permissions.model_dump()
-        role = OperatorRole(
-            company_id=token.company_id,
-            name=form_param.name,
-            permissions=form_param.permissions,
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.CREATE_COMPANY_OPERATOR_ROLE],
         )
-        session.add(role)
-        session.commit()
-        session.refresh(role)
 
-        role_data = jsonable_encoder(role)
+        role_data = create_role(
+            session, CreateForm(**form_param.model_dump(), company_id=token.company_id)
+        )
         log_event(token, request_info, role_data)
         return role_data
     except Exception as e:
@@ -446,21 +500,14 @@ async def create_operator_role_for_operator(
     tags=["Role"],
     response_model=OperatorRoleSchema,
     status_code=status.HTTP_200_OK,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(OperatorRole.id),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing operator role.**    
-            - Requires a valid access token.    
-            - Logged-in operator must have `company.operator.role.update` permission.    
-            - Duplicate names are not allowed.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line(
+            "Logged-in operator must have `company.operator.role.update` permission."
+        )
+        .add_line("Operators can update roles within their own company.")
+        .to_string()
     ),
 )
 async def update_operator_role_for_operator(
@@ -471,18 +518,18 @@ async def update_operator_role_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
-
-        role = validate_id(
+        token = authorize_operator(
             session,
-            OperatorRole,
+            access_token.credentials,
+            [OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
+        )
+
+        have_updates, role_data = update_role(
+            session,
             id,
-            OperatorRole.id,
+            form_param,
             extra_filter=(OperatorRole.company_id == token.company_id),
         )
-        have_updates, role_data = update_role(session, role, form_param)
         if have_updates:
             log_event(token, request_info, role_data)
         return role_data
@@ -497,16 +544,13 @@ async def update_operator_role_for_operator(
     summary="Delete operator role",
     tags=["Role"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes an existing operator role.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in operator must have the `company.operator.role.delete` permission.    
-            - Returns 204 No Content even if the specified role does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line(
+            "The logged-in operator must have the `company.operator.role.delete` permission."
+        )
+        .to_string()
     ),
 )
 async def delete_operator_role_for_operator(
@@ -516,9 +560,11 @@ async def delete_operator_role_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_OPERATOR_ROLE)
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.DELETE_COMPANY_OPERATOR_ROLE],
+        )
 
         role = (
             session.query(OperatorRole)
@@ -540,14 +586,8 @@ async def delete_operator_role_for_operator(
     summary="Fetch operator role",
     tags=["Role"],
     response_model=List[OperatorRoleSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of operator roles.**    
-            - Requires a valid access token for authentication.    
-            - Only operator roles belonging to the same company as the logged-in operator will be returned.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_operator_roles_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)

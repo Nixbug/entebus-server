@@ -9,7 +9,7 @@ input validation and structured output.
 from datetime import datetime
 from fastapi import APIRouter, Response, status, Depends, Query
 from enum import StrEnum
-from typing import List
+from typing import List, Tuple
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
@@ -29,24 +29,30 @@ from app.src.permissions.executive import PermissionPath as ExecutivePermissionP
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src import exceptions
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token, validate_id
+from app.src.validators import (
+    authorize_executive,
+    authorize_operator,
+    verify_token,
+    validate_id,
+)
 from app.src.functions import (
     fuse_exception_responses,
-    get_executive_roles,
     get_request_info,
-    get_operator_roles,
     apply_id_filters,
     apply_created_on_filters,
     apply_updated_on_filters,
     enum_str,
 )
 from app.src.filters import IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFilter
+from app.src.description import Description
 
 route_executive = APIRouter()
 route_operator = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class OperatorRoleMapSchema(BaseModel):
     """Schema for operator role mapping response."""
 
@@ -58,7 +64,9 @@ class OperatorRoleMapSchema(BaseModel):
     updated_on: datetime | None
 
 
+# ---------------------------------------------------------------------------
 ## Input Forms
+# ---------------------------------------------------------------------------
 class CreateForm(BaseModel):
     """Form data for creating a new operator role mapping."""
 
@@ -72,7 +80,9 @@ class UpdateForm(BaseModel):
     role_id: int = Field(default=None)
 
 
-# Query Parameters
+# ---------------------------------------------------------------------------
+## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering results."""
 
@@ -104,7 +114,116 @@ class QueryParams(QueryParamsForEX):
     pass
 
 
-# Functions
+# ---------------------------------------------------------------------------
+## Functions
+# ---------------------------------------------------------------------------
+def create_role_map(
+    session: Session,
+    form_param: CreateForm,
+    extra_filter_for_operator=None,
+    extra_filter_for_role=None,
+) -> dict:
+    """
+    Creates a new OperatorRoleMap with the given role_id and operator_id.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        form_param (CreateForm): The form data for creating a new operator role mapping.
+        extra_filter_for_operator: Optional filter for validating the operator.
+        extra_filter_for_role: Optional filter for validating the role.
+
+    Returns:
+        dict : The created operator role mapping data.
+
+    Raises:
+        exceptions.UnknownValue: If the specified role_id or operator_id does not exist
+            or does not satisfy the respective filter condition.
+        exceptions.InvalidAssociation: If the specified role and operator do not belong to the same company.
+    """
+    operator = validate_id(
+        session,
+        Operator,
+        form_param.operator_id,
+        OperatorRoleMap.operator_id,
+        extra_filter=extra_filter_for_operator,
+    )
+    role = validate_id(
+        session,
+        OperatorRole,
+        form_param.role_id,
+        OperatorRoleMap.role_id,
+        extra_filter=extra_filter_for_role,
+    )
+    if role.company_id != operator.company_id:
+        raise exceptions.InvalidAssociation(
+            OperatorRoleMap.role_id, OperatorRoleMap.operator_id
+        )
+
+    role_map = OperatorRoleMap(
+        role_id=role.id, operator_id=operator.id, company_id=operator.company_id
+    )
+    session.add(role_map)
+    session.commit()
+    session.refresh(role_map)
+    role_map_data = jsonable_encoder(role_map)
+    return role_map_data
+
+
+def update_role_map(
+    session: Session,
+    id: int,
+    form_param: UpdateForm,
+    extra_filter_for_role_map=None,
+    extra_filter_for_role=None,
+) -> Tuple[bool, dict]:
+    """
+    Updates an operator role map with the provided form data.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        id (int): The ID of the OperatorRoleMap to update.
+        form_param (UpdateForm): The form data for updating the operator role map.
+        extra_filter_for_role_map: Optional filter for validating the role mapping.
+        extra_filter_for_role: Optional filter for validating the new role.
+
+    Returns:
+        Tuple[bool, dict]: A tuple containing a boolean indicating if updates were made and the updated operator role mapping data.
+
+     Raises:
+        exceptions.UnknownValue: If the specified role_id does not exist or does not satisfy the role_filter condition.
+        exceptions.InvalidAssociation: If the new role does not belong to the same company as the operator.
+    """
+
+    role_map = validate_id(
+        session,
+        OperatorRoleMap,
+        id,
+        OperatorRoleMap.id,
+        extra_filter=extra_filter_for_role_map,
+    )
+
+    if form_param.role_id is not None and role_map.role_id != form_param.role_id:
+        role = validate_id(
+            session,
+            OperatorRole,
+            form_param.role_id,
+            OperatorRoleMap.role_id,
+            extra_filter=extra_filter_for_role,
+        )
+        if role.company_id != role_map.company_id:
+            raise exceptions.InvalidAssociation(
+                OperatorRoleMap.role_id, OperatorRoleMap.operator_id
+            )
+        role_map.role_id = form_param.role_id
+
+    have_updates = session.is_modified(role_map)
+    if have_updates:
+        session.commit()
+        session.refresh(role_map)
+    role_map_data = jsonable_encoder(role_map)
+    return have_updates, role_map_data
+
+
 def search_role_map(
     session: Session, query_params: QueryParams
 ) -> list[OperatorRoleMap]:
@@ -166,6 +285,62 @@ def delete_role_map(session: Session, role_map: OperatorRoleMap) -> dict:
 
 
 # ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue(OperatorRoleMap.operator_id),
+    exceptions.UnknownValue(OperatorRoleMap.role_id),
+    exceptions.InvalidAssociation(OperatorRoleMap.role_id, OperatorRoleMap.operator_id),
+]
+
+PATCH_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue(OperatorRoleMap.id),
+    exceptions.UnknownValue(OperatorRoleMap.role_id),
+    exceptions.InvalidAssociation(OperatorRoleMap.role_id, OperatorRoleMap.operator_id),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common description
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Creates a new operator role mapping.")
+    .add_line("Duplicate mappings are not allowed.")
+)
+
+PATCH_DESCRIPTION = (
+    Description()
+    .add_head("Updates an existing operator role mapping.")
+    .add_line("Empty PATCH requests are allowed and will result in no changes.")
+    .add_line("Duplicate mappings are not allowed.")
+)
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes an existing operator role mapping.")
+    .add_line(
+        "Returns 204 No Content even if the specified role mapping does not exist."
+    )
+)
+
+GET_DESCRIPTION = Description().add_head("Fetches a list of operator role mappings.")
+
+
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
@@ -174,24 +349,13 @@ def delete_role_map(session: Session, role_map: OperatorRoleMap) -> dict:
     tags=["Operator Role Map"],
     response_model=OperatorRoleMapSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(OperatorRoleMap.operator_id),
-            exceptions.UnknownValue(OperatorRoleMap.role_id),
-            exceptions.InvalidAssociation(
-                OperatorRoleMap.role_id, OperatorRoleMap.operator_id
-            ),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Creates a new operator role mapping.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `company.operator.role.update` permission.    
-            - Duplicate mappings are not allowed.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line(
+            "Logged-in executive must have `company.operator.role.update` permission."
+        )
+        .to_string()
     ),
 )
 async def create_operator_role_map_for_executive(
@@ -201,29 +365,13 @@ async def create_operator_role_map_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
-
-        operator = validate_id(
-            session, Operator, form_param.operator_id, OperatorRoleMap.operator_id
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
-        role = validate_id(
-            session, OperatorRole, form_param.role_id, OperatorRoleMap.role_id
-        )
-        if role.company_id != operator.company_id:
-            raise exceptions.InvalidAssociation(
-                OperatorRoleMap.role_id, OperatorRoleMap.operator_id
-            )
 
-        role_map = OperatorRoleMap(
-            role_id=role.id, operator_id=operator.id, company_id=operator.company_id
-        )
-        session.add(role_map)
-        session.commit()
-        session.refresh(role_map)
-
-        role_map_data = jsonable_encoder(role_map)
+        role_map_data = create_role_map(session, form_param)
         log_event(token, request_info, role_map_data)
         return role_map_data
     except Exception as e:
@@ -238,25 +386,13 @@ async def create_operator_role_map_for_executive(
     tags=["Operator Role Map"],
     response_model=OperatorRoleMapSchema,
     status_code=status.HTTP_200_OK,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(OperatorRoleMap.id),
-            exceptions.UnknownValue(OperatorRoleMap.role_id),
-            exceptions.InvalidAssociation(
-                OperatorRoleMap.role_id, OperatorRoleMap.operator_id
-            ),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing operator role mapping.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `company.operator.role.update` permission.    
-            - Duplicate mappings are not allowed.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line(
+            "Logged-in executive must have `company.operator.role.update` permission."
+        )
+        .to_string()
     ),
 )
 async def update_operator_role_map_for_executive(
@@ -267,35 +403,17 @@ async def update_operator_role_map_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
-
-        role_map = validate_id(
+        token = authorize_executive(
             session,
-            OperatorRoleMap,
-            id,
-            OperatorRoleMap.id,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
-        if form_param.role_id is not None and role_map.role_id != form_param.role_id:
-            role = validate_id(
-                session,
-                OperatorRole,
-                form_param.role_id,
-                OperatorRoleMap.role_id,
-            )
-            if role.company_id != role_map.company_id:
-                raise exceptions.InvalidAssociation(
-                    OperatorRoleMap.role_id, OperatorRoleMap.operator_id
-                )
-            role_map.role_id = form_param.role_id
 
-        have_updates = session.is_modified(role_map)
-        if have_updates:
-            session.commit()
-            session.refresh(role_map)
-
-        role_map_data = jsonable_encoder(role_map)
+        have_updates, role_map_data = update_role_map(
+            session,
+            id,
+            form_param,
+        )
         if have_updates:
             log_event(token, request_info, role_map_data)
         return role_map_data
@@ -310,16 +428,13 @@ async def update_operator_role_map_for_executive(
     summary="Delete operator role map",
     tags=["Operator Role Map"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes an existing operator role mapping.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in executive must have the `company.operator.role.update` permission.    
-            - Returns 204 No Content even if the specified role mapping does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line(
+            "The logged-in executive must have the `company.operator.role.update` permission."
+        )
+        .to_string()
     ),
 )
 async def delete_operator_role_map_for_executive(
@@ -329,9 +444,11 @@ async def delete_operator_role_map_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
+        )
 
         role_map = (
             session.query(OperatorRoleMap).filter(OperatorRoleMap.id == id).first()
@@ -351,13 +468,8 @@ async def delete_operator_role_map_for_executive(
     summary="Fetch operator role map",
     tags=["Operator Role Map"],
     response_model=List[OperatorRoleMapSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of operator role mappings.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_operator_role_maps_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -385,21 +497,13 @@ async def fetch_operator_role_maps_for_executive(
     tags=["Role Map"],
     response_model=OperatorRoleMapSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(OperatorRoleMap.operator_id),
-            exceptions.UnknownValue(OperatorRoleMap.role_id),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Creates a new operator role mapping.**    
-            - Operator must have a valid access token.    
-            - Logged-in operator must have `company.operator.role.update` permission.    
-            - Duplicate mappings are not allowed.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line(
+            "Logged-in operator must have `company.operator.role.update` permission."
+        )
+        .to_string()
     ),
 )
 async def create_operator_role_map_for_operator(
@@ -409,33 +513,18 @@ async def create_operator_role_map_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
-
-        operator = validate_id(
+        token = authorize_operator(
             session,
-            Operator,
-            form_param.operator_id,
-            OperatorRoleMap.operator_id,
-            extra_filter=(Operator.company_id == token.company_id),
+            access_token.credentials,
+            [OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
-        role = validate_id(
+
+        role_map_data = create_role_map(
             session,
-            OperatorRole,
-            form_param.role_id,
-            OperatorRoleMap.role_id,
-            extra_filter=(OperatorRole.company_id == token.company_id),
+            form_param,
+            extra_filter_for_operator=(Operator.company_id == token.company_id),
+            extra_filter_for_role=(OperatorRole.company_id == token.company_id),
         )
-
-        role_map = OperatorRoleMap(
-            role_id=role.id, operator_id=operator.id, company_id=token.company_id
-        )
-        session.add(role_map)
-        session.commit()
-        session.refresh(role_map)
-
-        role_map_data = jsonable_encoder(role_map)
         log_event(token, request_info, role_map_data)
         return role_map_data
     except Exception as e:
@@ -450,22 +539,13 @@ async def create_operator_role_map_for_operator(
     tags=["Role Map"],
     response_model=OperatorRoleMapSchema,
     status_code=status.HTTP_200_OK,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(OperatorRoleMap.id),
-            exceptions.UnknownValue(OperatorRoleMap.role_id),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing operator role mapping.**    
-            - Operator must have a valid access token.    
-            - Logged-in operator must have `company.operator.role.update` permission.    
-            - Duplicate mappings are not allowed.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line(
+            "Logged-in operator must have `company.operator.role.update` permission."
+        )
+        .to_string()
     ),
 )
 async def update_operator_role_map_for_operator(
@@ -476,34 +556,19 @@ async def update_operator_role_map_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
-
-        role_map = validate_id(
+        token = authorize_operator(
             session,
-            OperatorRoleMap,
-            id,
-            OperatorRoleMap.id,
-            extra_filter=(OperatorRoleMap.company_id == token.company_id),
+            access_token.credentials,
+            [OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
 
-        if form_param.role_id is not None and role_map.role_id != form_param.role_id:
-            validate_id(
-                session,
-                OperatorRole,
-                form_param.role_id,
-                OperatorRoleMap.role_id,
-                extra_filter=(OperatorRole.company_id == token.company_id),
-            )
-            role_map.role_id = form_param.role_id
-
-        have_updates = session.is_modified(role_map)
-        if have_updates:
-            session.commit()
-            session.refresh(role_map)
-
-        role_map_data = jsonable_encoder(role_map)
+        have_updates, role_map_data = update_role_map(
+            session,
+            id,
+            form_param,
+            extra_filter_for_role_map=(OperatorRoleMap.company_id == token.company_id),
+            extra_filter_for_role=(OperatorRole.company_id == token.company_id),
+        )
         if have_updates:
             log_event(token, request_info, role_map_data)
         return role_map_data
@@ -518,16 +583,13 @@ async def update_operator_role_map_for_operator(
     summary="Delete operator role map",
     tags=["Role Map"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes an existing operator role mapping.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in operator must have the `company.operator.role.update` permission.    
-            - Returns 204 No Content even if the specified role mapping does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line(
+            "The logged-in operator must have the `company.operator.role.update` permission."
+        )
+        .to_string()
     ),
 )
 async def delete_operator_role_map_for_operator(
@@ -537,9 +599,11 @@ async def delete_operator_role_map_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE)
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
+        )
 
         role_map = (
             session.query(OperatorRoleMap)
@@ -563,14 +627,8 @@ async def delete_operator_role_map_for_operator(
     summary="Fetch operator role map",
     tags=["Role Map"],
     response_model=List[OperatorRoleMapSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of operator role mappings.**    
-            - Requires a valid access token for authentication.    
-            - Only operator role mappings belonging to the same company as the logged-in operator will be returned.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_operator_role_maps_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)

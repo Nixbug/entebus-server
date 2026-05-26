@@ -32,7 +32,12 @@ from app.src import exceptions
 from app.src.regex import PASSWORD_PATTERN, USERNAME_PATTERN
 from app.src.urls import URL_EXECUTIVE_ACCOUNT
 from app.src.openobserve import log_event
-from app.src.validators import validate_id, verify_permission, verify_token
+from app.src.validators import (
+    validate_id,
+    verify_token,
+    authorize_executive,
+    verify_permission,
+)
 from app.src.functions import (
     apply_account_filters,
     apply_created_on_filters,
@@ -42,14 +47,17 @@ from app.src.functions import (
     enum_str,
     fuse_exception_responses,
     get_request_info,
-    get_executive_roles,
     update_if_changed,
+    get_executive_roles,
 )
+from app.src.description import Description
 
 route_executive = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class ExecutiveSchema(BaseModel):
     """Schema for executive account response."""
 
@@ -65,7 +73,9 @@ class ExecutiveSchema(BaseModel):
     created_on: datetime
 
 
+# ---------------------------------------------------------------------------
 ## Input Forms
+# ---------------------------------------------------------------------------
 class CreateForm(BaseModel):
     """Form data for creating a new executive account."""
 
@@ -102,7 +112,9 @@ class UpdateForm(BaseModel):
     status: AccountStatus = Field(description=enum_str(AccountStatus), default=None)
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering results."""
 
@@ -132,6 +144,62 @@ class QueryParams(
 
 
 # ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+PATCH_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue(Executive.id),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common description
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Creates a new executive account.")
+    .add_line("Duplicate usernames are not allowed.")
+    .add_line("By default the user is created in active status.")
+    .add_line("Logged-in executive must have the `executive.create` permission.")
+)
+
+PATCH_DESCRIPTION = (
+    Description()
+    .add_head("Updates an existing executive account.")
+    .add_line("Empty PATCH requests are allowed and will result in no changes.")
+    .add_line("Executive can update their own account except status.")
+    .add_line(
+        "Logged-in executive must have `executive.update` permission to update other executives."
+    )
+)
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes an existing executive account.")
+    .add_line("Self-deletion is not allowed for safety reasons.")
+    .add_line("Returns 204 No Content even if the specified account does not exist.")
+    .add_line("Logged-in executive must have the `executive.delete` permission.")
+)
+
+GET_DESCRIPTION = Description().add_head("Fetches a list of executives.")
+
+
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
@@ -140,18 +208,8 @@ class QueryParams(
     tags=["Account"],
     response_model=ExecutiveSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
-    description=(
-        """
-            **Creates a new executive account.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `executive.create` permission.    
-            - Duplicate usernames are not allowed.    
-            - By default the user is created in active status.    
-        """
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
+    description=(POST_DESCRIPTION.to_string()),
 )
 async def create_executive_account_for_executive(
     form_param: CreateForm,
@@ -160,9 +218,9 @@ async def create_executive_account_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, PermissionPath.CREATE_EXECUTIVE)
+        token = authorize_executive(
+            session, access_token, [PermissionPath.CREATE_EXECUTIVE]
+        )
 
         executive = Executive(
             username=form_param.username,
@@ -191,22 +249,8 @@ async def create_executive_account_for_executive(
     summary="Update executive account",
     tags=["Account"],
     response_model=ExecutiveSchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(Executive.id),
-        ]
-    ),
-    description=(
-        """
-            **Updates an existing executive account.**    
-            - Requires a valid access token.    
-            - Logged-in executive must have `executive.update` permission to update other executives.    
-            - Executive can update their own account except status.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
+    description=(PATCH_DESCRIPTION.to_string()),
 )
 async def update_executive_account_for_executive(
     id: int,
@@ -261,18 +305,8 @@ async def update_executive_account_for_executive(
     summary="Delete executive account",
     tags=["Account"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
-    description=(
-        """
-            **Deletes an existing executive account.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in executive must have the `executive.delete` permission.    
-            - Self-deletion is not allowed for safety reasons.    
-            - Returns 204 No Content even if the specified account does not exist.    
-        """
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
+    description=(DELETE_DESCRIPTION.to_string()),
 )
 async def delete_executive_account_for_executive(
     id: int,
@@ -281,9 +315,9 @@ async def delete_executive_account_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, PermissionPath.DELETE_EXECUTIVE)
+        token = authorize_executive(
+            session, access_token, [PermissionPath.DELETE_EXECUTIVE]
+        )
 
         if token.executive_id == id:
             raise exceptions.NoPermission()
@@ -316,14 +350,8 @@ async def delete_executive_account_for_executive(
     summary="Fetch executive account",
     tags=["Account"],
     response_model=list[ExecutiveSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of executives.**    
-            - Requires a valid access token for authentication.    
-            - Common search supports searching by id, username, full_name, designation, phone_number, and email_id.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_executive_accounts_for_executive(
     query_params: QueryParams = Depends(),
