@@ -240,7 +240,7 @@ def create_operator_account(session: Session, form_param: CreateForm) -> dict:
 
 
 def update_operator(
-    session: Session, id: int, form_param: UpdateForm, extra_filter=None
+    session: Session, id: int, form_param: UpdateForm, extra_filter_for_operator=None
 ) -> Tuple[bool, dict]:
     """
     Updates an operator account with the provided form data.
@@ -249,7 +249,7 @@ def update_operator(
         session (Session): SQLAlchemy database session.
         id (int): ID of the operator to update.
         form_param (UpdateForm): Form data for updating the operator.
-        extra_filter (Optional): Additional filter to apply when validating the operator ID.
+        extra_filter_for_operator (Optional): Additional filter to apply when validating the operator ID.
 
     Returns:
         Tuple[bool, dict]: A tuple containing a boolean indicating if the operator
@@ -260,7 +260,7 @@ def update_operator(
         Operator,
         id,
         Operator.id,
-        extra_filter=extra_filter,
+        extra_filter=extra_filter_for_operator,
     )
     update_data = form_param.model_dump(exclude_unset=True)
     tokens_revoked = False
@@ -637,7 +637,7 @@ async def update_operator_account_for_operator(
             session,
             id,
             form_param,
-            extra_filter=(Operator.company_id == token.company_id),
+            extra_filter_for_operator=(Operator.company_id == token.company_id),
         )
         if have_updates:
             log_event(token, request_info, operator_data)
