@@ -605,13 +605,7 @@ async def delete_operator_role_map_for_operator(
     tags=["Role Map"],
     response_model=List[OperatorRoleMapSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
-    description=(
-        GET_DESCRIPTION.copy()
-        .add_line(
-            "Only operator role mappings belonging to the same company as the logged-in operator will be returned."
-        )
-        .to_string()
-    ),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_operator_role_maps_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
