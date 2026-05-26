@@ -118,7 +118,10 @@ class QueryParams(QueryParamsForEX):
 ## Functions
 # ---------------------------------------------------------------------------
 def create_role_map(
-    session: Session, form_param: CreateForm, extra_filter=None
+    session: Session,
+    form_param: CreateForm,
+    extra_filter_for_operator=None,
+    extra_filter_for_role=None,
 ) -> dict:
     """
     Creates a new OperatorRoleMap with the given role_id and operator_id.
@@ -126,14 +129,15 @@ def create_role_map(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): The form data for creating a new operator role mapping.
-        extra_filter: Optional additional filter for validating role and operator.
+        extra_filter_for_operator: Optional filter for validating the operator.
+        extra_filter_for_role: Optional filter for validating the role.
 
     Returns:
         dict : The created operator data
 
     Raises:
         exceptions.UnknownValue: If the specified role_id or operator_id does not exist
-            or does not satisfy the extra_filter condition.
+            or does not satisfy the respective filter condition.
         exceptions.InvalidAssociation: If the specified role and operator do not belong to the same company.
     """
     operator = validate_id(
@@ -141,10 +145,14 @@ def create_role_map(
         Operator,
         form_param.operator_id,
         OperatorRoleMap.operator_id,
-        extra_filter,
+        extra_filter=extra_filter_for_operator,
     )
     role = validate_id(
-        session, OperatorRole, form_param.role_id, OperatorRoleMap.role_id, extra_filter
+        session,
+        OperatorRole,
+        form_param.role_id,
+        OperatorRoleMap.role_id,
+        extra_filter=extra_filter_for_role,
     )
     if role.company_id != operator.company_id:
         raise exceptions.InvalidAssociation(
@@ -162,7 +170,11 @@ def create_role_map(
 
 
 def update_role_map(
-    session: Session, id: int, form_param: UpdateForm, extra_filter=None
+    session: Session,
+    id: int,
+    form_param: UpdateForm,
+    extra_filter_for_role_map=None,
+    extra_filter_for_role=None,
 ) -> Tuple[bool, dict]:
     """
     Updates an operator role map with the provided form data.
@@ -171,13 +183,14 @@ def update_role_map(
         session (Session): SQLAlchemy database session.
         id (int): The ID of the OperatorRoleMap to update.
         form_param (UpdateForm): The form data for updating the operator role map.
-        extra_filter: Optional additional filter for validating role mapping.
+        extra_filter_for_role_map: Optional filter for validating the role mapping.
+        extra_filter_for_role: Optional filter for validating the new role.
 
     Returns:
         Tuple[bool, dict]: A tuple containing a boolean indicating if updates were made and the updated operator role mapping data.
 
      Raises:
-        exceptions.UnknownValue: If the specified role_id does not exist or does not satisfy the extra_filter condition.
+        exceptions.UnknownValue: If the specified role_id does not exist or does not satisfy the role_filter condition.
         exceptions.InvalidAssociation: If the new role does not belong to the same company as the operator.
     """
 
@@ -186,7 +199,7 @@ def update_role_map(
         OperatorRoleMap,
         id,
         OperatorRoleMap.id,
-        extra_filter=extra_filter,
+        extra_filter=extra_filter_for_role_map,
     )
 
     if form_param.role_id is not None and role_map.role_id != form_param.role_id:
@@ -195,7 +208,7 @@ def update_role_map(
             OperatorRole,
             form_param.role_id,
             OperatorRoleMap.role_id,
-            extra_filter=extra_filter,
+            extra_filter=extra_filter_for_role,
         )
         if role.company_id != role_map.company_id:
             raise exceptions.InvalidAssociation(
@@ -509,7 +522,8 @@ async def create_operator_role_map_for_operator(
         role_map_data = create_role_map(
             session,
             form_param,
-            extra_filter=(OperatorRole.company_id == token.company_id),
+            extra_filter_for_operator=(Operator.company_id == token.company_id),
+            extra_filter_for_role=(OperatorRole.company_id == token.company_id),
         )
         log_event(token, request_info, role_map_data)
         return role_map_data
@@ -552,7 +566,8 @@ async def update_operator_role_map_for_operator(
             session,
             id,
             form_param,
-            extra_filter=(OperatorRoleMap.company_id == token.company_id),
+            extra_filter_for_role_map=(OperatorRoleMap.company_id == token.company_id),
+            extra_filter_for_role=(OperatorRole.company_id == token.company_id),
         )
         if have_updates:
             log_event(token, request_info, role_map_data)
