@@ -690,7 +690,7 @@ def authorize_operator(
     token = verify_token(session, OperatorToken, token_value)
     roles = get_operator_roles(session, token)
     for permission in permissions:
-        if  verify_permission(roles, permission, raise_exception=False):
+        if verify_permission(roles, permission, raise_exception=False):
             return token
     raise exceptions.NoPermission()
 
