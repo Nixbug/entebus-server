@@ -72,7 +72,9 @@ route_vendor = APIRouter()
 route_public = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class MaskedVehicleSchema(BaseModel):
     """Schema for masked vehicle responses without revealing all details."""
 
@@ -97,7 +99,9 @@ class VehicleSchema(MaskedVehicleSchema):
     version: int
 
 
-# Input Forms
+# ---------------------------------------------------------------------------
+## Input Forms
+# ---------------------------------------------------------------------------
 class CreateFormForOP(BaseModel):
     """Form data for creating a new vehicle for an operator."""
 
@@ -139,7 +143,9 @@ class UpdateForm(BaseModel):
     status: VehicleStatus = Field(description=enum_str(VehicleStatus), default=None)
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering vehicle results."""
 
@@ -199,7 +205,9 @@ class QueryParams(QueryParamsForEX):
     pass
 
 
+# ---------------------------------------------------------------------------
 ## Functions
+# ---------------------------------------------------------------------------
 def validate_manufactured_on(
     form_param: CreateFormForOP | CreateFormForEX | UpdateForm,
 ):
@@ -257,7 +265,7 @@ def update_vehicle(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    extra_filter=None,
+    extra_filter_for_vehicle=None,
 ):
     """
     Updates an existing vehicle record in the database.
@@ -270,7 +278,9 @@ def update_vehicle(
     Returns:
         dict: The updated vehicle data.
     """
-    vehicle = validate_id(session, Vehicle, id, Vehicle.id, extra_filter=extra_filter)
+    vehicle = validate_id(
+        session, Vehicle, id, Vehicle.id, extra_filter=extra_filter_for_vehicle
+    )
     validate_manufactured_on(form_param)
     update_data = form_param.model_dump(exclude_unset=True)
     update_if_changed(vehicle, update_data)
@@ -392,7 +402,6 @@ POST_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
     exceptions.InvalidValue(Vehicle.manufactured_on),
-    exceptions.UnknownValue(Vehicle.company_id),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -448,7 +457,9 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of vehicles.")
     tags=["Vehicle"],
     response_model=VehicleSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(POST_EXCEPTIONS),
+    responses=fuse_exception_responses(
+        [*POST_EXCEPTIONS, exceptions.UnknownValue(Company.id)]
+    ),
     description=(
         POST_DESCRIPTION.copy()
         .add_line("Logged-in executive must have `company.vehicle.create` permission.")
@@ -676,8 +687,7 @@ async def update_vehicle_for_operator(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            extra_filter=(Vehicle.company_id == token.company_id),
-            validate_status_transition=True,
+            extra_filter_for_vehicle=(Vehicle.company_id == token.company_id),
         )
         if have_updates:
             log_event(token, request_info, vehicle_data)

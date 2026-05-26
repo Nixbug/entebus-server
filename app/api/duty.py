@@ -28,11 +28,10 @@ from app.src.enums import DutyStatus, ServiceStatus
 from app.src.urls import URL_DUTY
 from app.src.validators import (
     verify_token,
-    verify_permission,
     validate_id,
     validate_state_transition,
-    authorize_executive,
     authorize_operator,
+    authorize_executive,
 )
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
@@ -124,7 +123,7 @@ class QueryParams(QueryParamsForEX):
 ## Functions
 # ---------------------------------------------------------------------------
 def update_duty(
-    session: Session, id: int, form_param: UpdateForm, extra_filter=None
+    session: Session, id: int, form_param: UpdateForm, extra_filter_for_duty=None
 ) -> tuple[bool, dict]:
     """
     Updates a duty record based on the requested status transition.
@@ -137,12 +136,12 @@ def update_duty(
         session (Session): SQLAlchemy database session.
         id (int): ID of the duty to update.
         form_param (UpdateForm): Form data containing new status.
-        extra_filter (optional): Additional filter to apply when validating the duty ID.
+        extra_filter_for_duty (optional): Additional filter to apply when validating the duty ID.
 
     Returns:
         tuple[bool, dict]: (have_updates, duty_data)
     """
-    duty = validate_id(session, Duty, id, Duty.id, extra_filter=extra_filter)
+    duty = validate_id(session, Duty, id, Duty.id, extra_filter=extra_filter_for_duty)
     _allowed_duty_status_transitions = {
         DutyStatus.STARTED: [DutyStatus.ENDED],
         DutyStatus.ENDED: [DutyStatus.STARTED],
@@ -289,9 +288,11 @@ async def update_duty_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_SERVICE_DUTY)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_COMPANY_SERVICE_DUTY],
+        )
 
         have_updates, duty_data = update_duty(
             session, id, UpdateForm(**form_param.model_dump(exclude_unset=True))
@@ -363,10 +364,8 @@ async def update_duty_for_operator(
         have_updates, duty_data = update_duty(
             session,
             id,
-            UpdateForm(
-                **form_param.model_dump(exclude_unset=True),
-                extra_filter=(Duty.company_id == token.company_id),
-            ),
+            UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            extra_filter_for_duty=(Duty.company_id == token.company_id),
         )
         if have_updates:
             log_event(token, request_info, duty_data)

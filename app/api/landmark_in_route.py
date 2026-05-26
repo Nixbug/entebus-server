@@ -30,6 +30,8 @@ from app.src.validators import (
     verify_token,
     verify_permission,
     validate_route,
+    authorize_executive,
+    authorize_operator,
 )
 from app.src.functions import (
     enum_str,
@@ -157,19 +159,36 @@ class QueryParams(QueryParamsForEX):
 ## Functions
 # ---------------------------------------------------------------------------
 def create_landmark_in_route(
-    session: Session, route: Route, form_param: CreateForm
+    session: Session, form_param: CreateForm, extra_filter_for_route=None
 ) -> dict:
     """
     Creates a new landmark in route record in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
-        route (Route): The route to which the landmark will be added.
         form_param (CreateForm): Form data for creating a landmark in route.
+        extra_filter_for_route (optional): Additional filter to apply when validating the route ID.
 
     Returns:
         dict: The created landmark in route data.
     """
+    route = validate_id(
+        session,
+        Route,
+        form_param.route_id,
+        LandmarkInRoute.route_id,
+        extra_filter=extra_filter_for_route,
+    )
+    landmark_count = (
+        session.query(LandmarkInRoute)
+        .filter(
+            LandmarkInRoute.route_id == route.id,
+        )
+        .count()
+    )
+    if landmark_count >= MAX_LANDMARKS_PER_ROUTE:
+        raise exceptions.LimitExceeded(LandmarkInRoute)
+
     validate_id(session, Landmark, form_param.landmark_id, LandmarkInRoute.landmark_id)
     if form_param.arrival_delta > form_param.departure_delta:
         raise exceptions.InvalidValue(LandmarkInRoute.arrival_delta)
@@ -198,7 +217,10 @@ def create_landmark_in_route(
 
 
 def update_landmark_in_route(
-    session: Session, id: int, form_param: UpdateForm, extra_filter=None
+    session: Session,
+    id: int,
+    form_param: UpdateForm,
+    extra_filter_for_landmark_in_route=None,
 ) -> Tuple[bool, dict]:
     """
     Updates an existing landmark in route record in the database.
@@ -207,7 +229,7 @@ def update_landmark_in_route(
         session (Session): SQLAlchemy database session.
         id (int): ID of the landmark in route to update.
         form_param (UpdateForm): Form data for updating the landmark in route.
-        extra_filter (optional): Additional filter to apply when validating the landmark in route ID.
+        extra_filter_for_landmark_in_route (optional): Additional filter to apply when validating the landmark in route ID.
 
     Returns:
         Tuple[bool, dict]: A tuple containing a boolean indicating if updates were made and the updated landmark in route data.
@@ -217,7 +239,7 @@ def update_landmark_in_route(
         LandmarkInRoute,
         id,
         LandmarkInRoute.id,
-        extra_filter=extra_filter,
+        extra_filter=extra_filter_for_landmark_in_route,
     )
 
     arrival_delta = (
@@ -392,21 +414,29 @@ POST_DESCRIPTION = (
     Description()
     .add_head("Creates a new landmark in route.")
     .add_line("Departure delta must be greater than arrival delta.")
-    .add_line("When creating a landmark in a route, the route will be validated and status of the route will be updated.")
+    .add_line(
+        "When creating a landmark in a route, the route will be validated and status of the route will be updated."
+    )
 )
 
 PATCH_DESCRIPTION = (
     Description()
     .add_head("Updates an existing landmark in route.")
     .add_line("Departure delta must be greater than arrival delta.")
-    .add_line("When updating a landmark in a route, the route will be validated and status of the route will be updated.")
+    .add_line(
+        "When updating a landmark in a route, the route will be validated and status of the route will be updated."
+    )
 )
 
 DELETE_DESCRIPTION = (
     Description()
     .add_head("Deletes a specific landmark assigned to a route.")
-    .add_line("When deleting a landmark in a route, the route will be validated and status will be updated.")
-    .add_line("Returns 204 No Content even if the specified landmark in route does not exist.")
+    .add_line(
+        "When deleting a landmark in a route, the route will be validated and status will be updated."
+    )
+    .add_line(
+        "Returns 204 No Content even if the specified landmark in route does not exist."
+    )
 )
 
 GET_DESCRIPTION = Description().add_head("Fetches a list of landmarks in route.")
@@ -424,7 +454,9 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of landmarks in route."
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
         POST_DESCRIPTION.copy()
-        .add_line("Logged-in executive must have `company.route.create` or `company.route.update` permission.")
+        .add_line(
+            "Logged-in executive must have `company.route.create` or `company.route.update` permission."
+        )
         .to_string()
     ),
 )
@@ -435,22 +467,16 @@ async def create_landmark_in_route_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        can_create = verify_permission(
-            roles, ExecutivePermissionPath.CREATE_COMPANY_ROUTE, raise_exception=False
+        token = authorize_executive(
+            session,
+            access_token,
+            [
+                ExecutivePermissionPath.CREATE_COMPANY_ROUTE,
+                ExecutivePermissionPath.UPDATE_COMPANY_ROUTE,
+            ],
         )
-        can_update = verify_permission(
-            roles, ExecutivePermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
-        )
-        if not (can_create | can_update):
-            raise exceptions.NoPermission()
 
-        route = validate_id(
-            session, Route, form_param.route_id, LandmarkInRoute.route_id
-        )
-        landmark_in_route_data = create_landmark_in_route(session, route, form_param)
-
+        landmark_in_route_data = create_landmark_in_route(session, form_param)
         log_event(token, request_info, landmark_in_route_data)
         return landmark_in_route_data
     except Exception as e:
@@ -467,7 +493,9 @@ async def create_landmark_in_route_for_executive(
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
         PATCH_DESCRIPTION.copy()
-        .add_line("Logged-in executive must have `company.route.create` or `company.route.update` permission.")
+        .add_line(
+            "Logged-in executive must have `company.route.create` or `company.route.update` permission."
+        )
         .to_string()
     ),
 )
@@ -479,16 +507,14 @@ async def update_landmark_in_route_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        can_create = verify_permission(
-            roles, ExecutivePermissionPath.CREATE_COMPANY_ROUTE, raise_exception=False
+        token = authorize_executive(
+            session,
+            access_token,
+            [
+                ExecutivePermissionPath.CREATE_COMPANY_ROUTE,
+                ExecutivePermissionPath.UPDATE_COMPANY_ROUTE,
+            ],
         )
-        can_update = verify_permission(
-            roles, ExecutivePermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
-        )
-        if not (can_create | can_update):
-            raise exceptions.NoPermission()
 
         have_updates, landmark_in_route_data = update_landmark_in_route(
             session,
@@ -512,7 +538,9 @@ async def update_landmark_in_route_for_executive(
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
         DELETE_DESCRIPTION.copy()
-        .add_line("Logged-in executive must have `company.route.create` or `company.route.update` permission.")
+        .add_line(
+            "Logged-in executive must have `company.route.create` or `company.route.update` permission."
+        )
         .to_string()
     ),
 )
@@ -523,16 +551,14 @@ async def delete_landmark_in_route_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        can_create = verify_permission(
-            roles, ExecutivePermissionPath.CREATE_COMPANY_ROUTE, raise_exception=False
+        token = authorize_executive(
+            session,
+            access_token,
+            [
+                ExecutivePermissionPath.CREATE_COMPANY_ROUTE,
+                ExecutivePermissionPath.UPDATE_COMPANY_ROUTE,
+            ],
         )
-        can_update = verify_permission(
-            roles, ExecutivePermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
-        )
-        if not (can_create | can_update):
-            raise exceptions.NoPermission()
 
         landmark_in_route = (
             session.query(LandmarkInRoute).filter(LandmarkInRoute.id == id).first()
@@ -586,7 +612,9 @@ async def fetch_landmarks_in_route_for_executive(
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
         POST_DESCRIPTION.copy()
-        .add_line("Logged-in operator must have `company.route.create` or `company.route.update` permission.")
+        .add_line(
+            "Logged-in operator must have `company.route.create` or `company.route.update` permission."
+        )
         .add_line(f"Maximum `{MAX_LANDMARKS_PER_ROUTE}` landmarks allowed per route")
         .to_string()
     ),
@@ -598,36 +626,20 @@ async def create_landmark_in_route_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        can_create = verify_permission(
-            roles, OperatorPermissionPath.CREATE_COMPANY_ROUTE, raise_exception=False
-        )
-        can_update = verify_permission(
-            roles, OperatorPermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
-        )
-        if not (can_create | can_update):
-            raise exceptions.NoPermission()
-
-        route = validate_id(
+        token = authorize_operator(
             session,
-            Route,
-            form_param.route_id,
-            LandmarkInRoute.route_id,
-            extra_filter=(Route.company_id == token.company_id),
-        )
-        landmark_count = (
-            session.query(LandmarkInRoute)
-            .filter(
-                LandmarkInRoute.route_id == route.id,
-            )
-            .count()
+            access_token.credentials,
+            [
+                OperatorPermissionPath.CREATE_COMPANY_ROUTE,
+                OperatorPermissionPath.UPDATE_COMPANY_ROUTE,
+            ],
         )
 
-        if landmark_count >= MAX_LANDMARKS_PER_ROUTE:
-            raise exceptions.LimitExceeded(LandmarkInRoute)
-
-        landmark_in_route_data = create_landmark_in_route(session, route, form_param)
+        landmark_in_route_data = create_landmark_in_route(
+            session,
+            form_param,
+            extra_filter_for_route=(Route.company_id == token.company_id),
+        )
         log_event(token, request_info, landmark_in_route_data)
         return landmark_in_route_data
     except Exception as e:
@@ -644,7 +656,9 @@ async def create_landmark_in_route_for_operator(
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
         PATCH_DESCRIPTION.copy()
-        .add_line("Logged-in operator must have `company.route.create` or `company.route.update` permission.")
+        .add_line(
+            "Logged-in operator must have `company.route.create` or `company.route.update` permission."
+        )
         .to_string()
     ),
 )
@@ -656,22 +670,22 @@ async def update_landmark_in_route_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        can_create = verify_permission(
-            roles, OperatorPermissionPath.CREATE_COMPANY_ROUTE, raise_exception=False
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [
+                OperatorPermissionPath.CREATE_COMPANY_ROUTE,
+                OperatorPermissionPath.UPDATE_COMPANY_ROUTE,
+            ],
         )
-        can_update = verify_permission(
-            roles, OperatorPermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
-        )
-        if not (can_create | can_update):
-            raise exceptions.NoPermission()
 
         have_updates, landmark_in_route_data = update_landmark_in_route(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            extra_filter=(LandmarkInRoute.company_id == token.company_id),
+            extra_filter_for_landmark_in_route=(
+                LandmarkInRoute.company_id == token.company_id
+            ),
         )
         if have_updates:
             log_event(token, request_info, landmark_in_route_data)
@@ -690,7 +704,9 @@ async def update_landmark_in_route_for_operator(
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
         DELETE_DESCRIPTION.copy()
-        .add_line("Logged-in operator must have `company.route.create` or `company.route.update` permission.")
+        .add_line(
+            "Logged-in operator must have `company.route.create` or `company.route.update` permission."
+        )
         .to_string()
     ),
 )
@@ -701,16 +717,14 @@ async def delete_landmark_in_route_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        can_create = verify_permission(
-            roles, OperatorPermissionPath.CREATE_COMPANY_ROUTE, raise_exception=False
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [
+                OperatorPermissionPath.CREATE_COMPANY_ROUTE,
+                OperatorPermissionPath.UPDATE_COMPANY_ROUTE,
+            ],
         )
-        can_update = verify_permission(
-            roles, OperatorPermissionPath.UPDATE_COMPANY_ROUTE, raise_exception=False
-        )
-        if not (can_create | can_update):
-            raise exceptions.NoPermission()
 
         landmark_in_route = (
             session.query(LandmarkInRoute)

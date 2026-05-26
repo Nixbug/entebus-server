@@ -663,8 +663,9 @@ def authorize_executive(
     token = verify_token(session, ExecutiveToken, token_value)
     roles = get_executive_roles(session, token)
     for permission in permissions:
-        verify_permission(roles, permission)
-    return token
+        if verify_permission(roles, permission, raise_exception=False):
+            return token
+    raise exceptions.NoPermission()
 
 
 def authorize_operator(
@@ -689,8 +690,9 @@ def authorize_operator(
     token = verify_token(session, OperatorToken, token_value)
     roles = get_operator_roles(session, token)
     for permission in permissions:
-        verify_permission(roles, permission)
-    return token
+        if  verify_permission(roles, permission, raise_exception=False):
+            return token
+    raise exceptions.NoPermission()
 
 
 def authorize_vendor(
@@ -714,5 +716,6 @@ def authorize_vendor(
     token = verify_token(session, VendorToken, token_value)
     roles = get_vendor_roles(session, token)
     for permission in permissions:
-        verify_permission(roles, permission)
-    return token
+        if verify_permission(roles, permission, raise_exception=False):
+            return token
+    raise exceptions.NoPermission()

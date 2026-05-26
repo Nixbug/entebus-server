@@ -63,7 +63,9 @@ route_vendor = APIRouter()
 route_public = APIRouter()
 
 
-# Output Schema
+# ---------------------------------------------------------------------------
+## Output Schema
+# ---------------------------------------------------------------------------
 class RouteSchema(BaseModel):
     """Schema for route response."""
 
@@ -76,7 +78,9 @@ class RouteSchema(BaseModel):
     created_on: datetime
 
 
-# Input Forms
+# ---------------------------------------------------------------------------
+## Input Forms
+# ---------------------------------------------------------------------------
 class CreateFormForOP(BaseModel):
     """Form data for creating a new route for an operator."""
 
@@ -103,7 +107,9 @@ class UpdateForm(BaseModel):
     start_time: time = Field(default=None)
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering route results."""
 
@@ -152,7 +158,9 @@ class QueryParams(QueryParamsForEX):
     pass
 
 
-# Functions
+# ---------------------------------------------------------------------------
+## Functions
+# ---------------------------------------------------------------------------
 def create_route(session: Session, form_param: CreateForm) -> dict:
     """
     Creates a new route record in the database.
@@ -176,7 +184,9 @@ def create_route(session: Session, form_param: CreateForm) -> dict:
     return route_data
 
 
-def update_route(session: Session, id: int, form_param: UpdateForm, extra_filter=None):
+def update_route(
+    session: Session, id: int, form_param: UpdateForm, extra_filter_for_route=None
+):
     """
     Updates an existing route record in the database.
 
@@ -184,12 +194,14 @@ def update_route(session: Session, id: int, form_param: UpdateForm, extra_filter
         session (Session): SQLAlchemy database session.
         id (int): ID of the route to update.
         form_param (UpdateForm): Form data for updating the route.
-        extra_filter (optional): Additional filter to apply when validating the route ID.
+        extra_filter_for_route (optional): Additional filter to apply when validating the route ID.
 
     Returns:
         dict: The updated route data.
     """
-    route = validate_id(session, Route, id, Route.id, extra_filter=extra_filter)
+    route = validate_id(
+        session, Route, id, Route.id, extra_filter=extra_filter_for_route
+    )
     update_data = form_param.model_dump(exclude_unset=True)
     update_if_changed(route, update_data)
     have_updates = session.is_modified(route)
@@ -277,7 +289,6 @@ def search_route(session: Session, query_params: QueryParams) -> List[Route]:
 POST_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
-    exceptions.UnknownValue(Route.company_id),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -302,6 +313,8 @@ GET_EXCEPTIONS = [
 POST_DESCRIPTION = (
     Description()
     .add_head("Creates a new route.")
+    .add_line("Duplicate route names are not allowed.")
+    .add_line("By default the status of the route is INVALID.")
 )
 
 PATCH_DESCRIPTION = (
@@ -328,12 +341,12 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of routes.")
     tags=["Route"],
     response_model=RouteSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(POST_EXCEPTIONS),
+    responses=fuse_exception_responses(
+        [*POST_EXCEPTIONS, exceptions.UnknownValue(Company.id)]
+    ),
     description=(
         POST_DESCRIPTION.copy()
         .add_line("Logged-in executive must have `company.route.create` permission.")
-        .add_line("Duplicate route names are not allowed.")
-        .add_line("By default the status of the route is INVALID.")
         .to_string()
     ),
 )
@@ -408,7 +421,9 @@ async def update_route_for_executive(
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
         DELETE_DESCRIPTION.copy()
-        .add_line("The logged-in executive must have the `company.route.delete` permission.")
+        .add_line(
+            "The logged-in executive must have the `company.route.delete` permission."
+        )
         .to_string()
     ),
 )
@@ -470,15 +485,8 @@ async def fetch_routes_for_executive(
     tags=["Route"],
     response_model=RouteSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
-    description=(
-        POST_DESCRIPTION.copy()
-        .add_line("Logged-in operator must have `company.route.create` permission.")
-        .add_line("Duplicate route names are not allowed.")
-        .to_string()
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
+    description=(POST_DESCRIPTION.copy().to_string()),
 )
 async def create_route_for_operator(
     form_param: CreateFormForOP,
@@ -531,7 +539,10 @@ async def update_route_for_operator(
         )
 
         have_updates, route_data = update_route(
-            session, id, UpdateForm(**form_param.model_dump(exclude_unset=True)), extra_filter=(Route.company_id == token.company_id)
+            session,
+            id,
+            UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            extra_filter_for_route=(Route.company_id == token.company_id),
         )
         if have_updates:
             log_event(token, request_info, route_data)
@@ -550,7 +561,9 @@ async def update_route_for_operator(
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
         DELETE_DESCRIPTION.copy()
-        .add_line("The logged-in operator must have the `company.route.delete` permission.")
+        .add_line(
+            "The logged-in operator must have the `company.route.delete` permission."
+        )
         .to_string()
     ),
 )

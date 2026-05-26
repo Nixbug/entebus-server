@@ -50,7 +50,6 @@ from app.src.permissions.executive import PermissionPath as ExecutivePermissionP
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src import exceptions
 from app.src.filters import PaginationFilter, CreatedOnFilter, UpdatedOnFilter, IDFilter
-from app.src.filters import PaginationFilter, CreatedOnFilter, UpdatedOnFilter, IDFilter
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -200,7 +199,9 @@ def create_fare(session: Session, form_param: CreateForm) -> dict:
     return fare_data
 
 
-def update_fare(session: Session, id: int, form_param: UpdateForm, extra_filter=None):
+def update_fare(
+    session: Session, id: int, form_param: UpdateForm, extra_filter_for_fare=None
+):
     """
     Updates an existing fare record in the database.
 
@@ -208,12 +209,12 @@ def update_fare(session: Session, id: int, form_param: UpdateForm, extra_filter=
         session (Session): SQLAlchemy database session.
         id (int): ID of the fare to update.
         form_param (UpdateForm): Form data for updating the fare.
-        extra_filter(optional): Additional filter to apply when validating the fare ID.
+        extra_filter_for_fare (optional): Additional filter to apply when validating the fare ID.
 
     Returns:
         dict: The updated fare data.
     """
-    fare = validate_id(session, Fare, id, Fare.id, extra_filter=extra_filter)
+    fare = validate_id(session, Fare, id, Fare.id, extra_filter=extra_filter_for_fare)
     update_data = form_param.model_dump(exclude_unset=True)
     if form_param.attributes is not None:
         attribute_data = form_param.attributes.model_dump()
@@ -609,7 +610,7 @@ async def update_fare_for_operator(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            extra_filter=(Fare.company_id == token.company_id),
+            extra_filter_for_fare=(Fare.company_id == token.company_id),
         )
         if have_updates:
             log_event(token, request_info, fare_data)
