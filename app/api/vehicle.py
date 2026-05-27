@@ -6,12 +6,12 @@ update, deletion, and retrieval. Uses Pydantic schemas for
 input validation and structured output.
 """
 
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from enum import StrEnum
 from datetime import datetime
 from fastapi import APIRouter, status, Depends, Response, Query
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import String, or_
+from sqlalchemy import String, Tuple, or_
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
 
@@ -268,7 +268,7 @@ def update_vehicle(
     form_param: UpdateForm,
     extra_filter_for_vehicle=None,
     app_id: AppID = None,
-):
+) -> Tuple[bool, dict]:
     """
     Updates an existing vehicle record in the database.
 
@@ -280,7 +280,7 @@ def update_vehicle(
         app_id (AppID, optional): Identifier of the application making the request. Used to determine allowed status transitions.
 
     Returns:
-        dict: The updated vehicle data.
+        Tuple[bool, dict]: A tuple containing a boolean indicating if updates were made and the updated vehicle data.
     """
     vehicle = validate_id(
         session, Vehicle, id, Vehicle.id, extra_filter=extra_filter_for_vehicle

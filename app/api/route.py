@@ -8,7 +8,7 @@ input validation and structured output.
 
 from datetime import datetime, time
 from enum import StrEnum
-from typing import List
+from typing import List, Tuple
 from fastapi import APIRouter, status, Depends, Query, Response
 from sqlalchemy.orm.session import Session
 from sqlalchemy import or_, String
@@ -186,7 +186,7 @@ def create_route(session: Session, form_param: CreateForm) -> dict:
 
 def update_route(
     session: Session, id: int, form_param: UpdateForm, extra_filter_for_route=None
-):
+) -> Tuple[bool, dict]:
     """
     Updates an existing route record in the database.
 
@@ -197,7 +197,7 @@ def update_route(
         extra_filter_for_route (optional): Additional filter to apply when validating the route ID.
 
     Returns:
-        dict: The updated route data.
+        Tuple[bool, dict]: A tuple containing a boolean indicating whether any updates were made and the updated route data.
     """
     route = validate_id(
         session, Route, id, Route.id, extra_filter=extra_filter_for_route

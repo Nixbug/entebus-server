@@ -198,7 +198,7 @@ class QueryParams(QueryParamsForEX):
 # ---------------------------------------------------------------------------
 ## Functions
 # ---------------------------------------------------------------------------
-def create_operator_account(session: Session, form_param: CreateForm) -> dict:
+def create_operator(session: Session, form_param: CreateForm) -> dict:
     """
     Create a new operator account with the provided form data.
     Also checks if the maximum operator limit per company has been reached before creating the account.
@@ -450,7 +450,7 @@ async def create_operator_account_for_executive(
             [ExecutivePermissionPath.CREATE_COMPANY_OPERATOR],
         )
 
-        operator_data = create_operator_account(
+        operator_data = create_operator(
             session, CreateForm(**form_param.model_dump())
         )
         log_event(token, request_info, operator_data)
@@ -589,7 +589,7 @@ async def create_operator_account_for_operator(
             [OperatorPermissionPath.CREATE_COMPANY_OPERATOR],
         )
 
-        operator_data = create_operator_account(
+        operator_data = create_operator(
             session, CreateForm(**form_param.model_dump(), company_id=token.company_id)
         )
         log_event(token, request_info, operator_data)

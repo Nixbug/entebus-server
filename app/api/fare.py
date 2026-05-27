@@ -8,7 +8,7 @@ input validation and structured output.
 
 from datetime import datetime
 from enum import StrEnum
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from fastapi import APIRouter, status, Depends, Response, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -201,7 +201,7 @@ def create_fare(session: Session, form_param: CreateForm) -> dict:
 
 def update_fare(
     session: Session, id: int, form_param: UpdateForm, extra_filter_for_fare=None
-):
+) -> Tuple[bool, dict]:
     """
     Updates an existing fare record in the database.
 
@@ -212,7 +212,7 @@ def update_fare(
         extra_filter_for_fare (optional): Additional filter to apply when validating the fare ID.
 
     Returns:
-        dict: The updated fare data.
+        Tuple[bool, dict]: A tuple containing a boolean indicating whether any updates were made and the updated fare data.
     """
     fare = validate_id(session, Fare, id, Fare.id, extra_filter=extra_filter_for_fare)
     update_data = form_param.model_dump(exclude_unset=True)
