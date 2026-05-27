@@ -564,9 +564,23 @@ def create_service(
         exceptions.InvalidValue: If the starting date is not valid.
         exceptions.InvalidAssociation: If there are invalid associations between vehicle, route, fare, and company.
     """
-    vehicle = validate_id(session, Vehicle, form_param.vehicle_id, "vehicle_id", extra_filter=extra_filter_for_vehicle)
-    route = validate_id(session, Route, form_param.route_id, "route_id", extra_filter=extra_filter_for_route)
-    fare = validate_id(session, Fare, form_param.fare_id, "fare_id", extra_filter=extra_filter_for_fare)
+    vehicle = validate_id(
+        session,
+        Vehicle,
+        form_param.vehicle_id,
+        "vehicle_id",
+        extra_filter=extra_filter_for_vehicle,
+    )
+    route = validate_id(
+        session,
+        Route,
+        form_param.route_id,
+        "route_id",
+        extra_filter=extra_filter_for_route,
+    )
+    fare = validate_id(
+        session, Fare, form_param.fare_id, "fare_id", extra_filter=extra_filter_for_fare
+    )
 
     if vehicle.company_id != route.company_id:
         raise exceptions.InvalidAssociation(
@@ -578,11 +592,11 @@ def create_service(
                 FareInService.fare_id, VehicleInService.vehicle_id
             )
     company = validate_id(
-    session,
-    Company,
-    vehicle.company_id,
-    Service.company_id,
-)
+        session,
+        Company,
+        vehicle.company_id,
+        Service.company_id,
+    )
     # validations
     if vehicle.status != VehicleStatus.ACTIVE:
         raise exceptions.InactiveResource(Vehicle)
@@ -696,31 +710,51 @@ def update_service(
         extra_filter_for_service: Additional filter for service validation.
         extra_filter_for_route: Additional filter for route validation.
         extra_filter_for_vehicle: Additional filter for vehicle validation.
-        extra_filter_for_fare: Additional filter for fare validation.           
+        extra_filter_for_fare: Additional filter for fare validation.
 
     Returns:
         tuple[bool, dict]: (have_updates, service_data)
     """
-    service = validate_id(session, Service, id, Service.id, extra_filter=extra_filter_for_service)
+    service = validate_id(
+        session, Service, id, Service.id, extra_filter=extra_filter_for_service
+    )
 
     update_data = form_param.model_dump(exclude_unset=True)
     vehicle = None
     route = None
     fare = None
     if "vehicle_id" in update_data:
-        vehicle = validate_id(session, Vehicle, form_param.vehicle_id, "vehicle_id", extra_filter=extra_filter_for_vehicle)
+        vehicle = validate_id(
+            session,
+            Vehicle,
+            form_param.vehicle_id,
+            "vehicle_id",
+            extra_filter=extra_filter_for_vehicle,
+        )
         if vehicle.company_id != service.company_id:
             raise exceptions.InvalidAssociation(
                 VehicleInService.vehicle_id, Service.company_id
             )
     if "route_id" in update_data:
-        route = validate_id(session, Route, form_param.route_id, "route_id", extra_filter=extra_filter_for_route)
+        route = validate_id(
+            session,
+            Route,
+            form_param.route_id,
+            "route_id",
+            extra_filter=extra_filter_for_route,
+        )
         if route.company_id != service.company_id:
             raise exceptions.InvalidAssociation(
                 LandmarkInRoute.route_id, Service.company_id
             )
     if "fare_id" in update_data:
-        fare = validate_id(session, Fare, form_param.fare_id, "fare_id", extra_filter=extra_filter_for_fare)
+        fare = validate_id(
+            session,
+            Fare,
+            form_param.fare_id,
+            "fare_id",
+            extra_filter=extra_filter_for_fare,
+        )
         if fare.scope != FareScope.GLOBAL and fare.company_id != service.company_id:
             raise exceptions.InvalidAssociation(
                 FareInService.fare_id, Service.company_id
@@ -1098,9 +1132,7 @@ POST_EXCEPTIONS = [
     exceptions.OverlappingService(),
     exceptions.InvalidValue(Service.starting_at),
     exceptions.UnknownValue(Service.company_id),
-    exceptions.InvalidAssociation(
-        VehicleInService.vehicle_id, Service.company_id
-    ),
+    exceptions.InvalidAssociation(VehicleInService.vehicle_id, Service.company_id),
     exceptions.InvalidAssociation(LandmarkInRoute.route_id, Service.company_id),
     exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id),
 ]
@@ -1118,9 +1150,7 @@ PATCH_EXCEPTIONS = [
     exceptions.OverlappingService(),
     exceptions.DataInUse(Service),
     exceptions.InvalidValue(Service.starting_at),
-     exceptions.InvalidAssociation(
-                VehicleInService.vehicle_id, Service.company_id
-            ),
+    exceptions.InvalidAssociation(VehicleInService.vehicle_id, Service.company_id),
     exceptions.InvalidAssociation(LandmarkInRoute.route_id, Service.company_id),
     exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id),
 ]
@@ -1149,9 +1179,15 @@ POST_DESCRIPTION = (
     .add_head("Create a new service.")
     .add_line("Logged in user must have service creation permission.")
     .add_line("Validates that the vehicle, route, and fare are valid and accessible.")
-    .add_line("Status of vehicle must be ACTIVE, company must be VERIFIED, and route must be VALID.")
-    .add_line(f"`starting_at` must be between now and {SERVICE_CREATION_LEAD_TIME_DAYS} days from now.")
-    .add_line("The service name is auto-generated based on the route, vehicle, and starting date if not provided.")
+    .add_line(
+        "Status of vehicle must be ACTIVE, company must be VERIFIED, and route must be VALID."
+    )
+    .add_line(
+        f"`starting_at` must be between now and {SERVICE_CREATION_LEAD_TIME_DAYS} days from now."
+    )
+    .add_line(
+        "The service name is auto-generated based on the route, vehicle, and starting date if not provided."
+    )
     .add_line("By default the status of the service is set to CREATED.")
 )
 
@@ -1159,10 +1195,18 @@ PATCH_DESCRIPTION = (
     Description()
     .add_head("Update an existing service.")
     .add_line("Logged in user must have service update permission.")
-    .add_line("Allowed status transitions: CREATED → CACHED, CACHED → ENDED, STARTED → ENDED, ENDED → STARTED.")
-    .add_line("When status transitions to ENDED, all STARTED duties on the service are ended at the same time.")
-    .add_line("`vehicle_id`, `route_id`, `fare_id`, and `starting_at` can only be updated when service status is CREATED.")
-    .add_line(f"`starting_at` must be between now and {SERVICE_CREATION_LEAD_TIME_DAYS} days from now.")
+    .add_line(
+        "Allowed status transitions: CREATED → CACHED, CACHED → ENDED, STARTED → ENDED, ENDED → STARTED."
+    )
+    .add_line(
+        "When status transitions to ENDED, all STARTED duties on the service are ended at the same time."
+    )
+    .add_line(
+        "`vehicle_id`, `route_id`, `fare_id`, and `starting_at` can only be updated when service status is CREATED."
+    )
+    .add_line(
+        f"`starting_at` must be between now and {SERVICE_CREATION_LEAD_TIME_DAYS} days from now."
+    )
     .add_line("Empty PATCH requests are allowed and will result in no changes.")
 )
 
@@ -1174,15 +1218,9 @@ DELETE_DESCRIPTION = (
     .add_line("Returns 204 No Content even if the specified service does not exist.")
 )
 
-GET_DESCRIPTION = (
-    Description()
-    .add_head("Fetch a list of services.")
-)
+GET_DESCRIPTION = Description().add_head("Fetch a list of services.")
 
-GET_DETAIL_DESCRIPTION = (
-    Description()
-    .add_head("Fetch service details by ID.")
-)
+GET_DETAIL_DESCRIPTION = Description().add_head("Fetch service details by ID.")
 
 
 # ---------------------------------------------------------------------------
@@ -1196,8 +1234,8 @@ GET_DETAIL_DESCRIPTION = (
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=POST_DESCRIPTION.copy()
-        .add_line("Logged in executive must have `company.service.create` permission.")
-        .to_string(),
+    .add_line("Logged in executive must have `company.service.create` permission.")
+    .to_string(),
 )
 async def create_service_for_executive(
     form_param: CreateForm,
@@ -1226,12 +1264,10 @@ async def create_service_for_executive(
     summary="Update service",
     tags=["Service"],
     response_model=ServiceSchema,
-    responses=fuse_exception_responses(
-        PATCH_EXCEPTIONS
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=PATCH_DESCRIPTION.copy()
-        .add_line("Logged in executive must have `company.service.update` permission.")
-        .to_string(),
+    .add_line("Logged in executive must have `company.service.update` permission.")
+    .to_string(),
 )
 async def update_service_for_executive(
     id: int,
@@ -1315,8 +1351,8 @@ async def fetch_service_details_for_executive(
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=DELETE_DESCRIPTION.copy()
-        .add_line("Logged in executive must have `company.service.delete` permission.")
-        .to_string(),
+    .add_line("Logged in executive must have `company.service.delete` permission.")
+    .to_string(),
 )
 async def delete_service_for_executive(
     id: int,
@@ -1356,8 +1392,8 @@ async def delete_service_for_executive(
         + [exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id)]
     ),
     description=POST_DESCRIPTION.copy()
-        .add_line("Logged in operator must have `company.service.create` permission.")
-        .to_string(),
+    .add_line("Logged in operator must have `company.service.create` permission.")
+    .to_string(),
 )
 async def create_service_for_operator(
     form_param: CreateForm,
@@ -1367,7 +1403,9 @@ async def create_service_for_operator(
     try:
         session = SessionLocal()
         token = authorize_operator(
-            session, access_token.credentials, [OperatorPermissionPath.CREATE_COMPANY_SERVICE]
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.CREATE_COMPANY_SERVICE],
         )
 
         service_data = create_service(
@@ -1375,7 +1413,8 @@ async def create_service_for_operator(
             form_param,
             extra_filter_for_route=(Route.company_id == token.company_id),
             extra_filter_for_vehicle=(Vehicle.company_id == token.company_id),
-            extra_filter_for_fare=(Fare.company_id == token.company_id) | (Fare.scope == FareScope.GLOBAL)
+            extra_filter_for_fare=(Fare.company_id == token.company_id)
+            | (Fare.scope == FareScope.GLOBAL),
         )
         log_event(token, request_info, service_data)
         return service_data
@@ -1396,8 +1435,8 @@ async def create_service_for_operator(
         + [exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id)]
     ),
     description=PATCH_DESCRIPTION.copy()
-        .add_line("Logged in operator must have `company.service.update` permission.")
-        .to_string(),
+    .add_line("Logged in operator must have `company.service.update` permission.")
+    .to_string(),
 )
 async def update_service_for_operator(
     id: int,
@@ -1408,7 +1447,9 @@ async def update_service_for_operator(
     try:
         session = SessionLocal()
         token = authorize_operator(
-            session, access_token.credentials, [OperatorPermissionPath.UPDATE_COMPANY_SERVICE]
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.UPDATE_COMPANY_SERVICE],
         )
 
         have_updates, service_data = update_service(
@@ -1418,7 +1459,8 @@ async def update_service_for_operator(
             extra_filter_for_service=(Service.company_id == token.company_id),
             extra_filter_for_route=(Route.company_id == token.company_id),
             extra_filter_for_vehicle=(Vehicle.company_id == token.company_id),
-            extra_filter_for_fare=(Fare.company_id == token.company_id) | (Fare.scope == FareScope.GLOBAL)
+            extra_filter_for_fare=(Fare.company_id == token.company_id)
+            | (Fare.scope == FareScope.GLOBAL),
         )
         if have_updates:
             log_event(token, request_info, service_data)
@@ -1461,8 +1503,10 @@ async def fetch_services_for_operator(
     response_model=PrivateServiceSchema,
     responses=fuse_exception_responses(GET_DETAIL_EXCEPTIONS),
     description=GET_DETAIL_DESCRIPTION.copy()
-        .add_line("If `marked_as_cached` query parameter is set to true, and the service status is currently CREATED, the status will be updated to CACHED.")
-        .to_string(),
+    .add_line(
+        "If `marked_as_cached` query parameter is set to true, and the service status is currently CREATED, the status will be updated to CACHED."
+    )
+    .to_string(),
 )
 async def fetch_service_details_for_operator(
     id: int,
@@ -1498,8 +1542,8 @@ async def fetch_service_details_for_operator(
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=DELETE_DESCRIPTION.copy()
-        .add_line("Logged in operator must have `company.service.delete` permission.")
-        .to_string(),
+    .add_line("Logged in operator must have `company.service.delete` permission.")
+    .to_string(),
 )
 async def delete_service_for_operator(
     id: int,
@@ -1509,7 +1553,9 @@ async def delete_service_for_operator(
     try:
         session = SessionLocal()
         token = authorize_operator(
-            session, access_token.credentials, [OperatorPermissionPath.DELETE_COMPANY_SERVICE]
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.DELETE_COMPANY_SERVICE],
         )
 
         service = (
