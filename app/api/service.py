@@ -1322,7 +1322,9 @@ async def fetch_services_for_executive(
     summary="Fetch service details",
     tags=["Service"],
     response_model=PublicServiceSchema,
-    responses=fuse_exception_responses([*GET_DETAIL_EXCEPTIONS, exceptions.InvalidToken()]),
+    responses=fuse_exception_responses(
+        [*GET_DETAIL_EXCEPTIONS, exceptions.InvalidToken()]
+    ),
     description=GET_DETAIL_DESCRIPTION.to_string(),
 )
 async def fetch_service_details_for_executive(
@@ -1498,7 +1500,9 @@ async def fetch_services_for_operator(
     summary="Fetch service details",
     tags=["Service"],
     response_model=PrivateServiceSchema,
-    responses=fuse_exception_responses([*GET_DETAIL_EXCEPTIONS, exceptions.InvalidToken()]),
+    responses=fuse_exception_responses(
+        [*GET_DETAIL_EXCEPTIONS, exceptions.InvalidToken()]
+    ),
     description=GET_DETAIL_DESCRIPTION.copy()
     .add_line(
         "If `marked_as_cached` query parameter is set to true, and the service status is currently CREATED, the status will be updated to CACHED."
@@ -1608,7 +1612,9 @@ async def fetch_services_for_vendor(
     summary="Fetch service details",
     tags=["Service"],
     response_model=PublicServiceSchema,
-    responses=fuse_exception_responses([*GET_DETAIL_EXCEPTIONS, exceptions.InvalidToken()]),
+    responses=fuse_exception_responses(
+        [*GET_DETAIL_EXCEPTIONS, exceptions.InvalidToken()]
+    ),
     description=GET_DETAIL_DESCRIPTION.to_string(),
 )
 async def fetch_service_details_for_vendor(
