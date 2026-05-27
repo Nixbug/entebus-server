@@ -410,7 +410,7 @@ GET_EXCEPTIONS = [
 POST_DESCRIPTION = (
     Description()
     .add_head("Creates a new landmark in route.")
-    .add_line("Departure delta must be greater than arrival delta.")
+    .add_line("Arrival delta cannot exceed departure delta.")
     .add_line(
         "When creating a landmark in a route, the route will be validated and status of the route will be updated."
     )
@@ -420,7 +420,7 @@ POST_DESCRIPTION = (
 PATCH_DESCRIPTION = (
     Description()
     .add_head("Updates an existing landmark in route.")
-    .add_line("Departure delta must be greater than arrival delta.")
+    .add_line("Arrival delta cannot exceed departure delta.")
     .add_line(
         "When updating a landmark in a route, the route will be validated and status of the route will be updated."
     )

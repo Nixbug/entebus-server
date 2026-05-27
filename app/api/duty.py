@@ -141,7 +141,7 @@ def update_duty(
         tuple[bool, dict]: (have_updates, duty_data)
     """
     duty = validate_id(session, Duty, id, Duty.id, extra_filter=extra_filter_for_duty)
-    _allowed_duty_status_transitions = {
+    allowed_duty_status_transitions = {
         DutyStatus.STARTED: [DutyStatus.ENDED],
         DutyStatus.ENDED: [DutyStatus.STARTED],
     }
@@ -152,7 +152,7 @@ def update_duty(
     if "status" in update_data and update_data["status"] != duty.status:
         new_status = update_data["status"]
         validate_state_transition(
-            _allowed_duty_status_transitions,
+            allowed_duty_status_transitions,
             duty.status,
             new_status,
             Duty.status,

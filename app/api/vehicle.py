@@ -289,12 +289,12 @@ def update_vehicle(
     update_data = form_param.model_dump(exclude_unset=True)
 
     if app_id == AppID.OPERATOR and "status" in update_data:
-        _allowed_vehicle_status_transitions = {
+        allowed_vehicle_status_transitions = {
             VehicleStatus.ACTIVE: [VehicleStatus.MAINTENANCE],
             VehicleStatus.MAINTENANCE: [VehicleStatus.ACTIVE],
         }
         validate_state_transition(
-            _allowed_vehicle_status_transitions,
+            allowed_vehicle_status_transitions,
             vehicle.status,
             update_data.get("status"),
             Vehicle.status,
