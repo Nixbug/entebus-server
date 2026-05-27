@@ -44,12 +44,14 @@ from app.src.regex import NAME_PATTERN
 from app.src.enums import BusinessStatus, BusinessType, OrderIn
 from app.src.urls import URL_BUSINESS
 from app.src.openobserve import log_event
+from app.src.description import Description
 from app.src.validators import (
     validate_id,
-    verify_permission,
     verify_token,
     validate_srid_4326,
     validate_wkt_string,
+    authorize_executive,
+    authorize_vendor,
 )
 from app.src.functions import (
     apply_created_on_filters,
@@ -58,8 +60,6 @@ from app.src.functions import (
     apply_id_filters,
     enum_str,
     fuse_exception_responses,
-    get_executive_roles,
-    get_vendor_roles,
     get_request_info,
     update_if_changed,
     resolve_model_defaults,
@@ -72,7 +72,9 @@ route_vendor = APIRouter()
 route_public = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class MaskedBusinessSchema(BaseModel):
     """Schema for business response for public users without revealing all details."""
 
@@ -92,7 +94,9 @@ class BusinessSchema(MaskedBusinessSchema):
     created_on: datetime
 
 
+# ---------------------------------------------------------------------------
 ## Input Forms
+# ---------------------------------------------------------------------------
 class CreateForm(BaseModel):
     """Form for creating a business."""
 
@@ -147,7 +151,9 @@ class UpdateForm(UpdateFormForEX):
     pass
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering business results."""
 
@@ -196,7 +202,9 @@ class QueryParams(QueryParamsForEX):
     pass
 
 
-# Functions
+# ---------------------------------------------------------------------------
+## Functions
+# ---------------------------------------------------------------------------
 def validate_location(location_wkt: str) -> Point:
     """
     Validate a WKT string as a Point geometry with SRID 4326.
@@ -213,21 +221,23 @@ def validate_location(location_wkt: str) -> Point:
 
 
 def update_business(
-    session: Session, business: Business, form_param: UpdateForm
+    session: Session, id : int, form_param: UpdateForm, extra_filter_for_business=None
 ) -> Tuple[bool, dict]:
     """
     Updates a Business with the provided form data.
 
     Args:
         session (Session): SQLAlchemy database session.
-        business (Business): Business to update.
+        id (int): ID of the business to update.
         form_param (UpdateForm): Form data containing fields to update.
+        extra_filter_for_business (optional): Additional filter to apply when fetching the business for update.
 
     Returns:
         Tuple[bool, dict]:
             - bool: True if the business was modified and the changes were committed.
             - dict: JSON-encoded representation of the updated business.
     """
+    business = validate_id(session, Business, id, Business.id, extra_filter=extra_filter_for_business)
     update_data = form_param.model_dump(exclude_unset=True)
     # Validate location if changed
     if form_param.location is not None:
@@ -352,6 +362,69 @@ def search_business(session: Session, query_params: QueryParams) -> List[Busines
 
 
 # ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.InvalidWKTStringOrType(),
+    exceptions.InvalidSRID4326(),
+]
+
+PATCH_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue(Business.id),
+    exceptions.InvalidWKTStringOrType(),
+    exceptions.InvalidSRID4326(),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidWKTStringOrType(),
+    exceptions.InvalidSRID4326(),
+    exceptions.InvalidToken(),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common description
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Creates a new business.")
+    .add_line("Duplicate names are not allowed.")
+    .add_line("By default the business is created in active status.")
+    .add_line("By default the business type is other.")
+)
+
+PATCH_DESCRIPTION = (
+    Description()
+    .add_head("Updates an existing business.")
+    .add_line("Empty PATCH requests are allowed and will result in no changes.")
+    .add_line("When updating location, it must be a valid SRID 4326 WKT POINT.")
+    .add_line("If the business name is updated, the linked wallet name will also be updated to maintain consistency.")
+)
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes a business.")
+    .add_line("Returns 204 No Content even if the specified business does not exist.")
+    .add_line("Deleting a business will delete all related records (vendors, tokens, roles, images, wallets). Use with caution.")
+)
+
+GET_DESCRIPTION = (
+    Description()
+    .add_head("Fetches a list of businesses.")
+    .add_line("If location is not provided while using order_by=location, the API will fall back to default ordering by id.")
+)
+
+
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
@@ -360,23 +433,11 @@ def search_business(session: Session, query_params: QueryParams) -> List[Busines
     tags=["Business"],
     response_model=BusinessSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Creates a new business.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `business.create` permission.    
-            - Duplicate names are not allowed.    
-            - By default the business is created in `active` status.    
-            - By default the business type is `other`.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `business.create` permission.")
+        .to_string()
     ),
 )
 async def create_business_for_executive(
@@ -386,9 +447,11 @@ async def create_business_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.CREATE_BUSINESS)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.CREATE_BUSINESS],
+        )
 
         # Validate location (WKT and SRID)
         location_geom = validate_location(form_param.location)
@@ -432,24 +495,11 @@ async def create_business_for_executive(
     summary="Update business",
     tags=["Business"],
     response_model=BusinessSchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(Business.id),
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing business.**    
-            - Requires a valid access token.    
-            - Logged-in executive must have `business.update` permission.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-            - When updating `location`, it must be a valid SRID 4326 WKT POINT.    
-            - If the business name is updated, the linked wallet name will also be updated to maintain consistency.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `business.update` permission.")
+        .to_string()
     ),
 )
 async def update_business_for_executive(
@@ -460,14 +510,15 @@ async def update_business_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_BUSINESS)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_BUSINESS],
+        )
 
-        business = validate_id(session, Business, id, Business.id)
         have_updates, business_data = update_business(
             session,
-            business,
+            id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
         )
 
@@ -485,20 +536,9 @@ async def update_business_for_executive(
     summary="Fetch business",
     tags=["Business"],
     response_model=List[BusinessSchema],
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-            exceptions.InvalidToken(),
-        ]
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(
-        """
-            **Fetches a list of businesses.**    
-            - Requires a valid access token for authentication.    
-            - Common search supports searching by id, name and address.    
-            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """
+        GET_DESCRIPTION.to_string()
     ),
 )
 async def fetch_businesses_for_executive(
@@ -524,17 +564,11 @@ async def fetch_businesses_for_executive(
     summary="Delete business",
     tags=["Business"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes a business.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in executive must have `business.delete` permission.    
-            - Returns 204 No Content even if the specified business does not exist.    
-            - Deleting a business will delete all related records (vendors, tokens, roles, images, wallets). Use with caution.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line("The logged-in executive must have `business.delete` permission.")
+        .to_string()
     ),
 )
 async def delete_business_for_executive(
@@ -544,9 +578,11 @@ async def delete_business_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.DELETE_BUSINESS)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.DELETE_BUSINESS],
+        )
 
         business = session.query(Business).filter(Business.id == id).first()
         if business is not None:
@@ -583,25 +619,11 @@ async def delete_business_for_executive(
     summary="Update business",
     tags=["Business"],
     response_model=BusinessSchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(Business.id),
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing business.**    
-            - Requires a valid access token.    
-            - Logged-in vendor must have `business.update` permission.    
-            - Vendor can only update the business they belong to.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-            - When updating `location`, it must be a valid SRID 4326 WKT POINT.    
-            - Returns the updated business.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line("Logged-in vendor must have `business.update` permission.")
+        .to_string()
     ),
 )
 async def update_business_for_vendor(
@@ -612,17 +634,17 @@ async def update_business_for_vendor(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, VendorToken, access_token.credentials)
-        roles = get_vendor_roles(session, token)
-        verify_permission(roles, VendorPermissionPath.UPDATE_BUSINESS)
+        token = authorize_vendor(
+            session,
+            access_token.credentials,
+            [VendorPermissionPath.UPDATE_BUSINESS],
+        )
 
-        business = validate_id(session, Business, id, Business.id)
-        if token.business_id != business.id:
-            raise exceptions.NoPermission()
         have_updates, business_data = update_business(
             session,
-            business,
+            id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            extra_filter_for_business=(Business.id == token.business_id,),
         )
 
         if have_updates:
@@ -641,11 +663,7 @@ async def update_business_for_vendor(
     response_model=List[BusinessSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
     description=(
-        """
-            **Fetches the vendor's business.**    
-            - Only the business associated with the vendor will be returned.    
-            - Requires a valid access token for authentication.    
-        """
+        GET_DESCRIPTION.to_string()
     ),
 )
 async def fetch_businesses_for_vendor(access_token=Depends(bearer_vendor)):
@@ -675,13 +693,10 @@ async def fetch_businesses_for_vendor(access_token=Depends(bearer_vendor)):
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
     description=(
-        """
-            **Fetches a list of businesses.**    
-            - Only active businesses are returned.    
-            - Only id, name, type are returned.    
-            - Common search supports searching by id, name and address.    
-            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """
+        GET_DESCRIPTION.copy()
+        .add_line("Only active businesses are returned.")
+        .add_line("Only masked data is returned.")
+        .to_string()
     ),
 )
 async def fetch_businesses_for_public(

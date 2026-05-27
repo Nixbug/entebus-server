@@ -40,12 +40,13 @@ from app.src import exceptions
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_BUS_STOP
 from app.src.openobserve import log_event
+from app.src.description import Description
 from app.src.validators import (
-    verify_permission,
     verify_token,
     validate_id,
     validate_wkt_string,
     validate_srid_4326,
+    authorize_executive,
 )
 from app.src.functions import (
     apply_created_on_filters,
@@ -55,7 +56,6 @@ from app.src.functions import (
     enum_str,
     fuse_exception_responses,
     get_request_info,
-    get_executive_roles,
     update_if_changed,
 )
 
@@ -65,7 +65,9 @@ route_operator = APIRouter()
 route_public = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class BusStopSchema(BaseModel):
     """Schema for bus stop response."""
 
@@ -77,7 +79,9 @@ class BusStopSchema(BaseModel):
     created_on: datetime
 
 
-## Input Schema
+# ---------------------------------------------------------------------------
+## Input Forms
+# ---------------------------------------------------------------------------
 class CreateForm(BaseModel):
     """Form data for creating a new bus stop."""
 
@@ -103,7 +107,9 @@ class UpdateForm(BaseModel):
     )
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering results."""
 
@@ -238,7 +244,79 @@ def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusSto
 
 
 # ---------------------------------------------------------------------------
-## API endpoints [Executive]
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.InvalidWKTStringOrType(),
+    exceptions.InvalidSRID4326(),
+    exceptions.UnknownValue(BusStop.landmark_id),
+    exceptions.BusStopOutsideLandmark(),
+]
+
+PATCH_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue(BusStop.id),
+    exceptions.InvalidWKTStringOrType(),
+    exceptions.InvalidSRID4326(),
+    exceptions.BusStopOutsideLandmark(),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.InvalidWKTStringOrType(),
+    exceptions.InvalidSRID4326(),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common description
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Creates a new bus stop.")
+    .add_line("The location field must be a valid WKT string.")
+    .add_line("The coordinates must be in longitude/latitude format.")
+    .add_line("Use WGS84 compatible coordinates within SRID 4326 bounds.")
+    .add_line("The location must be within the boundary of the landmark.")
+    .add_line("Logged-in executive must have `landmark.bus_stop.create` permission.")
+)
+
+PATCH_DESCRIPTION = (
+    Description()
+    .add_head("Updates an existing bus stop.")
+    .add_line("Empty PATCH requests are allowed and will result in no changes.")
+    .add_line(
+        "When updating the location, it must remain within the landmark boundary."
+    )
+    .add_line("Logged-in executive must have `landmark.bus_stop.update` permission.")
+)
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes an existing bus stop.")
+    .add_line("Returns 204 No Content even if the specified bus stop does not exist.")
+    .add_line("Logged-in executive must have `landmark.bus_stop.delete` permission.")
+)
+
+GET_DESCRIPTION = (
+    Description()
+    .add_head("Fetches a list of bus stops.")
+    .add_line(
+        "If location is not provided while using order_by=location, the API will fall back to default ordering by id."
+    )
+)
+
+
+# ---------------------------------------------------------------------------
+## Executive
 # ---------------------------------------------------------------------------
 @route_executive.post(
     URL_BUS_STOP,
@@ -246,27 +324,8 @@ def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusSto
     tags=["Bus Stop"],
     response_model=BusStopSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-            exceptions.UnknownValue(BusStop.landmark_id),
-            exceptions.BusStopOutsideLandmark(),
-        ]
-    ),
-    description=(
-        """
-            **Create a new bus stop.**    
-            - The executive must provide a valid access token.    
-            - The authenticated executive must have `landmark.bus_stop.create` permission.    
-            - The location field must be a valid WKT string.    
-            - The coordinates must be in `longitude/latitude` format.    
-            - Use WGS84 compatible coordinates within `SRID 4326` bounds.    
-            - The location must be within the boundary of the landmark.    
-        """
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
+    description=(POST_DESCRIPTION.to_string()),
 )
 async def create_bus_stop_for_executive(
     form_param: CreateForm,
@@ -275,9 +334,11 @@ async def create_bus_stop_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, PermissionPath.CREATE_BUS_STOP)
+        token = authorize_executive(
+            session,
+            access_token,
+            [PermissionPath.CREATE_BUS_STOP],
+        )
 
         # Validate location (WKT, SRID, and landmark boundary)
         location_geom = validate_location(
@@ -311,25 +372,8 @@ async def create_bus_stop_for_executive(
     summary="Update bus stop",
     tags=["Bus Stop"],
     response_model=BusStopSchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(BusStop.id),
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-            exceptions.BusStopOutsideLandmark(),
-        ]
-    ),
-    description=(
-        """
-            **Updates an existing bus stop.**    
-            - Requires a valid access token.    
-            - Logged-in executive must have `landmark.bus_stop.update` permission to update bus stops.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-            - When updating the `location`, it must remain within the landmark boundary.    
-        """
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
+    description=(PATCH_DESCRIPTION.to_string()),
 )
 async def update_bus_stop_for_executive(
     id: int,
@@ -339,9 +383,11 @@ async def update_bus_stop_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, PermissionPath.UPDATE_BUS_STOP)
+        token = authorize_executive(
+            session,
+            access_token,
+            [PermissionPath.UPDATE_BUS_STOP],
+        )
 
         bus_stop = validate_id(session, BusStop, id, BusStop.id)
 
@@ -381,17 +427,8 @@ async def update_bus_stop_for_executive(
     summary="Delete bus stop",
     tags=["Bus Stop"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
-    description=(
-        """
-        **Deletes an existing bus stop.**    
-        - Requires a valid access token for authentication.    
-        - The logged-in executive must have `landmark.bus_stop.delete` permission.    
-        - Returns 204 No Content even if the specified bus stop does not exist.    
-        """
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
+    description=(DELETE_DESCRIPTION.to_string()),
 )
 async def delete_bus_stop_for_executive(
     id: int,
@@ -400,9 +437,11 @@ async def delete_bus_stop_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, PermissionPath.DELETE_BUS_STOP)
+        token = authorize_executive(
+            session,
+            access_token,
+            [PermissionPath.DELETE_BUS_STOP],
+        )
 
         bus_stop = session.query(BusStop).filter(BusStop.id == id).first()
         if bus_stop is not None:
@@ -425,21 +464,8 @@ async def delete_bus_stop_for_executive(
     summary="Fetch bus stop",
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-            exceptions.InvalidToken(),
-        ]
-    ),
-    description=(
-        """
-            **Fetches a list of Bus Stops.**    
-            - Requires a valid access token for authentication.    
-            - Common search supports searching by id and name.    
-            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_bus_stops_for_executive(
     query_params: QueryParams = Depends(),
@@ -464,21 +490,8 @@ async def fetch_bus_stops_for_executive(
     summary="Fetch bus stop",
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-            exceptions.InvalidToken(),
-        ]
-    ),
-    description=(
-        """
-            **Fetches a list of Bus Stops.**    
-            - Requires a valid access token for authentication.    
-            - Common search supports searching by id and name.    
-            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_bus_stops_for_vendor(
     query_params: QueryParams = Depends(),
@@ -503,21 +516,8 @@ async def fetch_bus_stops_for_vendor(
     summary="Fetch bus stop",
     tags=["Bus Stop"],
     response_model=List[BusStopSchema],
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-            exceptions.InvalidToken(),
-        ]
-    ),
-    description=(
-        """
-            **Fetches a list of Bus Stops.**    
-            - Requires a valid access token for authentication.    
-            - Common search supports searching by id and name.    
-            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_bus_stops_for_operator(
     query_params: QueryParams = Depends(),
@@ -545,13 +545,7 @@ async def fetch_bus_stops_for_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
-    description=(
-        """
-            **Fetches a list of Bus Stops.**    
-            - Common search supports searching by id and name.    
-            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """
-    ),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_bus_stops_for_public(query_params: QueryParams = Depends()):
     try:

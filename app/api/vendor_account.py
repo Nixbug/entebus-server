@@ -40,7 +40,14 @@ from app.src import exceptions
 from app.src.regex import PASSWORD_PATTERN, USERNAME_PATTERN
 from app.src.urls import URL_VENDOR_ACCOUNT
 from app.src.openobserve import log_event
-from app.src.validators import verify_permission, verify_token, validate_id
+from app.src.description import Description
+from app.src.validators import (
+    authorize_executive,
+    authorize_vendor,
+    verify_permission,
+    verify_token,
+    validate_id,
+)
 from app.src.functions import (
     apply_account_filters,
     apply_created_on_filters,
@@ -48,7 +55,6 @@ from app.src.functions import (
     apply_updated_on_filters,
     enum_str,
     fuse_exception_responses,
-    get_executive_roles,
     get_vendor_roles,
     get_request_info,
     update_if_changed,
@@ -60,7 +66,9 @@ route_executive = APIRouter()
 route_vendor = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class VendorSchema(BaseModel):
     """Schema for vendor account response."""
 
@@ -78,7 +86,9 @@ class VendorSchema(BaseModel):
     created_on: datetime
 
 
+# ---------------------------------------------------------------------------
 ## Input Forms
+# ---------------------------------------------------------------------------
 class CreateFormForVE(BaseModel):
     """Form data for creating a new vendor account for a vendor."""
 
@@ -110,6 +120,15 @@ class CreateFormForEX(CreateFormForVE):
     business_id: int = Field()
 
 
+class CreateForm(CreateFormForEX):
+    """Generic combined form data for creating a new vendor account."""
+
+    pass
+
+
+# ---------------------------------------------------------------------------
+## Input Forms
+# ---------------------------------------------------------------------------
 class UpdateForm(BaseModel):
     """Form data for updating a vendor account."""
 
@@ -132,7 +151,9 @@ class UpdateForm(BaseModel):
     )
 
 
-# Query parameters
+# ---------------------------------------------------------------------------
+## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering results."""
 
@@ -176,7 +197,39 @@ class QueryParams(QueryParamsForEX):
     pass
 
 
+# ---------------------------------------------------------------------------
 ## Functions
+# ---------------------------------------------------------------------------
+def create_account(session: Session, form_param: CreateForm) -> dict:
+    """
+    Create a new vendor account with the provided form data.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        form_param (CreateForm): Form data for creating the vendor.
+
+    Returns:
+        dict: The created vendor data.
+    """
+    vendor = Vendor(
+        business_id=form_param.business_id,
+        username=form_param.username,
+        password=form_param.password,
+        gender=form_param.gender,
+        description=form_param.description,
+        type=form_param.type,
+        full_name=form_param.full_name,
+        status=form_param.status,
+        phone_number=form_param.phone_number,
+        email_id=form_param.email_id,
+    )
+    session.add(vendor)
+    session.commit()
+    session.refresh(vendor)
+    vendor_data = jsonable_encoder(vendor, exclude={Vendor.password.name})
+    return vendor_data
+
+
 def update_vendor(
     session: Session, vendor: Vendor, form_param: UpdateForm
 ) -> Tuple[bool, dict]:
@@ -296,6 +349,55 @@ def delete_vendor(session: Session, vendor: Vendor) -> dict:
 
 
 # ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+PATCH_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue(Vendor.id),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common description
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Creates a new vendor account.")
+    .add_line("Duplicate usernames are not allowed.")
+    .add_line("By default the user is created in active status.")
+)
+
+PATCH_DESCRIPTION = (
+    Description()
+    .add_head("Updates an existing vendor account.")
+    .add_line("Empty PATCH requests are allowed and will result in no changes.")
+)
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes an existing vendor account.")
+    .add_line("Returns 204 No Content even if the specified account does not exist.")
+)
+
+GET_DESCRIPTION = Description().add_head("Fetches a list of vendors.")
+
+
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
@@ -304,17 +406,11 @@ def delete_vendor(session: Session, vendor: Vendor) -> dict:
     tags=["Vendor Account"],
     response_model=VendorSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Creates a new vendor account.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `business.vendor.create` permission.    
-            - Duplicate usernames within the same business are not allowed.    
-            - By default the user is created in active status.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `business.vendor.create` permission.")
+        .to_string()
     ),
 )
 async def create_vendor_account_for_executive(
@@ -324,27 +420,15 @@ async def create_vendor_account_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.CREATE_BUSINESS_VENDOR)
-
-        vendor = Vendor(
-            business_id=form_param.business_id,
-            username=form_param.username,
-            password=form_param.password,
-            gender=form_param.gender,
-            description=form_param.description,
-            type=form_param.type,
-            full_name=form_param.full_name,
-            status=form_param.status,
-            phone_number=form_param.phone_number,
-            email_id=form_param.email_id,
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.CREATE_BUSINESS_VENDOR],
         )
-        session.add(vendor)
-        session.commit()
-        session.refresh(vendor)
 
-        vendor_data = jsonable_encoder(vendor, exclude={Vendor.password.name})
+        vendor_data = create_account(
+            session, CreateForm(**form_param.model_dump())
+        )
         log_event(token, request_info, vendor_data)
         return vendor_data
     except Exception as e:
@@ -358,20 +442,11 @@ async def create_vendor_account_for_executive(
     summary="Update vendor account",
     tags=["Vendor Account"],
     response_model=VendorSchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(Vendor.id),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing vendor account.**    
-            - Requires a valid access token.    
-            - Logged-in executive must have `business.vendor.update` permission to update vendors.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `business.vendor.update` permission.")
+        .to_string()
     ),
 )
 async def update_vendor_account_for_executive(
@@ -382,9 +457,11 @@ async def update_vendor_account_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_BUSINESS_VENDOR)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_BUSINESS_VENDOR],
+        )
 
         vendor = validate_id(session, Vendor, id, Vendor.id)
         have_updates, vendor_data = update_vendor(session, vendor, form_param)
@@ -402,14 +479,8 @@ async def update_vendor_account_for_executive(
     summary="Fetch vendor account",
     tags=["Vendor Account"],
     response_model=List[VendorSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of vendors.**    
-            - Requires a valid access token for authentication.    
-            - Common search supports searching by id, username, full_name, description, phone_number, and email_id.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_vendor_accounts_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -433,16 +504,11 @@ async def fetch_vendor_accounts_for_executive(
     summary="Delete vendor account",
     tags=["Vendor Account"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes an existing vendor account.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in executive must have the `business.vendor.delete` permission.    
-            - Returns 204 No Content even if the specified account does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have the `business.vendor.delete` permission.")
+        .to_string()
     ),
 )
 async def delete_vendor_account_for_executive(
@@ -452,9 +518,11 @@ async def delete_vendor_account_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.DELETE_BUSINESS_VENDOR)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.DELETE_BUSINESS_VENDOR],
+        )
 
         vendor = session.query(Vendor).filter(Vendor.id == id).first()
         if vendor is not None:
@@ -476,17 +544,11 @@ async def delete_vendor_account_for_executive(
     tags=["Account"],
     response_model=VendorSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Creates a new vendor account.**    
-            - Vendor must have a valid access token.    
-            - Logged-in vendor must have `business.vendor.create` permission.    
-            - Duplicate usernames within the same business are not allowed.    
-            - By default the user is created in active status.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in vendor must have `business.vendor.create` permission.")
+        .to_string()
     ),
 )
 async def create_vendor_account_for_vendor(
@@ -496,27 +558,15 @@ async def create_vendor_account_for_vendor(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, VendorToken, access_token.credentials)
-        roles = get_vendor_roles(session, token)
-        verify_permission(roles, VendorPermissionPath.CREATE_BUSINESS_VENDOR)
-
-        vendor = Vendor(
-            business_id=token.business_id,
-            username=form_param.username,
-            password=form_param.password,
-            gender=form_param.gender,
-            description=form_param.description,
-            type=form_param.type,
-            full_name=form_param.full_name,
-            status=form_param.status,
-            phone_number=form_param.phone_number,
-            email_id=form_param.email_id,
+        token = authorize_vendor(
+            session,
+            access_token.credentials,
+            [VendorPermissionPath.CREATE_BUSINESS_VENDOR],
         )
-        session.add(vendor)
-        session.commit()
-        session.refresh(vendor)
 
-        vendor_data = jsonable_encoder(vendor, exclude={Vendor.password.name})
+        vendor_data = create_account(
+            session, CreateForm(**form_param.model_dump(), business_id=token.business_id)
+        )
         log_event(token, request_info, vendor_data)
         return vendor_data
     except Exception as e:
@@ -530,21 +580,12 @@ async def create_vendor_account_for_vendor(
     summary="Update vendor account",
     tags=["Account"],
     response_model=VendorSchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(Vendor.id),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing vendor account.**    
-            - Requires a valid access token.    
-            - Logged-in vendor must have `business.vendor.update` permission to update other vendors.    
-            - Vendor can update their own account except status.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line("Logged-in vendor must have `business.vendor.update` permission to update other vendors.")
+        .add_line("Vendors can update their own account except status.")
+        .to_string()
     ),
 )
 async def update_vendor_account_for_vendor(
@@ -587,14 +628,9 @@ async def update_vendor_account_for_vendor(
     summary="Fetch vendor account",
     tags=["Account"],
     response_model=List[VendorSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(
-        """
-            **Fetches a list of vendors.**    
-            - Requires a valid access token for authentication.    
-            - Only vendors belonging to the same business as the logged-in vendor will be returned.    
-            - Common search supports searching by id, username, full_name, description, phone_number, and email_id.    
-        """
+        GET_DESCRIPTION.to_string()
     ),
 )
 async def fetch_vendor_accounts_for_vendor(
@@ -619,17 +655,12 @@ async def fetch_vendor_accounts_for_vendor(
     summary="Delete vendor account",
     tags=["Account"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes an existing vendor account.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in vendor must have the `business.vendor.delete` permission.    
-            - Self-deletion is not allowed for safety reasons.    
-            - Returns 204 No Content even if the specified account does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line("The logged-in vendor must have the `business.vendor.delete` permission.")
+        .add_line("Self-deletion is not allowed for safety reasons.")
+        .to_string()
     ),
 )
 async def delete_vendor_account_for_vendor(
@@ -639,9 +670,11 @@ async def delete_vendor_account_for_vendor(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, VendorToken, access_token.credentials)
-        roles = get_vendor_roles(session, token)
-        verify_permission(roles, VendorPermissionPath.DELETE_BUSINESS_VENDOR)
+        token = authorize_vendor(
+            session,
+            access_token.credentials,
+            [VendorPermissionPath.DELETE_BUSINESS_VENDOR],
+        )
 
         if token.vendor_id == id:
             raise exceptions.NoPermission()
