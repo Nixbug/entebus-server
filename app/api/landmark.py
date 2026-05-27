@@ -346,7 +346,7 @@ PATCH_DESCRIPTION = (
     .add_head("Updates an existing landmark.")
     .add_line("Empty PATCH requests are allowed and will result in no changes.")
     .add_line(
-        "When updating the boundary, the new centroid cannot be more than {MAX_LANDMARK_UPDATE_DISTANCE / 1000} km from the original centroid."
+        f"When updating the boundary, the new centroid cannot be more than {MAX_LANDMARK_UPDATE_DISTANCE / 1000} km from the original centroid."
     )
     .add_line(
         "All bus stops associated with the landmark must remain within the updated boundary."

@@ -521,7 +521,7 @@ async def upload_vendor_image_for_vendor(
             session,
             CreateForm(**form_param.model_dump()),
             file_bytes,
-            extra_filter_for_vendor=(Vendor.business_id == token.business_id,),
+            extra_filter_for_vendor=(Vendor.business_id == token.business_id),
         )
         log_event(token, request_info, vendor_image_data)
         return vendor_image_data

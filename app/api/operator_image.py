@@ -525,7 +525,7 @@ async def upload_operator_image_for_operator(
             session,
             CreateForm(**form_param.model_dump()),
             file_bytes,
-            extra_filter_for_operator=(Operator.company_id == token.company_id,),
+            extra_filter_for_operator=(Operator.company_id == token.company_id),
         )
         log_event(token, request_info, operator_image_data)
         return operator_image_data
