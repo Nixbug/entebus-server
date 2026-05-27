@@ -38,7 +38,6 @@ from app.src.validators import (
     verify_token,
     authenticate_executive,
     validate_and_revoke_refresh_token,
-    authorize_executive,
 )
 from app.src.functions import (
     apply_created_on_filters,

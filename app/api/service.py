@@ -766,9 +766,7 @@ def update_service(
         ServiceStatus.ENDED: [ServiceStatus.STARTED],
     }
 
-    update_data = form_param.model_dump(exclude_unset=True)
     duties = []
-
     if "status" in update_data:
         new_status = update_data.pop("status")
         if new_status != service.status:
