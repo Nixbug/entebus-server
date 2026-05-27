@@ -6,7 +6,7 @@ update, deletion, and retrieval. Uses Pydantic schemas for
 input validation and structured output.
 """
 
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from enum import StrEnum
 from datetime import datetime
 from fastapi import APIRouter, status, Depends, Response, Query
@@ -25,6 +25,7 @@ from app.src.db import (
     VendorToken,
 )
 from app.src.enums import (
+    AppID,
     OrderIn,
     VehicleStatus,
 )
@@ -35,16 +36,18 @@ from app.src import exceptions
 from app.src.regex import VEHICLE_NUMBER_PATTERN, NAME_PATTERN
 from app.src.urls import URL_VEHICLE
 from app.src.openobserve import log_event
+from app.src.description import Description
 from app.src.validators import (
     verify_permission,
     verify_token,
     validate_id,
     validate_state_transition,
+    authorize_executive,
+    authorize_operator,
 )
 from app.src.functions import (
     enum_str,
     fuse_exception_responses,
-    get_executive_roles,
     get_operator_roles,
     get_request_info,
     update_if_changed,
@@ -70,7 +73,9 @@ route_vendor = APIRouter()
 route_public = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class MaskedVehicleSchema(BaseModel):
     """Schema for masked vehicle responses without revealing all details."""
 
@@ -95,7 +100,9 @@ class VehicleSchema(MaskedVehicleSchema):
     version: int
 
 
-# Input Forms
+# ---------------------------------------------------------------------------
+## Input Forms
+# ---------------------------------------------------------------------------
 class CreateFormForOP(BaseModel):
     """Form data for creating a new vehicle for an operator."""
 
@@ -137,7 +144,9 @@ class UpdateForm(BaseModel):
     status: VehicleStatus = Field(description=enum_str(VehicleStatus), default=None)
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering vehicle results."""
 
@@ -197,7 +206,9 @@ class QueryParams(QueryParamsForEX):
     pass
 
 
+# ---------------------------------------------------------------------------
 ## Functions
+# ---------------------------------------------------------------------------
 def validate_manufactured_on(
     form_param: CreateFormForOP | CreateFormForEX | UpdateForm,
 ):
@@ -251,20 +262,44 @@ def create_vehicle(session: Session, form_param: CreateForm) -> dict:
     return vehicle_data
 
 
-def update_vehicle(session: Session, vehicle: Vehicle, form_param: UpdateForm):
+def update_vehicle(
+    session: Session,
+    id: int,
+    form_param: UpdateForm,
+    extra_filter_for_vehicle=None,
+    app_id: AppID = None,
+) -> Tuple[bool, dict]:
     """
     Updates an existing vehicle record in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
-        vehicle (Vehicle): The existing vehicle record to be updated.
+        id (int): ID of the vehicle to update.
         form_param (UpdateForm): Form data for updating the vehicle.
+        extra_filter_for_vehicle (optional): Additional filter to apply when validating the vehicle ID.
+        app_id (AppID, optional): Identifier of the application making the request. Used to determine allowed status transitions.
 
     Returns:
-        dict: The updated vehicle data.
+        Tuple[bool, dict]: A tuple containing a boolean indicating if updates were made and the updated vehicle data.
     """
+    vehicle = validate_id(
+        session, Vehicle, id, Vehicle.id, extra_filter=extra_filter_for_vehicle
+    )
     validate_manufactured_on(form_param)
     update_data = form_param.model_dump(exclude_unset=True)
+
+    if app_id == AppID.OPERATOR and "status" in update_data:
+        allowed_vehicle_status_transitions = {
+            VehicleStatus.ACTIVE: [VehicleStatus.MAINTENANCE],
+            VehicleStatus.MAINTENANCE: [VehicleStatus.ACTIVE],
+        }
+        validate_state_transition(
+            allowed_vehicle_status_transitions,
+            vehicle.status,
+            update_data.get("status"),
+            Vehicle.status,
+        )
+
     update_if_changed(vehicle, update_data)
     have_updates = session.is_modified(vehicle)
     if have_updates:
@@ -378,6 +413,59 @@ def search_vehicle(session: Session, query_params: QueryParams) -> List[Vehicle]
 
 
 # ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.InvalidValue(Vehicle.manufactured_on),
+]
+
+PATCH_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.InvalidValue(Vehicle.manufactured_on),
+    exceptions.UnknownValue(Vehicle.id),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common descriptions
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Creates a new vehicle.")
+    .add_line("Duplicate registration numbers are not allowed.")
+    .add_line("Manufactured date cannot be in the future.")
+    .add_line("By default, the vehicle status is set to CREATED.")
+)
+
+PATCH_DESCRIPTION = (
+    Description()
+    .add_head("Updates an existing vehicle.")
+    .add_line("Manufactured date cannot be in the future.")
+    .add_line("Empty PATCH requests are allowed and will result in no changes.")
+)
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes an existing vehicle.")
+    .add_line("Returns 204 No Content even if the specified vehicle does not exist.")
+)
+
+GET_DESCRIPTION = Description().add_head("Fetches a list of vehicles.")
+
+
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
@@ -387,22 +475,12 @@ def search_vehicle(session: Session, query_params: QueryParams) -> List[Vehicle]
     response_model=VehicleSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidValue(Vehicle.manufactured_on),
-            exceptions.UnknownValue(Vehicle.company_id),
-        ]
+        [*POST_EXCEPTIONS, exceptions.UnknownValue(Vehicle.company_id)]
     ),
     description=(
-        """
-            **Creates a new vehicle for a company.**    
-            - Requires a valid access token.    
-            - Logged-in executive must have `company.vehicle.create` permission.    
-            - Duplicate registration numbers are not allowed.    
-            - Manufactured date cannot be in the future.    
-            - By default, the vehicle status is set to `CREATED`.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.vehicle.create` permission.")
+        .to_string()
     ),
 )
 async def create_vehicle_for_executive(
@@ -412,9 +490,11 @@ async def create_vehicle_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY_VEHICLE)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.CREATE_COMPANY_VEHICLE],
+        )
 
         validate_id(session, Company, form_param.company_id, Vehicle.company_id)
         vehicle_data = create_vehicle(session, CreateForm(**form_param.model_dump()))
@@ -432,22 +512,11 @@ async def create_vehicle_for_executive(
     summary="Update vehicle",
     tags=["Vehicle"],
     response_model=VehicleSchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidValue(Vehicle.manufactured_on),
-            exceptions.UnknownValue(Vehicle.id),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing vehicle for a company.**    
-            - Requires a valid access token.    
-            - Logged-in executive must have `company.vehicle.update` permission.    
-            - Manufactured date cannot be in the future.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.vehicle.update` permission.")
+        .to_string()
     ),
 )
 async def update_vehicle_for_executive(
@@ -458,13 +527,14 @@ async def update_vehicle_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_VEHICLE)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_COMPANY_VEHICLE],
+        )
 
-        vehicle = validate_id(session, Vehicle, id, Vehicle.id)
         have_updates, vehicle_data = update_vehicle(
-            session, vehicle, UpdateForm(**form_param.model_dump(exclude_unset=True))
+            session, id, UpdateForm(**form_param.model_dump(exclude_unset=True))
         )
 
         if have_updates:
@@ -481,16 +551,13 @@ async def update_vehicle_for_executive(
     summary="Delete vehicle",
     tags=["Vehicle"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes an existing vehicle.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in executive must have the `company.vehicle.delete` permission.    
-            - Returns 204 No Content even if the specified vehicle does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line(
+            "The logged-in executive must have the `company.vehicle.delete` permission."
+        )
+        .to_string()
     ),
 )
 async def delete_vehicle_for_executive(
@@ -500,9 +567,11 @@ async def delete_vehicle_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_VEHICLE)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.DELETE_COMPANY_VEHICLE],
+        )
 
         vehicle = session.query(Vehicle).filter(Vehicle.id == id).first()
         if vehicle is not None:
@@ -520,13 +589,8 @@ async def delete_vehicle_for_executive(
     summary="Fetch vehicle",
     tags=["Vehicle"],
     response_model=List[VehicleSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of vehicles.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_vehicles_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -554,22 +618,11 @@ async def fetch_vehicles_for_executive(
     tags=["Vehicle"],
     response_model=VehicleSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidValue(Vehicle.manufactured_on),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Creates a new vehicle for a company.**    
-            - Requires a valid access token.    
-            - Logged-in operator must have `company.vehicle.create` permission.    
-            - Duplicate registration numbers are not allowed.    
-            - Manufactured date cannot be in the future.    
-            - By default, the vehicle status is set to `CREATED`.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in operator must have `company.vehicle.create` permission.")
+        .to_string()
     ),
 )
 async def create_vehicle_for_operator(
@@ -579,9 +632,11 @@ async def create_vehicle_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_VEHICLE)
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.CREATE_COMPANY_VEHICLE],
+        )
 
         vehicle_data = create_vehicle(
             session,
@@ -606,22 +661,15 @@ async def create_vehicle_for_operator(
     response_model=VehicleSchema,
     responses=fuse_exception_responses(
         [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidValue(Vehicle.manufactured_on),
-            exceptions.UnknownValue(Vehicle.id),
+            *PATCH_EXCEPTIONS,
             exceptions.InvalidStateTransition(Vehicle.status),
         ]
     ),
     description=(
-        """
-            **Updates an existing vehicle for a company.**    
-            - Requires a valid access token.    
-            - Logged-in operator must have `company.vehicle.update` permission.    
-            - Manufactured date cannot be in the future.    
-            - Status transitions are only allowed between ACTIVE and MAINTENANCE.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line("Logged-in operator must have `company.vehicle.update` permission.")
+        .add_line("Status transitions are only allowed between ACTIVE and MAINTENANCE.")
+        .to_string()
     ),
 )
 async def update_vehicle_for_operator(
@@ -636,24 +684,12 @@ async def update_vehicle_for_operator(
         roles = get_operator_roles(session, token)
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_VEHICLE)
 
-        _allowed_vehicle_status_transitions = {
-            VehicleStatus.ACTIVE: [VehicleStatus.MAINTENANCE],
-            VehicleStatus.MAINTENANCE: [VehicleStatus.ACTIVE],
-        }
-        vehicle = validate_id(
-            session, Vehicle, id, Vehicle.id, (Vehicle.company_id == token.company_id)
-        )
-        update_data = form_param.model_dump(exclude_unset=True)
-        if "status" in update_data:
-            validate_state_transition(
-                _allowed_vehicle_status_transitions,
-                vehicle.status,
-                update_data.get("status"),
-                Vehicle.status,
-            )
-
         have_updates, vehicle_data = update_vehicle(
-            session, vehicle, UpdateForm(**update_data)
+            session,
+            id,
+            UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            extra_filter_for_vehicle=(Vehicle.company_id == token.company_id),
+            app_id=request_info.app_id,
         )
         if have_updates:
             log_event(token, request_info, vehicle_data)
@@ -669,16 +705,13 @@ async def update_vehicle_for_operator(
     summary="Delete vehicle",
     tags=["Vehicle"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes an existing vehicle.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in operator must have the `company.vehicle.delete` permission.    
-            - Returns 204 No Content even if the specified vehicle does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line(
+            "The logged-in operator must have the `company.vehicle.delete` permission."
+        )
+        .to_string()
     ),
 )
 async def delete_vehicle_for_operator(
@@ -688,9 +721,11 @@ async def delete_vehicle_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_VEHICLE)
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.DELETE_COMPANY_VEHICLE],
+        )
 
         vehicle = (
             session.query(Vehicle)
@@ -712,13 +747,8 @@ async def delete_vehicle_for_operator(
     summary="Fetch vehicle",
     tags=["Vehicle"],
     response_model=List[VehicleSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of vehicles.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_vehicles_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
@@ -745,13 +775,8 @@ async def fetch_vehicles_for_operator(
     summary="Fetch vehicle",
     tags=["Vehicle"],
     response_model=List[VehicleSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of vehicles.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_vehicles_for_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
@@ -779,11 +804,10 @@ async def fetch_vehicles_for_vendor(
     tags=["Vehicle"],
     response_model=List[MaskedVehicleSchema],
     description=(
-        """
-            **Fetches a list of vehicles for public users.**    
-            - Only masked fields are returned.    
-            - By default only active vehicles are returned.    
-        """
+        GET_DESCRIPTION.copy()
+        .add_line("Only masked data is returned.")
+        .add_line("By default only active vehicles are returned.")
+        .to_string()
     ),
 )
 async def fetch_vehicles_for_public(query_params: QueryParamsForPU = Depends()):

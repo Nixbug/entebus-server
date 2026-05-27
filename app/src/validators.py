@@ -648,23 +648,27 @@ def authorize_executive(
     """
     Authorize an executive based on their access token and required permissions.
 
+    Authorization succeeds if the executive has any of the provided permissions.
+
     Args:
         session (Session): Active SQLAlchemy session.
         token_value (str): The access token value to be verified.
-        permissions (List[str]): A list of permission path strings.
+        permissions (List[str]): A list of permission path strings. Authorization succeeds if
+                                the executive has at least one of these permissions.
 
     Returns:
-        ExecutiveToken: The token object if the executive has the required permissions.
+        ExecutiveToken: The token object if the executive has at least one of the required permissions.
 
     Raises:
         exceptions.InvalidToken: If the token is invalid or cannot be verified.
-        exceptions.NoPermission: If the executive does not have the required permissions.
+        exceptions.NoPermission: If the executive does not have any of the provided permissions.
     """
     token = verify_token(session, ExecutiveToken, token_value)
     roles = get_executive_roles(session, token)
     for permission in permissions:
-        verify_permission(roles, permission)
-    return token
+        if verify_permission(roles, permission, raise_exception=False):
+            return token
+    raise exceptions.NoPermission()
 
 
 def authorize_operator(
@@ -673,24 +677,27 @@ def authorize_operator(
     """
     Authorize an operator based on their access token and required permissions.
 
+    Authorization succeeds if the operator has any of the provided permissions.
+
     Args:
         session (Session): Active SQLAlchemy session.
         token_value (str): The access token value to be verified.
-        permissions (List[str]): A list of permission path strings.
-
+        permissions (List[str]): A list of permission path strings. Authorization succeeds if
+                                the operator has at least one of these permissions.
 
     Returns:
-        OperatorToken: The token object if the operator has the required permissions.
+        OperatorToken: The token object if the operator has at least one of the required permissions.
 
     Raises:
         exceptions.InvalidToken: If the token is invalid or cannot be verified.
-        exceptions.NoPermission: If the operator does not have the required permissions.
+        exceptions.NoPermission: If the operator does not have any of the provided permissions.
     """
     token = verify_token(session, OperatorToken, token_value)
     roles = get_operator_roles(session, token)
     for permission in permissions:
-        verify_permission(roles, permission)
-    return token
+        if verify_permission(roles, permission, raise_exception=False):
+            return token
+    raise exceptions.NoPermission()
 
 
 def authorize_vendor(
@@ -699,20 +706,24 @@ def authorize_vendor(
     """
     Authorize a vendor based on their access token and required permissions.
 
+    Authorization succeeds if the vendor has any of the provided permissions.
+
     Args:
         session (Session): Active SQLAlchemy session.
         token_value (str): The access token value to be verified.
-        permissions (List[str]): A list of permission path strings.
+        permissions (List[str]): A list of permission path strings. Authorization succeeds if
+                                the vendor has at least one of these permissions.
 
     Returns:
-        VendorToken: The token object if the vendor has the required permissions.
+        VendorToken: The token object if the vendor has at least one of the required permissions.
 
     Raises:
         exceptions.InvalidToken: If the token is invalid or cannot be verified.
-        exceptions.NoPermission: If the vendor does not have the required permissions.
+        exceptions.NoPermission: If the vendor does not have any of the provided permissions.
     """
     token = verify_token(session, VendorToken, token_value)
     roles = get_vendor_roles(session, token)
     for permission in permissions:
-        verify_permission(roles, permission)
-    return token
+        if verify_permission(roles, permission, raise_exception=False):
+            return token
+    raise exceptions.NoPermission()

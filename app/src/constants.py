@@ -103,8 +103,8 @@ TMZ_SECONDARY = ZoneInfo("Asia/Kolkata")
 # ---------------------------------------------------------------------------
 # MiniRacer constants (for JS execution limits)
 # ---------------------------------------------------------------------------
-JSX_TIMEOUT_MS = 1000  # Timeout for script execution (in milliseconds)
-JSX_MAX_MEMORY_BYTES = 10 * 1024 * 1024  # Max memory size (10 MB)
+JSX_TIMEOUT_MS = 100  # Timeout for script execution (in milliseconds)
+JSX_MAX_MEMORY_BYTES = 68 * 1024  # Max memory size (68 KB)
 
 
 # ---------------------------------------------------------------------------
