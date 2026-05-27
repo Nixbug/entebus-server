@@ -221,7 +221,7 @@ def validate_location(location_wkt: str) -> Point:
 
 
 def update_business(
-    session: Session, id : int, form_param: UpdateForm, extra_filter_for_business=None
+    session: Session, id: int, form_param: UpdateForm, extra_filter_for_business=None
 ) -> Tuple[bool, dict]:
     """
     Updates a Business with the provided form data.
@@ -237,7 +237,9 @@ def update_business(
             - bool: True if the business was modified and the changes were committed.
             - dict: JSON-encoded representation of the updated business.
     """
-    business = validate_id(session, Business, id, Business.id, extra_filter=extra_filter_for_business)
+    business = validate_id(
+        session, Business, id, Business.id, extra_filter=extra_filter_for_business
+    )
     update_data = form_param.model_dump(exclude_unset=True)
     # Validate location if changed
     if form_param.location is not None:
@@ -407,20 +409,26 @@ PATCH_DESCRIPTION = (
     .add_head("Updates an existing business.")
     .add_line("Empty PATCH requests are allowed and will result in no changes.")
     .add_line("When updating location, it must be a valid SRID 4326 WKT POINT.")
-    .add_line("If the business name is updated, the linked wallet name will also be updated to maintain consistency.")
+    .add_line(
+        "If the business name is updated, the linked wallet name will also be updated to maintain consistency."
+    )
 )
 
 DELETE_DESCRIPTION = (
     Description()
     .add_head("Deletes a business.")
     .add_line("Returns 204 No Content even if the specified business does not exist.")
-    .add_line("Deleting a business will delete all related records (vendors, tokens, roles, images, wallets). Use with caution.")
+    .add_line(
+        "Deleting a business will delete all related records (vendors, tokens, roles, images, wallets). Use with caution."
+    )
 )
 
 GET_DESCRIPTION = (
     Description()
     .add_head("Fetches a list of businesses.")
-    .add_line("If location is not provided while using order_by=location, the API will fall back to default ordering by id.")
+    .add_line(
+        "If location is not provided while using order_by=location, the API will fall back to default ordering by id."
+    )
 )
 
 
@@ -537,9 +545,7 @@ async def update_business_for_executive(
     tags=["Business"],
     response_model=List[BusinessSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
-    description=(
-        GET_DESCRIPTION.to_string()
-    ),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_businesses_for_executive(
     query_params: QueryParamsForEX = Depends(),
@@ -662,9 +668,7 @@ async def update_business_for_vendor(
     tags=["Business"],
     response_model=List[BusinessSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        GET_DESCRIPTION.to_string()
-    ),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_businesses_for_vendor(access_token=Depends(bearer_vendor)):
     try:

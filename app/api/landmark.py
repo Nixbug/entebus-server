@@ -335,7 +335,9 @@ POST_DESCRIPTION = (
     .add_line("The coordinates must be in longitude/latitude format.")
     .add_line("Use WGS84 compatible coordinates within SRID 4326 bounds.")
     .add_line("Forms a valid Axis-Aligned Bounding Box (AABB).")
-    .add_line("The boundary must not intersect or overlap with any existing landmark boundary.")
+    .add_line(
+        "The boundary must not intersect or overlap with any existing landmark boundary."
+    )
     .add_line("Logged-in executive must have the `landmark.create` permission.")
 )
 
@@ -343,8 +345,12 @@ PATCH_DESCRIPTION = (
     Description()
     .add_head("Updates an existing landmark.")
     .add_line("Empty PATCH requests are allowed and will result in no changes.")
-    .add_line("When updating the boundary, the new centroid cannot be more than {MAX_LANDMARK_UPDATE_DISTANCE / 1000} km from the original centroid.")
-    .add_line("All bus stops associated with the landmark must remain within the updated boundary.")
+    .add_line(
+        "When updating the boundary, the new centroid cannot be more than {MAX_LANDMARK_UPDATE_DISTANCE / 1000} km from the original centroid."
+    )
+    .add_line(
+        "All bus stops associated with the landmark must remain within the updated boundary."
+    )
     .add_line("Logged-in executive must have the `landmark.update` permission.")
 )
 
@@ -352,14 +358,18 @@ DELETE_DESCRIPTION = (
     Description()
     .add_head("Deletes an existing landmark.")
     .add_line("Returns 204 No Content even if the specified landmark does not exist.")
-    .add_line("A foreign key constraint error will occur if the landmark is referenced in any other table.")
+    .add_line(
+        "A foreign key constraint error will occur if the landmark is referenced in any other table."
+    )
     .add_line("Logged-in executive must have the `landmark.delete` permission.")
 )
 
 GET_DESCRIPTION = (
     Description()
     .add_head("Fetches a list of landmarks.")
-    .add_line("If location is not provided while using order_by=location, the API will fall back to default ordering by id.")
+    .add_line(
+        "If location is not provided while using order_by=location, the API will fall back to default ordering by id."
+    )
 )
 
 
@@ -373,9 +383,7 @@ GET_DESCRIPTION = (
     response_model=LandmarkSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
-    description=(
-        POST_DESCRIPTION.to_string()
-    ),
+    description=(POST_DESCRIPTION.to_string()),
 )
 async def create_landmark_for_executive(
     form_param: CreateForm,
@@ -422,9 +430,7 @@ async def create_landmark_for_executive(
     tags=["Landmark"],
     response_model=LandmarkSchema,
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
-    description=(
-        PATCH_DESCRIPTION.to_string()
-    ),
+    description=(PATCH_DESCRIPTION.to_string()),
 )
 async def update_landmark_for_executive(
     id: int,
@@ -495,9 +501,7 @@ async def update_landmark_for_executive(
     tags=["Landmark"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
-    description=(
-        DELETE_DESCRIPTION.to_string()
-    ),
+    description=(DELETE_DESCRIPTION.to_string()),
 )
 async def delete_landmark_for_executive(
     id: int,
@@ -534,9 +538,7 @@ async def delete_landmark_for_executive(
     tags=["Landmark"],
     response_model=List[LandmarkSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
-    description=(
-        GET_DESCRIPTION.to_string()
-    ),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_landmarks_for_executive(
     query_params: QueryParams = Depends(),

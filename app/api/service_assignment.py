@@ -23,7 +23,6 @@ from app.src.db import (
     Service,
     ServiceAssignment,
     SessionLocal,
-    Company,
 )
 from app.src.enums import OrderIn
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, UpdatedOnFilter
@@ -40,7 +39,12 @@ from app.src.description import Description
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.urls import URL_SERVICE_ASSIGNMENT
-from app.src.validators import validate_id, authorize_executive, authorize_operator, verify_token
+from app.src.validators import (
+    validate_id,
+    authorize_executive,
+    authorize_operator,
+    verify_token,
+)
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -186,7 +190,6 @@ def update_service_assignment(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    company_id: int,
     extra_filter_for_assignment=None,
     extra_filter_for_operator=None,
 ) -> tuple[bool, dict]:
@@ -312,7 +315,9 @@ POST_EXCEPTIONS = [
     exceptions.NoPermission(),
     exceptions.UnknownValue(ServiceAssignment.service_id),
     exceptions.UnknownValue(ServiceAssignment.operator_id),
-    exceptions.InvalidAssociation(ServiceAssignment.service_id, ServiceAssignment.operator_id),
+    exceptions.InvalidAssociation(
+        ServiceAssignment.service_id, ServiceAssignment.operator_id
+    ),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -320,7 +325,9 @@ PATCH_EXCEPTIONS = [
     exceptions.NoPermission(),
     exceptions.UnknownValue(ServiceAssignment.id),
     exceptions.UnknownValue(ServiceAssignment.operator_id),
-    exceptions.InvalidAssociation(ServiceAssignment.operator_id, ServiceAssignment.company_id),
+    exceptions.InvalidAssociation(
+        ServiceAssignment.operator_id, ServiceAssignment.company_id
+    ),
 ]
 
 DELETE_EXCEPTIONS = [
@@ -352,7 +359,9 @@ PATCH_DESCRIPTION = (
 DELETE_DESCRIPTION = (
     Description()
     .add_head("Deletes an existing service assignment.")
-    .add_line("Returns 204 No Content even if the specified service assignment does not exist.")
+    .add_line(
+        "Returns 204 No Content even if the specified service assignment does not exist."
+    )
 )
 
 GET_DESCRIPTION = Description().add_head("Fetches a list of service assignments.")
@@ -370,7 +379,9 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of service assignments.
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
         POST_DESCRIPTION.copy()
-        .add_line("Logged-in executive must have `company.service.assignment.create` permission.")
+        .add_line(
+            "Logged-in executive must have `company.service.assignment.create` permission."
+        )
         .to_string()
     ),
 )
@@ -408,7 +419,9 @@ async def create_service_assignment_for_executive(
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
         PATCH_DESCRIPTION.copy()
-        .add_line("Logged-in executive must have `company.service.assignment.update` permission.")
+        .add_line(
+            "Logged-in executive must have `company.service.assignment.update` permission."
+        )
         .to_string()
     ),
 )
@@ -427,9 +440,7 @@ async def update_service_assignment_for_executive(
         )
 
         have_updates, service_assignment_data = update_service_assignment(
-            session,
-            id,
-            form_param
+            session, id, form_param
         )
         if have_updates:
             log_event(token, request_info, service_assignment_data)
@@ -448,7 +459,9 @@ async def update_service_assignment_for_executive(
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
         DELETE_DESCRIPTION.copy()
-        .add_line("Logged-in executive must have `company.service.assignment.delete` permission.")
+        .add_line(
+            "Logged-in executive must have `company.service.assignment.delete` permission."
+        )
         .to_string()
     ),
 )
@@ -488,7 +501,9 @@ async def delete_service_assignment_for_executive(
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(
         GET_DESCRIPTION.copy()
-        .add_line("Executives can filter service assignments by company, service, operator, and service starting time.")
+        .add_line(
+            "Executives can filter service assignments by company, service, operator, and service starting time."
+        )
         .to_string()
     ),
 )
@@ -521,7 +536,9 @@ async def fetch_service_assignments_for_executive(
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
         POST_DESCRIPTION.copy()
-        .add_line("Logged-in operator must have `company.service.assignment.create` permission.")
+        .add_line(
+            "Logged-in operator must have `company.service.assignment.create` permission."
+        )
         .to_string()
     ),
 )
@@ -562,7 +579,9 @@ async def create_service_assignment_for_operator(
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
         PATCH_DESCRIPTION.copy()
-        .add_line("Logged-in operator must have `company.service.assignment.update` permission.")
+        .add_line(
+            "Logged-in operator must have `company.service.assignment.update` permission."
+        )
         .to_string()
     ),
 )
@@ -585,7 +604,9 @@ async def update_service_assignment_for_operator(
             id,
             form_param,
             company_id=token.company_id,
-            extra_filter_for_assignment=(ServiceAssignment.company_id == token.company_id),
+            extra_filter_for_assignment=(
+                ServiceAssignment.company_id == token.company_id
+            ),
             extra_filter_for_operator=(Operator.company_id == token.company_id),
         )
         if have_updates:
@@ -605,7 +626,9 @@ async def update_service_assignment_for_operator(
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
         DELETE_DESCRIPTION.copy()
-        .add_line("Logged-in operator must have `company.service.assignment.delete` permission.")
+        .add_line(
+            "Logged-in operator must have `company.service.assignment.delete` permission."
+        )
         .to_string()
     ),
 )
@@ -650,7 +673,9 @@ async def delete_service_assignment_for_operator(
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(
         GET_DESCRIPTION.copy()
-        .add_line("Operators can filter service assignments by service, operator, and service starting time.")
+        .add_line(
+            "Operators can filter service assignments by service, operator, and service starting time."
+        )
         .to_string()
     ),
 )

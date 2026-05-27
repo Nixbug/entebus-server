@@ -231,21 +231,28 @@ def create_account(session: Session, form_param: CreateForm) -> dict:
 
 
 def update_vendor(
-    session: Session, vendor: Vendor, form_param: UpdateForm
+    session: Session, id: int, form_param: UpdateForm, extra_filter_for_vendor=None
 ) -> Tuple[bool, dict]:
     """
     Updates a vendor account with the provided form data.
 
     Args:
         session (Session): SQLAlchemy database session.
-        vendor (Vendor): Vendor to update.
+        id (int): ID of the vendor to update.
         form_param (UpdateForm): Form data for updating the vendor.
+        extra_filter_for_vendor (Optional) : Additional filter to apply when validating the vendor ID.
 
     Returns:
-    Tuple[bool, dict]:
-            - bool: True if the vendor was modified and the changes were committed.
-            - dict: JSON-encoded representation of the updated vendor.
+        Tuple[bool, dict]: A tuple containing a boolean indicating if the vendor
+        was modified and the JSON-encoded representation of the updated vendor.
     """
+    vendor = validate_id(
+        session,
+        Vendor,
+        id,
+        Vendor.id,
+        extra_filter=extra_filter_for_vendor,
+    )
     update_data = form_param.model_dump(exclude_unset=True)
     tokens_revoked = False
     if form_param.status == AccountStatus.SUSPENDED:
@@ -426,9 +433,7 @@ async def create_vendor_account_for_executive(
             [ExecutivePermissionPath.CREATE_BUSINESS_VENDOR],
         )
 
-        vendor_data = create_account(
-            session, CreateForm(**form_param.model_dump())
-        )
+        vendor_data = create_account(session, CreateForm(**form_param.model_dump()))
         log_event(token, request_info, vendor_data)
         return vendor_data
     except Exception as e:
@@ -463,8 +468,7 @@ async def update_vendor_account_for_executive(
             [ExecutivePermissionPath.UPDATE_BUSINESS_VENDOR],
         )
 
-        vendor = validate_id(session, Vendor, id, Vendor.id)
-        have_updates, vendor_data = update_vendor(session, vendor, form_param)
+        have_updates, vendor_data = update_vendor(session, id, form_param)
         if have_updates:
             log_event(token, request_info, vendor_data)
         return vendor_data
@@ -507,7 +511,9 @@ async def fetch_vendor_accounts_for_executive(
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
         DELETE_DESCRIPTION.copy()
-        .add_line("Logged-in executive must have the `business.vendor.delete` permission.")
+        .add_line(
+            "Logged-in executive must have the `business.vendor.delete` permission."
+        )
         .to_string()
     ),
 )
@@ -565,7 +571,8 @@ async def create_vendor_account_for_vendor(
         )
 
         vendor_data = create_account(
-            session, CreateForm(**form_param.model_dump(), business_id=token.business_id)
+            session,
+            CreateForm(**form_param.model_dump(), business_id=token.business_id),
         )
         log_event(token, request_info, vendor_data)
         return vendor_data
@@ -583,7 +590,9 @@ async def create_vendor_account_for_vendor(
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
         PATCH_DESCRIPTION.copy()
-        .add_line("Logged-in vendor must have `business.vendor.update` permission to update other vendors.")
+        .add_line(
+            "Logged-in vendor must have `business.vendor.update` permission to update other vendors."
+        )
         .add_line("Vendors can update their own account except status.")
         .to_string()
     ),
@@ -603,17 +612,15 @@ async def update_vendor_account_for_vendor(
             roles = get_vendor_roles(session, token)
             verify_permission(roles, VendorPermissionPath.UPDATE_BUSINESS_VENDOR)
 
-        vendor = validate_id(
-            session,
-            Vendor,
-            id,
-            Vendor.id,
-            extra_filter=(Vendor.business_id == token.business_id),
-        )
         if is_self_update and form_param.status is not None:
             raise exceptions.NoPermission()
 
-        have_updates, vendor_data = update_vendor(session, vendor, form_param)
+        have_updates, vendor_data = update_vendor(
+            session,
+            id,
+            form_param,
+            extra_filter_for_vendor=(Vendor.business_id == token.business_id),
+        )
         if have_updates:
             log_event(token, request_info, vendor_data)
         return vendor_data
@@ -629,9 +636,7 @@ async def update_vendor_account_for_vendor(
     tags=["Account"],
     response_model=List[VendorSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
-    description=(
-        GET_DESCRIPTION.to_string()
-    ),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_vendor_accounts_for_vendor(
     query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
@@ -658,7 +663,9 @@ async def fetch_vendor_accounts_for_vendor(
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
         DELETE_DESCRIPTION.copy()
-        .add_line("The logged-in vendor must have the `business.vendor.delete` permission.")
+        .add_line(
+            "The logged-in vendor must have the `business.vendor.delete` permission."
+        )
         .add_line("Self-deletion is not allowed for safety reasons.")
         .to_string()
     ),

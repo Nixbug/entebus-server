@@ -31,7 +31,10 @@ from app.src import exceptions
 from app.src.urls import URL_VENDOR_PICTURE
 from app.src.minio import delete_file, upload_file, download_file
 from app.src.openobserve import log_event
+from app.src.description import Description
 from app.src.validators import (
+    authorize_executive,
+    authorize_vendor,
     verify_permission,
     verify_token,
     validate_id,
@@ -67,7 +70,9 @@ route_executive = APIRouter()
 route_vendor = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class VendorImageSchema(BaseModel):
     """Schema for vendor image response."""
 
@@ -80,7 +85,9 @@ class VendorImageSchema(BaseModel):
     created_on: datetime
 
 
+# ---------------------------------------------------------------------------
 ## Input Forms
+# ---------------------------------------------------------------------------
 class ImageUploadForm(BaseModel):
     """Form data for uploading a vendor image."""
 
@@ -114,7 +121,9 @@ class CreateForm(CreateFormForEX):
     pass
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering results."""
 
@@ -156,9 +165,14 @@ class ImageQueryParams(BaseModel):
     )
 
 
-# Functions
+# ---------------------------------------------------------------------------
+## Functions
+# ---------------------------------------------------------------------------
 def create_image(
-    session: Session, form_param: CreateForm, vendor: Vendor, file_bytes: bytes
+    session: Session,
+    form_param: CreateForm,
+    file_bytes: bytes,
+    extra_filter_for_vendor=None,
 ) -> dict:
     """
     Creates a new vendor image record in the database.
@@ -166,12 +180,19 @@ def create_image(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a vendor image.
-        vendor (Vendor): The vendor instance associated with the image.
         file_bytes (bytes): The image file bytes.
+        extra_filter_for_vendor (optional): Additional filter for validating vendor's business.
 
     Returns:
         dict: The created vendor image data.
     """
+    vendor = validate_id(
+        session,
+        Vendor,
+        form_param.vendor_id,
+        VendorImage.vendor_id,
+        extra_filter=extra_filter_for_vendor,
+    )
     vendor_image = VendorImage(
         business_id=vendor.business_id,
         vendor_id=vendor.id,
@@ -293,28 +314,61 @@ def download_image(
 
 
 # ---------------------------------------------------------------------------
-## API endpoints [Executive]
+## Common exceptions
 # ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.InvalidImageFile(),
+    exceptions.UnknownValue(VendorImage.vendor_id),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+]
+
+DOWNLOAD_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.UnknownValue(VendorImage.id),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common description
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = Description().add_head("Uploads a vendor image.")
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes a vendor image.")
+    .add_line("Returns 204 No Content even if the specified image does not exist.")
+)
+
+GET_DESCRIPTION = Description().add_head("Fetches a list of vendor images.")
+
+DOWNLOAD_DESCRIPTION = Description().add_head(
+    "Downloads vendor profile picture in original or resized resolution."
+)
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Executive]
 @route_executive.post(
     URL_VENDOR_PICTURE,
     summary="Create vendor image",
     tags=["Vendor Account Image"],
     response_model=VendorImageSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidImageFile(),
-            exceptions.UnknownValue(VendorImage.vendor_id),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Uploads a vendor image.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `business.vendor.update` permission to upload other vendor images.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `business.vendor.update` permission.")
+        .to_string()
     ),
 )
 async def upload_vendor_image_for_executive(
@@ -324,19 +378,15 @@ async def upload_vendor_image_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_BUSINESS_VENDOR)
-
-        vendor = validate_id(
-            session, Vendor, form_param.vendor_id, VendorImage.vendor_id
+        token = authorize_executive(
+            session, access_token, [ExecutivePermissionPath.UPDATE_BUSINESS_VENDOR]
         )
 
         file_bytes = await form_param.file.read()
         validate_image(file_bytes, form_param.file.filename)
 
         vendor_image_data = create_image(
-            session, CreateForm(**form_param.model_dump()), vendor, file_bytes
+            session, CreateForm(**form_param.model_dump()), file_bytes
         )
         log_event(token, request_info, vendor_image_data)
         return vendor_image_data
@@ -351,16 +401,11 @@ async def upload_vendor_image_for_executive(
     summary="Delete vendor image",
     tags=["Vendor Account Image"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes a vendor image.**    
-            - Executive must have a valid access token.    
-            - To delete a vendor's image, the `business.vendor.update` permission is required.    
-            - Returns 204 No Content even if the specified image does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `business.vendor.update` permission.")
+        .to_string()
     ),
 )
 async def delete_vendor_image_for_executive(
@@ -370,9 +415,9 @@ async def delete_vendor_image_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_BUSINESS_VENDOR)
+        token = authorize_executive(
+            session, access_token, [ExecutivePermissionPath.UPDATE_BUSINESS_VENDOR]
+        )
 
         vendor_image = session.query(VendorImage).filter(VendorImage.id == id).first()
         if vendor_image is not None:
@@ -390,13 +435,8 @@ async def delete_vendor_image_for_executive(
     summary="Fetch vendor images",
     tags=["Vendor Account Image"],
     response_model=List[VendorImageSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of vendor images.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_vendor_images_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -419,15 +459,8 @@ async def fetch_vendor_images_for_executive(
     f"{URL_VENDOR_PICTURE}/{{id}}",
     summary="Download vendor image",
     tags=["Vendor Account Image"],
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.UnknownValue(VendorImage.id)]
-    ),
-    description=(
-        """
-            **Download vendor profile picture in original or resized resolution.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(DOWNLOAD_EXCEPTIONS),
+    description=(DOWNLOAD_DESCRIPTION.to_string()),
 )
 async def download_vendor_image_for_executive(
     id: int,
@@ -455,21 +488,14 @@ async def download_vendor_image_for_executive(
     tags=["Account Image"],
     response_model=VendorImageSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidImageFile(),
-            exceptions.UnknownValue(VendorImage.vendor_id),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Uploads a vendor image.**    
-            - Vendor must have a valid access token.    
-            - Logged-in vendor must have `business.vendor.update` permission to upload other vendor images.    
-            - Vendor can update their own image without permission.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line(
+            "Logged-in vendor must have `business.vendor.update` permission to upload other vendor images."
+        )
+        .add_line("Vendor can update their own image without permission.")
+        .to_string()
     ),
 )
 async def upload_vendor_image_for_vendor(
@@ -488,21 +514,14 @@ async def upload_vendor_image_for_vendor(
             roles = get_vendor_roles(session, token)
             verify_permission(roles, VendorPermissionPath.UPDATE_BUSINESS_VENDOR)
 
-        vendor = validate_id(
-            session,
-            Vendor,
-            form_param.vendor_id,
-            VendorImage.vendor_id,
-            extra_filter=Vendor.business_id == token.business_id,
-        )
         file_bytes = await form_param.file.read()
         validate_image(file_bytes, form_param.file.filename)
 
         vendor_image_data = create_image(
             session,
             CreateForm(**form_param.model_dump()),
-            vendor,
             file_bytes,
+            extra_filter_for_vendor=(Vendor.business_id == token.business_id,),
         )
         log_event(token, request_info, vendor_image_data)
         return vendor_image_data
@@ -517,17 +536,14 @@ async def upload_vendor_image_for_vendor(
     summary="Delete vendor image",
     tags=["Account Image"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes a vendor image.**    
-            - Vendor must have a valid access token.    
-            - Vendors can delete their own image without additional permissions.    
-            - To delete another vendor's image, the `business.vendor.update` permission is required.    
-            - Returns 204 No Content even if the specified image does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line("Vendors can delete their own image without additional permissions.")
+        .add_line(
+            "To delete another vendor's image, the `business.vendor.update` permission is required."
+        )
+        .to_string()
     ),
 )
 async def delete_vendor_image_for_vendor(
@@ -563,13 +579,13 @@ async def delete_vendor_image_for_vendor(
     summary="Fetch vendor image",
     tags=["Account Image"],
     response_model=List[VendorImageSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(
-        """
-            **Fetches a list of vendor images.**    
-            - Requires a valid access token for authentication.    
-            - Only vendor images belonging to the same business as the logged-in vendor will be returned.    
-        """
+        GET_DESCRIPTION.copy()
+        .add_line(
+            "Only vendor images belonging to the same business as the logged-in vendor will be returned."
+        )
+        .to_string()
     ),
 )
 async def fetch_vendor_images_for_vendor(
@@ -593,15 +609,8 @@ async def fetch_vendor_images_for_vendor(
     f"{URL_VENDOR_PICTURE}/{{id}}",
     summary="Download vendor image",
     tags=["Account Image"],
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.UnknownValue(VendorImage.id)]
-    ),
-    description=(
-        """
-            **Download vendor profile picture in original or resized resolution.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(DOWNLOAD_EXCEPTIONS),
+    description=(DOWNLOAD_DESCRIPTION.to_string()),
 )
 async def download_vendor_image_for_vendor(
     id: int,

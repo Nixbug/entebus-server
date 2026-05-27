@@ -24,6 +24,7 @@ from app.api.bearer import oauth2_executive
 from app.src.db import Executive, ExecutiveToken, ExecutiveImage, SessionLocal
 from app.src.permissions.executive import PermissionPath
 from app.src.openobserve import log_event
+from app.src.description import Description
 from app.src.validators import (
     verify_permission,
     verify_token,
@@ -50,7 +51,9 @@ from app.src.functions import (
 route_executive = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class ExecutiveImageSchema(BaseModel):
     """Schema for executive image response."""
 
@@ -62,7 +65,9 @@ class ExecutiveImageSchema(BaseModel):
     created_on: datetime
 
 
+# ---------------------------------------------------------------------------
 ## Input Forms
+# ---------------------------------------------------------------------------
 class CreateForm(BaseModel):
     """Form data for creating a new executive image."""
 
@@ -79,7 +84,9 @@ class CreateForm(BaseModel):
     )
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering results."""
 
@@ -110,30 +117,69 @@ class ImageQueryParams(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-## API endpoints [Executive]
+## Common exceptions
 # ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.InvalidImageFile(),
+    exceptions.UnknownValue(ExecutiveImage.executive_id),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+]
+
+DOWNLOAD_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.UnknownValue(ExecutiveImage.id),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common description
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Uploads an executive image.")
+    .add_line("Executives can upload their own image without additional permissions.")
+    .add_line(
+        "To upload another executive's image, the `executive.update` permission is required."
+    )
+)
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes an executive image.")
+    .add_line("Executives can delete their own image without additional permissions.")
+    .add_line(
+        "To delete another executive's image, the `executive.update` permission is required."
+    )
+    .add_line("Returns 204 No Content even if the specified image does not exist.")
+)
+
+GET_DESCRIPTION = Description().add_head("Fetches executive images.")
+
+DOWNLOAD_DESCRIPTION = Description().add_head(
+    "Downloads executive profile picture in original or resized resolution."
+)
+
+
+# ---------------------------------------------------------------------------
+## API endpoints [Executive]
 @route_executive.post(
     URL_EXECUTIVE_PICTURE,
     summary="Create executive image",
     tags=["Account Image"],
     response_model=ExecutiveImageSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidImageFile(),
-            exceptions.UnknownValue(ExecutiveImage.executive_id),
-        ]
-    ),
-    description=(
-        """
-            **Uploads an executive image.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `executive.update` permission to upload other executive images.    
-            - Executive can update their own image without permission.    
-        """
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
+    description=(POST_DESCRIPTION.to_string()),
 )
 async def upload_executive_image_for_executive(
     form_param: CreateForm = Depends(),
@@ -190,18 +236,8 @@ async def upload_executive_image_for_executive(
     summary="Delete executive image",
     tags=["Account Image"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
-    description=(
-        """
-            **Deletes an executive image.**    
-            - Executive must have a valid access token.    
-            - Executives can delete their own image without additional permissions.    
-            - To delete another executive's image, the `executive.update` permission is required.    
-            - Returns 204 No Content even if the specified image does not exist.    
-        """
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
+    description=(DELETE_DESCRIPTION.to_string()),
 )
 async def delete_executive_image_for_executive(
     id: int,
@@ -242,13 +278,8 @@ async def delete_executive_image_for_executive(
     summary="Fetch executive image",
     tags=["Account Image"],
     response_model=list[ExecutiveImageSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches executive images.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_executive_images_for_executive(
     query_params: QueryParams = Depends(),
@@ -291,15 +322,8 @@ async def fetch_executive_images_for_executive(
     f"{URL_EXECUTIVE_PICTURE}/{{id}}",
     summary="Download executive image",
     tags=["Account Image"],
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.UnknownValue(ExecutiveImage.id)]
-    ),
-    description=(
-        """
-            **Download executive profile picture in original or resized resolution.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(DOWNLOAD_EXCEPTIONS),
+    description=(DOWNLOAD_DESCRIPTION.to_string()),
 )
 async def download_executive_image_for_executive(
     id: int,

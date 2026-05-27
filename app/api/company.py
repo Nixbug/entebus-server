@@ -239,7 +239,9 @@ def update_company(
             - bool: True if the company was modified and the changes were committed.
             - dict: JSON-encoded representation of the updated company.
     """
-    company = validate_id(session, Company, id, Company.id,extra_filter=extra_filter_for_company)
+    company = validate_id(
+        session, Company, id, Company.id, extra_filter=extra_filter_for_company
+    )
     update_data = form_param.model_dump(exclude_unset=True)
     # Validate location if changed
     if form_param.location is not None:
@@ -405,21 +407,27 @@ PATCH_DESCRIPTION = (
     .add_head("Updates an existing company.")
     .add_line("Empty PATCH requests are allowed and will result in no changes.")
     .add_line("When updating location, it must be a valid SRID 4326 WKT POINT.")
-    .add_line("If the company name is updated, the linked wallet name will also be updated to maintain consistency.")
+    .add_line(
+        "If the company name is updated, the linked wallet name will also be updated to maintain consistency."
+    )
 )
 
 DELETE_DESCRIPTION = (
     Description()
     .add_head("Deletes a company.")
     .add_line("Returns 204 No Content even if the specified company does not exist.")
-    .add_line("Deleting a company will delete all related records (operators, tokens, roles, images, wallets). Use with caution.")
+    .add_line(
+        "Deleting a company will delete all related records (operators, tokens, roles, images, wallets). Use with caution."
+    )
 )
 
 GET_DESCRIPTION = (
     Description()
     .add_head("Fetches a list of companies.")
     .add_line("Common search supports searching by id, name and address.")
-    .add_line("If location is not provided while using order_by=location, the API will fall back to default ordering by id.")
+    .add_line(
+        "If location is not provided while using order_by=location, the API will fall back to default ordering by id."
+    )
 )
 
 
@@ -533,9 +541,7 @@ async def update_company_for_executive(
     tags=["Company"],
     response_model=List[CompanySchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
-    description=(
-        GET_DESCRIPTION.to_string()
-    ),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_companies_for_executive(
     query_params: QueryParamsForEX = Depends(),
@@ -659,9 +665,7 @@ async def update_company_for_operator(
     tags=["Company"],
     response_model=List[CompanySchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        GET_DESCRIPTION.to_string()
-    ),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_companies_for_operator(access_token=Depends(bearer_operator)):
     try:
