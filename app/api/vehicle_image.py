@@ -29,6 +29,7 @@ from app.src.permissions.operator import PermissionPath as OperatorPermissionPat
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src import exceptions
 from app.src.urls import URL_VEHICLE_PICTURE
+from app.src.description import Description
 from app.src.minio import delete_file, upload_file, download_file
 from app.src.openobserve import log_event
 from app.src.validators import (
@@ -36,12 +37,12 @@ from app.src.validators import (
     verify_token,
     validate_id,
     validate_image,
+    authorize_executive,
+    authorize_operator,
 )
 from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
-    get_executive_roles,
-    get_operator_roles,
     apply_created_on_filters,
     apply_id_filters,
     apply_picture_filters,
@@ -68,7 +69,9 @@ route_operator = APIRouter()
 route_public = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class VehicleImageSchema(BaseModel):
     """Schema for vehicle image response."""
 
@@ -81,7 +84,9 @@ class VehicleImageSchema(BaseModel):
     created_on: datetime
 
 
+# ---------------------------------------------------------------------------
 ## Input Forms
+# ---------------------------------------------------------------------------
 class ImageUploadForm(BaseModel):
     """Form data for uploading a vehicle image."""
 
@@ -115,7 +120,9 @@ class CreateForm(CreateFormForEX):
     pass
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering results."""
 
@@ -163,9 +170,14 @@ class ImageQueryParams(BaseModel):
     )
 
 
-# Functions
+# ---------------------------------------------------------------------------
+## Functions
+# ---------------------------------------------------------------------------
 def create_image(
-    session: Session, form_param: CreateForm, vehicle: Vehicle, file_bytes: bytes
+    session: Session,
+    form_param: CreateForm,
+    file_bytes: bytes,
+    extra_filter_for_vehicle=None,
 ) -> dict:
     """
     Creates a new vehicle image record in the database.
@@ -173,12 +185,19 @@ def create_image(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a vehicle image.
-        vehicle (Vehicle): The vehicle instance associated with the image.
         file_bytes (bytes): The image file bytes.
+        extra_filter_for_vehicle (optional): Additional filter to apply when validating the vehicle.
 
     Returns:
         dict: The created vehicle image data.
     """
+    vehicle = validate_id(
+        session,
+        Vehicle,
+        form_param.vehicle_id,
+        VehicleImage.vehicle_id,
+        extra_filter=extra_filter_for_vehicle,
+    )
     vehicle_image = VehicleImage(
         company_id=vehicle.company_id,
         vehicle_id=vehicle.id,
@@ -300,6 +319,48 @@ def download_image(
 
 
 # ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.InvalidImageFile(),
+    exceptions.UnknownValue(VehicleImage.vehicle_id),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common descriptions
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Uploads a vehicle image.")
+    .add_line("A valid access token is required for authentication.")
+)
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes a vehicle image.")
+    .add_line("Returns 204 No Content even if the specified image does not exist.")
+)
+
+GET_DESCRIPTION = Description().add_head("Fetches a list of vehicle images.")
+
+DOWNLOAD_DESCRIPTION = Description().add_head(
+    "Download vehicle image in original or resized resolution."
+)
+
+
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
@@ -308,20 +369,11 @@ def download_image(
     tags=["Vehicle Image"],
     response_model=VehicleImageSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidImageFile(),
-            exceptions.UnknownValue(VehicleImage.vehicle_id),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Uploads a vehicle image.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `company.vehicle.update` permission to upload vehicle images.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.vehicle.update` permission.")
+        .to_string()
     ),
 )
 async def upload_vehicle_image_for_executive(
@@ -331,19 +383,17 @@ async def upload_vehicle_image_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_VEHICLE)
-
-        vehicle = validate_id(
-            session, Vehicle, form_param.vehicle_id, VehicleImage.vehicle_id
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_COMPANY_VEHICLE],
         )
 
         file_bytes = await form_param.file.read()
         validate_image(file_bytes, form_param.file.filename)
 
         vehicle_image_data = create_image(
-            session, CreateForm(**form_param.model_dump()), vehicle, file_bytes
+            session, CreateForm(**form_param.model_dump()), file_bytes
         )
         log_event(token, request_info, vehicle_image_data)
         return vehicle_image_data
@@ -358,16 +408,11 @@ async def upload_vehicle_image_for_executive(
     summary="Delete vehicle image",
     tags=["Vehicle Image"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes a vehicle image.**    
-            - Executive must have a valid access token.    
-            - To delete a vehicle image, the `company.vehicle.update` permission is required.    
-            - Returns 204 No Content even if the specified image does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.vehicle.update` permission.")
+        .to_string()
     ),
 )
 async def delete_vehicle_image_for_executive(
@@ -377,9 +422,11 @@ async def delete_vehicle_image_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_VEHICLE)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_COMPANY_VEHICLE],
+        )
 
         vehicle_image = (
             session.query(VehicleImage).filter(VehicleImage.id == id).first()
@@ -399,13 +446,8 @@ async def delete_vehicle_image_for_executive(
     summary="Fetch vehicle image",
     tags=["Vehicle Image"],
     response_model=List[VehicleImageSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of vehicle images.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=GET_DESCRIPTION.to_string(),
 )
 async def fetch_vehicle_images_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -431,12 +473,7 @@ async def fetch_vehicle_images_for_executive(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(VehicleImage.id)]
     ),
-    description=(
-        """
-            **Download vehicle image in original or resized resolution.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    description=DOWNLOAD_DESCRIPTION.to_string(),
 )
 async def download_vehicle_image_for_executive(
     id: int,
@@ -466,20 +503,11 @@ async def download_vehicle_image_for_executive(
     tags=["Vehicle Image"],
     response_model=VehicleImageSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidImageFile(),
-            exceptions.UnknownValue(VehicleImage.vehicle_id),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Uploads a vehicle image.**    
-            - Operator must have a valid access token.    
-            - Logged-in operator must have `company.vehicle.update` permission to upload vehicle images.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in operator must have `company.vehicle.update` permission.")
+        .to_string()
     ),
 )
 async def upload_vehicle_image_for_operator(
@@ -489,25 +517,20 @@ async def upload_vehicle_image_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_VEHICLE)
-
-        vehicle = validate_id(
+        token = authorize_operator(
             session,
-            Vehicle,
-            form_param.vehicle_id,
-            VehicleImage.vehicle_id,
-            extra_filter=Vehicle.company_id == token.company_id,
+            access_token.credentials,
+            [OperatorPermissionPath.UPDATE_COMPANY_VEHICLE],
         )
+
         file_bytes = await form_param.file.read()
         validate_image(file_bytes, form_param.file.filename)
 
         vehicle_image_data = create_image(
             session,
             CreateForm(**form_param.model_dump()),
-            vehicle,
             file_bytes,
+            extra_filter_for_vehicle=(Vehicle.company_id == token.company_id),
         )
         log_event(token, request_info, vehicle_image_data)
         return vehicle_image_data
@@ -522,16 +545,11 @@ async def upload_vehicle_image_for_operator(
     summary="Delete vehicle image",
     tags=["Vehicle Image"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes a vehicle image.**    
-            - Operator must have a valid access token.    
-            - The logged-in operator must have the `company.vehicle.update` permission.    
-            - Returns 204 No Content even if the specified image does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line("Logged-in operator must have `company.vehicle.update` permission.")
+        .to_string()
     ),
 )
 async def delete_vehicle_image_for_operator(
@@ -541,9 +559,11 @@ async def delete_vehicle_image_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_VEHICLE)
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.UPDATE_COMPANY_VEHICLE],
+        )
 
         vehicle_image = (
             session.query(VehicleImage)
@@ -565,14 +585,8 @@ async def delete_vehicle_image_for_operator(
     summary="Fetch vehicle image",
     tags=["Vehicle Image"],
     response_model=List[VehicleImageSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of vehicle images.**    
-            - Requires a valid access token for authentication.    
-            - Only vehicle images belonging to the same company as the logged-in operator will be returned.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_vehicle_images_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
@@ -598,12 +612,7 @@ async def fetch_vehicle_images_for_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidToken(), exceptions.UnknownValue(VehicleImage.id)]
     ),
-    description=(
-        """
-            **Download vehicle image in original or resized resolution.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    description=DOWNLOAD_DESCRIPTION.to_string(),
 )
 async def download_vehicle_image_for_operator(
     id: int,
@@ -634,11 +643,7 @@ async def download_vehicle_image_for_operator(
     summary="Fetch vehicle image",
     tags=["Vehicle Image"],
     response_model=List[VehicleImageSchema],
-    description=(
-        """
-            **Fetches a list of vehicle images.**    
-        """
-    ),
+    description=GET_DESCRIPTION.to_string(),
 )
 async def fetch_vehicle_images_for_public(query_params: QueryParamsForPU = Depends()):
     try:
@@ -658,11 +663,7 @@ async def fetch_vehicle_images_for_public(query_params: QueryParamsForPU = Depen
     f"{URL_VEHICLE_PICTURE}/{{id}}",
     tags=["Vehicle Image"],
     summary="Download vehicle image",
-    description=(
-        """
-            **Download vehicle image in original or resized resolution.**    
-        """
-    ),
+    description=DOWNLOAD_DESCRIPTION.to_string(),
 )
 async def download_vehicle_image_for_public(
     id: int,
