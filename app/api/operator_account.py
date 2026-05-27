@@ -450,9 +450,7 @@ async def create_operator_account_for_executive(
             [ExecutivePermissionPath.CREATE_COMPANY_OPERATOR],
         )
 
-        operator_data = create_operator(
-            session, CreateForm(**form_param.model_dump())
-        )
+        operator_data = create_operator(session, CreateForm(**form_param.model_dump()))
         log_event(token, request_info, operator_data)
         return operator_data
     except Exception as e:

@@ -11,7 +11,7 @@ from enum import StrEnum
 from datetime import datetime
 from fastapi import APIRouter, status, Depends, Response, Query
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import String, Tuple, or_
+from sqlalchemy import String, or_
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
 

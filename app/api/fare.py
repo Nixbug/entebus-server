@@ -25,6 +25,7 @@ from app.src.db import (
     VendorToken,
 )
 from app.src.enums import FareScope, OrderIn
+from app.src.constants import JSX_TIMEOUT_MS, JSX_MAX_MEMORY_BYTES
 from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
@@ -350,7 +351,7 @@ POST_DESCRIPTION = (
     .add_head("Creates a new fare.")
     .add_line("The fare function is validated against the provided attributes.")
     .add_line(
-        "The maximum allowed size for the fare function is 10 MB and maximum execution time is 1 second."
+        f"The maximum allowed size for the fare function is `{JSX_MAX_MEMORY_BYTES // 1024} KB` and maximum execution time is `{JSX_TIMEOUT_MS} ms`."
     )
     .add_line("Preferable dynamic fare version is 1.")
     .add_line("Preferable distance unit is meter and currency is INR.")

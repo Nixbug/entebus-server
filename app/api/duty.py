@@ -252,9 +252,9 @@ PATCH_DESCRIPTION = (
     .add_head("Updates an existing duty status.")
     .add_line("Allowed status transitions:")
     .add_line("STARTED → ENDED: Mark duty as finished and calculate collection")
-    .add_line("-ENDED → STARTED: Reactivate duty and clear finished_on and collection")
+    .add_line("ENDED → STARTED: Reactivate duty and clear finished_on and collection")
     .add_line(
-        "When status transitions to ENDED, collection is calculated from PaperTickets."
+        "When status transitions to ENDED, collection is calculated from paper tickets registered under this duty."
     )
     .add_line("Empty PATCH requests are allowed and will result in no changes.")
 )
