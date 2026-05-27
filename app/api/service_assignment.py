@@ -200,7 +200,6 @@ def update_service_assignment(
         session (Session): SQLAlchemy database session.
         id (int): The ID of the ServiceAssignment to update.
         form_param (UpdateForm): The form data for updating the service assignment.
-        company_id (int): The company ID for validation.
         extra_filter_for_assignment: Optional filter for validating the assignment.
         extra_filter_for_operator: Optional filter for validating the new operator.
 
@@ -603,7 +602,6 @@ async def update_service_assignment_for_operator(
             session,
             id,
             form_param,
-            company_id=token.company_id,
             extra_filter_for_assignment=(
                 ServiceAssignment.company_id == token.company_id
             ),

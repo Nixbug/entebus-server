@@ -650,7 +650,7 @@ async def update_business_for_vendor(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            extra_filter_for_business=(Business.id == token.business_id,),
+            extra_filter_for_business=(Business.id == token.business_id),
         )
 
         if have_updates:
