@@ -593,7 +593,7 @@ def test_service_assignment(
     token_headers: dict,
 ):
     print("Creating service assignment")
-    payload = generate_service_assignment_payload(service.id, operator_1.id, company.id)
+    payload = generate_service_assignment_payload(service.id, operator_1.id)
     response = requests.post(
         service_assignment_url, headers=token_headers, json=payload
     )
