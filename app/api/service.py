@@ -1130,9 +1130,10 @@ POST_EXCEPTIONS = [
     exceptions.OverlappingService(),
     exceptions.InvalidValue(Service.starting_at),
     exceptions.UnknownValue(Service.company_id),
-    exceptions.InvalidAssociation(VehicleInService.vehicle_id, Service.company_id),
-    exceptions.InvalidAssociation(LandmarkInRoute.route_id, Service.company_id),
-    exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id),
+    exceptions.InvalidAssociation(
+        VehicleInService.vehicle_id, LandmarkInRoute.route_id
+    ),
+    exceptions.InvalidAssociation(FareInService.fare_id, VehicleInService.vehicle_id),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -1386,10 +1387,7 @@ async def delete_service_for_executive(
     tags=["Service"],
     response_model=ServiceSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        POST_EXCEPTIONS
-        + [exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id)]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=POST_DESCRIPTION.copy()
     .add_line("Logged in operator must have `company.service.create` permission.")
     .to_string(),
@@ -1429,10 +1427,7 @@ async def create_service_for_operator(
     tags=["Service"],
     response_model=ServiceSchema,
     status_code=status.HTTP_200_OK,
-    responses=fuse_exception_responses(
-        PATCH_EXCEPTIONS
-        + [exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id)]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=PATCH_DESCRIPTION.copy()
     .add_line("Logged in operator must have `company.service.update` permission.")
     .to_string(),
