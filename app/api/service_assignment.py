@@ -557,7 +557,6 @@ async def create_service_assignment_for_operator(
         service_assignment_data = create_service_assignment(
             session,
             form_param,
-            company_id=token.company_id,
             extra_filter_for_service=(Service.company_id == token.company_id),
             extra_filter_for_operator=(Operator.company_id == token.company_id),
         )
