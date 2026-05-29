@@ -477,7 +477,7 @@ async def fetch_operator_tokens_for_operator(
     description=DELETE_DESCRIPTION.copy()
     .add_line("Operators can delete their own tokens without additional permissions.")
     .add_line(
-        "To delete another operator's token in the same company, the 'company.operator.token.delete' permission is required."
+        "To delete another operator's token in the same company, the `company.operator.token.delete` permission is required."
     )
     .to_string(),
 )
