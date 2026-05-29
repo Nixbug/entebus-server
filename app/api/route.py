@@ -297,6 +297,7 @@ def search_route(session: Session, query_params: QueryParams) -> List[Route]:
 POST_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
+    exceptions.LimitExceeded(Route),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -323,6 +324,7 @@ POST_DESCRIPTION = (
     .add_head("Creates a new route.")
     .add_line("Duplicate route names are not allowed.")
     .add_line("By default the status of the route is INVALID.")
+    .add_line(f"Maximum `{MAX_ROUTES_PER_COMPANY}` routes allowed per company.")
 )
 
 PATCH_DESCRIPTION = (
@@ -353,13 +355,11 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of routes.")
         [
             *POST_EXCEPTIONS,
             exceptions.UnknownValue(Route.company_id),
-            exceptions.LimitExceeded(Route),
         ]
     ),
     description=(
         POST_DESCRIPTION.copy()
         .add_line("Logged-in executive must have `company.route.create` permission.")
-        .add_line(f"Maximum `{MAX_ROUTES_PER_COMPANY}` routes allowed per company.")
         .to_string()
     ),
 )
@@ -507,7 +507,6 @@ async def fetch_routes_for_executive(
     description=(
         POST_DESCRIPTION.copy()
         .add_line("Logged-in operator must have `company.route.create` permission.")
-        .add_line(f"Maximum `{MAX_ROUTES_PER_COMPANY}` routes allowed per company.")
         .to_string()
     ),
 )
