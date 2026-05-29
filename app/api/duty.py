@@ -46,6 +46,7 @@ from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
 )
+from app.src.redis import acquire_lock, release_lock
 from app.src import exceptions
 from app.src.enums import OrderIn
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, UpdatedOnFilter
@@ -141,49 +142,54 @@ def update_duty(
         tuple[bool, dict]: (have_updates, duty_data)
     """
     duty = validate_id(session, Duty, id, Duty.id, extra_filter=extra_filter_for_duty)
-    allowed_duty_status_transitions = {
-        DutyStatus.STARTED: [DutyStatus.ENDED],
-        DutyStatus.ENDED: [DutyStatus.STARTED],
-    }
+    duty_lock = None
+    try:
+        duty_lock = acquire_lock(duty.id)
+        allowed_duty_status_transitions = {
+            DutyStatus.STARTED: [DutyStatus.ENDED],
+            DutyStatus.ENDED: [DutyStatus.STARTED],
+        }
 
-    update_data = form_param.model_dump(exclude_unset=True)
-    service = None
+        update_data = form_param.model_dump(exclude_unset=True)
+        service = None
 
-    if "status" in update_data and update_data["status"] != duty.status:
-        new_status = update_data["status"]
-        validate_state_transition(
-            allowed_duty_status_transitions,
-            duty.status,
-            new_status,
-            Duty.status,
+        if "status" in update_data and update_data["status"] != duty.status:
+            new_status = update_data["status"]
+            validate_state_transition(
+                allowed_duty_status_transitions,
+                duty.status,
+                new_status,
+                Duty.status,
+            )
+            if new_status == DutyStatus.ENDED:
+                duty.collection = (
+                    session.query(func.sum(PaperTicket.amount))
+                    .filter(PaperTicket.duty_id == duty.id)
+                    .scalar()
+                )
+                utc_now = datetime.now(timezone.utc)
+                duty.finished_on = utc_now
+            elif new_status == DutyStatus.STARTED:
+                duty.finished_on = None
+                duty.collection = 0
+                service = (
+                    session.query(Service).filter(Service.id == duty.service_id).first()
+                )
+                if service.status == ServiceStatus.ENDED:
+                    service.status = ServiceStatus.STARTED
+            duty.status = new_status
+
+        have_updates = session.is_modified(duty) or (
+            service is not None and session.is_modified(service)
         )
-        if new_status == DutyStatus.ENDED:
-            duty.collection = (
-                session.query(func.sum(PaperTicket.amount))
-                .filter(PaperTicket.duty_id == duty.id)
-                .scalar()
-            )
-            utc_now = datetime.now(timezone.utc)
-            duty.finished_on = utc_now
-        elif new_status == DutyStatus.STARTED:
-            duty.finished_on = None
-            duty.collection = 0
-            service = (
-                session.query(Service).filter(Service.id == duty.service_id).first()
-            )
-            if service.status == ServiceStatus.ENDED:
-                service.status = ServiceStatus.STARTED
-        duty.status = new_status
+        if have_updates:
+            session.commit()
+            session.refresh(duty)
 
-    have_updates = session.is_modified(duty) or (
-        service is not None and session.is_modified(service)
-    )
-    if have_updates:
-        session.commit()
-        session.refresh(duty)
-
-    duty_data = jsonable_encoder(duty)
-    return have_updates, duty_data
+        duty_data = jsonable_encoder(duty)
+        return have_updates, duty_data
+    finally:
+        release_lock(duty_lock)
 
 
 def search_duty(session: Session, query_params: QueryParams) -> List[Duty]:
@@ -237,6 +243,7 @@ PATCH_EXCEPTIONS = [
     exceptions.NoPermission(),
     exceptions.UnknownValue(Duty.id),
     exceptions.InvalidStateTransition(Duty.status),
+    exceptions.LockAcquireTimeout(),
 ]
 
 GET_EXCEPTIONS = [
