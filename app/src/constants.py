@@ -63,7 +63,6 @@ MINIO_PASSWORD = environ.get("MINIO_PASSWORD", "password")
 # ---------------------------------------------------------------------------
 MAX_EXECUTIVE_TOKENS = 5  # Maximum tokens per executive
 MAX_OPERATOR_TOKENS = 5  # Maximum tokens per operator
-MAX_OPERATORS_PER_COMPANY = 100  # Maximum operators per company
 MAX_VENDOR_TOKENS = 1  # Maximum tokens per vendor
 MAX_REFRESH_TOKEN_VALIDITY = (
     7 * 24 * 60 * 60
@@ -128,3 +127,10 @@ MAX_IMAGE_RESOLUTION = 4096  # Maximum allowed width/height in pixels
 MIN_IMAGE_RESOLUTION = 16  # Minimum allowed width/height in pixels
 MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024  # Maximum allowed file size in bytes (10 MB)
 MIN_IMAGE_FILE_SIZE = 1 * 1024  # Minimum allowed file size in bytes (1 KB)
+
+
+# ---------------------------------------------------------------------------
+# Company constraints
+# ---------------------------------------------------------------------------
+MAX_ROUTES_PER_COMPANY = 100  # Maximum routes per company
+MAX_OPERATORS_PER_COMPANY = 100  # Maximum operators per company

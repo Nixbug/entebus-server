@@ -56,6 +56,7 @@ from app.src.filters import (
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.enums import OrderIn, RouteStatus
+from app.src.constants import MAX_ROUTES_PER_COMPANY
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -172,6 +173,13 @@ def create_route(session: Session, form_param: CreateForm) -> dict:
     Returns:
         dict: The created route data.
     """
+    route_count = (
+        session.query(Route).filter(Route.company_id == form_param.company_id).count()
+    )
+
+    if route_count >= MAX_ROUTES_PER_COMPANY:
+        raise exceptions.LimitExceeded(Route)
+
     route = Route(
         company_id=form_param.company_id,
         name=form_param.name,
@@ -342,11 +350,17 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of routes.")
     response_model=RouteSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
-        [*POST_EXCEPTIONS, exceptions.UnknownValue(Route.company_id)]
+        [
+            *POST_EXCEPTIONS,
+            exceptions.UnknownValue(Route.company_id),
+            exceptions.LimitExceeded(Route),
+        ]
     ),
     description=(
         POST_DESCRIPTION.copy()
         .add_line("Logged-in executive must have `company.route.create` permission.")
+        .add_line("Duplicate route names are not allowed.")
+        .add_line(f"Maximum `{MAX_ROUTES_PER_COMPANY}` routes allowed per company.")
         .to_string()
     ),
 )
@@ -485,10 +499,17 @@ async def fetch_routes_for_executive(
     tags=["Route"],
     response_model=RouteSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(POST_EXCEPTIONS),
+    responses=fuse_exception_responses(
+        [
+            *POST_EXCEPTIONS,
+            exceptions.LimitExceeded(Route),
+        ]
+    ),
     description=(
         POST_DESCRIPTION.copy()
         .add_line("Logged-in operator must have `company.route.create` permission.")
+        .add_line("Duplicate route names are not allowed.")
+        .add_line(f"Maximum `{MAX_ROUTES_PER_COMPANY}` routes allowed per company.")
         .to_string()
     ),
 )
