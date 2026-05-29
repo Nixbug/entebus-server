@@ -154,7 +154,7 @@ class QueryParams(QueryParamsForEX):
 
 
 # ---------------------------------------------------------------------------
-## Functions
+## Lock Generator
 # ---------------------------------------------------------------------------
 def create_route_lock(route_id: int) -> str:
     """
@@ -163,9 +163,12 @@ def create_route_lock(route_id: int) -> str:
     Args:
         route_id (int): The ID of the route for which to create the lock.
     """
-    return f"route_lock:{route_id}"
+    return f"lk_route_:{route_id}"
 
 
+# ---------------------------------------------------------------------------
+## Functions
+# ---------------------------------------------------------------------------
 def create_landmark_in_route(
     session: Session, form_param: CreateForm, extra_filter_for_route=None
 ) -> dict:
