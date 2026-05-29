@@ -47,13 +47,14 @@ from app.src import exceptions
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_LANDMARK
 from app.src.openobserve import log_event
+from app.src.description import Description
 from app.src.validators import (
-    verify_permission,
     verify_token,
     validate_id,
     validate_wkt_string,
     validate_AABB,
     validate_srid_4326,
+    authorize_executive,
 )
 from app.src.functions import (
     apply_created_on_filters,
@@ -64,7 +65,6 @@ from app.src.functions import (
     fuse_exception_responses,
     get_area,
     get_request_info,
-    get_executive_roles,
     update_if_changed,
     apply_type_filters,
 )
@@ -75,7 +75,9 @@ route_operator = APIRouter()
 route_public = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class LandmarkSchema(BaseModel):
     """Schema for landmark response."""
 
@@ -89,7 +91,9 @@ class LandmarkSchema(BaseModel):
     created_on: datetime
 
 
+# ---------------------------------------------------------------------------
 ## Input Forms
+# ---------------------------------------------------------------------------
 landmark_boundary_description = (
     f"Accepts only SRID 4326 (WGS84), "
     f"valid WKT string representing a `POLYGON`, "
@@ -118,7 +122,9 @@ class UpdateForm(BaseModel):
     alias_names: List[AliasName] | None = Field(max_items=32, default=None)
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering results."""
 
@@ -156,7 +162,9 @@ class QueryParams(
     )
 
 
-## Function
+# ---------------------------------------------------------------------------
+## Functions
+# ---------------------------------------------------------------------------
 def validate_boundary(
     session: Session, boundary_wkt: str, landmark_id: int | None = None
 ) -> Polygon:
@@ -280,6 +288,92 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
 
 
 # ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.InvalidWKTStringOrType(),
+    exceptions.InvalidSRID4326(),
+    exceptions.InvalidAABB(),
+    exceptions.InvalidBoundaryArea(),
+    exceptions.OverlappingLandmarkBoundary(),
+]
+
+PATCH_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue(Landmark.id),
+    exceptions.InvalidWKTStringOrType(),
+    exceptions.InvalidSRID4326(),
+    exceptions.InvalidAABB(),
+    exceptions.InvalidBoundaryArea(),
+    exceptions.BusStopOutsideLandmark(),
+    exceptions.OverlappingLandmarkBoundary(),
+    exceptions.LandmarkDistanceLimitExceeded(),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidWKTStringOrType(),
+    exceptions.InvalidSRID4326(),
+    exceptions.InvalidToken(),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common description
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Creates a new landmark.")
+    .add_line("The boundary field must be a valid WKT string.")
+    .add_line("The coordinates must be in longitude/latitude format.")
+    .add_line("Use WGS84 compatible coordinates within SRID 4326 bounds.")
+    .add_line("Forms a valid Axis-Aligned Bounding Box (AABB).")
+    .add_line(
+        "The boundary must not intersect or overlap with any existing landmark boundary."
+    )
+    .add_line("Logged-in executive must have the `landmark.create` permission.")
+)
+
+PATCH_DESCRIPTION = (
+    Description()
+    .add_head("Updates an existing landmark.")
+    .add_line("Empty PATCH requests are allowed and will result in no changes.")
+    .add_line(
+        f"When updating the boundary, the new centroid cannot be more than {MAX_LANDMARK_UPDATE_DISTANCE / 1000} km from the original centroid."
+    )
+    .add_line(
+        "All bus stops associated with the landmark must remain within the updated boundary."
+    )
+    .add_line("Logged-in executive must have the `landmark.update` permission.")
+)
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes an existing landmark.")
+    .add_line("Returns 204 No Content even if the specified landmark does not exist.")
+    .add_line(
+        "A foreign key constraint error will occur if the landmark is referenced in any other table."
+    )
+    .add_line("Logged-in executive must have the `landmark.delete` permission.")
+)
+
+GET_DESCRIPTION = (
+    Description()
+    .add_head("Fetches a list of landmarks.")
+    .add_line(
+        "If location is not provided while using order_by=location, the API will fall back to default ordering by id."
+    )
+)
+
+
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
@@ -288,29 +382,8 @@ def search_landmark(session: Session, query_params: QueryParams) -> List[Landmar
     tags=["Landmark"],
     response_model=LandmarkSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-            exceptions.InvalidAABB(),
-            exceptions.InvalidBoundaryArea(),
-            exceptions.OverlappingLandmarkBoundary(),
-        ]
-    ),
-    description=(
-        f"""
-        **Create a new landmark.**    
-        - The executive must provide a valid access token.    
-        - The authenticated executive must have `landmark.create` permission.    
-        - The boundary field must be a valid WKT string.    
-        - The coordinates must be in `longitude/latitude` format.    
-        - Use WGS84 compatible coordinates within `SRID 4326` bounds.    
-        - Form a valid Axis-Aligned Bounding Box (AABB).    
-        - The boundary must not intersect or overlap with any existing landmark boundary.    
-    """
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
+    description=(POST_DESCRIPTION.to_string()),
 )
 async def create_landmark_for_executive(
     form_param: CreateForm,
@@ -319,9 +392,11 @@ async def create_landmark_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, PermissionPath.CREATE_LANDMARK)
+        token = authorize_executive(
+            session,
+            access_token,
+            [PermissionPath.CREATE_LANDMARK],
+        )
 
         # Validate boundary (WKT, SRID, AABB, Area, Overlaps)
         boundary_geom = validate_boundary(session, form_param.boundary)
@@ -354,30 +429,8 @@ async def create_landmark_for_executive(
     summary="Update landmark",
     tags=["Landmark"],
     response_model=LandmarkSchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(Landmark.id),
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-            exceptions.InvalidAABB(),
-            exceptions.InvalidBoundaryArea(),
-            exceptions.BusStopOutsideLandmark(),
-            exceptions.OverlappingLandmarkBoundary(),
-            exceptions.LandmarkDistanceLimitExceeded(),
-        ]
-    ),
-    description=(
-        f"""
-            **Updates an existing landmark.**    
-            - Requires a valid access token.    
-            - Logged-in executive must have `landmark.update` permission.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-            - When updating the boundary, the new centroid cannot be more than `{MAX_LANDMARK_UPDATE_DISTANCE / 1000}` km from the original centroid.    
-            - All bus stops associated with the landmark must remain within the updated boundary.    
-        """
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
+    description=(PATCH_DESCRIPTION.to_string()),
 )
 async def update_landmark_for_executive(
     id: int,
@@ -387,9 +440,11 @@ async def update_landmark_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, PermissionPath.UPDATE_LANDMARK)
+        token = authorize_executive(
+            session,
+            access_token,
+            [PermissionPath.UPDATE_LANDMARK],
+        )
 
         landmark = validate_id(session, Landmark, id, Landmark.id)
         update_data = form_param.model_dump(exclude_unset=True)
@@ -445,18 +500,8 @@ async def update_landmark_for_executive(
     summary="Delete landmark",
     tags=["Landmark"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
-    description=(
-        f"""
-            **Deletes an existing landmark.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in executive must have the `landmark.delete` permission.    
-            - Returns 204 No Content even if the specified landmark does not exist.    
-            - A foreign key constraint error will occur if the landmark is referenced in any other table.    
-        """
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
+    description=(DELETE_DESCRIPTION.to_string()),
 )
 async def delete_landmark_for_executive(
     id: int,
@@ -465,9 +510,11 @@ async def delete_landmark_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, PermissionPath.DELETE_LANDMARK)
+        token = authorize_executive(
+            session,
+            access_token,
+            [PermissionPath.DELETE_LANDMARK],
+        )
 
         landmark = session.query(Landmark).filter(Landmark.id == id).first()
         if landmark is not None:
@@ -490,21 +537,8 @@ async def delete_landmark_for_executive(
     summary="Fetch landmark",
     tags=["Landmark"],
     response_model=List[LandmarkSchema],
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-            exceptions.InvalidToken(),
-        ]
-    ),
-    description=(
-        """
-            **Fetches a list of landmarks.**    
-            - Requires a valid access token for authentication.    
-            - Common search supports searching by id, name and alias_names.    
-            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_landmarks_for_executive(
     query_params: QueryParams = Depends(),
@@ -529,21 +563,8 @@ async def fetch_landmarks_for_executive(
     summary="Fetch landmark",
     tags=["Landmark"],
     response_model=List[LandmarkSchema],
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-            exceptions.InvalidToken(),
-        ]
-    ),
-    description=(
-        """
-            **Fetches a list of landmarks.**    
-            - Requires a valid access token for authentication.    
-            - Common search supports searching by id, name and alias_names.    
-            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=GET_DESCRIPTION.to_string(),
 )
 async def fetch_landmarks_for_vendor(
     query_params: QueryParams = Depends(),
@@ -568,21 +589,8 @@ async def fetch_landmarks_for_vendor(
     summary="Fetch landmark",
     tags=["Landmark"],
     response_model=List[LandmarkSchema],
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-            exceptions.InvalidToken(),
-        ]
-    ),
-    description=(
-        """
-            **Fetches a list of landmarks.**    
-            - Requires a valid access token for authentication.    
-            - Common search supports searching by id, name and alias_names.    
-            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=GET_DESCRIPTION.to_string(),
 )
 async def fetch_landmarks_for_operator(
     query_params: QueryParams = Depends(),
@@ -610,13 +618,7 @@ async def fetch_landmarks_for_operator(
     responses=fuse_exception_responses(
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
-    description=(
-        """
-            **Fetches a list of landmarks.**    
-            - Common search supports searching by id, name and alias_names.    
-            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """
-    ),
+    description=GET_DESCRIPTION.to_string(),
 )
 async def fetch_landmarks_for_public(query_params: QueryParams = Depends()):
     try:
