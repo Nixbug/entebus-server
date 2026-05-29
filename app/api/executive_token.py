@@ -215,7 +215,7 @@ DELETE_DESCRIPTION = (
     .add_line("Executive must have a valid access token.")
     .add_line("Executives can delete their own tokens without additional permissions.")
     .add_line(
-        "To delete another executive's token, the 'executive.token.delete' permission is required."
+        "To delete another executive's token, the `executive.token.delete` permission is required."
     )
     .add_line(
         "If the token ID is invalid or already revoked, the operation is silently ignored."

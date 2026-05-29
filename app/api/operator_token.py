@@ -565,7 +565,7 @@ async def fetch_operator_tokens_for_executive(
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=DELETE_DESCRIPTION.copy()
     .add_line(
-        "Logged-in executive must have 'company.operator.token.delete' permission."
+        "Logged-in executive must have `company.operator.token.delete` permission."
     )
     .to_string(),
 )

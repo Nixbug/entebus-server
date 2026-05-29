@@ -478,7 +478,7 @@ async def fetch_vendor_tokens_for_vendor(
     description=DELETE_DESCRIPTION.copy()
     .add_line("Vendors can delete their own tokens without additional permissions.")
     .add_line(
-        "To delete another vendor's token in the same business, the 'business.vendor.token.delete' permission is required."
+        "To delete another vendor's token in the same business, the `business.vendor.token.delete` permission is required."
     )
     .add_line(
         "Trying to delete another vendor's token without permission will result in a `NoPermission` error."
@@ -570,7 +570,7 @@ async def fetch_vendor_tokens_for_executive(
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=DELETE_DESCRIPTION.copy()
-    .add_line("Executive must have 'business.vendor.token.delete' permission.")
+    .add_line("Executive must have `business.vendor.token.delete` permission.")
     .add_line("Executive can delete any vendor's token.")
     .add_line(
         "If the token ID is invalid or already revoked, the operation is silently ignored."
