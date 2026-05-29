@@ -156,6 +156,16 @@ class QueryParams(QueryParamsForEX):
 # ---------------------------------------------------------------------------
 ## Functions
 # ---------------------------------------------------------------------------
+def create_route_lock(route_id: int) -> str:
+    """
+    Creates a unique Redis lock key for a specific route.
+
+    Args:
+        route_id (int): The ID of the route for which to create the lock.
+    """
+    return f"route_lock:{route_id}"
+
+
 def create_landmark_in_route(
     session: Session, form_param: CreateForm, extra_filter_for_route=None
 ) -> dict:
@@ -179,7 +189,7 @@ def create_landmark_in_route(
     )
     route_lock = None
     try:
-        route_lock = acquire_lock(route.id)
+        route_lock = acquire_lock(create_route_lock(route.id))
         landmark_count = (
             session.query(LandmarkInRoute)
             .filter(
@@ -249,7 +259,7 @@ def update_landmark_in_route(
 
     route_lock = None
     try:
-        route_lock = acquire_lock(landmark_in_route.route_id)
+        route_lock = acquire_lock(create_route_lock(landmark_in_route.route_id))
         arrival_delta = (
             form_param.arrival_delta
             if form_param.arrival_delta is not None
@@ -310,7 +320,7 @@ def delete_landmark_in_route(
     )
     route_lock = None
     try:
-        route_lock = acquire_lock(route.id)
+        route_lock = acquire_lock(create_route_lock(route.id))
         landmark_in_route_data = jsonable_encoder(landmark_in_route)
         session.delete(landmark_in_route)
         session.flush()
