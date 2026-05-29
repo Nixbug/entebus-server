@@ -120,6 +120,19 @@ class QueryParams(QueryParamsForEX):
 
 
 # ---------------------------------------------------------------------------
+## Lock Generator
+# ---------------------------------------------------------------------------
+def create_duty_lock(duty_id: int) -> str:
+    """
+    Creates a unique Redis lock key for a specific duty.
+
+    Args:
+        duty_id (int): The ID of the duty for which to create the lock.
+    """
+    return f"lk_duty:{duty_id}"
+
+
+# ---------------------------------------------------------------------------
 ## Functions
 # ---------------------------------------------------------------------------
 def update_duty(
@@ -144,7 +157,7 @@ def update_duty(
     duty = validate_id(session, Duty, id, Duty.id, extra_filter=extra_filter_for_duty)
     duty_lock = None
     try:
-        duty_lock = acquire_lock(duty.id)
+        duty_lock = acquire_lock(create_duty_lock(duty.id))
         allowed_duty_status_transitions = {
             DutyStatus.STARTED: [DutyStatus.ENDED],
             DutyStatus.ENDED: [DutyStatus.STARTED],
