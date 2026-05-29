@@ -44,12 +44,14 @@ from app.src.regex import NAME_PATTERN
 from app.src.enums import CompanyStatus, CompanyType, OrderIn
 from app.src.urls import URL_COMPANY
 from app.src.openobserve import log_event
+from app.src.description import Description
 from app.src.validators import (
     validate_id,
-    verify_permission,
     verify_token,
     validate_srid_4326,
     validate_wkt_string,
+    authorize_executive,
+    authorize_operator,
 )
 from app.src.functions import (
     apply_created_on_filters,
@@ -58,8 +60,6 @@ from app.src.functions import (
     apply_id_filters,
     enum_str,
     fuse_exception_responses,
-    get_executive_roles,
-    get_operator_roles,
     get_request_info,
     update_if_changed,
     resolve_model_defaults,
@@ -72,7 +72,9 @@ route_operator = APIRouter()
 route_public = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class MaskedCompanySchema(BaseModel):
     """Schema for company response for public users without revealing all details."""
 
@@ -92,7 +94,9 @@ class CompanySchema(MaskedCompanySchema):
     created_on: datetime
 
 
+# ---------------------------------------------------------------------------
 ## Input Forms
+# ---------------------------------------------------------------------------
 class CreateForm(BaseModel):
     """Form for creating a company."""
 
@@ -147,7 +151,9 @@ class UpdateForm(UpdateFormForEX):
     pass
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering company results."""
 
@@ -196,7 +202,9 @@ class QueryParams(QueryParamsForEX):
     pass
 
 
-# Functions
+# ---------------------------------------------------------------------------
+## Functions
+# ---------------------------------------------------------------------------
 def validate_location(location_wkt: str) -> Point:
     """
     Validate a WKT string as a Point geometry with SRID 4326.
@@ -215,21 +223,25 @@ def validate_location(location_wkt: str) -> Point:
 
 
 def update_company(
-    session: Session, company: Company, form_param: UpdateForm
+    session: Session, id: int, form_param: UpdateForm, extra_filter_for_company=None
 ) -> Tuple[bool, dict]:
     """
     Updates a Company with the provided form data.
 
     Args:
         session (Session): SQLAlchemy database session.
-        company (Company): Company to update.
+        id (int): ID of the company to update.
         form_param (UpdateForm): Form data containing fields to update.
+        extra_filter_for_company (optional): Additional filter to apply when validating the company ID.
 
     Returns:
     Tuple[bool, dict]:
             - bool: True if the company was modified and the changes were committed.
             - dict: JSON-encoded representation of the updated company.
     """
+    company = validate_id(
+        session, Company, id, Company.id, extra_filter=extra_filter_for_company
+    )
     update_data = form_param.model_dump(exclude_unset=True)
     # Validate location if changed
     if form_param.location is not None:
@@ -350,6 +362,76 @@ def search_company(session: Session, query_params: QueryParams) -> List[Company]
 
 
 # ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.InvalidWKTStringOrType(),
+    exceptions.InvalidSRID4326(),
+]
+
+PATCH_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue(Company.id),
+    exceptions.InvalidWKTStringOrType(),
+    exceptions.InvalidSRID4326(),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidWKTStringOrType(),
+    exceptions.InvalidSRID4326(),
+    exceptions.InvalidToken(),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common description
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Creates a new company.")
+    .add_line("Duplicate names are not allowed.")
+    .add_line("By default the company is created in under verification status.")
+    .add_line("By default the company type is other.")
+)
+
+PATCH_DESCRIPTION = (
+    Description()
+    .add_head("Updates an existing company.")
+    .add_line("Empty PATCH requests are allowed and will result in no changes.")
+    .add_line("When updating location, it must be a valid SRID 4326 WKT POINT.")
+    .add_line(
+        "If the company name is updated, the linked wallet name will also be updated to maintain consistency."
+    )
+)
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes a company.")
+    .add_line("Returns 204 No Content even if the specified company does not exist.")
+    .add_line(
+        "Deleting a company will delete all related records (operators, tokens, roles, images, wallets). Use with caution."
+    )
+)
+
+GET_DESCRIPTION = (
+    Description()
+    .add_head("Fetches a list of companies.")
+    .add_line("Common search supports searching by id, name and address.")
+    .add_line(
+        "If location is not provided while using order_by=location, the API will fall back to default ordering by id."
+    )
+)
+
+
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
@@ -358,23 +440,11 @@ def search_company(session: Session, query_params: QueryParams) -> List[Company]
     tags=["Company"],
     response_model=CompanySchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Creates a new company.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `company.create` permission.    
-            - Duplicate names are not allowed.    
-            - By default the company is created in `under verification` status.    
-            - By default the company type is `other`.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.create` permission.")
+        .to_string()
     ),
 )
 async def create_company_for_executive(
@@ -384,9 +454,11 @@ async def create_company_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.CREATE_COMPANY],
+        )
 
         # Validate location (WKT and SRID)
         location_geom = validate_location(form_param.location)
@@ -430,24 +502,11 @@ async def create_company_for_executive(
     summary="Update company",
     tags=["Company"],
     response_model=CompanySchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(Company.id),
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing company.**    
-            - Requires a valid access token.    
-            - Logged-in executive must have `company.update` permission.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-            - When updating `location`, it must be a valid SRID 4326 WKT POINT.    
-            - If the company name is updated, the linked wallet name will also be updated to maintain consistency.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.update` permission.")
+        .to_string()
     ),
 )
 async def update_company_for_executive(
@@ -458,15 +517,15 @@ async def update_company_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY)
-
-        company = validate_id(session, Company, id, Company.id)
-        have_updates, company_data = update_company(
-            session, company, UpdateForm(**form_param.model_dump(exclude_unset=True))
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_COMPANY],
         )
 
+        have_updates, company_data = update_company(
+            session, id, UpdateForm(**form_param.model_dump(exclude_unset=True))
+        )
         if have_updates:
             log_event(token, request_info, company_data)
         return company_data
@@ -481,21 +540,8 @@ async def update_company_for_executive(
     summary="Fetch company",
     tags=["Company"],
     response_model=List[CompanySchema],
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-            exceptions.InvalidToken(),
-        ]
-    ),
-    description=(
-        """
-            **Fetches a list of companies.**    
-            - Requires a valid access token for authentication.    
-            - Common search supports searching by id, name and address.    
-            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_companies_for_executive(
     query_params: QueryParamsForEX = Depends(),
@@ -520,17 +566,11 @@ async def fetch_companies_for_executive(
     summary="Delete company",
     tags=["Company"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes a company.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in executive must have `company.delete` permission.    
-            - Returns 204 No Content even if the specified company does not exist.    
-            - Deleting a company will delete all related records (operators, tokens, roles, images, wallets). Use with caution.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line("The logged-in executive must have `company.delete` permission.")
+        .to_string()
     ),
 )
 async def delete_company_for_executive(
@@ -540,9 +580,11 @@ async def delete_company_for_executive(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY)
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.DELETE_COMPANY],
+        )
 
         company = session.query(Company).filter(Company.id == id).first()
         if company is not None:
@@ -581,23 +623,11 @@ async def delete_company_for_executive(
     summary="Update company",
     tags=["Company"],
     response_model=CompanySchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(Company.id),
-            exceptions.InvalidWKTStringOrType(),
-            exceptions.InvalidSRID4326(),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing company.**    
-            - Requires a valid access token.    
-            - Logged-in operator must have `company.update` permission.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-            - When updating `location`, it must be a valid SRID 4326 WKT POINT.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line("Logged-in operator must have `company.update` permission.")
+        .to_string()
     ),
 )
 async def update_company_for_operator(
@@ -608,17 +638,18 @@ async def update_company_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY)
-
-        company = validate_id(session, Company, id, Company.id)
-        if token.company_id != company.id:
-            raise exceptions.NoPermission()
-        have_updates, company_data = update_company(
-            session, company, UpdateForm(**form_param.model_dump(exclude_unset=True))
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.UPDATE_COMPANY],
         )
 
+        have_updates, company_data = update_company(
+            session,
+            id,
+            UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            extra_filter_for_company=(Company.id == token.company_id),
+        )
         if have_updates:
             log_event(token, request_info, company_data)
         return company_data
@@ -634,12 +665,7 @@ async def update_company_for_operator(
     tags=["Company"],
     response_model=List[CompanySchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches the operator's company.**    
-            - Only the company associated with the operator will be returned.    
-        """
-    ),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_companies_for_operator(access_token=Depends(bearer_operator)):
     try:
@@ -668,13 +694,10 @@ async def fetch_companies_for_operator(access_token=Depends(bearer_operator)):
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
     description=(
-        """
-            **Fetches a list of companies.**    
-            - Only verified companies are returned.    
-            - Only id, name, type are returned.    
-            - Common search supports searching by id, name and address.    
-            - If `location` is not provided while using `order_by=location`, the API will fall back to default ordering by `id`.    
-        """
+        GET_DESCRIPTION.copy()
+        .add_line("Only verified companies are returned.")
+        .add_line("Only masked data is returned.")
+        .to_string()
     ),
 )
 async def fetch_companies_for_public(

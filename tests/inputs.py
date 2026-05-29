@@ -236,13 +236,10 @@ def generate_service_payload(
     }
 
 
-def generate_service_assignment_payload(
-    service_id: int, operator_id: int, company_id: int
-) -> dict:
+def generate_service_assignment_payload(service_id: int, operator_id: int) -> dict:
     return {
         "service_id": service_id,
         "operator_id": operator_id,
-        "company_id": company_id,
     }
 
 

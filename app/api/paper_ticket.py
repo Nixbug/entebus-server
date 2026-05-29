@@ -27,13 +27,15 @@ from app.src.db import (
 )
 from app.src.enums import DutyStatus, ServiceStatus, OrderIn
 from app.src.urls import URL_PAPER_TICKET
-from app.src.validators import verify_token, verify_permission, validate_id
+from app.src.description import Description
+from app.src.validators import (
+    verify_token,
+    validate_id,
+    authorize_operator,
+)
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
-from app.src.openobserve import log_event
 from app.src.functions import (
     fuse_exception_responses,
-    get_operator_roles,
-    get_request_info,
     enum_str,
     apply_id_filters,
     apply_created_on_filters,
@@ -47,7 +49,9 @@ route_executive = APIRouter()
 route_operator = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class PaperTicketSchema(BaseModel):
     """Schema for paper ticket response."""
 
@@ -60,7 +64,9 @@ class PaperTicketSchema(BaseModel):
     created_on: datetime
 
 
+# ---------------------------------------------------------------------------
 ## Input Forms
+# ---------------------------------------------------------------------------
 class CreateForm(BaseModel):
     """
     Form data for creating a new paper ticket."""
@@ -68,7 +74,9 @@ class CreateForm(BaseModel):
     ticket: TicketSchema = Field()
 
 
-## Query Params
+# ---------------------------------------------------------------------------
+## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering paper ticket results."""
 
@@ -99,7 +107,9 @@ class QueryParams(QueryParamsForEX):
     pass
 
 
+# ---------------------------------------------------------------------------
 ## Functions
+# ---------------------------------------------------------------------------
 def create_paper_ticket(
     session: Session, token: OperatorToken, form_param: CreateForm
 ) -> dict:
@@ -269,6 +279,53 @@ def search_paper_tickets(
 
 
 # ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue(PaperTicket.service_id),
+    exceptions.InvalidValue(PaperTicket.amount),
+    exceptions.UnknownTicketType(),
+    exceptions.InvalidFareFunction(),
+    exceptions.JSMemoryLimitExceeded(),
+    exceptions.JSTimeLimitExceeded(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common descriptions
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Creates a new paper ticket for an operator's duty.")
+    .add_line(
+        "Logged-in operator must have `company.service.ticket.create` permission."
+    )
+    .add_line("Service must belong to the operator's company.")
+    .add_line("If no active duty exists, a new duty is created automatically.")
+    .add_line(
+        "If a duty is ENDED, it is reactivated to STARTED with `finished_on` cleared."
+    )
+    .add_line("A duty in AUDITED status is ignored; a new duty is created instead.")
+    .add_line(
+        "`ticket.pickup_point` and `ticket.dropping_point` must be landmarks assigned to the service."
+    )
+    .add_line(
+        "Ticket type IDs must match those defined in the service fare configuration."
+    )
+    .add_line("Prices are cross-validated server-side using the fare function.")
+    .add_line("`amount` must equal the sum of (price × count) for all ticket types.")
+)
+
+GET_DESCRIPTION = Description().add_head("Fetches a list of paper tickets.")
+
+
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.get(
@@ -276,13 +333,8 @@ def search_paper_tickets(
     summary="Fetch paper ticket",
     tags=["Paper Ticket"],
     response_model=List[PaperTicketSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of paper tickets.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_paper_tickets_for_executive(
     query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
@@ -304,41 +356,14 @@ async def fetch_paper_tickets_for_executive(
 # ---------------------------------------------------------------------------
 ## API endpoints [Operator]
 # ---------------------------------------------------------------------------
-
-
 @route_operator.post(
     URL_PAPER_TICKET,
     summary="Create paper ticket",
     tags=["Paper Ticket"],
     response_model=PaperTicketSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(PaperTicket.service_id),
-            exceptions.InvalidValue(PaperTicket.amount),
-            exceptions.UnknownTicketType(),
-            exceptions.InvalidFareFunction(),
-            exceptions.JSMemoryLimitExceeded(),
-            exceptions.JSTimeLimitExceeded(),
-        ]
-    ),
-    description=(
-        """
-            **Creates a new paper ticket for an operator's duty.**    
-            - Requires a valid operator access token.    
-            - Logged-in operator must have `company.service.ticket.create` permission.    
-            - Service must belong to the operator's company.    
-            - If no active duty exists, a new duty is created automatically.    
-            - If a duty is ENDED, it is reactivated to STARTED with `finished_on` cleared.    
-            - A duty in AUDITED status is ignored; a new duty is created instead.    
-            - `ticket.pickup_point` and `ticket.dropping_point` must be landmarks assigned to the service.    
-            - Ticket type IDs must match those defined in the service fare configuration.    
-            - Prices are cross-validated server-side using the fare function.    
-            - `amount` must equal the sum of (price × count) for all ticket types.    
-        """
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
+    description=(POST_DESCRIPTION.to_string()),
 )
 async def create_paper_ticket_for_operator(
     form_param: CreateForm,
@@ -346,9 +371,11 @@ async def create_paper_ticket_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_SERVICE_TICKET)
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.CREATE_COMPANY_SERVICE_TICKET],
+        )
 
         paper_ticket_data = create_paper_ticket(session, token, form_param)
         return paper_ticket_data
@@ -363,13 +390,8 @@ async def create_paper_ticket_for_operator(
     summary="Fetch paper ticket",
     tags=["Paper Ticket"],
     response_model=List[PaperTicketSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of paper tickets.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_paper_tickets_for_operator(
     query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
