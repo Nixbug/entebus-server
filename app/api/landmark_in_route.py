@@ -403,6 +403,7 @@ POST_EXCEPTIONS = [
     exceptions.UnknownValue(LandmarkInRoute.route_id),
     exceptions.UnknownValue(LandmarkInRoute.landmark_id),
     exceptions.LimitExceeded(LandmarkInRoute),
+    exceptions.LockAcquireTimeout()
 ]
 
 PATCH_EXCEPTIONS = [
@@ -410,11 +411,13 @@ PATCH_EXCEPTIONS = [
     exceptions.NoPermission(),
     exceptions.InvalidValue(LandmarkInRoute.arrival_delta),
     exceptions.UnknownValue(LandmarkInRoute.id),
+    exceptions.LockAcquireTimeout()
 ]
 
 DELETE_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
+    exceptions.LockAcquireTimeout()
 ]
 
 GET_EXCEPTIONS = [
