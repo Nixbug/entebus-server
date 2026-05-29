@@ -864,7 +864,7 @@ def run_test(target_url):
     response = requests.post(
         SERVICE_URL,
         headers=admin_headers,
-        json=generate_service_payload(company.id, route.id, fare.id, vehicle.id),
+        json=generate_service_payload(route.id, fare.id, vehicle.id),
     )
     assert response.status_code == 201
     service = ServiceSchema.model_validate(response.json())
@@ -960,7 +960,7 @@ def run_test(target_url):
     # Test service creation, retrieval, updating and deletion
     test_service_endpoint(
         SERVICE_URL,
-        generate_service_payload(company.id, route.id, fare.id, vehicle.id),
+        generate_service_payload(route.id, fare.id, vehicle.id),
         admin_headers,
     )
     # Test service assignment create/update/delete
