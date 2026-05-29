@@ -190,7 +190,9 @@ def create_landmark_in_route(
         if landmark_count >= MAX_LANDMARKS_PER_ROUTE:
             raise exceptions.LimitExceeded(LandmarkInRoute)
 
-        validate_id(session, Landmark, form_param.landmark_id, LandmarkInRoute.landmark_id)
+        validate_id(
+            session, Landmark, form_param.landmark_id, LandmarkInRoute.landmark_id
+        )
         if form_param.arrival_delta > form_param.departure_delta:
             raise exceptions.InvalidValue(LandmarkInRoute.arrival_delta)
 
@@ -248,7 +250,6 @@ def update_landmark_in_route(
     route_lock = None
     try:
         route_lock = acquire_lock(landmark_in_route.route_id)
-
         arrival_delta = (
             form_param.arrival_delta
             if form_param.arrival_delta is not None
@@ -307,17 +308,22 @@ def delete_landmark_in_route(
     route = validate_id(
         session, Route, landmark_in_route.route_id, LandmarkInRoute.route_id
     )
-    landmark_in_route_data = jsonable_encoder(landmark_in_route)
-    session.delete(landmark_in_route)
-    session.flush()
-    is_valid = validate_route(route.id, session)
-    if is_valid:
-        route.status = RouteStatus.VALID
-    else:
-        route.status = RouteStatus.INVALID
+    route_lock = None
+    try:
+        route_lock = acquire_lock(route.id)
+        landmark_in_route_data = jsonable_encoder(landmark_in_route)
+        session.delete(landmark_in_route)
+        session.flush()
+        is_valid = validate_route(route.id, session)
+        if is_valid:
+            route.status = RouteStatus.VALID
+        else:
+            route.status = RouteStatus.INVALID
 
-    session.commit()
-    return landmark_in_route_data
+        session.commit()
+        return landmark_in_route_data
+    finally:
+        release_lock(route_lock)
 
 
 def search_landmark_in_route(
