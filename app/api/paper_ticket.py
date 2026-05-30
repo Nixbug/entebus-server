@@ -155,17 +155,17 @@ def create_paper_ticket(
         PaperTicket.service_id,
         (Service.company_id == token.company_id),
     )
-    if service.status != ServiceStatus.STARTED:
-        service.status = ServiceStatus.STARTED
-
-    duty_lock = None
+    operator_service_lock = None
     try:
-        duty_lock = acquire_lock(
+        operator_service_lock = acquire_lock(
             create_operator_service_lock(
                 token.operator_id,
-                form_param.ticket.service_id,
+                service.id,
             )
         )
+
+        if service.status != ServiceStatus.STARTED:
+            service.status = ServiceStatus.STARTED
 
         duty = (
             session.query(Duty)
@@ -265,7 +265,7 @@ def create_paper_ticket(
 
         return jsonable_encoder(paper_ticket)
     finally:
-        release_lock(duty_lock)
+        release_lock(operator_service_lock)
 
 
 def search_paper_tickets(

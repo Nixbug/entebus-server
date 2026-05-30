@@ -120,7 +120,7 @@ class QueryParams(QueryParamsForEX):
 
 
 # ---------------------------------------------------------------------------
-## Lock Generator
+## Lock Generators
 # ---------------------------------------------------------------------------
 def create_duty_lock(duty_id: int) -> str:
     """
@@ -130,6 +130,17 @@ def create_duty_lock(duty_id: int) -> str:
         duty_id (int): The ID of the duty for which to create the lock.
     """
     return f"lk_duty:{duty_id}"
+
+
+def create_operator_service_lock(operator_id: int, service_id: int) -> str:
+    """
+    Creates a unique Redis lock key for an operator-service pair.
+
+    Args:
+        operator_id (int): The operator ID.
+        service_id (int): The service ID.
+    """
+    return f"lk_operator_service:{operator_id}:{service_id}"
 
 
 # ---------------------------------------------------------------------------
@@ -155,9 +166,14 @@ def update_duty(
         tuple[bool, dict]: (have_updates, duty_data)
     """
     duty = validate_id(session, Duty, id, Duty.id, extra_filter=extra_filter_for_duty)
+    operator_service_lock = None
     duty_lock = None
     try:
+        operator_service_lock = acquire_lock(
+            create_operator_service_lock(duty.operator_id, duty.service_id)
+        )
         duty_lock = acquire_lock(create_duty_lock(duty.id))
+
         allowed_duty_status_transitions = {
             DutyStatus.STARTED: [DutyStatus.ENDED],
             DutyStatus.ENDED: [DutyStatus.STARTED],
@@ -203,6 +219,7 @@ def update_duty(
         return have_updates, duty_data
     finally:
         release_lock(duty_lock)
+        release_lock(operator_service_lock)
 
 
 def search_duty(session: Session, query_params: QueryParams) -> List[Duty]:
