@@ -239,7 +239,11 @@ def create_paper_ticket(
                 raise exceptions.UnknownTicketType()
 
             expected_price = Decimal(
-                str(fare_function.evaluate(matched_ticket_type["name"], distance, extras))
+                str(
+                    fare_function.evaluate(
+                        matched_ticket_type["name"], distance, extras
+                    )
+                )
             )
             if ticket_type.price != expected_price:
                 raise exceptions.InvalidValue(PaperTicket.amount)
