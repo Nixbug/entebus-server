@@ -84,6 +84,7 @@ from app.src.regex import NAME_PATTERN
 from app.src.constants import TMZ_SECONDARY
 from app.src.digital_ticket.v1 import TicketCreator
 from app.src.constants import SERVICE_CREATION_LEAD_TIME_DAYS, TMZ_PRIMARY
+from app.src.redis import acquire_lock, release_lock
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -735,224 +736,230 @@ def update_service(
     Returns:
         tuple[bool, dict]: (have_updates, service_data)
     """
-    service = validate_id(
-        session, Service, id, Service.id, extra_filter=extra_filter_for_service
-    )
-
-    update_data = form_param.model_dump(exclude_unset=True)
-    vehicle = None
-    route = None
-    fare = None
-    if "vehicle_id" in update_data:
-        vehicle = validate_id(
-            session,
-            Vehicle,
-            form_param.vehicle_id,
-            "vehicle_id",
-            extra_filter=extra_filter_for_vehicle,
+    service_lock = None
+    try:
+        service = validate_id(
+            session, Service, id, Service.id, extra_filter=extra_filter_for_service
         )
-        if vehicle.company_id != service.company_id:
-            raise exceptions.InvalidAssociation(
-                VehicleInService.vehicle_id, Service.company_id
-            )
-    if "route_id" in update_data:
-        route = validate_id(
-            session,
-            Route,
-            form_param.route_id,
-            "route_id",
-            extra_filter=extra_filter_for_route,
-        )
-        if route.company_id != service.company_id:
-            raise exceptions.InvalidAssociation(
-                LandmarkInRoute.route_id, Service.company_id
-            )
-    if "fare_id" in update_data:
-        fare = validate_id(
-            session,
-            Fare,
-            form_param.fare_id,
-            "fare_id",
-            extra_filter=extra_filter_for_fare,
-        )
-        if fare.scope != FareScope.GLOBAL and fare.company_id != service.company_id:
-            raise exceptions.InvalidAssociation(
-                FareInService.fare_id, Service.company_id
-            )
-    _allowed_service_status_transitions = {
-        ServiceStatus.CREATED: [ServiceStatus.CACHED],
-        ServiceStatus.CACHED: [ServiceStatus.ENDED],
-        ServiceStatus.STARTED: [ServiceStatus.ENDED],
-        ServiceStatus.ENDED: [ServiceStatus.STARTED],
-    }
-
-    duties = []
-    if "status" in update_data:
-        new_status = update_data.pop("status")
-        if new_status != service.status:
-            validate_state_transition(
-                _allowed_service_status_transitions,
-                service.status,
-                new_status,
-                Service.status,
-            )
-
-            if new_status == ServiceStatus.ENDED:
-                utc_now = datetime.now(timezone.utc)
-                duties = (
-                    session.query(Duty)
-                    .filter(
-                        Duty.service_id == service.id,
-                        Duty.status == DutyStatus.STARTED,
-                    )
-                    .all()
-                )
-                duty_ids = [duty.id for duty in duties]
-                collections_by_duty_id = {}
-                if duty_ids:
-                    collections_by_duty_id = dict(
-                        session.query(
-                            PaperTicket.duty_id,
-                            func.sum(PaperTicket.amount),
-                        )
-                        .filter(PaperTicket.duty_id.in_(duty_ids))
-                        .group_by(PaperTicket.duty_id)
-                        .all()
-                    )
-                for duty in duties:
-                    duty.collection = collections_by_duty_id.get(duty.id)
-                    duty.finished_on = utc_now
-                    duty.status = DutyStatus.ENDED
-
-            service.status = new_status
-
-    vehicle_id = update_data.pop("vehicle_id", None)
-    route_id = update_data.pop("route_id", None)
-    fare_id = update_data.pop("fare_id", None)
-    starting_at = update_data.pop("starting_at", None)
-    need_critical_change = (
-        vehicle_id is not None
-        or route_id is not None
-        or fare_id is not None
-        or starting_at is not None
-    )
-    have_critical_change = False
-
-    if need_critical_change and service.status != ServiceStatus.CREATED:
-        raise exceptions.DataInUse(Service)
-
-    if starting_at is not None:
-        starting_at = validate_starting_at(starting_at)
-        if starting_at != service.starting_at:
-            old_starting_at = service.starting_at
-            service.starting_at = starting_at
-            time_change = service.starting_at - old_starting_at
-            session.query(LandmarkInService).filter(
-                LandmarkInService.service_id == service.id
-            ).update(
-                {
-                    LandmarkInService.arrival_at: LandmarkInService.arrival_at
-                    + time_change,
-                    LandmarkInService.departure_at: LandmarkInService.departure_at
-                    + time_change,
-                },
-                synchronize_session=False,
-            )
-            service.ending_at = service.ending_at + time_change
-            session.flush()
-            have_critical_change = True
-
-    if route_id is not None:
-        if route.status != RouteStatus.VALID:
-            raise exceptions.InactiveResource(Route)
-        landmarks_in_route = (
-            session.query(LandmarkInRoute)
-            .filter(LandmarkInRoute.route_id == route.id)
-            .order_by(LandmarkInRoute.distance_from_start.asc())
-            .all()
-        )
-        first_landmark_in_route = landmarks_in_route[0]
-        last_landmark_in_route = landmarks_in_route[-1]
-        ending_at = service.starting_at + timedelta(
-            minutes=last_landmark_in_route.arrival_delta
-        )
-
-        delete_landmarks_in_service(session, service)
-        landmarks_in_service = create_landmarks_in_service(
-            service.id, landmarks_in_route, service.starting_at
-        )
-        session.add_all(landmarks_in_service)
-        session.flush()
-        service.ending_at = ending_at
-        service.starting_landmark_id = first_landmark_in_route.landmark_id
-        service.ending_landmark_id = last_landmark_in_route.landmark_id
-        service.route_id = route.id
-        have_critical_change = True
-
-    if fare_id is not None:
-        old_fare_in_service = (
-            session.query(FareInService)
-            .filter(FareInService.id == service.fare_in_service_id)
-            .first()
-        )
-        if (
-            old_fare_in_service is None
-            or old_fare_in_service.fare_id != fare.id
-            or old_fare_in_service.version != fare.version
-        ):
-            old_fare_in_service_id = service.fare_in_service_id
-            fare_in_service = create_fare_in_service(session, fare)
-            service.fare_in_service_id = fare_in_service.id
-            service.fare_id = fare.id
-            session.flush()
-            delete_fare_in_service(session, old_fare_in_service_id)
-            session.flush()
-            have_critical_change = True
-
-    if vehicle_id is not None:
-        if vehicle.status != VehicleStatus.ACTIVE:
-            raise exceptions.InactiveResource(Vehicle)
-        old_vehicle_in_service = (
-            session.query(VehicleInService)
-            .filter(VehicleInService.id == service.vehicle_in_service_id)
-            .first()
-        )
-        if (
-            old_vehicle_in_service is None
-            or old_vehicle_in_service.vehicle_id != vehicle.id
-            or old_vehicle_in_service.version != vehicle.version
-        ):
-            old_vehicle_in_service_id = service.vehicle_in_service_id
-            vehicle_in_service = create_vehicle_in_service(session, vehicle)
-            service.vehicle_in_service_id = vehicle_in_service.id
-            service.registration_number = vehicle.registration_number
-            service.vehicle_id = vehicle.id
-            session.flush()
-            delete_vehicle_in_service(session, old_vehicle_in_service_id)
-            have_critical_change = True
-
-    if vehicle_id is not None or route_id is not None or starting_at is not None:
-        session.flush()
-        validate_service_timing(
-            session,
-            service.starting_at,
-            service.ending_at,
-            service.registration_number,
-            exclude_service_id=service.id,
-        )
-
-    update_if_changed(service, update_data)
-    have_updates = (
-        have_critical_change
-        or session.is_modified(service)
-        or any(session.is_modified(duty) for duty in duties)
-    )
-    if have_updates:
-        session.commit()
+        service_lock = acquire_lock(construct_service_transition_lock(service.id))
         session.refresh(service)
 
-    service_data = jsonable_encoder(service, exclude={"private_key"})
-    return have_updates, service_data
+        update_data = form_param.model_dump(exclude_unset=True)
+        vehicle = None
+        route = None
+        fare = None
+        if "vehicle_id" in update_data:
+            vehicle = validate_id(
+                session,
+                Vehicle,
+                form_param.vehicle_id,
+                "vehicle_id",
+                extra_filter=extra_filter_for_vehicle,
+            )
+            if vehicle.company_id != service.company_id:
+                raise exceptions.InvalidAssociation(
+                    VehicleInService.vehicle_id, Service.company_id
+                )
+        if "route_id" in update_data:
+            route = validate_id(
+                session,
+                Route,
+                form_param.route_id,
+                "route_id",
+                extra_filter=extra_filter_for_route,
+            )
+            if route.company_id != service.company_id:
+                raise exceptions.InvalidAssociation(
+                    LandmarkInRoute.route_id, Service.company_id
+                )
+        if "fare_id" in update_data:
+            fare = validate_id(
+                session,
+                Fare,
+                form_param.fare_id,
+                "fare_id",
+                extra_filter=extra_filter_for_fare,
+            )
+            if fare.scope != FareScope.GLOBAL and fare.company_id != service.company_id:
+                raise exceptions.InvalidAssociation(
+                    FareInService.fare_id, Service.company_id
+                )
+        _allowed_service_status_transitions = {
+            ServiceStatus.CREATED: [ServiceStatus.CACHED],
+            ServiceStatus.CACHED: [ServiceStatus.ENDED],
+            ServiceStatus.STARTED: [ServiceStatus.ENDED],
+            ServiceStatus.ENDED: [ServiceStatus.STARTED],
+        }
+
+        duties = []
+        if "status" in update_data:
+            new_status = update_data.pop("status")
+            if new_status != service.status:
+                validate_state_transition(
+                    _allowed_service_status_transitions,
+                    service.status,
+                    new_status,
+                    Service.status,
+                )
+
+                if new_status == ServiceStatus.ENDED:
+                    utc_now = datetime.now(timezone.utc)
+                    duties = (
+                        session.query(Duty)
+                        .filter(
+                            Duty.service_id == service.id,
+                            Duty.status == DutyStatus.STARTED,
+                        )
+                        .all()
+                    )
+                    duty_ids = [duty.id for duty in duties]
+                    collections_by_duty_id = {}
+                    if duty_ids:
+                        collections_by_duty_id = dict(
+                            session.query(
+                                PaperTicket.duty_id,
+                                func.sum(PaperTicket.amount),
+                            )
+                            .filter(PaperTicket.duty_id.in_(duty_ids))
+                            .group_by(PaperTicket.duty_id)
+                            .all()
+                        )
+                    for duty in duties:
+                        duty.collection = collections_by_duty_id.get(duty.id)
+                        duty.finished_on = utc_now
+                        duty.status = DutyStatus.ENDED
+
+                service.status = new_status
+
+        vehicle_id = update_data.pop("vehicle_id", None)
+        route_id = update_data.pop("route_id", None)
+        fare_id = update_data.pop("fare_id", None)
+        starting_at = update_data.pop("starting_at", None)
+        need_critical_change = (
+            vehicle_id is not None
+            or route_id is not None
+            or fare_id is not None
+            or starting_at is not None
+        )
+        have_critical_change = False
+
+        if need_critical_change and service.status != ServiceStatus.CREATED:
+            raise exceptions.DataInUse(Service)
+
+        if starting_at is not None:
+            starting_at = validate_starting_at(starting_at)
+            if starting_at != service.starting_at:
+                old_starting_at = service.starting_at
+                service.starting_at = starting_at
+                time_change = service.starting_at - old_starting_at
+                session.query(LandmarkInService).filter(
+                    LandmarkInService.service_id == service.id
+                ).update(
+                    {
+                        LandmarkInService.arrival_at: LandmarkInService.arrival_at
+                        + time_change,
+                        LandmarkInService.departure_at: LandmarkInService.departure_at
+                        + time_change,
+                    },
+                    synchronize_session=False,
+                )
+                service.ending_at = service.ending_at + time_change
+                session.flush()
+                have_critical_change = True
+
+        if route_id is not None:
+            if route.status != RouteStatus.VALID:
+                raise exceptions.InactiveResource(Route)
+            landmarks_in_route = (
+                session.query(LandmarkInRoute)
+                .filter(LandmarkInRoute.route_id == route.id)
+                .order_by(LandmarkInRoute.distance_from_start.asc())
+                .all()
+            )
+            first_landmark_in_route = landmarks_in_route[0]
+            last_landmark_in_route = landmarks_in_route[-1]
+            ending_at = service.starting_at + timedelta(
+                minutes=last_landmark_in_route.arrival_delta
+            )
+
+            delete_landmarks_in_service(session, service)
+            landmarks_in_service = create_landmarks_in_service(
+                service.id, landmarks_in_route, service.starting_at
+            )
+            session.add_all(landmarks_in_service)
+            session.flush()
+            service.ending_at = ending_at
+            service.starting_landmark_id = first_landmark_in_route.landmark_id
+            service.ending_landmark_id = last_landmark_in_route.landmark_id
+            service.route_id = route.id
+            have_critical_change = True
+
+        if fare_id is not None:
+            old_fare_in_service = (
+                session.query(FareInService)
+                .filter(FareInService.id == service.fare_in_service_id)
+                .first()
+            )
+            if (
+                old_fare_in_service is None
+                or old_fare_in_service.fare_id != fare.id
+                or old_fare_in_service.version != fare.version
+            ):
+                old_fare_in_service_id = service.fare_in_service_id
+                fare_in_service = create_fare_in_service(session, fare)
+                service.fare_in_service_id = fare_in_service.id
+                service.fare_id = fare.id
+                session.flush()
+                delete_fare_in_service(session, old_fare_in_service_id)
+                session.flush()
+                have_critical_change = True
+
+        if vehicle_id is not None:
+            if vehicle.status != VehicleStatus.ACTIVE:
+                raise exceptions.InactiveResource(Vehicle)
+            old_vehicle_in_service = (
+                session.query(VehicleInService)
+                .filter(VehicleInService.id == service.vehicle_in_service_id)
+                .first()
+            )
+            if (
+                old_vehicle_in_service is None
+                or old_vehicle_in_service.vehicle_id != vehicle.id
+                or old_vehicle_in_service.version != vehicle.version
+            ):
+                old_vehicle_in_service_id = service.vehicle_in_service_id
+                vehicle_in_service = create_vehicle_in_service(session, vehicle)
+                service.vehicle_in_service_id = vehicle_in_service.id
+                service.registration_number = vehicle.registration_number
+                service.vehicle_id = vehicle.id
+                session.flush()
+                delete_vehicle_in_service(session, old_vehicle_in_service_id)
+                have_critical_change = True
+
+        if vehicle_id is not None or route_id is not None or starting_at is not None:
+            session.flush()
+            validate_service_timing(
+                session,
+                service.starting_at,
+                service.ending_at,
+                service.registration_number,
+                exclude_service_id=service.id,
+            )
+
+        update_if_changed(service, update_data)
+        have_updates = (
+            have_critical_change
+            or session.is_modified(service)
+            or any(session.is_modified(duty) for duty in duties)
+        )
+        if have_updates:
+            session.commit()
+            session.refresh(service)
+
+        service_data = jsonable_encoder(service, exclude={"private_key"})
+        return have_updates, service_data
+    finally:
+        release_lock(service_lock)
 
 
 def search_service(session: Session, query_params: QueryParams) -> List[Service]:
@@ -1172,6 +1179,7 @@ PATCH_EXCEPTIONS = [
     exceptions.InvalidAssociation(VehicleInService.vehicle_id, Service.company_id),
     exceptions.InvalidAssociation(LandmarkInRoute.route_id, Service.company_id),
     exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id),
+    exceptions.LockAcquireTimeout(),
 ]
 
 DELETE_EXCEPTIONS = [
