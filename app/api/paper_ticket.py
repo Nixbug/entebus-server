@@ -45,6 +45,7 @@ from app.src import exceptions
 from app.src.redis import acquire_lock, release_lock
 from app.src.dynamic_fare import v1
 from app.src.digital_ticket.v1 import TicketSchema, TwoDecimalPlaces
+from app.api.duty import construct_service_transition_lock
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -109,23 +110,6 @@ class QueryParams(QueryParamsForEX):
 
 
 # ---------------------------------------------------------------------------
-## Lock Generator
-# ---------------------------------------------------------------------------
-def create_operator_service_lock(
-    operator_id: int,
-    service_id: int,
-) -> str:
-    """
-    Creates a unique Redis lock key for an operator-service pair.
-
-    Args:
-        operator_id (int): The operator ID.
-        service_id (int): The service ID.
-    """
-    return f"lk_operator_service:{operator_id}:{service_id}"
-
-
-# ---------------------------------------------------------------------------
 ## Functions
 # ---------------------------------------------------------------------------
 def create_paper_ticket(
@@ -148,22 +132,16 @@ def create_paper_ticket(
     Returns:
         dict: The created paper ticket data.
     """
-    service = validate_id(
-        session,
-        Service,
-        form_param.ticket.service_id,
-        PaperTicket.service_id,
-        (Service.company_id == token.company_id),
-    )
-    operator_service_lock = None
+    service_lock = None
     try:
-        operator_service_lock = acquire_lock(
-            create_operator_service_lock(
-                token.operator_id,
-                service.id,
-            )
+        service = validate_id(
+            session,
+            Service,
+            form_param.ticket.service_id,
+            PaperTicket.service_id,
+            (Service.company_id == token.company_id),
         )
-
+        service_lock = acquire_lock(construct_service_transition_lock(service.id))
         if service.status != ServiceStatus.STARTED:
             service.status = ServiceStatus.STARTED
 
@@ -265,7 +243,7 @@ def create_paper_ticket(
 
         return jsonable_encoder(paper_ticket)
     finally:
-        release_lock(operator_service_lock)
+        release_lock(service_lock)
 
 
 def search_paper_tickets(
