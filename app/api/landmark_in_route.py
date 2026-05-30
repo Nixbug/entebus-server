@@ -197,6 +197,8 @@ def create_landmark_in_route(
             extra_filter=extra_filter_for_route,
         )
         route_lock = acquire_lock(construct_route_transition_lock(route.id))
+        session.refresh(route)
+
         landmark_count = (
             session.query(LandmarkInRoute)
             .filter(
@@ -332,6 +334,8 @@ def delete_landmark_in_route(
             session, Route, landmark_in_route.route_id, LandmarkInRoute.route_id
         )
         route_lock = acquire_lock(construct_route_transition_lock(route.id))
+        session.refresh(route)
+
         landmark_in_route_data = jsonable_encoder(landmark_in_route)
         session.delete(landmark_in_route)
         session.flush()
