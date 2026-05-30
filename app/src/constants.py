@@ -136,4 +136,7 @@ MAX_ROUTES_PER_COMPANY = 100  # Maximum routes per company
 MAX_OPERATORS_PER_COMPANY = 100  # Maximum operators per company
 
 
-MAX_LOCAL_FARES_PER_COMPANY = 2
+# ---------------------------------------------------------------------------
+# Fares constraints
+# ---------------------------------------------------------------------------
+MAX_LOCAL_FARES_PER_COMPANY = 50  # Maximum fares per company
