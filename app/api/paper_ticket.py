@@ -142,9 +142,10 @@ def create_paper_ticket(
             (Service.company_id == token.company_id),
         )
         service_lock = acquire_lock(construct_service_transition_lock(service.id))
+        session.refresh(service)
+
         if service.status != ServiceStatus.STARTED:
             service.status = ServiceStatus.STARTED
-
         duty = (
             session.query(Duty)
             .filter(
