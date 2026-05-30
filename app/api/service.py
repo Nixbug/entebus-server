@@ -264,6 +264,22 @@ class ServiceQueryParams(BaseModel):
     marked_as_cached: bool = Field(Query(default=False))
 
 
+# ---------------------------------------------------------------------------
+## Lock Generator
+# ---------------------------------------------------------------------------
+def construct_service_transition_lock(service_id: int) -> str:
+    """
+    Creates a Redis lock key for a service.
+
+    Prevents concurrent service transitions, duty state transitions,
+    duty creation, and paper ticket creation for the same service.
+
+    Args:
+        service_id (int): ID of the service for which to create the lock.
+    """
+    return f"lk_service_:{service_id}"
+
+
 # Functions
 def validate_starting_at(starting_at: datetime) -> datetime:
     """

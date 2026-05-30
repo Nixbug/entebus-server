@@ -50,6 +50,7 @@ from app.src.redis import acquire_lock, release_lock
 from app.src import exceptions
 from app.src.enums import OrderIn
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, UpdatedOnFilter
+from app.api.service import construct_service_transition_lock
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -117,22 +118,6 @@ class QueryParams(QueryParamsForEX):
     """General combined query parameters."""
 
     pass
-
-
-# ---------------------------------------------------------------------------
-## Lock Generator
-# ---------------------------------------------------------------------------
-def construct_service_transition_lock(service_id: int) -> str:
-    """
-    Creates a Redis lock key for a service.
-
-    Prevents concurrent service transitions, duty state transitions,
-    duty creation, and paper ticket creation for the same service.
-
-    Args:
-        service_id (int): ID of the service for which to create the lock.
-    """
-    return f"lk_service_:{service_id}"
 
 
 # ---------------------------------------------------------------------------

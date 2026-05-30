@@ -45,7 +45,7 @@ from app.src import exceptions
 from app.src.redis import acquire_lock, release_lock
 from app.src.dynamic_fare import v1
 from app.src.digital_ticket.v1 import TicketSchema, TwoDecimalPlaces
-from app.api.duty import construct_service_transition_lock
+from app.api.service import construct_service_transition_lock
 
 route_executive = APIRouter()
 route_operator = APIRouter()
