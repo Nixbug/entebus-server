@@ -139,4 +139,4 @@ MAX_OPERATORS_PER_COMPANY = 100  # Maximum operators per company
 # ---------------------------------------------------------------------------
 # Fares constraints
 # ---------------------------------------------------------------------------
-MAX_LOCAL_FARES_PER_COMPANY = 50  # Maximum fares per company
+MAX_LOCAL_FARES_PER_COMPANY = 50  # Maximum LOCAL fares per company

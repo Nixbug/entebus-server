@@ -406,7 +406,6 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of fares.")
     responses=fuse_exception_responses(
         [
             *POST_EXCEPTIONS_COMMON,
-            exceptions.LimitExceeded(Fare),
             exceptions.MissingParameter(Fare.company_id),
             exceptions.UnexpectedParameter(Fare.company_id),
             exceptions.UnknownValue(Fare.company_id),
@@ -560,12 +559,7 @@ async def fetch_fares_for_executive(
     tags=["Fare"],
     response_model=FareSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            *POST_EXCEPTIONS_COMMON,
-            exceptions.LimitExceeded(Fare),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS_COMMON),
     description=(
         POST_DESCRIPTION.copy()
         .add_line("Logged-in operator must have `company.fare.create` permission.")
