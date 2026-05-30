@@ -269,6 +269,8 @@ def update_landmark_in_route(
         route_lock = acquire_lock(
             construct_route_transition_lock(landmark_in_route.route_id)
         )
+        session.refresh(landmark_in_route)
+
         arrival_delta = (
             form_param.arrival_delta
             if form_param.arrival_delta is not None
