@@ -196,7 +196,9 @@ class UpdateForm(BaseModel):
     starting_at: datetime = Field(default=None)
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering service results."""
 
@@ -280,7 +282,9 @@ def construct_service_transition_lock(service_id: int) -> str:
     return f"lk_service_:{service_id}"
 
 
-# Functions
+# ---------------------------------------------------------------------------
+## Functions
+# ---------------------------------------------------------------------------
 def validate_starting_at(starting_at: datetime) -> datetime:
     """
     Normalize a datetime to UTC and validate it is within the allowed creation window.
