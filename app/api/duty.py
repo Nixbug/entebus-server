@@ -172,7 +172,6 @@ def update_duty(
 
         update_data = form_param.model_dump(exclude_unset=True)
         service = None
-
         if "status" in update_data and update_data["status"] != duty.status:
             new_status = update_data["status"]
             validate_state_transition(
