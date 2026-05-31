@@ -85,6 +85,7 @@ from app.src.constants import TMZ_SECONDARY
 from app.src.digital_ticket.v1 import TicketCreator
 from app.src.constants import SERVICE_CREATION_LEAD_TIME_DAYS, TMZ_PRIMARY
 from app.src.redis import acquire_lock, release_lock
+from app.src.redis import acquire_lock, release_lock
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -1018,6 +1019,15 @@ def update_service(
                 exclude_service_id=service.id,
             )
 
+        update_if_changed(service, update_data)
+        have_updates = (
+            have_critical_change
+            or session.is_modified(service)
+            or any(session.is_modified(duty) for duty in duties)
+        )
+        if have_updates:
+            session.commit()
+            session.refresh(service)
         update_if_changed(service, update_data)
         have_updates = (
             have_critical_change
