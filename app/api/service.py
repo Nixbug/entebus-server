@@ -969,7 +969,7 @@ def update_service(
                 or old_fare_in_service.version != fare.version
             ):
                 fare_in_service_lock = acquire_lock(
-                    construct_fare_reference_lock(service.fare_in_service_id)
+                    construct_fare_reference_lock(old_fare_in_service.fare_id)
                 )
                 old_fare_in_service_id = service.fare_in_service_id
                 fare_in_service = create_fare_in_service(session, fare)
@@ -994,7 +994,7 @@ def update_service(
                 or old_vehicle_in_service.version != vehicle.version
             ):
                 vehicle_in_service_lock = acquire_lock(
-                    construct_vehicle_reference_lock(service.vehicle_in_service_id)
+                    construct_vehicle_reference_lock(old_vehicle_in_service.vehicle_id)
                 )
                 old_vehicle_in_service_id = service.vehicle_in_service_id
                 vehicle_in_service = create_vehicle_in_service(session, vehicle)
@@ -1216,11 +1216,11 @@ def delete_service(session: Session, service: Service) -> dict:
 
         # decrement/delete snapshots referenced by the (now-deleted) service
         fare_in_service_lock = acquire_lock(
-            construct_fare_reference_lock(old_fare_in_service_id)
+            construct_fare_reference_lock(service.fare_id)
         )
         delete_fare_in_service(session, old_fare_in_service_id)
         vehicle_in_service_lock = acquire_lock(
-            construct_vehicle_reference_lock(old_vehicle_in_service_id)
+            construct_vehicle_reference_lock(service.vehicle_id)
         )
         delete_vehicle_in_service(session, old_vehicle_in_service_id)
 
