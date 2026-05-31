@@ -42,8 +42,10 @@ from app.src.functions import (
 )
 from app.src.filters import PaginationFilter, IDFilter, CreatedOnFilter
 from app.src import exceptions
+from app.src.redis import acquire_lock, release_lock
 from app.src.dynamic_fare import v1
 from app.src.digital_ticket.v1 import TicketSchema, TwoDecimalPlaces
+from app.api.service import construct_service_transition_lock
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -130,109 +132,119 @@ def create_paper_ticket(
     Returns:
         dict: The created paper ticket data.
     """
-    service = validate_id(
-        session,
-        Service,
-        form_param.ticket.service_id,
-        PaperTicket.service_id,
-        (Service.company_id == token.company_id),
-    )
-    if service.status != ServiceStatus.STARTED:
-        service.status = ServiceStatus.STARTED
-
-    duty = (
-        session.query(Duty)
-        .filter(
-            Duty.service_id == form_param.ticket.service_id,
-            Duty.operator_id == token.operator_id,
-            Duty.status.in_((DutyStatus.STARTED, DutyStatus.ENDED)),
+    service_lock = None
+    try:
+        service = validate_id(
+            session,
+            Service,
+            form_param.ticket.service_id,
+            PaperTicket.service_id,
+            (Service.company_id == token.company_id),
         )
-        .first()
-    )
-    if duty is None:
-        duty = Duty(
-            company_id=token.company_id,
-            operator_id=token.operator_id,
-            service_id=form_param.ticket.service_id,
-            status=DutyStatus.STARTED,
-            started_on=form_param.ticket.created_on,
-        )
-        session.add(duty)
-        session.flush()
-    elif duty.status == DutyStatus.ENDED:
-        duty.status = DutyStatus.STARTED
-        duty.finished_on = None
-        duty.collection = 0
-        session.flush()
+        service_lock = acquire_lock(construct_service_transition_lock(service.id))
+        session.refresh(service)
 
-    ticket = form_param.ticket
-    pickup_point = (
-        session.query(LandmarkInService)
-        .filter(
-            LandmarkInService.service_id == form_param.ticket.service_id,
-            LandmarkInService.landmark_id == ticket.pickup_point,
+        if service.status != ServiceStatus.STARTED:
+            service.status = ServiceStatus.STARTED
+        duty = (
+            session.query(Duty)
+            .filter(
+                Duty.service_id == form_param.ticket.service_id,
+                Duty.operator_id == token.operator_id,
+                Duty.status.in_((DutyStatus.STARTED, DutyStatus.ENDED)),
+            )
+            .first()
         )
-        .first()
-    )
-    if pickup_point is None:
-        raise exceptions.UnknownValue("pickup_point")
-    dropping_point = (
-        session.query(LandmarkInService)
-        .filter(
-            LandmarkInService.service_id == form_param.ticket.service_id,
-            LandmarkInService.landmark_id == ticket.dropping_point,
+        if duty is None:
+            duty = Duty(
+                company_id=token.company_id,
+                operator_id=token.operator_id,
+                service_id=form_param.ticket.service_id,
+                status=DutyStatus.STARTED,
+                started_on=form_param.ticket.created_on,
+            )
+            session.add(duty)
+            session.flush()
+        elif duty.status == DutyStatus.ENDED:
+            duty.status = DutyStatus.STARTED
+            duty.finished_on = None
+            duty.collection = 0
+            session.flush()
+
+        ticket = form_param.ticket
+        pickup_point = (
+            session.query(LandmarkInService)
+            .filter(
+                LandmarkInService.service_id == form_param.ticket.service_id,
+                LandmarkInService.landmark_id == ticket.pickup_point,
+            )
+            .first()
         )
-        .first()
-    )
-    if dropping_point is None:
-        raise exceptions.UnknownValue("dropping_point")
-
-    distance = dropping_point.distance_from_start - pickup_point.distance_from_start
-    if distance < 0:
-        raise exceptions.UnknownValue("dropping_point")
-    if distance != ticket.distance:
-        raise exceptions.UnknownValue("distance")
-
-    fare_in_service = (
-        session.query(FareInService)
-        .filter(FareInService.id == service.fare_in_service_id)
-        .first()
-    )
-    fare_function = v1.DynamicFare(fare_in_service.function)
-    fare_ticket_types = fare_in_service.attributes["ticket_types"]
-    extras = jsonable_encoder(ticket.extras)
-    total_fare = Decimal(0)
-
-    for ticket_type in ticket.ticket_types:
-        matched_ticket_type = next(
-            (ft for ft in fare_ticket_types if ft["id"] == ticket_type.id),
-            None,
+        if pickup_point is None:
+            raise exceptions.UnknownValue("pickup_point")
+        dropping_point = (
+            session.query(LandmarkInService)
+            .filter(
+                LandmarkInService.service_id == form_param.ticket.service_id,
+                LandmarkInService.landmark_id == ticket.dropping_point,
+            )
+            .first()
         )
-        if matched_ticket_type is None:
-            raise exceptions.UnknownTicketType()
+        if dropping_point is None:
+            raise exceptions.UnknownValue("dropping_point")
 
-        expected_price = Decimal(
-            str(fare_function.evaluate(matched_ticket_type["name"], distance, extras))
+        distance = dropping_point.distance_from_start - pickup_point.distance_from_start
+        if distance < 0:
+            raise exceptions.UnknownValue("dropping_point")
+        if distance != ticket.distance:
+            raise exceptions.UnknownValue("distance")
+
+        fare_in_service = (
+            session.query(FareInService)
+            .filter(FareInService.id == service.fare_in_service_id)
+            .first()
         )
-        if ticket_type.price != expected_price:
+        fare_function = v1.DynamicFare(fare_in_service.function)
+        fare_ticket_types = fare_in_service.attributes["ticket_types"]
+        extras = jsonable_encoder(ticket.extras)
+        total_fare = Decimal(0)
+
+        for ticket_type in ticket.ticket_types:
+            matched_ticket_type = next(
+                (ft for ft in fare_ticket_types if ft["id"] == ticket_type.id),
+                None,
+            )
+            if matched_ticket_type is None:
+                raise exceptions.UnknownTicketType()
+
+            expected_price = Decimal(
+                str(
+                    fare_function.evaluate(
+                        matched_ticket_type["name"], distance, extras
+                    )
+                )
+            )
+            if ticket_type.price != expected_price:
+                raise exceptions.InvalidValue(PaperTicket.amount)
+            total_fare += ticket_type.price * ticket_type.count
+
+        if total_fare != form_param.ticket.amount:
             raise exceptions.InvalidValue(PaperTicket.amount)
-        total_fare += ticket_type.price * ticket_type.count
 
-    if total_fare != form_param.ticket.amount:
-        raise exceptions.InvalidValue(PaperTicket.amount)
+        paper_ticket = PaperTicket(
+            service_id=form_param.ticket.service_id,
+            duty_id=duty.id,
+            company_id=token.company_id,
+            ticket=ticket.model_dump(mode="json"),
+            amount=form_param.ticket.amount,
+        )
+        session.add(paper_ticket)
+        session.commit()
+        session.refresh(paper_ticket)
 
-    paper_ticket = PaperTicket(
-        service_id=form_param.ticket.service_id,
-        duty_id=duty.id,
-        company_id=token.company_id,
-        ticket=ticket.model_dump(mode="json"),
-        amount=form_param.ticket.amount,
-    )
-    session.add(paper_ticket)
-    session.commit()
-    session.refresh(paper_ticket)
-
-    return jsonable_encoder(paper_ticket)
+        return jsonable_encoder(paper_ticket)
+    finally:
+        release_lock(service_lock)
 
 
 def search_paper_tickets(
@@ -290,6 +302,7 @@ POST_EXCEPTIONS = [
     exceptions.InvalidFareFunction(),
     exceptions.JSMemoryLimitExceeded(),
     exceptions.JSTimeLimitExceeded(),
+    exceptions.LockAcquireTimeout(),
 ]
 
 GET_EXCEPTIONS = [
