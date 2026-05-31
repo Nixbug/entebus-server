@@ -296,7 +296,6 @@ def construct_service_creation_lock(registration_number: str) -> str:
     return f"lk_service_creation_:{registration_number}"
 
 
-
 def construct_vehicle_reference_lock(vehicle_id: int) -> str:
     """
     Creates a Redis lock key for Vehicle snapshot creation and reference operations.
@@ -644,7 +643,11 @@ def create_service(
             extra_filter=extra_filter_for_route,
         )
         fare = validate_id(
-            session, Fare, form_param.fare_id, "fare_id", extra_filter=extra_filter_for_fare
+            session,
+            Fare,
+            form_param.fare_id,
+            "fare_id",
+            extra_filter=extra_filter_for_fare,
         )
 
         if vehicle.company_id != route.company_id:
@@ -683,7 +686,9 @@ def create_service(
         )
         first_landmark_in_route = landmarks_in_route[0]
         last_landmark_in_route = landmarks_in_route[-1]
-        ending_at = starting_at + timedelta(minutes=last_landmark_in_route.arrival_delta)
+        ending_at = starting_at + timedelta(
+            minutes=last_landmark_in_route.arrival_delta
+        )
 
         # Prevent assigning the same vehicle to overlapping services (any company)
         vehicle_lock = acquire_lock(
@@ -712,9 +717,7 @@ def create_service(
             )
             name = f"{starting_at_str} {first_landmark.name} -> {last_landmark.name} ({vehicle.registration_number})"
 
-        fare_in_service_lock = acquire_lock(
-            construct_fare_reference_lock(fare.id)
-        )
+        fare_in_service_lock = acquire_lock(construct_fare_reference_lock(fare.id))
         fare_in_service = create_fare_in_service(session, fare)
 
         vehicle_in_service_lock = acquire_lock(
@@ -761,6 +764,7 @@ def create_service(
         release_lock(vehicle_in_service_lock)
         release_lock(fare_in_service_lock)
         release_lock(vehicle_lock)
+
 
 def update_service(
     session: Session,
@@ -1196,9 +1200,7 @@ def delete_service(session: Session, service: Service) -> dict:
     fare_in_service_lock = None
     vehicle_in_service_lock = None
     try:
-        service_lock = acquire_lock(
-            construct_service_transition_lock(service.id)
-        )
+        service_lock = acquire_lock(construct_service_transition_lock(service.id))
         service_data = jsonable_encoder(service, exclude={"private_key", "public_key"})
 
         # remove landmark snapshots first
