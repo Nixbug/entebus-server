@@ -1251,6 +1251,7 @@ POST_EXCEPTIONS = [
         VehicleInService.vehicle_id, LandmarkInRoute.route_id
     ),
     exceptions.InvalidAssociation(FareInService.fare_id, VehicleInService.vehicle_id),
+    exceptions.LockAcquireTimeout(),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -1276,6 +1277,7 @@ DELETE_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
     exceptions.DataInUse(Service),
+    exceptions.LockAcquireTimeout(),
 ]
 
 GET_EXCEPTIONS = [
