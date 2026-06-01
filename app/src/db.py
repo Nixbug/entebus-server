@@ -2165,7 +2165,7 @@ class Service(ORMbase):
         collection (Numeric, nullable):
             Total collection amount by an operator against a service.
             Precise up to two decimal places.
-    
+        
         updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp automatically updated whenever the service record is modified.
 
