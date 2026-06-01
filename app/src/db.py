@@ -2163,7 +2163,7 @@ class Service(ORMbase):
             Maximum 1024 characters long.
 
         collection (Numeric, nullable):
-            Total collection amount by an operator against a service.
+            Total collection amount for the service (sum of collections across duties).
             Precise up to two decimal places.
         
         updated_on (DateTime, nullable, onupdate=func.now()):
