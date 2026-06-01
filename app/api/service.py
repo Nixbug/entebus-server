@@ -1019,15 +1019,6 @@ def update_service(
         if have_updates:
             session.commit()
             session.refresh(service)
-        update_if_changed(service, update_data)
-        have_updates = (
-            have_critical_change
-            or session.is_modified(service)
-            or any(session.is_modified(duty) for duty in duties)
-        )
-        if have_updates:
-            session.commit()
-            session.refresh(service)
 
         service_data = jsonable_encoder(service, exclude={"private_key"})
         return have_updates, service_data
