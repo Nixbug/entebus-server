@@ -7,6 +7,7 @@ input validation and structured output.
 """
 
 from datetime import datetime, timezone
+from decimal import Decimal
 from enum import StrEnum
 from fastapi.encoders import jsonable_encoder
 from typing import Any, Dict, List
@@ -112,6 +113,7 @@ class ServiceSchema(BaseModel):
     remark: str | None
     starting_at: datetime
     ending_at: datetime
+    collection: Decimal | None
     updated_on: datetime | None = None
     created_on: datetime
 
@@ -830,12 +832,11 @@ def update_service(
                         duty.status = DutyStatus.ENDED
 
                     service.collection = sum(
-                        collections_by_duty_id.get(duty.id)
-                        for duty in duties
+                        collections_by_duty_id.get(duty.id) for duty in duties
                     )
-                    
+
                 elif new_status == ServiceStatus.STARTED:
-                        service.collection = 0
+                    service.collection = 0
                 service.status = new_status
 
         vehicle_id = update_data.pop("vehicle_id", None)
@@ -1239,6 +1240,12 @@ PATCH_DESCRIPTION = (
     )
     .add_line(
         f"`starting_at` must be between now and {SERVICE_CREATION_LEAD_TIME_DAYS} days from now."
+    )
+    .add_line(
+        "When status transitions to ENDED, the service collection is calculated and saved."
+    )
+    .add_line(
+        "When status transitions from ENDED to STARTED, the service collection is reset to 0."
     )
     .add_line("Empty PATCH requests are allowed and will result in no changes.")
 )
