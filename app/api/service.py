@@ -829,6 +829,13 @@ def update_service(
                         duty.finished_on = utc_now
                         duty.status = DutyStatus.ENDED
 
+                    service.collection = sum(
+                        collections_by_duty_id.get(duty.id)
+                        for duty in duties
+                    )
+                    
+                elif new_status == ServiceStatus.STARTED:
+                        service.collection = 0
                 service.status = new_status
 
         vehicle_id = update_data.pop("vehicle_id", None)
