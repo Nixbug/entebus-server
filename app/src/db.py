@@ -2162,6 +2162,10 @@ class Service(ORMbase):
             Optional text field for additional remarks or notes related to the service.
             Maximum 1024 characters long.
 
+        collection (Numeric, nullable):
+            Total collection amount by an operator against a service.
+            Precise up to two decimal places.
+    
         updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp automatically updated whenever the service record is modified.
 
@@ -2197,6 +2201,7 @@ class Service(ORMbase):
     private_key = Column(TEXT, nullable=False)
     public_key = Column(TEXT, nullable=False)
     remark = Column(TEXT)
+    collection = Column(Numeric(10, 2))
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
