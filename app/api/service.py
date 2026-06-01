@@ -589,7 +589,7 @@ def create_service(
         1. Service creation lock (prevent overlapping services)
         2. Fare reference lock (protect fare snapshot updates)
         3. Vehicle reference lock (protect vehicle snapshot updates)
-    
+
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a service.
@@ -701,9 +701,7 @@ def create_service(
         fare_lock = acquire_lock(construct_fare_reference_lock(fare.id))
         fare_in_service = create_fare_in_service(session, fare)
 
-        vehicle_lock = acquire_lock(
-            construct_vehicle_reference_lock(vehicle.id)
-        )
+        vehicle_lock = acquire_lock(construct_vehicle_reference_lock(vehicle.id))
         vehicle_in_service = create_vehicle_in_service(session, vehicle)
 
         # Generate keys
@@ -962,9 +960,7 @@ def update_service(
                 old_fare_lock = acquire_lock(
                     construct_fare_reference_lock(old_fare_in_service.fare_id)
                 )
-                new_fare_lock = acquire_lock(
-                    construct_fare_reference_lock(fare.id)
-                )
+                new_fare_lock = acquire_lock(construct_fare_reference_lock(fare.id))
                 old_fare_in_service_id = service.fare_in_service_id
                 fare_in_service = create_fare_in_service(session, fare)
                 service.fare_in_service_id = fare_in_service.id
@@ -1227,9 +1223,7 @@ def delete_service(session: Session, service: Service) -> dict:
         session.flush()
 
         # decrement/delete snapshots referenced by the (now-deleted) service
-        fare_lock = acquire_lock(
-            construct_fare_reference_lock(service.fare_id)
-        )
+        fare_lock = acquire_lock(construct_fare_reference_lock(service.fare_id))
         delete_fare_in_service(session, old_fare_in_service_id)
         vehicle_lock = acquire_lock(
             construct_vehicle_reference_lock(service.vehicle_id)
