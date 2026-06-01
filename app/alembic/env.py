@@ -34,7 +34,7 @@ target_metadata = ORMbase.metadata
 def include_name(name, type_, parent_names):
     if type_ == "schema" and name in {"public"}:
         return True
-    return False
+    return True
 
 
 def run_migrations_offline() -> None:
