@@ -171,6 +171,23 @@ class QueryParams(QueryParamsForEX):
 
 
 # ---------------------------------------------------------------------------
+## Lock Generator
+# ---------------------------------------------------------------------------
+def construct_fare_reference_lock(fare_id: int) -> str:
+    """
+    Creates a Redis lock key for Fare snapshot creation and reference operations.
+
+    Serializes access to Fare snapshot operations for the same
+    fare_id, preventing concurrent creation or reference count
+    updates of the same snapshot.
+
+    Args:
+        fare_id (int): Fare ID.
+    """
+    return f"lk_fare_:{fare_id}"
+
+
+# ---------------------------------------------------------------------------
 ## Functions
 # ---------------------------------------------------------------------------
 def create_fare(session: Session, form_param: CreateForm) -> dict:

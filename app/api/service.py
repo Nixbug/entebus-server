@@ -85,7 +85,8 @@ from app.src.constants import TMZ_SECONDARY
 from app.src.digital_ticket.v1 import TicketCreator
 from app.src.constants import SERVICE_CREATION_LEAD_TIME_DAYS, TMZ_PRIMARY
 from app.src.redis import acquire_lock, release_lock
-from app.src.redis import acquire_lock, release_lock
+from app.api.fare import construct_fare_reference_lock
+from app.api.vehicle import construct_vehicle_reference_lock
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -294,37 +295,7 @@ def construct_service_creation_lock(registration_number: str) -> str:
     Args:
         registration_number (str): Vehicle registration number.
     """
-    return f"lk_service_creation_:{registration_number}"
-
-
-def construct_vehicle_reference_lock(vehicle_id: int, version: int) -> str:
-    """
-    Creates a Redis lock key for Vehicle snapshot creation and reference operations.
-
-    Serializes access to VehicleInService snapshot operations for the same
-    (vehicle_id, version), preventing concurrent creation or reference count
-    updates of the same snapshot.
-
-    Args:
-        vehicle_id (int): Vehicle ID.
-        version (int): Vehicle version.
-    """
-    return f"lk_vehicle_in_service_:{vehicle_id}:{version}"
-
-
-def construct_fare_reference_lock(fare_id: int, version: int) -> str:
-    """
-    Creates a Redis lock key for Fare snapshot creation and reference operations.
-
-    Serializes access to FareInService snapshot operations for the same
-    (fare_id, version), preventing concurrent creation or reference count
-    updates of the same snapshot.
-
-    Args:
-        fare_id (int): Fare ID.
-        version (int): Fare version.
-    """
-    return f"lk_fare_in_service_:{fare_id}:{version}"
+    return f"lk_service_:{registration_number}"
 
 
 # ---------------------------------------------------------------------------
@@ -635,8 +606,8 @@ def create_service(
         exceptions.InvalidAssociation: If there are invalid associations between vehicle, route, fare, and company.
     """
     service_overlapping_lock = None
-    fare_in_service_lock = None
-    vehicle_in_service_lock = None
+    fare_lock = None
+    vehicle_lock = None
     try:
         vehicle = validate_id(
             session,
@@ -727,11 +698,11 @@ def create_service(
             )
             name = f"{starting_at_str} {first_landmark.name} -> {last_landmark.name} ({vehicle.registration_number})"
 
-        fare_in_service_lock = acquire_lock(construct_fare_reference_lock(fare.id, fare.version))
+        fare_lock = acquire_lock(construct_fare_reference_lock(fare.id))
         fare_in_service = create_fare_in_service(session, fare)
 
-        vehicle_in_service_lock = acquire_lock(
-            construct_vehicle_reference_lock(vehicle.id, vehicle.version)
+        vehicle_lock = acquire_lock(
+            construct_vehicle_reference_lock(vehicle.id)
         )
         vehicle_in_service = create_vehicle_in_service(session, vehicle)
 
@@ -771,8 +742,8 @@ def create_service(
         service_data = jsonable_encoder(service, exclude={"private_key"})
         return service_data
     finally:
-        release_lock(vehicle_in_service_lock)
-        release_lock(fare_in_service_lock)
+        release_lock(vehicle_lock)
+        release_lock(fare_lock)
         release_lock(service_overlapping_lock)
 
 
@@ -816,10 +787,10 @@ def update_service(
     """
     service_lock = None
     service_overlapping_lock = None
-    old_fare_in_service_lock = None
-    new_fare_in_service_lock = None
-    old_vehicle_in_service_lock = None
-    new_vehicle_in_service_lock = None
+    old_fare_lock = None
+    new_fare_lock = None
+    old_vehicle_lock = None
+    new_vehicle_lock = None
     try:
         service = validate_id(
             session, Service, id, Service.id, extra_filter=extra_filter_for_service
@@ -988,11 +959,11 @@ def update_service(
                 or old_fare_in_service.fare_id != fare.id
                 or old_fare_in_service.version != fare.version
             ):
-                old_fare_in_service_lock = acquire_lock(
-                    construct_fare_reference_lock(old_fare_in_service.fare_id, old_fare_in_service.version)
+                old_fare_lock = acquire_lock(
+                    construct_fare_reference_lock(old_fare_in_service.fare_id)
                 )
-                new_fare_in_service_lock = acquire_lock(
-                    construct_fare_reference_lock(fare.id, fare.version)
+                new_fare_lock = acquire_lock(
+                    construct_fare_reference_lock(fare.id)
                 )
                 old_fare_in_service_id = service.fare_in_service_id
                 fare_in_service = create_fare_in_service(session, fare)
@@ -1015,11 +986,11 @@ def update_service(
                 or old_vehicle_in_service.vehicle_id != vehicle.id
                 or old_vehicle_in_service.version != vehicle.version
             ):
-                old_vehicle_in_service_lock = acquire_lock(
-                    construct_vehicle_reference_lock(old_vehicle_in_service.vehicle_id, old_vehicle_in_service.version)
+                old_vehicle_lock = acquire_lock(
+                    construct_vehicle_reference_lock(old_vehicle_in_service.vehicle_id)
                 )
-                new_vehicle_in_service_lock = acquire_lock(
-                    construct_vehicle_reference_lock(vehicle.id, vehicle.version)
+                new_vehicle_lock = acquire_lock(
+                    construct_vehicle_reference_lock(vehicle.id)
                 )
                 old_vehicle_in_service_id = service.vehicle_in_service_id
                 vehicle_in_service = create_vehicle_in_service(session, vehicle)
@@ -1065,10 +1036,10 @@ def update_service(
         service_data = jsonable_encoder(service, exclude={"private_key"})
         return have_updates, service_data
     finally:
-        release_lock(new_vehicle_in_service_lock)
-        release_lock(old_vehicle_in_service_lock)
-        release_lock(new_fare_in_service_lock)
-        release_lock(old_fare_in_service_lock)
+        release_lock(new_vehicle_lock)
+        release_lock(old_vehicle_lock)
+        release_lock(new_fare_lock)
+        release_lock(old_fare_lock)
         release_lock(service_overlapping_lock)
         release_lock(service_lock)
 
@@ -1238,8 +1209,8 @@ def delete_service(session: Session, service: Service) -> dict:
         dict: JSON-encoded representation of the deleted service.
     """
     service_lock = None
-    fare_in_service_lock = None
-    vehicle_in_service_lock = None
+    fare_lock = None
+    vehicle_lock = None
     try:
         service_lock = acquire_lock(construct_service_transition_lock(service.id))
         service_data = jsonable_encoder(service, exclude={"private_key", "public_key"})
@@ -1256,11 +1227,11 @@ def delete_service(session: Session, service: Service) -> dict:
         session.flush()
 
         # decrement/delete snapshots referenced by the (now-deleted) service
-        fare_in_service_lock = acquire_lock(
+        fare_lock = acquire_lock(
             construct_fare_reference_lock(service.fare_id)
         )
         delete_fare_in_service(session, old_fare_in_service_id)
-        vehicle_in_service_lock = acquire_lock(
+        vehicle_lock = acquire_lock(
             construct_vehicle_reference_lock(service.vehicle_id)
         )
         delete_vehicle_in_service(session, old_vehicle_in_service_id)
@@ -1268,8 +1239,8 @@ def delete_service(session: Session, service: Service) -> dict:
         session.commit()
         return service_data
     finally:
-        release_lock(vehicle_in_service_lock)
-        release_lock(fare_in_service_lock)
+        release_lock(vehicle_lock)
+        release_lock(fare_lock)
         release_lock(service_lock)
 
 
