@@ -297,30 +297,34 @@ def construct_service_creation_lock(registration_number: str) -> str:
     return f"lk_service_creation_:{registration_number}"
 
 
-def construct_vehicle_reference_lock(vehicle_id: int) -> str:
+def construct_vehicle_reference_lock(vehicle_id: int, version: int) -> str:
     """
     Creates a Redis lock key for Vehicle snapshot creation and reference operations.
 
-    Serializes access to Vehicle snapshot creation/reference operations for the same Vehicle,
-    preventing concurrent creation or reference updates of the same Vehicle snapshot.
+    Serializes access to VehicleInService snapshot operations for the same
+    (vehicle_id, version), preventing concurrent creation or reference count
+    updates of the same snapshot.
 
     Args:
         vehicle_id (int): Vehicle ID.
+        version (int): Vehicle version.
     """
-    return f"lk_vehicle_in_service_:{vehicle_id}"
+    return f"lk_vehicle_in_service_:{vehicle_id}:{version}"
 
 
-def construct_fare_reference_lock(fare_id: int) -> str:
+def construct_fare_reference_lock(fare_id: int, version: int) -> str:
     """
     Creates a Redis lock key for Fare snapshot creation and reference operations.
 
-    Serializes access to Fare snapshot creation/reference operations for the same Fare,
-    preventing concurrent creation or reference updates of the same Fare snapshot.
+    Serializes access to FareInService snapshot operations for the same
+    (fare_id, version), preventing concurrent creation or reference count
+    updates of the same snapshot.
 
     Args:
         fare_id (int): Fare ID.
+        version (int): Fare version.
     """
-    return f"lk_fare_in_service_:{fare_id}"
+    return f"lk_fare_in_service_:{fare_id}:{version}"
 
 
 # ---------------------------------------------------------------------------
@@ -610,6 +614,11 @@ def create_service(
     """
     Creates a new service record in the database.
 
+    Lock Acquisition Order:
+        1. Service creation lock (prevent overlapping services)
+        2. Fare reference lock (protect fare snapshot updates)
+        3. Vehicle reference lock (protect vehicle snapshot updates)
+    
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a service.
@@ -625,7 +634,7 @@ def create_service(
         exceptions.InvalidValue: If the starting date is not valid.
         exceptions.InvalidAssociation: If there are invalid associations between vehicle, route, fare, and company.
     """
-    vehicle_lock = None
+    service_overlapping_lock = None
     fare_in_service_lock = None
     vehicle_in_service_lock = None
     try:
@@ -692,7 +701,7 @@ def create_service(
         )
 
         # Prevent assigning the same vehicle to overlapping services (any company)
-        vehicle_lock = acquire_lock(
+        service_overlapping_lock = acquire_lock(
             construct_service_creation_lock(vehicle.registration_number)
         )
         validate_service_timing(
@@ -718,11 +727,11 @@ def create_service(
             )
             name = f"{starting_at_str} {first_landmark.name} -> {last_landmark.name} ({vehicle.registration_number})"
 
-        fare_in_service_lock = acquire_lock(construct_fare_reference_lock(fare.id))
+        fare_in_service_lock = acquire_lock(construct_fare_reference_lock(fare.id, fare.version))
         fare_in_service = create_fare_in_service(session, fare)
 
         vehicle_in_service_lock = acquire_lock(
-            construct_vehicle_reference_lock(vehicle.id)
+            construct_vehicle_reference_lock(vehicle.id, vehicle.version)
         )
         vehicle_in_service = create_vehicle_in_service(session, vehicle)
 
@@ -764,7 +773,7 @@ def create_service(
     finally:
         release_lock(vehicle_in_service_lock)
         release_lock(fare_in_service_lock)
-        release_lock(vehicle_lock)
+        release_lock(service_overlapping_lock)
 
 
 def update_service(
@@ -785,6 +794,14 @@ def update_service(
     finalized from related paper tickets. Reactivating a service does not
     reactivate duties.
 
+    Lock Acquisition Order:
+        1. Service transition lock (prevent concurrent modifications to the service_)
+        2. Old fare reference lock (if updating fare, protect old fare snapshot reference count update and potential deletion)
+        3. New fare reference lock (if updating fare, protect new fare snapshot creation or reference count update)
+        4. Old vehicle reference lock (if updating vehicle, protect old vehicle snapshot reference count update and potential deletion)
+        5. New vehicle reference lock (if updating vehicle, protect new vehicle snapshot creation or reference count update)
+        6. Service creation lock (prevent overlapping services)
+
     Args:
         session (Session): SQLAlchemy database session.
         id (int): ID of the service to update.
@@ -798,9 +815,11 @@ def update_service(
         tuple[bool, dict]: (have_updates, service_data)
     """
     service_lock = None
-    vehicle_lock = None
-    fare_in_service_lock = None
-    vehicle_in_service_lock = None
+    service_overlapping_lock = None
+    old_fare_in_service_lock = None
+    new_fare_in_service_lock = None
+    old_vehicle_in_service_lock = None
+    new_vehicle_in_service_lock = None
     try:
         service = validate_id(
             session, Service, id, Service.id, extra_filter=extra_filter_for_service
@@ -969,8 +988,11 @@ def update_service(
                 or old_fare_in_service.fare_id != fare.id
                 or old_fare_in_service.version != fare.version
             ):
-                fare_in_service_lock = acquire_lock(
-                    construct_fare_reference_lock(old_fare_in_service.fare_id)
+                old_fare_in_service_lock = acquire_lock(
+                    construct_fare_reference_lock(old_fare_in_service.fare_id, old_fare_in_service.version)
+                )
+                new_fare_in_service_lock = acquire_lock(
+                    construct_fare_reference_lock(fare.id, fare.version)
                 )
                 old_fare_in_service_id = service.fare_in_service_id
                 fare_in_service = create_fare_in_service(session, fare)
@@ -978,7 +1000,6 @@ def update_service(
                 service.fare_id = fare.id
                 session.flush()
                 delete_fare_in_service(session, old_fare_in_service_id)
-                session.flush()
                 have_critical_change = True
 
         if vehicle_id is not None:
@@ -994,8 +1015,11 @@ def update_service(
                 or old_vehicle_in_service.vehicle_id != vehicle.id
                 or old_vehicle_in_service.version != vehicle.version
             ):
-                vehicle_in_service_lock = acquire_lock(
-                    construct_vehicle_reference_lock(old_vehicle_in_service.vehicle_id)
+                old_vehicle_in_service_lock = acquire_lock(
+                    construct_vehicle_reference_lock(old_vehicle_in_service.vehicle_id, old_vehicle_in_service.version)
+                )
+                new_vehicle_in_service_lock = acquire_lock(
+                    construct_vehicle_reference_lock(vehicle.id, vehicle.version)
                 )
                 old_vehicle_in_service_id = service.vehicle_in_service_id
                 vehicle_in_service = create_vehicle_in_service(session, vehicle)
@@ -1008,7 +1032,7 @@ def update_service(
 
         if vehicle_id is not None or route_id is not None or starting_at is not None:
             session.flush()
-            vehicle_lock = acquire_lock(
+            service_overlapping_lock = acquire_lock(
                 construct_service_creation_lock(service.registration_number)
             )
             validate_service_timing(
@@ -1041,9 +1065,11 @@ def update_service(
         service_data = jsonable_encoder(service, exclude={"private_key"})
         return have_updates, service_data
     finally:
-        release_lock(vehicle_in_service_lock)
-        release_lock(fare_in_service_lock)
-        release_lock(vehicle_lock)
+        release_lock(new_vehicle_in_service_lock)
+        release_lock(old_vehicle_in_service_lock)
+        release_lock(new_fare_in_service_lock)
+        release_lock(old_fare_in_service_lock)
+        release_lock(service_overlapping_lock)
         release_lock(service_lock)
 
 
@@ -1198,6 +1224,11 @@ def delete_service(session: Session, service: Service) -> dict:
     3. The VehicleInService snapshot reference_count is decremented
     4. If VehicleInService reference_count reaches 0, the snapshot is deleted
     5. The service and related LandmarkInService entries are deleted
+
+    Lock Acquisition Order:
+        1. Service transition lock (prevent concurrent modifications to the service)
+        2. Fare reference lock (protect fare snapshot updates)
+        3. Vehicle reference lock (protect vehicle snapshot updates)
 
     Args:
         session (Session): SQLAlchemy database session.
