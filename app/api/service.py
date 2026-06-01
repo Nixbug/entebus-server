@@ -86,6 +86,8 @@ from app.src.constants import TMZ_SECONDARY
 from app.src.digital_ticket.v1 import TicketCreator
 from app.src.constants import SERVICE_CREATION_LEAD_TIME_DAYS, TMZ_PRIMARY
 from app.src.redis import acquire_lock, release_lock
+from app.api.fare import construct_fare_reference_lock
+from app.api.vehicle import construct_vehicle_reference_lock
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -283,6 +285,19 @@ def construct_service_transition_lock(service_id: int) -> str:
         service_id (int): ID of the service for which to create the lock.
     """
     return f"lk_service_:{service_id}"
+
+
+def construct_service_creation_lock(registration_number: str) -> str:
+    """
+    Creates a Redis lock key for service creation.
+
+    Prevents overlapping services from being created concurrently
+    for the same vehicle registration number.
+
+    Args:
+        registration_number (str): Vehicle registration number.
+    """
+    return f"lk_service_:{registration_number}"
 
 
 # ---------------------------------------------------------------------------
@@ -572,6 +587,11 @@ def create_service(
     """
     Creates a new service record in the database.
 
+    Lock Acquisition Order:
+        1. Service creation lock (prevent overlapping services)
+        2. Fare reference lock (protect fare snapshot updates)
+        3. Vehicle reference lock (protect vehicle snapshot updates)
+
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a service.
@@ -587,125 +607,144 @@ def create_service(
         exceptions.InvalidValue: If the starting date is not valid.
         exceptions.InvalidAssociation: If there are invalid associations between vehicle, route, fare, and company.
     """
-    vehicle = validate_id(
-        session,
-        Vehicle,
-        form_param.vehicle_id,
-        "vehicle_id",
-        extra_filter=extra_filter_for_vehicle,
-    )
-    route = validate_id(
-        session,
-        Route,
-        form_param.route_id,
-        "route_id",
-        extra_filter=extra_filter_for_route,
-    )
-    fare = validate_id(
-        session, Fare, form_param.fare_id, "fare_id", extra_filter=extra_filter_for_fare
-    )
-
-    if vehicle.company_id != route.company_id:
-        raise exceptions.InvalidAssociation(
-            VehicleInService.vehicle_id, LandmarkInRoute.route_id
+    service_overlapping_lock = None
+    fare_lock = None
+    vehicle_lock = None
+    try:
+        vehicle = validate_id(
+            session,
+            Vehicle,
+            form_param.vehicle_id,
+            "vehicle_id",
+            extra_filter=extra_filter_for_vehicle,
         )
-    if fare.scope != FareScope.GLOBAL:
-        if fare.company_id != vehicle.company_id:
+        route = validate_id(
+            session,
+            Route,
+            form_param.route_id,
+            "route_id",
+            extra_filter=extra_filter_for_route,
+        )
+        fare = validate_id(
+            session,
+            Fare,
+            form_param.fare_id,
+            "fare_id",
+            extra_filter=extra_filter_for_fare,
+        )
+
+        if vehicle.company_id != route.company_id:
             raise exceptions.InvalidAssociation(
-                FareInService.fare_id, VehicleInService.vehicle_id
+                VehicleInService.vehicle_id, LandmarkInRoute.route_id
             )
-    company = validate_id(
-        session,
-        Company,
-        vehicle.company_id,
-        Service.company_id,
-    )
-    # validations
-    if vehicle.status != VehicleStatus.ACTIVE:
-        raise exceptions.InactiveResource(Vehicle)
-    if company.status != CompanyStatus.VERIFIED:
-        raise exceptions.InactiveResource(Company)
-    if route.status != RouteStatus.VALID:
-        raise exceptions.InactiveResource(Route)
-
-    # Normalize and validate starting_at
-    starting_at = validate_starting_at(form_param.starting_at)
-
-    # Fetch all landmarks for the route ordered by distance from start.
-    # Use the first/last entries to determine display names and ending_at.
-    landmarks_in_route = (
-        session.query(LandmarkInRoute)
-        .filter(LandmarkInRoute.route_id == route.id)
-        .order_by(LandmarkInRoute.distance_from_start.asc())
-        .all()
-    )
-    first_landmark_in_route = landmarks_in_route[0]
-    last_landmark_in_route = landmarks_in_route[-1]
-    ending_at = starting_at + timedelta(minutes=last_landmark_in_route.arrival_delta)
-
-    # Prevent assigning the same vehicle to overlapping services (any company)
-    validate_service_timing(
-        session, starting_at, ending_at, vehicle.registration_number
-    )
-
-    # Use provided name if present, otherwise create service name for display
-    if form_param.name is not None:
-        name = form_param.name
-    else:
-        first_landmark = (
-            session.query(Landmark)
-            .filter(Landmark.id == first_landmark_in_route.landmark_id)
-            .first()
+        if fare.scope != FareScope.GLOBAL:
+            if fare.company_id != vehicle.company_id:
+                raise exceptions.InvalidAssociation(
+                    FareInService.fare_id, VehicleInService.vehicle_id
+                )
+        company = validate_id(
+            session,
+            Company,
+            vehicle.company_id,
+            Service.company_id,
         )
-        last_landmark = (
-            session.query(Landmark)
-            .filter(Landmark.id == last_landmark_in_route.landmark_id)
-            .first()
+        # validations
+        if vehicle.status != VehicleStatus.ACTIVE:
+            raise exceptions.InactiveResource(Vehicle)
+        if company.status != CompanyStatus.VERIFIED:
+            raise exceptions.InactiveResource(Company)
+        if route.status != RouteStatus.VALID:
+            raise exceptions.InactiveResource(Route)
+
+        # Normalize and validate starting_at
+        starting_at = validate_starting_at(form_param.starting_at)
+
+        # Fetch all landmarks for the route ordered by distance from start.
+        # Use the first/last entries to determine display names and ending_at.
+        landmarks_in_route = (
+            session.query(LandmarkInRoute)
+            .filter(LandmarkInRoute.route_id == route.id)
+            .order_by(LandmarkInRoute.distance_from_start.asc())
+            .all()
         )
-        starting_at_str = starting_at.astimezone(TMZ_SECONDARY).strftime(
-            "%Y-%m-%d %-I:%M %p"
+        first_landmark_in_route = landmarks_in_route[0]
+        last_landmark_in_route = landmarks_in_route[-1]
+        ending_at = starting_at + timedelta(
+            minutes=last_landmark_in_route.arrival_delta
         )
-        name = f"{starting_at_str} {first_landmark.name} -> {last_landmark.name} ({vehicle.registration_number})"
 
-    fare_in_service = create_fare_in_service(session, fare)
+        # Prevent assigning the same vehicle to overlapping services (any company)
+        service_overlapping_lock = acquire_lock(
+            construct_service_creation_lock(vehicle.registration_number)
+        )
+        validate_service_timing(
+            session, starting_at, ending_at, vehicle.registration_number
+        )
 
-    vehicle_in_service = create_vehicle_in_service(session, vehicle)
+        # Use provided name if present, otherwise create service name for display
+        if form_param.name is not None:
+            name = form_param.name
+        else:
+            first_landmark = (
+                session.query(Landmark)
+                .filter(Landmark.id == first_landmark_in_route.landmark_id)
+                .first()
+            )
+            last_landmark = (
+                session.query(Landmark)
+                .filter(Landmark.id == last_landmark_in_route.landmark_id)
+                .first()
+            )
+            starting_at_str = starting_at.astimezone(TMZ_SECONDARY).strftime(
+                "%Y-%m-%d %-I:%M %p"
+            )
+            name = f"{starting_at_str} {first_landmark.name} -> {last_landmark.name} ({vehicle.registration_number})"
 
-    # Generate keys
-    ticket_creator = TicketCreator()
-    private_key = ticket_creator.pem_private_key_string
-    public_key = ticket_creator.pem_public_key_string
+        fare_lock = acquire_lock(construct_fare_reference_lock(fare.id))
+        fare_in_service = create_fare_in_service(session, fare)
 
-    service = Service(
-        company_id=company.id,
-        name=name,
-        fare_in_service_id=fare_in_service.id,
-        fare_id=fare.id,
-        vehicle_in_service_id=vehicle_in_service.id,
-        vehicle_id=vehicle.id,
-        registration_number=vehicle.registration_number,
-        route_id=route.id,
-        ticket_mode=form_param.ticket_mode,
-        status=ServiceStatus.CREATED,
-        starting_at=starting_at,
-        ending_at=ending_at,
-        private_key=private_key,
-        public_key=public_key,
-        starting_landmark_id=first_landmark_in_route.landmark_id,
-        ending_landmark_id=last_landmark_in_route.landmark_id,
-    )
-    session.add(service)
-    session.flush()
+        vehicle_lock = acquire_lock(construct_vehicle_reference_lock(vehicle.id))
+        vehicle_in_service = create_vehicle_in_service(session, vehicle)
 
-    landmarks_in_service = create_landmarks_in_service(
-        service.id, landmarks_in_route, starting_at
-    )
-    session.add_all(landmarks_in_service)
+        # Generate keys
+        ticket_creator = TicketCreator()
+        private_key = ticket_creator.pem_private_key_string
+        public_key = ticket_creator.pem_public_key_string
 
-    session.commit()
-    session.refresh(service)
-    service_data = jsonable_encoder(service, exclude={"private_key"})
-    return service_data
+        service = Service(
+            company_id=company.id,
+            name=name,
+            fare_in_service_id=fare_in_service.id,
+            fare_id=fare.id,
+            vehicle_in_service_id=vehicle_in_service.id,
+            vehicle_id=vehicle.id,
+            registration_number=vehicle.registration_number,
+            route_id=route.id,
+            ticket_mode=form_param.ticket_mode,
+            status=ServiceStatus.CREATED,
+            starting_at=starting_at,
+            ending_at=ending_at,
+            private_key=private_key,
+            public_key=public_key,
+            starting_landmark_id=first_landmark_in_route.landmark_id,
+            ending_landmark_id=last_landmark_in_route.landmark_id,
+        )
+        session.add(service)
+        session.flush()
+
+        landmarks_in_service = create_landmarks_in_service(
+            service.id, landmarks_in_route, starting_at
+        )
+        session.add_all(landmarks_in_service)
+
+        session.commit()
+        session.refresh(service)
+        service_data = jsonable_encoder(service, exclude={"private_key"})
+        return service_data
+    finally:
+        release_lock(vehicle_lock)
+        release_lock(fare_lock)
+        release_lock(service_overlapping_lock)
 
 
 def update_service(
@@ -726,6 +765,14 @@ def update_service(
     finalized from related paper tickets. Reactivating a service does not
     reactivate duties.
 
+    Lock Acquisition Order:
+        1. Service transition lock (prevent concurrent modifications to the service_)
+        2. Old fare reference lock (if updating fare, protect old fare snapshot reference count update and potential deletion)
+        3. New fare reference lock (if updating fare, protect new fare snapshot creation or reference count update)
+        4. Old vehicle reference lock (if updating vehicle, protect old vehicle snapshot reference count update and potential deletion)
+        5. New vehicle reference lock (if updating vehicle, protect new vehicle snapshot creation or reference count update)
+        6. Service creation lock (prevent overlapping services)
+
     Args:
         session (Session): SQLAlchemy database session.
         id (int): ID of the service to update.
@@ -739,6 +786,11 @@ def update_service(
         tuple[bool, dict]: (have_updates, service_data)
     """
     service_lock = None
+    service_overlapping_lock = None
+    old_fare_lock = None
+    new_fare_lock = None
+    old_vehicle_lock = None
+    new_vehicle_lock = None
     try:
         service = validate_id(
             session, Service, id, Service.id, extra_filter=extra_filter_for_service
@@ -913,13 +965,16 @@ def update_service(
                 or old_fare_in_service.fare_id != fare.id
                 or old_fare_in_service.version != fare.version
             ):
+                old_fare_lock = acquire_lock(
+                    construct_fare_reference_lock(old_fare_in_service.fare_id)
+                )
+                new_fare_lock = acquire_lock(construct_fare_reference_lock(fare.id))
                 old_fare_in_service_id = service.fare_in_service_id
                 fare_in_service = create_fare_in_service(session, fare)
                 service.fare_in_service_id = fare_in_service.id
                 service.fare_id = fare.id
                 session.flush()
                 delete_fare_in_service(session, old_fare_in_service_id)
-                session.flush()
                 have_critical_change = True
 
         if vehicle_id is not None:
@@ -935,6 +990,12 @@ def update_service(
                 or old_vehicle_in_service.vehicle_id != vehicle.id
                 or old_vehicle_in_service.version != vehicle.version
             ):
+                old_vehicle_lock = acquire_lock(
+                    construct_vehicle_reference_lock(old_vehicle_in_service.vehicle_id)
+                )
+                new_vehicle_lock = acquire_lock(
+                    construct_vehicle_reference_lock(vehicle.id)
+                )
                 old_vehicle_in_service_id = service.vehicle_in_service_id
                 vehicle_in_service = create_vehicle_in_service(session, vehicle)
                 service.vehicle_in_service_id = vehicle_in_service.id
@@ -946,6 +1007,9 @@ def update_service(
 
         if vehicle_id is not None or route_id is not None or starting_at is not None:
             session.flush()
+            service_overlapping_lock = acquire_lock(
+                construct_service_creation_lock(service.registration_number)
+            )
             validate_service_timing(
                 session,
                 service.starting_at,
@@ -967,6 +1031,11 @@ def update_service(
         service_data = jsonable_encoder(service, exclude={"private_key"})
         return have_updates, service_data
     finally:
+        release_lock(new_vehicle_lock)
+        release_lock(old_vehicle_lock)
+        release_lock(new_fare_lock)
+        release_lock(old_fare_lock)
+        release_lock(service_overlapping_lock)
         release_lock(service_lock)
 
 
@@ -1122,6 +1191,11 @@ def delete_service(session: Session, service: Service) -> dict:
     4. If VehicleInService reference_count reaches 0, the snapshot is deleted
     5. The service and related LandmarkInService entries are deleted
 
+    Lock Acquisition Order:
+        1. Service transition lock (prevent concurrent modifications to the service)
+        2. Fare reference lock (protect fare snapshot updates)
+        3. Vehicle reference lock (protect vehicle snapshot updates)
+
     Args:
         session (Session): SQLAlchemy database session.
         service (Service): Service object to delete.
@@ -1129,25 +1203,38 @@ def delete_service(session: Session, service: Service) -> dict:
     Returns:
         dict: JSON-encoded representation of the deleted service.
     """
-    service_data = jsonable_encoder(service, exclude={"private_key", "public_key"})
+    service_lock = None
+    fare_lock = None
+    vehicle_lock = None
+    try:
+        service_lock = acquire_lock(construct_service_transition_lock(service.id))
+        service_data = jsonable_encoder(service, exclude={"private_key", "public_key"})
 
-    # remove landmark snapshots first
-    delete_landmarks_in_service(session, service)
+        # remove landmark snapshots first
+        delete_landmarks_in_service(session, service)
 
-    # capture snapshot ids before removing the service row
-    old_fare_in_service_id = service.fare_in_service_id
-    old_vehicle_in_service_id = service.vehicle_in_service_id
+        # capture snapshot ids before removing the service row
+        old_fare_in_service_id = service.fare_in_service_id
+        old_vehicle_in_service_id = service.vehicle_in_service_id
 
-    # delete the service row so snapshots are no longer referenced
-    session.delete(service)
-    session.flush()
+        # delete the service row so snapshots are no longer referenced
+        session.delete(service)
+        session.flush()
 
-    # decrement/delete snapshots referenced by the (now-deleted) service
-    delete_fare_in_service(session, old_fare_in_service_id)
-    delete_vehicle_in_service(session, old_vehicle_in_service_id)
+        # decrement/delete snapshots referenced by the (now-deleted) service
+        fare_lock = acquire_lock(construct_fare_reference_lock(service.fare_id))
+        delete_fare_in_service(session, old_fare_in_service_id)
+        vehicle_lock = acquire_lock(
+            construct_vehicle_reference_lock(service.vehicle_id)
+        )
+        delete_vehicle_in_service(session, old_vehicle_in_service_id)
 
-    session.commit()
-    return service_data
+        session.commit()
+        return service_data
+    finally:
+        release_lock(vehicle_lock)
+        release_lock(fare_lock)
+        release_lock(service_lock)
 
 
 # ---------------------------------------------------------------------------
@@ -1169,6 +1256,7 @@ POST_EXCEPTIONS = [
         VehicleInService.vehicle_id, LandmarkInRoute.route_id
     ),
     exceptions.InvalidAssociation(FareInService.fare_id, VehicleInService.vehicle_id),
+    exceptions.LockAcquireTimeout(),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -1194,6 +1282,7 @@ DELETE_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
     exceptions.DataInUse(Service),
+    exceptions.LockAcquireTimeout(),
 ]
 
 GET_EXCEPTIONS = [
