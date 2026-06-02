@@ -57,32 +57,22 @@ route_operator = APIRouter()
 ## Output Schema
 # ---------------------------------------------------------------------------
 class TicketSchema(BaseModel):
-    operator_id: int | None
     sequence_id: int
-    created_on: datetime
-    ticket_types: List[TicketTypeSchema]
-    amount: TwoDecimalPlaces
-    pickup_point: int
-    dropping_point: int
-    extras: dict
-    warnings: List[PaperTicketWarning] = Field(default_factory=list)
-    uploaded_by: int | None
+    warnings: List[PaperTicketWarning] | None = None
+    uploaded_by: int | None = None
 
 
 class PaperTicketSchema(BaseModel):
     id: int
-    service_id: int
     duty_id: int
-    company_id: int
     ticket: TicketSchema
-    amount: TwoDecimalPlaces
     created_on: datetime
 
 
 # ---------------------------------------------------------------------------
 ## Input Forms
 # ---------------------------------------------------------------------------
-class TicketForm(BaseModel):
+class PaperTicketForm(BaseModel):
     """Form data for a ticket within a paper ticket."""
 
     operator_id: int = Field()
@@ -100,7 +90,7 @@ class CreateForm(BaseModel):
     Form data for creating a new paper ticket."""
 
     service_id: int = Field()
-    tickets: List[TicketForm] = Field(min_length=1, max_length=50)
+    tickets: List[PaperTicketForm] = Field(min_length=1, max_length=50)
 
 
 # ---------------------------------------------------------------------------
@@ -195,8 +185,6 @@ def create_paper_ticket(
             )
             if distance < 0:
                 raise exceptions.UnknownValue("dropping_point")
-            # if distance != ticket.distance:
-            #     raise exceptions.UnknownValue("distance")
 
         # Batch fetch fare configuration
         fare_in_service = (
@@ -265,11 +253,15 @@ def create_paper_ticket(
                 .first()
             )
 
+            ticket_data = ticket.model_dump(mode="json")
             if operator is None:
                 warnings.append(PaperTicketWarning.OPERATOR_NOT_FOUND)
-            else:
-                if operator.id != token.operator_id:
-                    warnings.append(PaperTicketWarning.OPERATOR_MISMATCH)
+            elif operator.id != token.operator_id:
+                warnings.append(PaperTicketWarning.OPERATOR_MISMATCH)
+                ticket_data["uploaded_by"] = token.operator_id
+
+            if warnings:
+                ticket_data["warnings"] = [w.value for w in warnings]
 
             duty_operator_id = operator.id if operator else None
 
@@ -306,12 +298,6 @@ def create_paper_ticket(
                 duties_cache[duty_operator_id] = duty
             else:
                 duty = duties_cache[duty_operator_id]
-
-            # Build ticket payload
-            ticket_data = ticket.model_dump(mode="json")
-            ticket_data["uploaded_by"] = token.operator_id
-            if warnings:
-                ticket_data["warnings"] = [w.value for w in warnings]
 
             # Create paper ticket
             paper_ticket = PaperTicket(
@@ -469,6 +455,7 @@ async def fetch_paper_tickets_for_executive(
     response_model=List[PaperTicketSchema],
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
+    response_model_exclude_none=True,
     description=(POST_DESCRIPTION.to_string()),
 )
 async def create_paper_ticket_for_operator(
