@@ -45,7 +45,7 @@ from app.src.filters import PaginationFilter, IDFilter, CreatedOnFilter
 from app.src import exceptions
 from app.src.redis import acquire_lock, release_lock
 from app.src.dynamic_fare import v1
-from app.src.digital_ticket.v1 import TicketSchema, TicketTypeSchema, TwoDecimalPlaces
+from app.src.digital_ticket.v1 import TwoDecimalPlaces
 from app.api.service import construct_service_transition_lock
 from app.src.enums import PaperTicketWarning
 
@@ -274,6 +274,7 @@ def create_paper_ticket(
                         Duty.operator_id == duty_operator_id,
                         Duty.status.in_((DutyStatus.STARTED, DutyStatus.ENDED)),
                     )
+                    .order_by(Duty.id.desc())
                     .first()
                 )
 
