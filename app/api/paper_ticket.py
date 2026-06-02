@@ -13,7 +13,6 @@ from fastapi import APIRouter, Depends, status, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
-from yaml import warnings
 
 from app.api.bearer import bearer_operator, oauth2_executive
 from app.src.db import (
@@ -25,6 +24,7 @@ from app.src.db import (
     Duty,
     FareInService,
     LandmarkInService,
+    Operator,
 )
 from app.src.enums import DutyStatus, ServiceStatus, OrderIn
 from app.src.urls import URL_PAPER_TICKET
@@ -56,9 +56,20 @@ route_operator = APIRouter()
 # ---------------------------------------------------------------------------
 ## Output Schema
 # ---------------------------------------------------------------------------
-class PaperTicketSchema(BaseModel):
-    """Schema for paper ticket response."""
+class TicketSchema(BaseModel):
+    operator_id: int | None
+    sequence_id: int
+    created_on: datetime
+    ticket_types: List[TicketTypeSchema]
+    amount: TwoDecimalPlaces
+    pickup_point: int
+    dropping_point: int
+    extras: dict
+    warnings: List[PaperTicketWarning] = Field(default_factory=list)
+    uploaded_by: int | None
 
+
+class PaperTicketSchema(BaseModel):
     id: int
     service_id: int
     duty_id: int
@@ -130,7 +141,7 @@ class QueryParams(QueryParamsForEX):
 # ---------------------------------------------------------------------------
 def create_paper_ticket(
     session: Session, token: OperatorToken, form_param: CreateForm
-) -> dict:
+) -> List[dict]:
     """
     create a new paper ticket in the database.
 
@@ -140,13 +151,12 @@ def create_paper_ticket(
         form_param (CreateForm): Validated input data for creating the paper ticket, including service ID, ticket details, and total amount.
 
     Raises:
-        exceptions.UnknownValue: If the service ID does not correspond to a valid service for the operator's company, or if the boarding/alight landmarks are not valid for the service.
-        exceptions.InactiveResource: If the duty associated with the service is in a state that cannot accept new tickets (e.g., AUDITED).
-        exceptions.InvalidValue: If the provided amount does not match the calculated total fare, or if any ticket type has an invalid price.
+        exceptions.UnknownValue: If the service ID does not correspond to a valid service for the operator's company, or if required landmarks are missing.
+        exceptions.InactiveResource: If a resource state prevents ticket creation.
         exceptions.UnknownTicketType: If any ticket type ID in the input does not match the ticket types defined in the service fare configuration.
 
     Returns:
-        dict: The created paper ticket data.
+        List[dict]: List of created paper ticket records as JSON-serializable dicts. Each ticket payload may include `uploaded_by` and `warnings`.
     """
     service_lock = None
     try:
@@ -162,6 +172,8 @@ def create_paper_ticket(
             PaperTicket.service_id,
             (Service.company_id == token.company_id),
         )
+        service_lock = acquire_lock(construct_service_transition_lock(service.id))
+        session.refresh(service)
         # Batch fetch all landmarks for the service
         landmarks_in_service = (
             session.query(LandmarkInService)
@@ -175,19 +187,18 @@ def create_paper_ticket(
             pickup_point = landmarks_map.get(ticket.pickup_point)
             if pickup_point is None:
                 raise exceptions.UnknownValue("pickup_point")
-
             dropping_point = landmarks_map.get(ticket.dropping_point)
             if dropping_point is None:
                 raise exceptions.UnknownValue("dropping_point")
-
             distance = (
                 dropping_point.distance_from_start - pickup_point.distance_from_start
             )
             if distance < 0:
                 raise exceptions.UnknownValue("dropping_point")
-            if distance != ticket.distance:
-                raise exceptions.UnknownValue("distance")
+            # if distance != ticket.distance:
+            #     raise exceptions.UnknownValue("distance")
 
+        # Batch fetch fare configuration
         fare_in_service = (
             session.query(FareInService)
             .filter(FareInService.id == service.fare_in_service_id)
@@ -195,73 +206,129 @@ def create_paper_ticket(
         )
         fare_function = v1.DynamicFare(fare_in_service.function)
         fare_ticket_types = fare_in_service.attributes["ticket_types"]
-        extras = jsonable_encoder(ticket.extras)
-        total_fare = Decimal(0)
+        fare_ticket_types_map = {ft["id"]: ft for ft in fare_ticket_types}
 
-        for ticket_type in ticket.ticket_types:
-            matched_ticket_type = next(
-                (ft for ft in fare_ticket_types if ft["id"] == ticket_type.id),
-                None,
+        # Validate fare and amount for each ticket
+        ticket_warnings_map = {}  # Maps ticket.sequence_id to warnings list
+        for ticket in form_param.tickets:
+            warnings = []
+            ticket_total_fare = Decimal(0)
+            extras = jsonable_encoder(ticket.extras)
+
+            # Calculate distance for this ticket
+            pickup_landmark = landmarks_map.get(ticket.pickup_point)
+            dropping_landmark = landmarks_map.get(ticket.dropping_point)
+            distance = (
+                dropping_landmark.distance_from_start
+                - pickup_landmark.distance_from_start
             )
-            if matched_ticket_type is None:
-                raise exceptions.UnknownTicketType()
 
-            expected_price = Decimal(
-                str(
-                    fare_function.evaluate(
-                        matched_ticket_type["name"], distance, extras
+            # Validate each ticket type and calculate fare
+            for ticket_type in ticket.ticket_types:
+                matched_ticket_type = fare_ticket_types_map.get(ticket_type.id)
+                if matched_ticket_type is None:
+                    raise exceptions.UnknownTicketType()
+
+                expected_price = Decimal(
+                    str(
+                        fare_function.evaluate(
+                            matched_ticket_type["name"], distance, extras
+                        )
                     )
                 )
-            )
-            if ticket_type.price != expected_price:
+                ticket_total_fare += expected_price * ticket_type.count
+
+            # Check for amount mismatch and add warning once if needed
+            if ticket_total_fare != ticket.amount:
                 warnings.append(PaperTicketWarning.AMOUNT_MISMATCH)
 
-            total_fare += ticket_type.price * ticket_type.count
+            ticket_warnings_map[ticket.sequence_id] = warnings
 
-        if total_fare != form_param.ticket.amount:
-            warnings.append(PaperTicketWarning.AMOUNT_MISMATCH)
-
-        service_lock = acquire_lock(construct_service_transition_lock(service.id))
-        session.refresh(service)
         if service.status != ServiceStatus.STARTED:
             service.status = ServiceStatus.STARTED
-        duty = (
-            session.query(Duty)
-            .filter(
-                Duty.service_id == form_param.ticket.service_id,
-                Duty.operator_id == token.operator_id,
-                Duty.status.in_((DutyStatus.STARTED, DutyStatus.ENDED)),
+
+        # Cache for duties keyed by operator_id (None for orphaned duties)
+        duties_cache = {}
+
+        # Create paper tickets for each ticket in the batch
+        paper_tickets = []
+        for ticket in form_param.tickets:
+            warnings = ticket_warnings_map.get(ticket.sequence_id, [])
+
+            # Resolve operator
+            operator = (
+                session.query(Operator)
+                .filter(
+                    Operator.id == ticket.operator_id,
+                    Operator.company_id == token.company_id,
+                )
+                .first()
             )
-            .first()
-        )
-        if duty is None:
-            duty = Duty(
+
+            if operator is None:
+                warnings.append(PaperTicketWarning.OPERATOR_NOT_FOUND)
+            else:
+                if operator.id != token.operator_id:
+                    warnings.append(PaperTicketWarning.OPERATOR_MISMATCH)
+
+            duty_operator_id = operator.id if operator else None
+
+            # Check cache for existing duty
+            if duty_operator_id not in duties_cache:
+                duty = (
+                    session.query(Duty)
+                    .filter(
+                        Duty.service_id == form_param.service_id,
+                        Duty.operator_id == duty_operator_id,
+                        Duty.status.in_((DutyStatus.STARTED, DutyStatus.ENDED)),
+                    )
+                    .first()
+                )
+
+                if duty is None:
+                    # Create new duty
+                    duty = Duty(
+                        company_id=token.company_id,
+                        operator_id=duty_operator_id,
+                        service_id=form_param.service_id,
+                        status=DutyStatus.STARTED,
+                        started_on=ticket.created_on,
+                    )
+                    session.add(duty)
+                    session.flush()
+                elif duty.status == DutyStatus.ENDED:
+                    # Reactivate ended duty
+                    duty.status = DutyStatus.STARTED
+                    duty.finished_on = None
+                    duty.collection = 0
+                    session.flush()
+
+                duties_cache[duty_operator_id] = duty
+            else:
+                duty = duties_cache[duty_operator_id]
+
+            # Build ticket payload
+            ticket_data = ticket.model_dump(mode="json")
+            ticket_data["uploaded_by"] = token.operator_id
+            if warnings:
+                ticket_data["warnings"] = [w.value for w in warnings]
+
+            # Create paper ticket
+            paper_ticket = PaperTicket(
+                service_id=form_param.service_id,
+                duty_id=duty.id,
                 company_id=token.company_id,
-                operator_id=token.operator_id,
-                service_id=form_param.ticket.service_id,
-                status=DutyStatus.STARTED,
-                started_on=form_param.ticket.created_on,
+                ticket=ticket_data,
+                amount=ticket.amount,
             )
-            session.add(duty)
-            session.flush()
-        elif duty.status == DutyStatus.ENDED:
-            duty.status = DutyStatus.STARTED
-            duty.finished_on = None
-            duty.collection = 0
-            session.flush()
+            session.add(paper_ticket)
+            paper_tickets.append(paper_ticket)
 
-        paper_ticket = PaperTicket(
-            service_id=form_param.ticket.service_id,
-            duty_id=duty.id,
-            company_id=token.company_id,
-            ticket=ticket.model_dump(mode="json"),
-            amount=form_param.ticket.amount,
-        )
-        session.add(paper_ticket)
         session.commit()
-        session.refresh(paper_ticket)
+        for paper_ticket in paper_tickets:
+            session.refresh(paper_ticket)
 
-        return jsonable_encoder(paper_ticket)
+        return jsonable_encoder(paper_tickets)
     finally:
         release_lock(service_lock)
 
@@ -339,19 +406,26 @@ POST_DESCRIPTION = (
         "Logged-in operator must have `company.service.ticket.create` permission."
     )
     .add_line("Service must belong to the operator's company.")
-    .add_line("If no active duty exists, a new duty is created automatically.")
+    .add_line("Supports batch uploads")
+    .add_line(
+        "Each ticket may specify its own `operator_id` and will be processed individually."
+    )
+    .add_line(
+        "If an operator is not found, the ticket is attached to an orphaned duty (operator_id = NULL)."
+    )
     .add_line(
         "If a duty is ENDED, it is reactivated to STARTED with `finished_on` cleared."
     )
-    .add_line("A duty in AUDITED status is ignored; a new duty is created instead.")
     .add_line(
-        "`ticket.pickup_point` and `ticket.dropping_point` must be landmarks assigned to the service."
+        "Ticket pickup/dropping points are validated against service landmarks (batch-validated)."
+    )
+    .add_line("Ticket fares are validated server-side using the service fare function.")
+    .add_line(
+        "Amount mismatches do NOT abort the batch; a `AMOUNT_MISMATCH` warning is added to the ticket payload."
     )
     .add_line(
-        "Ticket type IDs must match those defined in the service fare configuration."
+        "If `ticket.operator_id` differs from the uploader, an `OPERATOR_MISMATCH` warning is added and `uploaded_by` records the uploader."
     )
-    .add_line("Prices are cross-validated server-side using the fare function.")
-    .add_line("`amount` must equal the sum of (price × count) for all ticket types.")
 )
 
 GET_DESCRIPTION = Description().add_head("Fetches a list of paper tickets.")
@@ -392,7 +466,7 @@ async def fetch_paper_tickets_for_executive(
     URL_PAPER_TICKET,
     summary="Create paper ticket",
     tags=["Paper Ticket"],
-    response_model=PaperTicketSchema,
+    response_model=List[PaperTicketSchema],
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(POST_DESCRIPTION.to_string()),
