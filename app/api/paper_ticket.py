@@ -45,7 +45,7 @@ from app.src.filters import PaginationFilter, IDFilter, CreatedOnFilter
 from app.src import exceptions
 from app.src.redis import acquire_lock, release_lock
 from app.src.dynamic_fare import v1
-from app.src.digital_ticket.v1 import TwoDecimalPlaces
+from app.src.digital_ticket.v1 import TwoDecimalPlaces, TicketTypeSchema
 from app.api.service import construct_service_transition_lock
 from app.src.enums import PaperTicketWarning
 
@@ -58,7 +58,7 @@ route_operator = APIRouter()
 # ---------------------------------------------------------------------------
 class TicketSchema(BaseModel):
     sequence_id: int
-    warnings: List[PaperTicketWarning] | None = None
+    warnings: List[PaperTicketWarning] = Field(default_factory=list)
     uploaded_by: int | None = None
 
 
@@ -413,6 +413,9 @@ POST_DESCRIPTION = (
     .add_line(
         "If `ticket.operator_id` differs from the uploader, an `OPERATOR_MISMATCH` warning is added and `uploaded_by` records the uploader."
     )
+    .add_line(
+        "If there are no warnings, `warnings` will be an empty list. If there is no operator mismatch, `uploaded_by` will be null."
+    )
 )
 
 GET_DESCRIPTION = Description().add_head("Fetches a list of paper tickets.")
@@ -456,7 +459,6 @@ async def fetch_paper_tickets_for_executive(
     response_model=List[PaperTicketSchema],
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
-    response_model_exclude_none=True,
     description=(POST_DESCRIPTION.to_string()),
 )
 async def create_paper_ticket_for_operator(

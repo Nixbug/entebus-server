@@ -2541,9 +2541,11 @@ class PaperTicket(ORMbase):
             Indicates the company under which the ticket was issued.
 
         ticket (JSONB, not null):
-            Structured data capturing the full ticket content including ticket types,
-            pickup_point, dropping_point, and any additional metadata.
-            It is closely bound to `ticket_type` in fare attributes.
+            Structured data capturing the ticket details including operator_id,
+            sequence_id, created_on, ticket_types, pickup_point, dropping_point,
+            extras, and optional warning metadata. For operator mismatches,
+            `uploaded_by` stores the uploader's operator ID. It is closely bound
+            to `ticket_type` in fare attributes.
 
         amount (Numeric(10, 2), not null):
             Total fare amount collected for this ticket.
