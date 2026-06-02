@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, status, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
+from yaml import warnings
 
 from app.api.bearer import bearer_operator, oauth2_executive
 from app.src.db import (
@@ -44,8 +45,9 @@ from app.src.filters import PaginationFilter, IDFilter, CreatedOnFilter
 from app.src import exceptions
 from app.src.redis import acquire_lock, release_lock
 from app.src.dynamic_fare import v1
-from app.src.digital_ticket.v1 import TicketSchema, TwoDecimalPlaces
+from app.src.digital_ticket.v1 import TicketSchema, TicketTypeSchema, TwoDecimalPlaces
 from app.api.service import construct_service_transition_lock
+from app.src.enums import PaperTicketWarning
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -69,11 +71,25 @@ class PaperTicketSchema(BaseModel):
 # ---------------------------------------------------------------------------
 ## Input Forms
 # ---------------------------------------------------------------------------
+class TicketForm(BaseModel):
+    """Form data for a ticket within a paper ticket."""
+
+    operator_id: int = Field()
+    sequence_id: int = Field()
+    created_on: datetime = Field()
+    ticket_types: List[TicketTypeSchema] = Field()
+    amount: TwoDecimalPlaces = Field()
+    pickup_point: int = Field()
+    dropping_point: int = Field()
+    extras: dict = Field(default_factory=dict)
+
+
 class CreateForm(BaseModel):
     """
     Form data for creating a new paper ticket."""
 
-    ticket: TicketSchema = Field()
+    service_id: int = Field()
+    tickets: List[TicketForm] = Field(min_length=1, max_length=50)
 
 
 # ---------------------------------------------------------------------------
@@ -134,70 +150,43 @@ def create_paper_ticket(
     """
     service_lock = None
     try:
+        # Check that all sequence_ids in the batch are unique
+        sequence_ids = [ticket.sequence_id for ticket in form_param.tickets]
+        if len(sequence_ids) != len(set(sequence_ids)):
+            raise exceptions.InvalidValue("sequence_id")
+
         service = validate_id(
             session,
             Service,
-            form_param.ticket.service_id,
+            form_param.service_id,
             PaperTicket.service_id,
             (Service.company_id == token.company_id),
         )
-        service_lock = acquire_lock(construct_service_transition_lock(service.id))
-        session.refresh(service)
-
-        if service.status != ServiceStatus.STARTED:
-            service.status = ServiceStatus.STARTED
-        duty = (
-            session.query(Duty)
-            .filter(
-                Duty.service_id == form_param.ticket.service_id,
-                Duty.operator_id == token.operator_id,
-                Duty.status.in_((DutyStatus.STARTED, DutyStatus.ENDED)),
-            )
-            .first()
-        )
-        if duty is None:
-            duty = Duty(
-                company_id=token.company_id,
-                operator_id=token.operator_id,
-                service_id=form_param.ticket.service_id,
-                status=DutyStatus.STARTED,
-                started_on=form_param.ticket.created_on,
-            )
-            session.add(duty)
-            session.flush()
-        elif duty.status == DutyStatus.ENDED:
-            duty.status = DutyStatus.STARTED
-            duty.finished_on = None
-            duty.collection = 0
-            session.flush()
-
-        ticket = form_param.ticket
-        pickup_point = (
+        # Batch fetch all landmarks for the service
+        landmarks_in_service = (
             session.query(LandmarkInService)
-            .filter(
-                LandmarkInService.service_id == form_param.ticket.service_id,
-                LandmarkInService.landmark_id == ticket.pickup_point,
-            )
-            .first()
+            .filter(LandmarkInService.service_id == form_param.service_id)
+            .all()
         )
-        if pickup_point is None:
-            raise exceptions.UnknownValue("pickup_point")
-        dropping_point = (
-            session.query(LandmarkInService)
-            .filter(
-                LandmarkInService.service_id == form_param.ticket.service_id,
-                LandmarkInService.landmark_id == ticket.dropping_point,
-            )
-            .first()
-        )
-        if dropping_point is None:
-            raise exceptions.UnknownValue("dropping_point")
+        landmarks_map = {lis.landmark_id: lis for lis in landmarks_in_service}
 
-        distance = dropping_point.distance_from_start - pickup_point.distance_from_start
-        if distance < 0:
-            raise exceptions.UnknownValue("dropping_point")
-        if distance != ticket.distance:
-            raise exceptions.UnknownValue("distance")
+        # Validate pickup point, dropping point, and distance for each ticket
+        for ticket in form_param.tickets:
+            pickup_point = landmarks_map.get(ticket.pickup_point)
+            if pickup_point is None:
+                raise exceptions.UnknownValue("pickup_point")
+
+            dropping_point = landmarks_map.get(ticket.dropping_point)
+            if dropping_point is None:
+                raise exceptions.UnknownValue("dropping_point")
+
+            distance = (
+                dropping_point.distance_from_start - pickup_point.distance_from_start
+            )
+            if distance < 0:
+                raise exceptions.UnknownValue("dropping_point")
+            if distance != ticket.distance:
+                raise exceptions.UnknownValue("distance")
 
         fare_in_service = (
             session.query(FareInService)
@@ -225,11 +214,41 @@ def create_paper_ticket(
                 )
             )
             if ticket_type.price != expected_price:
-                raise exceptions.InvalidValue(PaperTicket.amount)
+                warnings.append(PaperTicketWarning.AMOUNT_MISMATCH)
+
             total_fare += ticket_type.price * ticket_type.count
 
         if total_fare != form_param.ticket.amount:
-            raise exceptions.InvalidValue(PaperTicket.amount)
+            warnings.append(PaperTicketWarning.AMOUNT_MISMATCH)
+
+        service_lock = acquire_lock(construct_service_transition_lock(service.id))
+        session.refresh(service)
+        if service.status != ServiceStatus.STARTED:
+            service.status = ServiceStatus.STARTED
+        duty = (
+            session.query(Duty)
+            .filter(
+                Duty.service_id == form_param.ticket.service_id,
+                Duty.operator_id == token.operator_id,
+                Duty.status.in_((DutyStatus.STARTED, DutyStatus.ENDED)),
+            )
+            .first()
+        )
+        if duty is None:
+            duty = Duty(
+                company_id=token.company_id,
+                operator_id=token.operator_id,
+                service_id=form_param.ticket.service_id,
+                status=DutyStatus.STARTED,
+                started_on=form_param.ticket.created_on,
+            )
+            session.add(duty)
+            session.flush()
+        elif duty.status == DutyStatus.ENDED:
+            duty.status = DutyStatus.STARTED
+            duty.finished_on = None
+            duty.collection = 0
+            session.flush()
 
         paper_ticket = PaperTicket(
             service_id=form_param.ticket.service_id,
