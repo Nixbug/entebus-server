@@ -389,6 +389,9 @@ POST_DESCRIPTION = (
     .add_line(
         f"The maximum allowed size for the fare function is `{JSX_MAX_MEMORY_BYTES // 1024} KB` and maximum execution time is `{JSX_TIMEOUT_MS} ms`."
     )
+    .add_line(
+        f"Local fare creation is limited to {MAX_LOCAL_FARES_PER_COMPANY} fares per company. Requests exceeding this limit will be rejected."
+    )
     .add_line("Preferable dynamic fare version is 1.")
     .add_line("Preferable distance unit is meter and currency is INR.")
 )
