@@ -404,7 +404,7 @@ POST_DESCRIPTION = (
     .add_line("Ticket fares are validated server-side using the service fare function.")
     .add_line("Amount mismatches will raise an `InvalidValue` exception.")
     .add_line(
-        "If `ticket.operator_id` differs from the uploader, an `OPERATOR_MISMATCH` warning is added and `uploaded_by` records the uploader."
+        "If the specified operator is not found, an `OPERATOR_NOT_FOUND` warning is added. If `ticket.operator_id` differs from the uploader, an `OPERATOR_MISMATCH` warning is added and `uploaded_by` records the uploader."
     )
     .add_line(
         "If no warnings are generated, `warnings` will be empty. `uploaded_by` is only populated when an operator mismatch occurs."
