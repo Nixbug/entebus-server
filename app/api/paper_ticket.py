@@ -220,8 +220,8 @@ def create_paper_ticket(
                     )
                 )
                 total_fare += expected_price * ticket_type.count
-                if total_fare != ticket.amount:
-                    raise exceptions.InvalidValue(PaperTicket.amount)
+            if total_fare != ticket.amount:
+                raise exceptions.InvalidValue(PaperTicket.amount)
 
             # Check for amount mismatch and operator mismatch, but do not abort the process,
             # instead, record warnings and uploaded_by info in the ticket payload
