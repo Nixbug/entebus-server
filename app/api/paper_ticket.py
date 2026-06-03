@@ -201,8 +201,8 @@ def create_paper_ticket(
             distance = (
                 dropping_point.distance_from_start - pickup_point.distance_from_start
             )
-            if distance < 0:
-                raise exceptions.UnknownValue("dropping_point")
+            if distance <= 0:
+                raise exceptions.InvalidValue("dropping_point")
 
             # Validate each ticket type and calculate fare
             total_fare = Decimal(0)
