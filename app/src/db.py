@@ -2541,9 +2541,16 @@ class PaperTicket(ORMbase):
             Indicates the company under which the ticket was issued.
 
         ticket (JSONB, not null):
-            Structured data capturing the full ticket content including ticket types,
-            pickup_point, dropping_point, and any additional metadata.
-            It is closely bound to `ticket_type` in fare attributes.
+            Structured data capturing the ticket details.
+            Expected keys and values:
+                - `sequence_id`: Unique identifier for the ticket generated at the client side.
+                - `ticket_types`: List of ticket types.
+                - `pickup_point`: Starting landmark ID of the passenger.
+                - `dropping_point`: Ending landmark ID of the passenger.
+                - `extras`: Any additional information relevant to the ticket.
+                - `warnings`: Optional field for any warnings related to the ticket. Mapped from the `PaperTicketWarning` enum.
+                - `uploaded_by`: Optional operator ID of the person who uploaded the ticket, if different from the duty operator.
+                - `created_on`: Timestamp of when the ticket was created at client side.
 
         amount (Numeric(10, 2), not null):
             Total fare amount collected for this ticket.

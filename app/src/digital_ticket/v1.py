@@ -17,7 +17,7 @@ TwoDecimalPlaces = Annotated[Decimal, Field(max_digits=10, decimal_places=2, ge=
 
 
 # Schema definitions for ticket data
-class TicketType(BaseModel):
+class TicketTypeSchema(BaseModel):
     id: int = Field(ge=1, le=255)
     count: int = Field(ge=1, le=255)
     price: TwoDecimalPlaces
@@ -27,7 +27,7 @@ class TicketSchema(BaseModel):
     id: int
     service_id: int
     created_on: datetime
-    ticket_types: List[TicketType]
+    ticket_types: List[TicketTypeSchema]
     amount: TwoDecimalPlaces
     pickup_point: int
     dropping_point: int

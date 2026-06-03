@@ -250,7 +250,9 @@ class InvalidValue(APIException):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     headers = {"X-Error": "InvalidValue"}
 
-    def __init__(self, column: InstrumentedAttribute):
+    def __init__(self, column: Union[InstrumentedAttribute, str]):
+        if isinstance(column, str):
+            column = type("Column", (), {"name": column})()
         detail = f"Invalid {column.name} is provided"
         super().__init__(detail=detail)
 
