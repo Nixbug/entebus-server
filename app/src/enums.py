@@ -203,8 +203,8 @@ class FareScope(IntEnum):
     LOCAL = 2
 
 
-class PaperTicketWarning(StrEnum):
+class PaperTicketWarning(IntEnum):
     """Warnings associated with a paper ticket upload."""
 
-    OPERATOR_NOT_FOUND = "OPERATOR_NOT_FOUND"
-    OPERATOR_MISMATCH = "OPERATOR_MISMATCH"
+    OPERATOR_NOT_FOUND = 1
+    OPERATOR_MISMATCH = 2
