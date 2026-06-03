@@ -58,7 +58,7 @@ route_operator = APIRouter()
 # ---------------------------------------------------------------------------
 class TicketSchema(BaseModel):
     sequence_id: int
-    warnings: List[PaperTicketWarning] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
     uploaded_by: int | None = None
 
 
@@ -298,7 +298,7 @@ def create_paper_ticket(
                 amount=ticket.amount,
             )
             if warnings:
-                paper_ticket.ticket["warnings"] = [w.value for w in warnings]
+                paper_ticket.ticket["warnings"] = [w.name for w in warnings]
             if token.operator_id != ticket.operator_id:
                 paper_ticket.ticket["uploaded_by"] = token.operator_id
             session.add(paper_ticket)
