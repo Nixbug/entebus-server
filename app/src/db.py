@@ -2548,7 +2548,7 @@ class PaperTicket(ORMbase):
                 - `pickup_point`: Starting landmark ID of the passenger.
                 - `dropping_point`: Ending landmark ID of the passenger.
                 - `extras`: Any additional information relevant to the ticket.
-                - `warning`: Optional field for any warnings related to the ticket. Mapped from the `PaperTicketWarning` enum.
+                - `warnings`: Optional field for any warnings related to the ticket. Mapped from the `PaperTicketWarning` enum.
                 - `uploaded_by`: Optional operator ID of the person who uploaded the ticket, if different from the duty operator.
                 - `created_on`: Timestamp of when the ticket was created at client side.
 
