@@ -281,6 +281,7 @@ def create_paper_ticket(
             # Create paper ticket with warnings and uploaded_by info if applicable
             paper_ticket = PaperTicket(
                 service_id=form_param.service_id,
+                duty_id=duty.id,
                 company_id=token.company_id,
                 ticket={
                     "sequence_id": ticket.sequence_id,
