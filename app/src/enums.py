@@ -207,5 +207,4 @@ class PaperTicketWarning(StrEnum):
     """Warnings associated with a paper ticket upload."""
 
     OPERATOR_NOT_FOUND = "OPERATOR_NOT_FOUND"
-    AMOUNT_MISMATCH = "AMOUNT_MISMATCH"
     OPERATOR_MISMATCH = "OPERATOR_MISMATCH"

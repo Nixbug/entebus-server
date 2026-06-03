@@ -142,7 +142,7 @@ def create_paper_ticket(
 
     Raises:
         exceptions.UnknownValue: If the service ID does not correspond to a valid service for the operator's company, or if required landmarks are missing.
-        exceptions.InactiveResource: If a resource state prevents ticket creation.
+        exceptions.InvalidValue: If there are duplicate sequence IDs, or if the ticket amount does not match the calculated fare.
         exceptions.UnknownTicketType: If any ticket type ID in the input does not match the ticket types defined in the service fare configuration.
 
     Returns:
@@ -220,6 +220,8 @@ def create_paper_ticket(
                     )
                 )
                 total_fare += expected_price * ticket_type.count
+                if total_fare != ticket.amount:
+                    raise exceptions.InvalidValue(PaperTicket.amount)
 
             # Check for amount mismatch and operator mismatch, but do not abort the process,
             # instead, record warnings and uploaded_by info in the ticket payload
@@ -234,8 +236,6 @@ def create_paper_ticket(
             )
             if operator is None:
                 warnings.append(PaperTicketWarning.OPERATOR_NOT_FOUND)
-            if total_fare != ticket.amount:
-                warnings.append(PaperTicketWarning.AMOUNT_MISMATCH)
             if token.operator_id != ticket.operator_id:
                 warnings.append(PaperTicketWarning.OPERATOR_MISMATCH)
 
@@ -363,6 +363,7 @@ POST_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
     exceptions.UnknownValue(PaperTicket.service_id),
+    exceptions.InvalidValue("sequence_id"),
     exceptions.InvalidValue(PaperTicket.amount),
     exceptions.UnknownTicketType(),
     exceptions.InvalidFareFunction(),
@@ -385,13 +386,12 @@ POST_DESCRIPTION = (
     .add_line(
         "Logged-in operator must have `company.service.ticket.create` permission."
     )
-    .add_line("Service must belong to the operator's company.")
     .add_line("Supports batch uploads")
     .add_line(
         "Each ticket may specify its own `operator_id` and will be processed individually."
     )
     .add_line(
-        "If an operator is not found, the ticket is attached to an orphaned duty (operator_id = NULL)."
+        "If an operator is not found, the ticket is attached to an orphaned duty."
     )
     .add_line(
         "If a duty is ENDED, it is reactivated to STARTED with `finished_on` cleared."
@@ -400,15 +400,15 @@ POST_DESCRIPTION = (
         "Ticket pickup/dropping points are validated against service landmarks (batch-validated)."
     )
     .add_line("Ticket fares are validated server-side using the service fare function.")
-    .add_line(
-        "Amount mismatches do NOT abort the batch; a `AMOUNT_MISMATCH` warning is added to the ticket payload."
-    )
+    .add_line("Amount mismatches will raise an `InvalidValue` exception.")
     .add_line(
         "If `ticket.operator_id` differs from the uploader, an `OPERATOR_MISMATCH` warning is added and `uploaded_by` records the uploader."
     )
     .add_line(
-        "If there are no warnings, `warnings` will be an empty list. If there is no operator mismatch, `uploaded_by` will be null."
+        "If no warnings are generated, `warnings` will be empty. `uploaded_by` is only populated when an operator mismatch occurs."
     )
+    .add_line("A maximum of 50 tickets can be created in a single batch upload.")
+    .add_line("Duplicate sequence IDs within the same batch are not allowed.")
 )
 
 GET_DESCRIPTION = Description().add_head("Fetches a list of paper tickets.")
