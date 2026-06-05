@@ -308,18 +308,34 @@ def create_paper_ticket(
         if service.status != ServiceStatus.STARTED:
             service.status = ServiceStatus.STARTED
 
-        highest_pickup_point = max(
-            [ticket.pickup_point for ticket in form_param.tickets]
+        pickup_point_ids = [ticket.pickup_point for ticket in form_param.tickets]
+        highest_landmark = (
+            session.query(LandmarkInService)
+            .filter(
+                LandmarkInService.service_id == form_param.service_id,
+                LandmarkInService.landmark_id.in_(pickup_point_ids),
+            )
+            .order_by(LandmarkInService.distance_from_start.desc())
+            .first()
         )
         service_location = (
             session.query(ServiceLocation)
             .filter(ServiceLocation.service_id == form_param.service_id)
             .first()
         )
-        if (service_location.landmark_id is None) or (
-            highest_pickup_point > service_location.landmark_id
+        current_distance = (
+            session.query(LandmarkInService.distance_from_start)
+            .filter(
+                LandmarkInService.service_id == form_param.service_id,
+                LandmarkInService.landmark_id == service_location.landmark_id,
+            )
+            .scalar()
+        )
+        if highest_landmark is not None and (
+            current_distance is None
+            or highest_landmark.distance_from_start > current_distance
         ):
-            service_location.landmark_id = highest_pickup_point
+            service_location.landmark_id = highest_landmark.landmark_id
 
         session.commit()
         for paper_ticket in paper_tickets:
