@@ -8,12 +8,11 @@ input validation and structured output.
 
 from datetime import datetime
 from enum import StrEnum
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from geoalchemy2 import Geography
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
-from fastapi import APIRouter, Depends, Query
 from shapely.geometry import Point
 from shapely import wkt, wkb
 from fastapi.encoders import jsonable_encoder
@@ -30,7 +29,6 @@ from app.src.description import Description
 from app.src.enums import OrderIn
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, UpdatedOnFilter
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
-from app.src.urls import URL_SERVICE_TRACE
 from app.src.urls import URL_SERVICE_TRACE
 from app.src.validators import (
     validate_id,
@@ -104,7 +102,7 @@ class QueryParamsForPU(
 ):
     """Query parameters for public users."""
 
-    service_id: int | None = Query(default=None)
+    service_id: int | None = Field(Query(default=None))
     location: str | None = Field(
         Query(
             default=None,
@@ -114,8 +112,8 @@ class QueryParamsForPU(
         )
     )
     landmark_id: int | None = Field(Query(default=None))
-    accuracy_ge: float | None = Field(default=None)
-    accuracy_le: float | None = Field(default=None)
+    accuracy_ge: float | None = Field(Query(default=None))
+    accuracy_le: float | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
@@ -131,14 +129,13 @@ class QueryParamsForOP(QueryParamsForPU):
 class QueryParamsForEX(QueryParamsForPU):
     """Query parameters for executives."""
 
-    company_id: int | None = Query(default=None)
+    company_id: int | None = Field(Query(default=None))
 
 
 class QueryParamsForVE(QueryParamsForEX):
     """Query parameters for vendors."""
 
-
-pass
+    pass
 
 
 class QueryParams(QueryParamsForEX):

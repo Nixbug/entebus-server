@@ -2580,12 +2580,11 @@ class PaperTicket(ORMbase):
 
 class ServiceLocation(ORMbase):
     """
-    Real-time or historical geospatial trace for services.
+    Real-time service location information.
 
-    This table stores the location associated with a company and a service.
+    This table stores the current location associated with a company and a service.
     Each service can have only one location record, identified by its
-    landmark reference, geographic coordinates, and optional accuracy
-    metadata. The table also tracks creation and update timestamps.
+    landmark reference, geographic coordinates, and optional accuracy metric.
 
     Columns:
         id (Integer, unique, not null):
