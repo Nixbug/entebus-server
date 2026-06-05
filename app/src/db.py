@@ -2582,11 +2582,11 @@ class ServiceLocation(ORMbase):
     """
     Real-time or historical geospatial trace for services.
 
-    This table stores location samples linked to a company and a service,
-    and may include an `operator_id` and a reference to a `landmark`.
-    Each record represents a point-in-time position with optional accuracy
-    metadata and timestamps.
-
+    This table stores the location associated with a company and a service.
+    Each service can have only one location record, identified by its
+    landmark reference, geographic coordinates, and optional accuracy
+    metadata. The table also tracks creation and update timestamps.
+      
     Columns:
         id (Integer, unique, not null):
             Primary identifier for the trace record.
@@ -2601,14 +2601,7 @@ class ServiceLocation(ORMbase):
             Indicates the service associated with this location record.
             Cascades on delete — if the service is removed, related location records are deleted.
 
-        operator_id (Integer, nullable):
-            Foreign key referencing `operator.id`.
-            Indicates the operator associated with this location record, if any.
-            Set to NULL when the referenced operator is deleted.
-            Unique constraint `(service_id, operator_id)` ensures at most one
-            location record per operator for a given service.
-
-        landmark_id (Integer, not null):
+        landmark_id (Integer, nullable):
             Foreign key referencing `landmark.id`.
             The last landmark passed by the service at the time of recording this location.
 
@@ -2626,7 +2619,6 @@ class ServiceLocation(ORMbase):
     """
 
     __tablename__ = "service_location"
-    __table_args__ = (UniqueConstraint("service_id", "operator_id"),)
 
     id = Column(Integer, primary_key=True)
     company_id = Column(
@@ -2640,13 +2632,9 @@ class ServiceLocation(ORMbase):
         ForeignKey("service.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
+        unique=True,
     )
-    operator_id = Column(
-        Integer,
-        ForeignKey("operator.id", ondelete="SET NULL"),
-        index=True,
-    )
-    landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
+    landmark_id = Column(Integer, ForeignKey("landmark.id"))
     location = Column(Geometry(geometry_type="POINT", srid=4326))
     accuracy = Column(Float)
     # Metadata

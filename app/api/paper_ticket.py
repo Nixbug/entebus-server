@@ -25,6 +25,7 @@ from app.src.db import (
     FareInService,
     LandmarkInService,
     Operator,
+    ServiceLocation,
 )
 from app.src.enums import DutyStatus, ServiceStatus, OrderIn
 from app.src.urls import URL_PAPER_TICKET
@@ -306,6 +307,17 @@ def create_paper_ticket(
 
         if service.status != ServiceStatus.STARTED:
             service.status = ServiceStatus.STARTED
+
+        highest_pickup_point = max(
+            [ticket.pickup_point for ticket in form_param.tickets]
+        )
+        service_location = (
+            session.query(ServiceLocation)
+            .filter(ServiceLocation.service_id == form_param.service_id)
+            .first()
+        )
+        if (service_location.landmark_id is None) or (highest_pickup_point > service_location.landmark_id):
+            service_location.landmark_id = highest_pickup_point
 
         session.commit()
         for paper_ticket in paper_tickets:

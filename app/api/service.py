@@ -39,6 +39,7 @@ from app.src.db import (
     Company,
     PaperTicket,
     VendorToken,
+    ServiceLocation,
 )
 from app.src import exceptions
 from app.src.description import Description
@@ -737,6 +738,12 @@ def create_service(
         )
         session.add_all(landmarks_in_service)
 
+        service_location = ServiceLocation(
+            service_id=service.id,
+            company_id=company.id,
+        )
+        session.add(service_location)
+
         session.commit()
         session.refresh(service)
         service_data = jsonable_encoder(service, exclude={"private_key"})
@@ -1312,6 +1319,7 @@ POST_DESCRIPTION = (
         "The service name is auto-generated based on the route, vehicle, and starting date if not provided."
     )
     .add_line("By default the status of the service is set to CREATED.")
+    .add_line("When a service is created, a corresponding service location is also created.")
 )
 
 PATCH_DESCRIPTION = (
