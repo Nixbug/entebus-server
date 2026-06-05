@@ -2586,7 +2586,7 @@ class ServiceLocation(ORMbase):
     Each service can have only one location record, identified by its
     landmark reference, geographic coordinates, and optional accuracy
     metadata. The table also tracks creation and update timestamps.
-      
+
     Columns:
         id (Integer, unique, not null):
             Primary identifier for the trace record.

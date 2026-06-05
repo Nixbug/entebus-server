@@ -316,7 +316,9 @@ def create_paper_ticket(
             .filter(ServiceLocation.service_id == form_param.service_id)
             .first()
         )
-        if (service_location.landmark_id is None) or (highest_pickup_point > service_location.landmark_id):
+        if (service_location.landmark_id is None) or (
+            highest_pickup_point > service_location.landmark_id
+        ):
             service_location.landmark_id = highest_pickup_point
 
         session.commit()

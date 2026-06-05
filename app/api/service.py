@@ -1319,7 +1319,9 @@ POST_DESCRIPTION = (
         "The service name is auto-generated based on the route, vehicle, and starting date if not provided."
     )
     .add_line("By default the status of the service is set to CREATED.")
-    .add_line("When a service is created, a corresponding service location is also created.")
+    .add_line(
+        "When a service is created, a corresponding service location is also created."
+    )
 )
 
 PATCH_DESCRIPTION = (

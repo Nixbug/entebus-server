@@ -73,14 +73,15 @@ class ServiceLocationSchema(BaseModel):
     updated_on: datetime | None
     created_on: datetime
 
+
 # ---------------------------------------------------------------------------
 ## Input Forms
 # ---------------------------------------------------------------------------
 class UpdateForm(BaseModel):
-   """Form data for updating an existing service location."""
+    """Form data for updating an existing service location."""
 
-   location: str | None = Field(default=None)
-   accuracy: float | None = Field(default=None)
+    location: str | None = Field(default=None)
+    accuracy: float | None = Field(default=None)
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +94,7 @@ class OrderBy(StrEnum):
     CREATED_ON = "created_on"
     UPDATED_ON = "updated_on"
     LOCATION = "location"
-    
+
 
 class QueryParamsForPU(
     UpdatedOnFilter,
@@ -112,9 +113,9 @@ class QueryParamsForPU(
             ),
         )
     )
-    landmark_id : int | None = Field(Query(default=None))
-    accuracy_ge : float | None = Field(default=None)
-    accuracy_le : float | None = Field(default=None)
+    landmark_id: int | None = Field(Query(default=None))
+    accuracy_ge: float | None = Field(default=None)
+    accuracy_le: float | None = Field(default=None)
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
@@ -132,8 +133,10 @@ class QueryParamsForEX(QueryParamsForPU):
 
     company_id: int | None = Query(default=None)
 
+
 class QueryParamsForVE(QueryParamsForEX):
     """Query parameters for vendors."""
+
 
 pass
 
@@ -147,7 +150,9 @@ class QueryParams(QueryParamsForEX):
 # ---------------------------------------------------------------------------
 ## Functions
 # ---------------------------------------------------------------------------
-def search_service_location(session: Session, query_params: QueryParams) -> List[ServiceLocation]:
+def search_service_location(
+    session: Session, query_params: QueryParams
+) -> List[ServiceLocation]:
     """
     Search for service locations based on provided query parameters.
 
@@ -180,7 +185,7 @@ def search_service_location(session: Session, query_params: QueryParams) -> List
         query = query.filter(ServiceLocation.accuracy >= query_params.accuracy_ge)
     if query_params.accuracy_le is not None:
         query = query.filter(ServiceLocation.accuracy <= query_params.accuracy_le)
-    
+
     # Generalized filters
     query = apply_id_filters(query, ServiceLocation, query_params)
     query = apply_created_on_filters(query, ServiceLocation, query_params)
@@ -287,13 +292,13 @@ async def fetch_service_locations_for_executive(
 @route_operator.patch(
     f"{URL_SERVICE_TRACE}/{{id}}",
     summary="Update service location",
-    tags = ["Service Location"],
+    tags=["Service Location"],
     response_model=ServiceLocationSchema,
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(PATCH_DESCRIPTION.to_string()),
 )
 async def update_service_location_for_operator(
-    id : int,
+    id: int,
     form_param: UpdateForm,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
@@ -306,9 +311,15 @@ async def update_service_location_for_operator(
             [OperatorPermissionPath.CREATE_COMPANY_SERVICE_TICKET],
         )
 
-        service_location = validate_id(session, ServiceLocation, id, ServiceLocation.id, extra_filter=ServiceLocation.company_id == token.company_id)
-     
-        update_data = form_param.model_dump(exclude_unset=True, exclude ={"location"})
+        service_location = validate_id(
+            session,
+            ServiceLocation,
+            id,
+            ServiceLocation.id,
+            extra_filter=ServiceLocation.company_id == token.company_id,
+        )
+
+        update_data = form_param.model_dump(exclude_unset=True, exclude={"location"})
         update_if_changed(service_location, update_data)
         if form_param.location is not None:
             geometry = validate_wkt_string(
@@ -341,7 +352,7 @@ async def update_service_location_for_operator(
         exceptions.handle(e)
     finally:
         session.close()
-    
+
 
 @route_operator.get(
     URL_SERVICE_TRACE,
@@ -404,11 +415,11 @@ async def fetch_service_locations_for_vendor(
     summary="Fetch service location",
     tags=["Service Location"],
     response_model=List[ServiceLocationSchema],
-    description=(
-        GET_DESCRIPTION.to_string()
-    ),
+    description=(GET_DESCRIPTION.to_string()),
 )
-async def fetch_service_locations_for_public(query_params: QueryParamsForPU = Depends()):
+async def fetch_service_locations_for_public(
+    query_params: QueryParamsForPU = Depends(),
+):
     try:
         session = SessionLocal()
 
