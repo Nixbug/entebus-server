@@ -741,6 +741,7 @@ def create_service(
         service_location = ServiceLocation(
             service_id=service.id,
             company_id=company.id,
+            landmark_id=first_landmark_in_route.landmark_id,
         )
         session.add(service_location)
 

@@ -1,8 +1,8 @@
-"""modify_service_location_columns
+"""modify service location columns
 
-Revision ID: 581e02026e41
+Revision ID: 0293fae9f3ec
 Revises: fde5a9d63762
-Create Date: 2026-06-05 06:42:46.009938
+Create Date: 2026-06-06 04:20:52.240974
 
 """
 
@@ -10,9 +10,11 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from geoalchemy2 import Geometry
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = "581e02026e41"
+revision: str = "0293fae9f3ec"
 down_revision: Union[str, Sequence[str], None] = "fde5a9d63762"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -42,9 +44,6 @@ def upgrade() -> None:
         type_="foreignkey",
     )
     op.drop_column("service_location", "operator_id")
-    op.alter_column(
-        "service_location", "landmark_id", existing_type=sa.INTEGER(), nullable=True
-    )
     # ### end Alembic commands ###
 
 
@@ -81,8 +80,5 @@ def downgrade() -> None:
         "service_location",
         ["operator_id"],
         unique=False,
-    )
-    op.alter_column(
-        "service_location", "landmark_id", existing_type=sa.INTEGER(), nullable=False
     )
     # ### end Alembic commands ###

@@ -316,8 +316,7 @@ async def update_service_location_for_operator(
             extra_filter=ServiceLocation.company_id == token.company_id,
         )
 
-        update_data = form_param.model_dump(exclude_unset=True, exclude={"location"})
-        update_if_changed(service_location, update_data)
+        update_data = form_param.model_dump(exclude_unset=True)
         if form_param.location is not None:
             geometry = validate_wkt_string(
                 form_param.location,
@@ -325,7 +324,9 @@ async def update_service_location_for_operator(
             )
             validate_srid_4326(geometry)
             service_location.location = wkt.dumps(geometry)
+            update_data.pop("location")
 
+        update_if_changed(service_location, update_data)
         have_updates = session.is_modified(service_location)
         if have_updates:
             session.commit()

@@ -2600,7 +2600,7 @@ class ServiceLocation(ORMbase):
             Indicates the service associated with this location record.
             Cascades on delete — if the service is removed, related location records are deleted.
 
-        landmark_id (Integer, nullable):
+        landmark_id (Integer, not null):
             Foreign key referencing `landmark.id`.
             The last landmark passed by the service at the time of recording this location.
 
@@ -2633,7 +2633,7 @@ class ServiceLocation(ORMbase):
         index=True,
         unique=True,
     )
-    landmark_id = Column(Integer, ForeignKey("landmark.id"))
+    landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
     location = Column(Geometry(geometry_type="POINT", srid=4326))
     accuracy = Column(Float)
     # Metadata
