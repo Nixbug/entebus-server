@@ -52,6 +52,7 @@ from app.src.enums import (
     BusinessType,
     GenderType,
     LandmarkType,
+    LocationType,
     PlatformType,
     CompanyStatus,
     CompanyType,
@@ -2666,18 +2667,26 @@ class Trace(ORMbase):
 
         name (String(4096), not null,):
             Name of the route.
-            Maximum 4096 characters long..
+            Maximum 4096 characters long.
+            Unique together with `company_id` to prevent duplicate route names within the same company.
 
         company_id (Integer, not null):
             Foreign key referencing `company.id`.
             Indicates the company associated with this trace record.
             Cascades on delete — if the company is removed, related trace records are deleted.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the trace record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the trace record was created.
     """
     
     __tablename__ = "trace"
+    __table_args__ = (UniqueConstraint("name", "company_id"),)
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(4096), nullable=False, unique=True)
+    name = Column(String(4096), nullable=False)
     company_id = Column(
         Integer,
         ForeignKey("company.id", ondelete="CASCADE"),
@@ -2686,4 +2695,42 @@ class Trace(ORMbase):
      )
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class LocationInTrace(ORMbase):
+    """
+    Represents a location record associated with a trace.
+
+    This table stores location records that capture the trace it belongs to, the location and the order of the location in the trace.
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the location in trace record.
+
+        trace_id (Integer, not null):
+            Foreign key referencing `trace.id`.
+            Indicates the trace associated with this location in trace record.
+
+        location (Geometry(geometry_type="POINT", srid=4326), not null):
+            Geospatial point representing the recorded location.
+
+        location_type (Integer, not null, default=LocationType.WAYPOINT):
+            Type of the location. Mapped from the `LocationType` enum.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the service location record was created.
+    """
+    
+    __tablename__ = "location_in_trace"
+
+    id = Column(Integer, primary_key=True)
+    trace_id = Column(
+        Integer,
+        ForeignKey("trace.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+     )
+    location = Column(Geometry(geometry_type="POINT", srid=4326), nullable=False)
+    location_type = Column(Integer, nullable=False, default=LocationType.WAYPOINT)
+    # Metadata
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())

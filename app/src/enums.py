@@ -208,3 +208,11 @@ class PaperTicketWarning(IntEnum):
 
     OPERATOR_NOT_FOUND = 1
     OPERATOR_MISMATCH = 2
+
+
+class LocationType(IntEnum):
+    """Type of location in trace records."""
+
+    WAYPOINT = 1
+    INTERMEDIATE_STOP = 2
+    MAIN_STOP = 3
