@@ -65,7 +65,7 @@ class ServiceLocationSchema(BaseModel):
     id: int
     company_id: int
     service_id: int
-    landmark_id: int | None
+    landmark_id: int
     location: str | None
     accuracy: float | None
     updated_on: datetime | None
