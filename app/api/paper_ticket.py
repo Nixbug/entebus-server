@@ -190,10 +190,21 @@ def create_paper_ticket(
         # Maps ticket.sequence_id to list of warnings for that ticket
         duty_cache: Dict[int, Duty] = {}  # Cache to store operator_id to Duty mapping
         paper_tickets: List[PaperTicket] = []
+
+        service_location = (
+            session.query(ServiceLocation)
+            .filter(ServiceLocation.service_id == form_param.service_id)
+            .first()
+        )
+        current_landmark = landmarks_in_service_map.get(service_location.landmark_id)
+
         for ticket in form_param.tickets:
             pickup_point = landmarks_in_service_map.get(ticket.pickup_point)
             if pickup_point is None:
                 raise exceptions.UnknownValue("pickup_point")
+
+            if pickup_point.distance_from_start > current_landmark.distance_from_start:
+                current_landmark = pickup_point
 
             dropping_point = landmarks_in_service_map.get(ticket.dropping_point)
             if dropping_point is None:
@@ -308,16 +319,6 @@ def create_paper_ticket(
         if service.status != ServiceStatus.STARTED:
             service.status = ServiceStatus.STARTED
 
-        service_location = (
-            session.query(ServiceLocation)
-            .filter(ServiceLocation.service_id == form_param.service_id)
-            .first()
-        )
-        current_landmark = landmarks_in_service_map.get(service_location.landmark_id)
-        for ticket in form_param.tickets:
-            pickup_point = landmarks_in_service_map.get(ticket.pickup_point)
-            if pickup_point.distance_from_start > current_landmark.distance_from_start:
-                current_landmark = pickup_point
         service_location.landmark_id = current_landmark.landmark_id
 
         session.commit()
