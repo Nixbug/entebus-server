@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from shapely.geometry import Point
 from shapely import wkt, wkb
 from fastapi.encoders import jsonable_encoder
-from typing import List
+from typing import List, Tuple
 
 from app.src.db import (
     ExecutiveToken,
@@ -147,6 +147,60 @@ class QueryParams(QueryParamsForEX):
 # ---------------------------------------------------------------------------
 ## Functions
 # ---------------------------------------------------------------------------
+def update_service_location(
+    session: Session,
+    id: int,
+    form_param: UpdateForm,
+    extra_filter_for_service_location=None,
+) -> Tuple[bool, dict]:
+    """
+    Updates an existing service location record in the database.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        id (int): ID of the service location to update.
+        form_param (UpdateForm): Form data for updating the service location.
+        extra_filter_for_service_location (optional): Additional filter to apply when validating the service location ID.
+
+    Returns:
+        Tuple[bool, dict]: A tuple containing a boolean indicating whether any updates were made and the updated service location data.
+    """
+    service_location = validate_id(
+        session,
+        ServiceLocation,
+        id,
+        ServiceLocation.id,
+        extra_filter=extra_filter_for_service_location,
+    )
+    update_data = form_param.model_dump(exclude_unset=True)
+    if form_param.location is not None:
+        geometry = validate_wkt_string(
+            form_param.location,
+            Point,
+        )
+        validate_srid_4326(geometry)
+        service_location.location = wkt.dumps(geometry)
+        update_data.pop("location")
+
+    update_if_changed(service_location, update_data)
+    have_updates = session.is_modified(service_location)
+    if have_updates:
+        session.commit()
+        session.refresh(service_location)
+
+    service_location_data = jsonable_encoder(
+        service_location,
+        exclude={ServiceLocation.location.name},
+    )
+    if service_location.location is not None:
+        service_location_data[ServiceLocation.location.name] = (
+            wkb.loads(bytes(service_location.location.data))
+        ).wkt
+    else:
+        service_location_data[ServiceLocation.location.name] = None
+    return have_updates, service_location_data
+
+
 def search_service_location(
     session: Session, query_params: QueryParams
 ) -> List[ServiceLocation]:
@@ -308,40 +362,15 @@ async def update_service_location_for_operator(
             [OperatorPermissionPath.CREATE_COMPANY_SERVICE_TICKET],
         )
 
-        service_location = validate_id(
+        have_updates, service_location_data = update_service_location(
             session,
-            ServiceLocation,
             id,
-            ServiceLocation.id,
-            extra_filter=ServiceLocation.company_id == token.company_id,
+            UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            extra_filter_for_service_location=(
+                ServiceLocation.company_id == token.company_id
+            ),
         )
 
-        update_data = form_param.model_dump(exclude_unset=True)
-        if form_param.location is not None:
-            geometry = validate_wkt_string(
-                form_param.location,
-                Point,
-            )
-            validate_srid_4326(geometry)
-            service_location.location = wkt.dumps(geometry)
-            update_data.pop("location")
-
-        update_if_changed(service_location, update_data)
-        have_updates = session.is_modified(service_location)
-        if have_updates:
-            session.commit()
-            session.refresh(service_location)
-
-        service_location_data = jsonable_encoder(
-            service_location,
-            exclude={ServiceLocation.location.name},
-        )
-        if service_location.location is not None:
-            service_location_data[ServiceLocation.location.name] = (
-                wkb.loads(bytes(service_location.location.data))
-            ).wkt
-        else:
-            service_location_data[ServiceLocation.location.name] = None
         if have_updates:
             log_event(token, request_info, service_location_data)
         return service_location_data
