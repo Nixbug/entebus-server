@@ -20,6 +20,7 @@ from app.api import (
     executive_role,
     fare,
     landmark,
+    location_in_trace,
     operator_account,
     operator_image,
     operator_role,
@@ -29,6 +30,7 @@ from app.api import (
     route,
     service,
     service_assignment,
+    trace,
     vehicle,
     vehicle_image,
     vendor_account,
@@ -37,7 +39,6 @@ from app.api import (
     landmark_in_route,
 )
 from app.src.enums import AppID
-
 
 # ------------------------------------------------------
 # Create separate FastAPI apps for each user domain
@@ -83,6 +84,8 @@ app_executive.include_router(duty.route_executive)
 app_executive.include_router(service_assignment.route_executive)
 app_executive.include_router(service.route_executive)
 app_executive.include_router(paper_ticket.route_executive)
+app_executive.include_router(trace.route_executive)
+app_executive.include_router(location_in_trace.route_executive)
 
 
 # ------------------------------------------------------
@@ -99,6 +102,7 @@ app_vendor.include_router(route.route_vendor)
 app_vendor.include_router(landmark_in_route.route_vendor)
 app_vendor.include_router(fare.route_vendor)
 app_vendor.include_router(service.route_vendor)
+app_vendor.include_router(paper_ticket.route_vendor)
 
 
 # ------------------------------------------------------
@@ -121,6 +125,8 @@ app_operator.include_router(duty.route_operator)
 app_operator.include_router(service_assignment.route_operator)
 app_operator.include_router(service.route_operator)
 app_operator.include_router(paper_ticket.route_operator)
+app_operator.include_router(trace.route_operator)
+app_operator.include_router(location_in_trace.route_operator)
 
 
 # ------------------------------------------------------
@@ -135,3 +141,4 @@ app_public.include_router(vehicle_image.route_public)
 app_public.include_router(route.route_public)
 app_public.include_router(landmark_in_route.route_public)
 app_public.include_router(service.route_public)
+app_public.include_router(trace.route_public)
