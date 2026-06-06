@@ -2652,3 +2652,38 @@ class ServiceLocation(ORMbase):
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class Trace(ORMbase):
+    """
+    Represents a route trace record associated with a company.
+
+    This tables stores trace records that capture the name of a route and the company it belongs to.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the trace record.
+
+        name (String(4096), not null,):
+            Name of the route.
+            Maximum 4096 characters long..
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id`.
+            Indicates the company associated with this trace record.
+            Cascades on delete — if the company is removed, related trace records are deleted.
+    """
+    
+    __tablename__ = "trace"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(4096), nullable=False, unique=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+     )
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
