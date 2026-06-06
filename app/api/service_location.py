@@ -79,7 +79,7 @@ class UpdateForm(BaseModel):
     """Form data for updating an existing service location."""
 
     location: str | None = Field(default=None)
-    accuracy: float | None = Field(default=None)
+    accuracy: float | None = Field(default=None, ge=0, le=100)
 
 
 # ---------------------------------------------------------------------------
