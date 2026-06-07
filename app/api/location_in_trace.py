@@ -10,7 +10,7 @@ from enum import StrEnum
 from geoalchemy2 import Geography
 from shapely import Point, wkt
 from sqlalchemy import func, or_, String
-from fastapi import APIRouter, Depends, Query, Response, exceptions, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from typing import List, Tuple
@@ -42,6 +42,7 @@ from app.src.functions import (
     update_if_changed,
 )
 from app.src.openobserve import log_event
+from app.src import exceptions
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_LOCATION_TRACE, URL_ROUTE, URL_ROUTE_TRACE
 from app.src.validators import (
@@ -52,9 +53,8 @@ from app.src.validators import (
     validate_wkt_string,
     verify_token,
 )
-from app.src.permissions import PermissionsPath as ExecutivePermissionPath
-from app.src.permissions import PermissionsPath as OperatorPermissionPath
-from app.src.exceptions import exceptions
+from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
+from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.api.bearer import oauth2_executive, bearer_operator
 
 route_executive = APIRouter()

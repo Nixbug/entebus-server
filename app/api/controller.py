@@ -102,7 +102,6 @@ app_vendor.include_router(route.route_vendor)
 app_vendor.include_router(landmark_in_route.route_vendor)
 app_vendor.include_router(fare.route_vendor)
 app_vendor.include_router(service.route_vendor)
-app_vendor.include_router(paper_ticket.route_vendor)
 
 
 # ------------------------------------------------------
@@ -141,4 +140,3 @@ app_public.include_router(vehicle_image.route_public)
 app_public.include_router(route.route_public)
 app_public.include_router(landmark_in_route.route_public)
 app_public.include_router(service.route_public)
-app_public.include_router(trace.route_public)

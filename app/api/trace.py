@@ -9,7 +9,7 @@ input validation and structured output.
 from datetime import datetime
 from enum import StrEnum
 from sqlalchemy import or_, String
-from fastapi import APIRouter, Depends, Query, Response, exceptions, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from typing import List, Tuple
@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.src.db import Company, ExecutiveToken, OperatorToken, SessionLocal, Trace
 from app.src.description import Description
+from app.src import exceptions
 from app.src.enums import OrderIn
 from app.src.filters import (
     CreatedOnFilter,
@@ -46,9 +47,8 @@ from app.src.validators import (
     validate_id,
     verify_token,
 )
-from app.src.permissions import PermissionsPath as ExecutivePermissionPath
-from app.src.permissions import PermissionsPath as OperatorPermissionPath
-from app.src.exceptions import exceptions
+from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
+from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.api.bearer import oauth2_executive, bearer_operator
 
 route_executive = APIRouter()
