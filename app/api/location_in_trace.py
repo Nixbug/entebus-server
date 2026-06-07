@@ -89,12 +89,10 @@ class OrderBy(StrEnum):
 
     ID = "id"
     CREATED_ON = "created_on"
-    UPDATED_ON = "updated_on"
     LOCATION = "location"
 
 
 class QueryParamsForOP(
-    UpdatedOnFilter,
     CreatedOnFilter,
     IDFilter,
     PaginationFilter,

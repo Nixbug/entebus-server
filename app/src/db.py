@@ -2646,7 +2646,7 @@ class Trace(ORMbase):
     """
     Represents a route trace record associated with a company.
 
-    This tables stores trace records that define a named trace belonging to a company.
+    This table stores trace records that define a named trace belonging to a company.
 
     Columns:
         id (Integer, unique, not null):
