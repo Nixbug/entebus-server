@@ -32,7 +32,6 @@ from app.src.filters import (
 )
 from app.src.functions import (
     apply_created_on_filters,
-    apply_type_filters,
     apply_id_filters,
     enum_str,
     fuse_exception_responses,
@@ -63,6 +62,7 @@ class LocationInTraceSchema(BaseModel):
 
     id: int
     trace_id: int
+    company_id: int
     location: str
     location_type: int
     created_on: datetime
@@ -93,7 +93,7 @@ class OrderBy(StrEnum):
     LOCATION = "location"
 
 
-class QueryParams(
+class QueryParamsForOP(
     UpdatedOnFilter,
     CreatedOnFilter,
     IDFilter,
@@ -119,6 +119,18 @@ class QueryParams(
     )
 
 
+class QueryParamsForEX(QueryParamsForOP):
+    """Query parameters for executives."""
+
+    company_id: int | None = Field(Query(default=None))
+
+
+class QueryParams(QueryParamsForEX):
+    """General combined query parameters."""
+
+    pass
+
+
 # ---------------------------------------------------------------------------
 ## Functions
 # ---------------------------------------------------------------------------
@@ -136,7 +148,7 @@ def create_location_in_trace(
     Returns:
         None
     """
-    validate_id(
+    trace = validate_id(
         session,
         Trace,
         form_param.trace_id,
@@ -150,6 +162,7 @@ def create_location_in_trace(
 
             location_in_trace = LocationInTrace(
                 trace_id=form_param.trace_id,
+                company_id=trace.company_id,
                 location=wkt.dumps(geometry),
                 location_type=location_type,
             )
@@ -174,6 +187,8 @@ def search_location_in_trace(
         List[LocationInTrace]: List of locations in trace that match the search criteria.
     """
     query = session.query(LocationInTrace)
+    if query_params.company_id is not None:
+        query = query.filter(LocationInTrace.company_id == query_params.company_id)
     validated_location = None
     if query_params.location is not None:
         geometry = validate_wkt_string(query_params.location, Point)
@@ -309,14 +324,17 @@ async def create_location_in_trace_for_executive(
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_location_in_trace_for_executive(
-    query_params: QueryParams = Depends(),
+    query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
 ):
     try:
         session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
 
-        return search_location_in_trace(session, query_params)
+        return search_location_in_trace(
+            session,
+            QueryParams(**query_params.model_dump()),
+        )
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -378,14 +396,17 @@ async def create_location_in_trace_for_operator(
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_location_in_trace_for_operator(
-    query_params: QueryParams = Depends(),
+    query_params: QueryParamsForOP = Depends(),
     access_token=Depends(bearer_operator),
 ):
     try:
         session = SessionLocal()
-        verify_token(session, OperatorToken, access_token.credentials)
+        token = verify_token(session, OperatorToken, access_token.credentials)
 
-        return search_location_in_trace(session, query_params)
+        return search_location_in_trace(
+            session,
+            QueryParams(**query_params.model_dump(), company_id=token.company_id),
+        )
     except Exception as e:
         exceptions.handle(e)
     finally:

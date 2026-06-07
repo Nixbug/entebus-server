@@ -2699,6 +2699,11 @@ class LocationInTrace(ORMbase):
             Foreign key referencing `trace.id`.
             Indicates the trace associated with this location in trace record.
 
+        company_id (Integer, not null):
+            Foreign key referencing `company.id`.
+            Indicates the company associated with this trace record.
+            Cascades on delete — if the company is removed, related trace records are deleted.
+
         location (Geometry(geometry_type="POINT", srid=4326), not null):
             Geospatial point representing the recorded location.
 
@@ -2717,7 +2722,13 @@ class LocationInTrace(ORMbase):
         ForeignKey("trace.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-     )
+    )
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     location = Column(Geometry(geometry_type="POINT", srid=4326), nullable=False)
     location_type = Column(Integer, nullable=False, default=LocationType.WAYPOINT)
     # Metadata
