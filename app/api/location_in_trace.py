@@ -9,42 +9,36 @@ from datetime import datetime
 from enum import StrEnum
 from geoalchemy2 import Geography
 from shapely import Point, wkt
-from sqlalchemy import func, or_, String
+from sqlalchemy import func
 from fastapi import APIRouter, Depends, Query, Response, status
-from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from typing import List, Tuple
+from typing import List, Dict
 from sqlalchemy.orm import Session
 
-from app.api.fare import CreateFormForOP
-from app.src.db import BusStop, Company, ExecutiveToken, LocationInTrace, OperatorToken, SessionLocal, Trace
+from app.src.db import (
+    ExecutiveToken,
+    LocationInTrace,
+    OperatorToken,
+    SessionLocal,
+    Trace,
+)
 from app.src.description import Description
 from app.src.enums import LocationType, OrderIn
 from app.src.filters import (
     CreatedOnFilter,
     IDFilter,
-    NameFilter,
     PaginationFilter,
     UpdatedOnFilter,
 )
 from app.src.functions import (
     apply_created_on_filters,
-    apply_name_filters,
-    apply_status_filters,
-    apply_status_filters,
     apply_type_filters,
-    apply_type_filters,
-    apply_updated_on_filters,
     apply_id_filters,
     enum_str,
     fuse_exception_responses,
-    get_request_info,
-    update_if_changed,
 )
-from app.src.openobserve import log_event
 from app.src import exceptions
-from app.src.regex import NAME_PATTERN
-from app.src.urls import URL_LOCATION_TRACE, URL_ROUTE, URL_ROUTE_TRACE
+from app.src.urls import URL_LOCATION_TRACE
 from app.src.validators import (
     authorize_executive,
     authorize_operator,
@@ -69,7 +63,7 @@ class LocationInTraceSchema(BaseModel):
 
     id: int
     trace_id: int
-    location : str
+    location: str
     location_type: int
     created_on: datetime
 
@@ -78,17 +72,12 @@ class LocationInTraceSchema(BaseModel):
 ## Input Forms
 # ---------------------------------------------------------------------------
 class CreateForm(BaseModel):
-    """Form data for creating a new location in trace."""
+    """Form data for creating locations in trace."""
 
     trace_id: int = Field()
-    location: str = Field(
-        description=(
-            f"Accepts only SRID 4326 (WGS84), "
-            f"valid WKT string representing a `POINT`."
-        )
-    )
-    location_type: LocationType = Field(
-        description=enum_str(LocationType), default=LocationType.WAYPOINT
+    locations: Dict[LocationType, List[str]] = Field(
+        min_length=1,
+        max_length=100,
     )
 
 
@@ -110,7 +99,7 @@ class QueryParams(
     IDFilter,
     PaginationFilter,
 ):
-    """Query parameters for fetching locations in trace."""
+    """Query parameters for operators."""
 
     trace_id: int | None = Field(Query(default=None))
     location: str | None = Field(
@@ -121,7 +110,7 @@ class QueryParams(
             ),
         )
     )
-    type_list: List[LocationType] | None = Field(
+    type: LocationType | None = Field(
         Query(default=None, description=enum_str(LocationType))
     )
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
@@ -133,41 +122,44 @@ class QueryParams(
 # ---------------------------------------------------------------------------
 ## Functions
 # ---------------------------------------------------------------------------
-def create_location_in_trace(session: Session, form_param: CreateForm, extra_filter_for_trace=None) -> dict:
+def create_location_in_trace(
+    session: Session, form_param: CreateForm, extra_filter_for_trace=None
+) -> None:
     """
     Creates a new location in trace record in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a location in trace.
+        extra_filter_for_trace (optional): Additional filter to apply when validating the trace ID.
 
     Returns:
-        dict: The created location in trace data.
+        None
     """
+    validate_id(
+        session,
+        Trace,
+        form_param.trace_id,
+        LocationInTrace.trace_id,
+        extra_filter=extra_filter_for_trace,
+    )
+    for location_type, locations in form_param.locations.items():
+        for location in locations:
+            geometry = validate_wkt_string(location, Point)
+            validate_srid_4326(geometry)
 
-    trace = validate_id(session, Trace, form_param.trace_id, form_param.trace_id, extra_filter=extra_filter_for_trace)
-
-    locations_in_trace: List[LocationInTrace] = []
-    for location in form_param.location:
-        geometry = validate_wkt_string(location, Point)
-        validate_srid_4326(geometry)
-        location_in_trace = LocationInTrace(
-            trace_id=form_param.trace_id,
-            location=wkt.dumps(geometry),
-            location_type=form_param.location_type,
-        )
-        session.add(location_in_trace)
-        locations_in_trace.append(location_in_trace)
-
-        session.refresh(location_in_trace)
-        locations_in_trace.append(location_in_trace)
+            location_in_trace = LocationInTrace(
+                trace_id=form_param.trace_id,
+                location=wkt.dumps(geometry),
+                location_type=location_type,
+            )
+            session.add(location_in_trace)
     session.commit()
-    for location_in_trace in locations_in_trace:
-        session.refresh(location_in_trace)
-    return jsonable_encoder(locations_in_trace)
 
-    
-def search_location_in_trace(session: Session, query_params: QueryParams) -> List[LocationInTrace]:
+
+def search_location_in_trace(
+    session: Session, query_params: QueryParams
+) -> List[LocationInTrace]:
     """
     Search for locations in trace based on provided query parameters.
 
@@ -189,12 +181,12 @@ def search_location_in_trace(session: Session, query_params: QueryParams) -> Lis
         validated_location = wkt.dumps(geometry)
     if query_params.trace_id is not None:
         query = query.filter(LocationInTrace.trace_id == query_params.trace_id)
+    if query_params.type is not None:
+        query = query.filter(LocationInTrace.location_type == query_params.type)
 
     # Generalized filters
     query = apply_id_filters(query, LocationInTrace, query_params)
     query = apply_created_on_filters(query, LocationInTrace, query_params)
-    query = apply_type_filters(query, LocationInTrace, query_params)
-
 
     # Ordering and pagination
     if query_params.order_by == OrderBy.LOCATION:
@@ -236,7 +228,6 @@ POST_EXCEPTIONS = [
     exceptions.InvalidWKTStringOrType(),
     exceptions.InvalidSRID4326(),
     exceptions.UnknownValue(LocationInTrace.trace_id),
-    exceptions.BusStopOutsideLandmark(),
 ]
 
 GET_EXCEPTIONS = [
@@ -263,6 +254,8 @@ GET_DESCRIPTION = (
         "If location is not provided while using order_by=location, the API will fall back to default ordering by id."
     )
 )
+
+
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
@@ -270,7 +263,6 @@ GET_DESCRIPTION = (
     URL_LOCATION_TRACE,
     summary="Create location in trace",
     tags=["Location In Trace"],
-    response_model=LocationInTraceSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
         [
@@ -280,29 +272,28 @@ GET_DESCRIPTION = (
     description=(
         POST_DESCRIPTION.copy()
         .add_line(
-            "Logged-in executive must have `company.route.trace.location.create` permission."
+            "Logged-in executive must have `company.trace.create` or `company.trace.update` permission."
         )
         .to_string()
     ),
 )
-async def create_route_for_executive(
+async def create_location_in_trace_for_executive(
     form_param: CreateForm,
     access_token=Depends(oauth2_executive),
-    request_info=Depends(get_request_info),
 ):
     try:
         session = SessionLocal()
-        token = authorize_executive(
+        authorize_executive(
             session,
             access_token,
-            [ExecutivePermissionPath.CREATE_COMPANY_ROUTE_TRACE_LOCATION],
+            [
+                ExecutivePermissionPath.CREATE_COMPANY_TRACE,
+                ExecutivePermissionPath.UPDATE_COMPANY_TRACE,
+            ],
         )
 
-        validate_id(session, Company, form_param.company_id, Trace.company_id)
-        trace_data = create_location_in_trace(session, CreateForm(**form_param.model_dump()))
-
-        log_event(token, request_info, trace_data)
-        return trace_data
+        create_location_in_trace(session, CreateForm(**form_param.model_dump()))
+        return Response(status_code=status.HTTP_201_CREATED)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -317,7 +308,7 @@ async def create_route_for_executive(
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
-async def fetch_bus_stops_for_executive(
+async def fetch_location_in_trace_for_executive(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
 ):
@@ -339,35 +330,39 @@ async def fetch_bus_stops_for_executive(
     URL_LOCATION_TRACE,
     summary="Create location in trace",
     tags=["Location In Trace"],
-    response_model=LocationInTraceSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses([*POST_EXCEPTIONS]),
     description=(
         POST_DESCRIPTION.copy()
         .add_line(
-            "Logged-in operator must have `company.route.trace.location.create` permission."
+            "Logged-in operator must have `company.trace.create` or `company.trace.update` permission."
         )
         .to_string()
     ),
 )
-async def create_location_for_operator(
+async def create_location_in_trace_for_operator(
     form_param: CreateForm,
     access_token=Depends(bearer_operator),
-    request_info=Depends(get_request_info),
 ):
     try:
         session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
-            [OperatorPermissionPath.CREATE_COMPANY_ROUTE_TRACE_LOCATION],
+            [
+                OperatorPermissionPath.CREATE_COMPANY_TRACE,
+                OperatorPermissionPath.UPDATE_COMPANY_TRACE,
+            ],
         )
 
-        trace_data = create_location_in_trace(
-            session, CreateForm(**form_param.model_dump(), extra_filter_for_trace=(Trace.company_id == token.company_id))
+        create_location_in_trace(
+            session,
+            CreateForm(
+                **form_param.model_dump(),
+            ),
+            extra_filter_for_trace=(Trace.company_id == token.company_id),
         )
-        log_event(token, request_info, trace_data)
-        return trace_data
+        return Response(status_code=status.HTTP_201_CREATED)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -382,7 +377,7 @@ async def create_location_for_operator(
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
-async def fetch_bus_stops_for_operator(
+async def fetch_location_in_trace_for_operator(
     query_params: QueryParams = Depends(),
     access_token=Depends(bearer_operator),
 ):

@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from typing import List, Tuple
 from sqlalchemy.orm import Session
 
-from app.src.db import Company, ExecutiveToken, OperatorToken, SessionLocal, Trace
+from app.src.db import Company, ExecutiveToken, OperatorToken, Trace, SessionLocal
 from app.src.description import Description
 from app.src import exceptions
 from app.src.enums import OrderIn
@@ -29,8 +29,6 @@ from app.src.filters import (
 from app.src.functions import (
     apply_created_on_filters,
     apply_name_filters,
-    apply_status_filters,
-    apply_status_filters,
     apply_updated_on_filters,
     apply_id_filters,
     enum_str,
@@ -40,7 +38,7 @@ from app.src.functions import (
 )
 from app.src.openobserve import log_event
 from app.src.regex import NAME_PATTERN
-from app.src.urls import URL_ROUTE, URL_ROUTE_TRACE
+from app.src.urls import URL_ROUTE_TRACE
 from app.src.validators import (
     authorize_executive,
     authorize_operator,
@@ -234,7 +232,6 @@ def search_trace(session: Session, query_params: QueryParams) -> List[Trace]:
     query = apply_name_filters(query, Trace, query_params)
     query = apply_created_on_filters(query, Trace, query_params)
     query = apply_updated_on_filters(query, Trace, query_params)
-    query = apply_status_filters(query, Trace, query_params)
 
     # Ordering and pagination
     ordering_attr = getattr(Trace, query_params.order_by.value)
@@ -315,13 +312,11 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of traces.")
     ),
     description=(
         POST_DESCRIPTION.copy()
-        .add_line(
-            "Logged-in executive must have `company.route.trace.create` permission."
-        )
+        .add_line("Logged-in executive must have `company.trace.create` permission.")
         .to_string()
     ),
 )
-async def create_route_for_executive(
+async def create_trace_for_executive(
     form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -331,7 +326,7 @@ async def create_route_for_executive(
         token = authorize_executive(
             session,
             access_token,
-            [ExecutivePermissionPath.CREATE_COMPANY_ROUTE_TRACE],
+            [ExecutivePermissionPath.CREATE_COMPANY_TRACE],
         )
 
         validate_id(session, Company, form_param.company_id, Trace.company_id)
@@ -353,9 +348,7 @@ async def create_route_for_executive(
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
         PATCH_DESCRIPTION.copy()
-        .add_line(
-            "Logged-in executive must have `company.route.trace.update` permission."
-        )
+        .add_line("Logged-in executive must have `company.trace.update` permission.")
         .to_string()
     ),
 )
@@ -370,7 +363,7 @@ async def update_trace_for_executive(
         token = authorize_executive(
             session,
             access_token,
-            [ExecutivePermissionPath.UPDATE_COMPANY_ROUTE_TRACE],
+            [ExecutivePermissionPath.UPDATE_COMPANY_TRACE],
         )
 
         have_updates, trace_data = update_trace(
@@ -395,7 +388,7 @@ async def update_trace_for_executive(
     description=(
         DELETE_DESCRIPTION.copy()
         .add_line(
-            "The logged-in executive must have the `company.route.trace.delete` permission."
+            "The logged-in executive must have the `company.trace.delete` permission."
         )
         .to_string()
     ),
@@ -410,7 +403,7 @@ async def delete_trace_for_executive(
         token = authorize_executive(
             session,
             access_token,
-            [ExecutivePermissionPath.DELETE_COMPANY_ROUTE_TRACE],
+            [ExecutivePermissionPath.DELETE_COMPANY_TRACE],
         )
 
         trace = session.query(Trace).filter(Trace.id == id).first()
@@ -461,9 +454,7 @@ async def fetch_traces_for_executive(
     responses=fuse_exception_responses([*POST_EXCEPTIONS]),
     description=(
         POST_DESCRIPTION.copy()
-        .add_line(
-            "Logged-in operator must have `company.route.trace.create` permission."
-        )
+        .add_line("Logged-in operator must have `company.trace.create` permission.")
         .to_string()
     ),
 )
@@ -477,7 +468,7 @@ async def create_trace_for_operator(
         token = authorize_operator(
             session,
             access_token.credentials,
-            [OperatorPermissionPath.CREATE_COMPANY_ROUTE_TRACE],
+            [OperatorPermissionPath.CREATE_COMPANY_TRACE],
         )
 
         trace_data = create_trace(
@@ -499,9 +490,7 @@ async def create_trace_for_operator(
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
         PATCH_DESCRIPTION.copy()
-        .add_line(
-            "Logged-in operator must have `company.route.trace.update` permission."
-        )
+        .add_line("Logged-in operator must have `company.trace.update` permission.")
         .to_string()
     ),
 )
@@ -516,7 +505,7 @@ async def update_trace_for_operator(
         token = authorize_operator(
             session,
             access_token.credentials,
-            [OperatorPermissionPath.UPDATE_COMPANY_ROUTE_TRACE],
+            [OperatorPermissionPath.UPDATE_COMPANY_TRACE],
         )
 
         have_updates, trace_data = update_trace(
@@ -543,7 +532,7 @@ async def update_trace_for_operator(
     description=(
         DELETE_DESCRIPTION.copy()
         .add_line(
-            "The logged-in operator must have the `company.route.trace.delete` permission."
+            "The logged-in operator must have the `company.trace.delete` permission."
         )
         .to_string()
     ),
@@ -558,7 +547,7 @@ async def delete_trace_for_operator(
         token = authorize_operator(
             session,
             access_token.credentials,
-            [OperatorPermissionPath.DELETE_COMPANY_ROUTE_TRACE],
+            [OperatorPermissionPath.DELETE_COMPANY_TRACE],
         )
 
         trace = (
@@ -577,7 +566,7 @@ async def delete_trace_for_operator(
 
 
 @route_operator.get(
-    URL_ROUTE,
+    URL_ROUTE_TRACE,
     summary="Fetch trace",
     tags=["Trace"],
     response_model=List[TraceSchema],
