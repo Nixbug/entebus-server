@@ -37,6 +37,7 @@ from app.api import (
     vendor_image,
     vendor_token,
     landmark_in_route,
+    service_location,
 )
 from app.src.enums import AppID
 
@@ -82,6 +83,7 @@ app_executive.include_router(landmark_in_route.route_executive)
 app_executive.include_router(fare.route_executive)
 app_executive.include_router(duty.route_executive)
 app_executive.include_router(service_assignment.route_executive)
+app_executive.include_router(service_location.route_executive)
 app_executive.include_router(service.route_executive)
 app_executive.include_router(paper_ticket.route_executive)
 app_executive.include_router(trace.route_executive)
@@ -101,6 +103,7 @@ app_vendor.include_router(vehicle.route_vendor)
 app_vendor.include_router(route.route_vendor)
 app_vendor.include_router(landmark_in_route.route_vendor)
 app_vendor.include_router(fare.route_vendor)
+app_vendor.include_router(service_location.route_vendor)
 app_vendor.include_router(service.route_vendor)
 
 
@@ -122,6 +125,7 @@ app_operator.include_router(landmark_in_route.route_operator)
 app_operator.include_router(fare.route_operator)
 app_operator.include_router(duty.route_operator)
 app_operator.include_router(service_assignment.route_operator)
+app_operator.include_router(service_location.route_operator)
 app_operator.include_router(service.route_operator)
 app_operator.include_router(paper_ticket.route_operator)
 app_operator.include_router(trace.route_operator)
@@ -139,4 +143,5 @@ app_public.include_router(vehicle.route_public)
 app_public.include_router(vehicle_image.route_public)
 app_public.include_router(route.route_public)
 app_public.include_router(landmark_in_route.route_public)
+app_public.include_router(service_location.route_public)
 app_public.include_router(service.route_public)
