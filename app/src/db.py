@@ -2668,7 +2668,7 @@ class Trace(ORMbase):
         created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the trace record was created.
     """
-    
+
     __tablename__ = "trace"
     __table_args__ = (UniqueConstraint("name", "company_id"),)
 
@@ -2713,7 +2713,7 @@ class LocationInTrace(ORMbase):
         created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the location in trace record was created.
     """
-    
+
     __tablename__ = "location_in_trace"
 
     id = Column(Integer, primary_key=True)
