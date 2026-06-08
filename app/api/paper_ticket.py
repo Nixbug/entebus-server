@@ -357,7 +357,7 @@ def create_paper_ticket(
 
 def search_paper_tickets(
     session: Session, query_params: QueryParams
-) -> List[PaperTicketDetailSchema]:
+) -> List[PaperTicket]:
     """
     Search for paper tickets provided on query parameters.
 
@@ -370,7 +370,7 @@ def search_paper_tickets(
 
 
     Returns:
-        List[PaperTicketDetailSchema]: List of paper tickets that match the search criteria.
+        List[PaperTicket]: List of paper tickets that match the search criteria.
     """
     query = session.query(PaperTicket)
     if query_params.company_id is not None:
