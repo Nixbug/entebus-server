@@ -74,7 +74,7 @@ class LocationInTraceForm(BaseModel):
     """Form data for creating a location in trace."""
 
     location_type: LocationType = Field()
-    location: List[str] = Field(
+    locations: List[str] = Field(
         description=(
             "Accepts only SRID 4326 (WGS84) and valid WKT strings representing `POINT`s. Supports batch uploads with a list of WKT strings."
         ),
@@ -85,11 +85,13 @@ class CreateForm(BaseModel):
     """Form data for creating locations in trace."""
 
     trace_id: int = Field()
-    locations: List[LocationInTraceForm] = Field()
+    trace_locations: List[LocationInTraceForm] = Field()
 
     @model_validator(mode="after")
     def validate_total_locations(self):
-        total_locations = sum(len(location.location) for location in self.locations)
+        total_locations = sum(
+            len(location.locations) for location in self.trace_locations
+        )
         if total_locations == 0:
             raise ValueError("At least 1 location is required per batch upload.")
         if total_locations > 50:
@@ -169,8 +171,8 @@ def create_location_in_trace(
         LocationInTrace.trace_id,
         extra_filter=extra_filter_for_trace,
     )
-    for location_data in form_param.locations:
-        for location in location_data.location:
+    for location_data in form_param.trace_locations:
+        for location in location_data.locations:
             geometry = validate_wkt_string(location, Point)
             validate_srid_4326(geometry)
 
