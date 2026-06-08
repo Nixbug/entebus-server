@@ -2658,9 +2658,9 @@ class Trace(ORMbase):
             Cascades on delete — if the company is removed, related trace records are deleted.
 
         name (String(4096), not null,):
-            Name of the route.
+            Name of the trace.
             Maximum 4096 characters long.
-            Unique together with `company_id` to prevent duplicate route names within the same company.
+            Unique together with `company_id` to prevent duplicate trace names within the same company.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp automatically updated whenever the trace record is modified.
