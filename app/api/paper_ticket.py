@@ -8,7 +8,7 @@ Uses Pydantic schemas for input validation and structured output.
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Dict, List
+from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, status, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -59,7 +59,7 @@ route_operator = APIRouter()
 # ---------------------------------------------------------------------------
 class TicketSchema(BaseModel):
     """Schema for the ticket field within a paper ticket."""
-    
+
     sequence_id: int
     warnings: List[PaperTicketWarning] = Field(default_factory=list)
     uploaded_by: int | None = None
@@ -79,11 +79,15 @@ class PaperTicketDetailSchema(BaseModel):
 
     id: int
     service_id: int
-    duty_id: int
-    company_id: int
-    ticket: TicketSchema
-    amount: TwoDecimalPlaces
     created_on: datetime
+    ticket_types: List[TicketTypeSchema]
+    amount: TwoDecimalPlaces
+    pickup_point: int
+    dropping_point: int
+    extras: Dict[str, Any] = Field(default_factory=dict)
+    sequence_id: int
+    warnings: List[PaperTicketWarning] = Field(default_factory=list)
+    uploaded_by: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -347,7 +351,7 @@ def create_paper_ticket(
 
 def search_paper_tickets(
     session: Session, query_params: QueryParams
-) -> List[PaperTicket]:
+) -> List[PaperTicketDetailSchema]:
     """
     Search for paper tickets provided on query parameters.
 
@@ -360,7 +364,7 @@ def search_paper_tickets(
 
 
     Returns:
-        List[PaperTicket]: List of paper tickets that match the search criteria.
+        List[PaperTicketDetailSchema]: List of paper tickets that match the search criteria.
     """
     query = session.query(PaperTicket)
     if query_params.company_id is not None:
@@ -385,7 +389,22 @@ def search_paper_tickets(
     query = query.offset(query_params.offset).limit(query_params.limit)
 
     paper_tickets = query.all()
-    return paper_tickets
+    return [
+        PaperTicketDetailSchema(
+            id=ticket.id,
+            service_id=ticket.service_id,
+            created_on=ticket.created_on,
+            ticket_types=ticket.ticket["ticket_types"],
+            amount=ticket.amount,
+            pickup_point=ticket.ticket["pickup_point"],
+            dropping_point=ticket.ticket["dropping_point"],
+            extras=ticket.ticket.get("extras", {}),
+            sequence_id=ticket.ticket["sequence_id"],
+            warnings=ticket.ticket.get("warnings", []),
+            uploaded_by=ticket.ticket.get("uploaded_by"),
+        )
+        for ticket in paper_tickets
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -453,7 +472,7 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of paper tickets.")
     URL_PAPER_TICKET,
     summary="Fetch paper ticket",
     tags=["Paper Ticket"],
-    response_model=List[PaperTicketSchema],
+    response_model=List[PaperTicketDetailSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
@@ -510,7 +529,7 @@ async def create_paper_ticket_for_operator(
     URL_PAPER_TICKET,
     summary="Fetch paper ticket",
     tags=["Paper Ticket"],
-    response_model=List[PaperTicketSchema],
+    response_model=List[PaperTicketDetailSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
