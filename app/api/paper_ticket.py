@@ -80,14 +80,11 @@ class PaperTicketDetailSchema(BaseModel):
     id: int
     service_id: int
     created_on: datetime
-    ticket_types: List[TicketTypeSchema]
+    ticket_types: TicketTypeSchema
     amount: TwoDecimalPlaces
     pickup_point: int
     dropping_point: int
-    extras: Dict[str, Any] = Field(default_factory=dict)
-    sequence_id: int
-    warnings: List[PaperTicketWarning] = Field(default_factory=list)
-    uploaded_by: int | None = None
+    
 
 
 # ---------------------------------------------------------------------------
@@ -389,22 +386,7 @@ def search_paper_tickets(
     query = query.offset(query_params.offset).limit(query_params.limit)
 
     paper_tickets = query.all()
-    return [
-        PaperTicketDetailSchema(
-            id=ticket.id,
-            service_id=ticket.service_id,
-            created_on=ticket.created_on,
-            ticket_types=ticket.ticket["ticket_types"],
-            amount=ticket.amount,
-            pickup_point=ticket.ticket["pickup_point"],
-            dropping_point=ticket.ticket["dropping_point"],
-            extras=ticket.ticket.get("extras", {}),
-            sequence_id=ticket.ticket["sequence_id"],
-            warnings=ticket.ticket.get("warnings", []),
-            uploaded_by=ticket.ticket.get("uploaded_by"),
-        )
-        for ticket in paper_tickets
-    ]
+    return jsonable_encoder(paper_tickets)
 
 
 # ---------------------------------------------------------------------------
