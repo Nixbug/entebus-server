@@ -70,6 +70,7 @@ class PaperTicketSchema(BaseModel):
     created_on: datetime
 
 
+class PaperTicketDetailSchema(BaseModel):
 # ---------------------------------------------------------------------------
 ## Input Forms
 # ---------------------------------------------------------------------------
