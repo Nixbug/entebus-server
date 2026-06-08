@@ -75,7 +75,7 @@ class PaperTicketSchema(BaseModel):
 
 
 class MinimalPaperTicketSchema(BaseModel):
-    """Minimal schema for paper ticket with only essential fields."""
+    """Minimal schema for paper ticket."""
 
     sequence_id: int
     ticket_types: List[TicketTypeSchema]
