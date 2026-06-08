@@ -395,7 +395,7 @@ def search_paper_tickets(
     query = query.offset(query_params.offset).limit(query_params.limit)
 
     paper_tickets = query.all()
-    return jsonable_encoder(paper_tickets)
+    return paper_tickets
 
 
 # ---------------------------------------------------------------------------
