@@ -28,7 +28,6 @@ from app.src.filters import (
     CreatedOnFilter,
     IDFilter,
     PaginationFilter,
-    UpdatedOnFilter,
 )
 from app.src.functions import (
     apply_created_on_filters,
