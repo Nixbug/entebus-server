@@ -57,25 +57,25 @@ route_operator = APIRouter()
 # ---------------------------------------------------------------------------
 ## Output Schema
 # ---------------------------------------------------------------------------
-class TicketSchema(BaseModel):
-    """Schema for the ticket field within a paper ticket."""
+class MinimalPaperTicketDetailSchema(BaseModel):
+    """Schema for the paper ticket batch response."""
 
     sequence_id: int
     warnings: List[PaperTicketWarning] = Field(default_factory=list)
     uploaded_by: int | None = None
 
 
-class PaperTicketSchema(BaseModel):
-    """Schema for paper ticket with required fields."""
+class MinimalPaperTicketSchema(BaseModel):
+    """Schema for paper ticket batch response."""
 
     id: int
     duty_id: int
-    ticket: TicketSchema
+    ticket: MinimalPaperTicketDetailSchema
     created_on: datetime
 
 
-class MinimalPaperTicketSchema(TicketSchema):
-    """Minimal schema for paper ticket."""
+class PaperTicketDetailSchema(MinimalPaperTicketDetailSchema):
+    """schema for paper ticket detail response."""
 
     ticket_types: List[TicketTypeSchema]
     pickup_point: int
@@ -83,16 +83,13 @@ class MinimalPaperTicketSchema(TicketSchema):
     created_on: datetime
 
 
-class PaperTicketDetailSchema(BaseModel):
-    """Detailed schema for paper ticket with all fields."""
+class PaperTicketSchema(MinimalPaperTicketSchema):
+    """ schema for paper ticket response."""
 
-    id: int
     service_id: int
-    duty_id: int
     company_id: int
     amount: TwoDecimalPlaces
-    ticket: MinimalPaperTicketSchema
-    created_on: datetime
+    ticket: PaperTicketDetailSchema
 
 
 # ---------------------------------------------------------------------------
@@ -462,7 +459,7 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of paper tickets.")
     URL_PAPER_TICKET,
     summary="Fetch paper ticket",
     tags=["Paper Ticket"],
-    response_model=List[PaperTicketDetailSchema],
+    response_model=List[PaperTicketSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
@@ -519,7 +516,7 @@ async def create_paper_ticket_for_operator(
     URL_PAPER_TICKET,
     summary="Fetch paper ticket",
     tags=["Paper Ticket"],
-    response_model=List[PaperTicketDetailSchema],
+    response_model=List[PaperTicketSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
