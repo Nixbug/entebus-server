@@ -85,7 +85,7 @@ class PaperTicketDetailSchema(MinimalPaperTicketDetailSchema):
 
 
 class PaperTicketSchema(MinimalPaperTicketSchema):
-    """ schema for paper ticket response."""
+    """schema for paper ticket response."""
 
     service_id: int
     company_id: int
