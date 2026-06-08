@@ -80,6 +80,7 @@ class MinimalPaperTicketSchema(TicketSchema):
     ticket_types: List[TicketTypeSchema]
     pickup_point: int
     dropping_point: int
+    created_on: datetime
 
 
 class PaperTicketDetailSchema(BaseModel):
@@ -89,9 +90,9 @@ class PaperTicketDetailSchema(BaseModel):
     service_id: int
     duty_id: int
     company_id: int
-    created_on: datetime
     amount: TwoDecimalPlaces
     ticket: MinimalPaperTicketSchema
+    created_on: datetime
 
 
 # ---------------------------------------------------------------------------
