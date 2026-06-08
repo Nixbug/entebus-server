@@ -58,12 +58,16 @@ route_operator = APIRouter()
 ## Output Schema
 # ---------------------------------------------------------------------------
 class TicketSchema(BaseModel):
+    """Schema for the ticket field within a paper ticket."""
+    
     sequence_id: int
     warnings: List[PaperTicketWarning] = Field(default_factory=list)
     uploaded_by: int | None = None
 
 
 class PaperTicketSchema(BaseModel):
+    """Schema for paper ticket with required fields."""
+
     id: int
     duty_id: int
     ticket: TicketSchema
@@ -71,6 +75,17 @@ class PaperTicketSchema(BaseModel):
 
 
 class PaperTicketDetailSchema(BaseModel):
+    """Detailed schema for paper ticket with all fields."""
+
+    id: int
+    service_id: int
+    duty_id: int
+    company_id: int
+    ticket: TicketSchema
+    amount: TwoDecimalPlaces
+    created_on: datetime
+
+
 # ---------------------------------------------------------------------------
 ## Input Forms
 # ---------------------------------------------------------------------------
