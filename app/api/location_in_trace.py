@@ -170,7 +170,6 @@ def create_location_in_trace(
         extra_filter=extra_filter_for_trace,
     )
     for location_data in form_param.locations:
-        location_type = location_data.location_type
         for location in location_data.location:
             geometry = validate_wkt_string(location, Point)
             validate_srid_4326(geometry)
@@ -179,7 +178,7 @@ def create_location_in_trace(
                 trace_id=form_param.trace_id,
                 company_id=trace.company_id,
                 location=wkt.dumps(geometry),
-                location_type=location_type,
+                location_type=location_data.location_type,
             )
             session.add(location_in_trace)
     session.commit()
