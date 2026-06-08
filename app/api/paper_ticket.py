@@ -8,7 +8,7 @@ Uses Pydantic schemas for input validation and structured output.
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Any, Dict, List
+from typing import Dict, List
 from fastapi import APIRouter, Depends, status, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
