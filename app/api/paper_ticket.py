@@ -74,17 +74,26 @@ class PaperTicketSchema(BaseModel):
     created_on: datetime
 
 
+class MinimalPaperTicketSchema(BaseModel):
+    """Minimal schema for paper ticket with only essential fields."""
+
+    sequence_id: int
+    ticket_types: List[TicketTypeSchema]
+    pickup_point: int
+    dropping_point: int
+    warnings: List[PaperTicketWarning] = Field(default_factory=list)
+    uploaded_by: int | None = None
+    extras: Dict[str, Any] = Field(default_factory=dict)
+
+
 class PaperTicketDetailSchema(BaseModel):
     """Detailed schema for paper ticket with all fields."""
 
     id: int
     service_id: int
     created_on: datetime
-    ticket_types: TicketTypeSchema
     amount: TwoDecimalPlaces
-    pickup_point: int
-    dropping_point: int
-    
+    ticket: MinimalPaperTicketSchema
 
 
 # ---------------------------------------------------------------------------
