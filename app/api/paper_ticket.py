@@ -80,6 +80,7 @@ class PaperTicketDetailSchema(MinimalPaperTicketDetailSchema):
     ticket_types: List[TicketTypeSchema]
     pickup_point: int
     dropping_point: int
+    extras: dict = Field(default_factory=dict)
     created_on: datetime
 
 
