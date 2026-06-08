@@ -20,6 +20,7 @@ from app.api import (
     executive_role,
     fare,
     landmark,
+    location_in_trace,
     operator_account,
     operator_image,
     operator_role,
@@ -29,6 +30,7 @@ from app.api import (
     route,
     service,
     service_assignment,
+    trace,
     vehicle,
     vehicle_image,
     vendor_account,
@@ -84,6 +86,8 @@ app_executive.include_router(service_assignment.route_executive)
 app_executive.include_router(service_location.route_executive)
 app_executive.include_router(service.route_executive)
 app_executive.include_router(paper_ticket.route_executive)
+app_executive.include_router(trace.route_executive)
+app_executive.include_router(location_in_trace.route_executive)
 
 
 # ------------------------------------------------------
@@ -124,6 +128,8 @@ app_operator.include_router(service_assignment.route_operator)
 app_operator.include_router(service_location.route_operator)
 app_operator.include_router(service.route_operator)
 app_operator.include_router(paper_ticket.route_operator)
+app_operator.include_router(trace.route_operator)
+app_operator.include_router(location_in_trace.route_operator)
 
 
 # ------------------------------------------------------
