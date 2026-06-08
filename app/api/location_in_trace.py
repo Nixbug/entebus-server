@@ -11,7 +11,7 @@ from geoalchemy2 import Geography
 from shapely import Point, wkt
 from sqlalchemy import func
 from fastapi import APIRouter, Depends, Query, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import List, Dict
 from sqlalchemy.orm import Session
 
@@ -70,14 +70,31 @@ class LocationInTraceSchema(BaseModel):
 # ---------------------------------------------------------------------------
 ## Input Forms
 # ---------------------------------------------------------------------------
+class LocationInTraceForm(BaseModel):
+    """Form data for creating a location in trace."""
+
+    location_type: LocationType = Field()
+    location: List[str] = Field(
+        description=(
+            "Accepts only SRID 4326 (WGS84) and valid WKT strings representing `POINT`s. Supports batch uploads with a list of WKT strings."
+        ),
+    )
+
+
 class CreateForm(BaseModel):
     """Form data for creating locations in trace."""
 
     trace_id: int = Field()
-    locations: Dict[LocationType, List[str]] = Field(
-        min_length=1,
-        max_length=100,
-    )
+    locations: List[LocationInTraceForm] = Field()
+
+    @model_validator(mode="after")
+    def validate_total_locations(self):
+        total_locations = sum(len(location.location) for location in self.locations)
+        if total_locations == 0:
+            raise ValueError("At least 1 location is required per batch upload.")
+        if total_locations > 50:
+            raise ValueError("At most 50 locations are allowed per batch upload.")
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -152,8 +169,9 @@ def create_location_in_trace(
         LocationInTrace.trace_id,
         extra_filter=extra_filter_for_trace,
     )
-    for location_type, locations in form_param.locations.items():
-        for location in locations:
+    for location_data in form_param.locations:
+        location_type = location_data.location_type
+        for location in location_data.location:
             geometry = validate_wkt_string(location, Point)
             validate_srid_4326(geometry)
 
@@ -257,6 +275,8 @@ POST_DESCRIPTION = (
     .add_line("The location field must be a valid WKT string.")
     .add_line("The coordinates must be in longitude/latitude format.")
     .add_line("Use WGS84 compatible coordinates within SRID 4326 bounds.")
+    .add_line("Supports batch uploads")
+    .add_line("A maximum of 50 locations can be uploaded in a single batch upload.")
 )
 
 GET_DESCRIPTION = (
