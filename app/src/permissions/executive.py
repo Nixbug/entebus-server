@@ -69,6 +69,10 @@ class PermissionPath(StrEnum):
     UPDATE_COMPANY_ROUTE = "company.route.update"
     DELETE_COMPANY_ROUTE = "company.route.delete"
 
+    CREATE_COMPANY_TRACE = "company.trace.create"
+    UPDATE_COMPANY_TRACE = "company.trace.update"
+    DELETE_COMPANY_TRACE = "company.trace.delete"
+
     CREATE_COMPANY_OPERATOR = "company.operator.create"
     UPDATE_COMPANY_OPERATOR = "company.operator.update"
     DELETE_COMPANY_OPERATOR = "company.operator.delete"
@@ -172,6 +176,7 @@ class CompanyPermissions(CRUDPermission):
     vehicle: CRUDPermission
     fare: CRUDPermission
     route: CRUDPermission
+    trace: CRUDPermission
     operator: OperatorPermissions
     service: ServicePermissions
     schedule: CRUDPermission

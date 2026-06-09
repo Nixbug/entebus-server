@@ -52,6 +52,7 @@ from app.src.enums import (
     BusinessType,
     GenderType,
     LandmarkType,
+    LocationType,
     PlatformType,
     CompanyStatus,
     CompanyType,
@@ -2541,9 +2542,16 @@ class PaperTicket(ORMbase):
             Indicates the company under which the ticket was issued.
 
         ticket (JSONB, not null):
-            Structured data capturing the full ticket content including ticket types,
-            pickup_point, dropping_point, and any additional metadata.
-            It is closely bound to `ticket_type` in fare attributes.
+            Structured data capturing the ticket details.
+            Expected keys and values:
+                - `sequence_id`: Unique identifier for the ticket generated at the client side.
+                - `ticket_types`: List of ticket types.
+                - `pickup_point`: Starting landmark ID of the passenger.
+                - `dropping_point`: Ending landmark ID of the passenger.
+                - `extras`: Any additional information relevant to the ticket.
+                - `warnings`: Optional field for any warnings related to the ticket. Mapped from the `PaperTicketWarning` enum.
+                - `uploaded_by`: Optional operator ID of the person who uploaded the ticket, if different from the duty operator.
+                - `created_on`: Timestamp of when the ticket was created at client side.
 
         amount (Numeric(10, 2), not null):
             Total fare amount collected for this ticket.
@@ -2573,12 +2581,11 @@ class PaperTicket(ORMbase):
 
 class ServiceLocation(ORMbase):
     """
-    Real-time or historical geospatial trace for services.
+    Real-time service location information.
 
-    This table stores location samples linked to a company and a service,
-    and may include an `operator_id` and a reference to a `landmark`.
-    Each record represents a point-in-time position with optional accuracy
-    metadata and timestamps.
+    This table stores the current location associated with a company and a service.
+    Each service can have only one location record, identified by its
+    landmark reference, geographic coordinates, and optional accuracy metric.
 
     Columns:
         id (Integer, unique, not null):
@@ -2593,13 +2600,6 @@ class ServiceLocation(ORMbase):
             Foreign key referencing `service.id`.
             Indicates the service associated with this location record.
             Cascades on delete — if the service is removed, related location records are deleted.
-
-        operator_id (Integer, nullable):
-            Foreign key referencing `operator.id`.
-            Indicates the operator associated with this location record, if any.
-            Set to NULL when the referenced operator is deleted.
-            Unique constraint `(service_id, operator_id)` ensures at most one
-            location record per operator for a given service.
 
         landmark_id (Integer, not null):
             Foreign key referencing `landmark.id`.
@@ -2619,7 +2619,6 @@ class ServiceLocation(ORMbase):
     """
 
     __tablename__ = "service_location"
-    __table_args__ = (UniqueConstraint("service_id", "operator_id"),)
 
     id = Column(Integer, primary_key=True)
     company_id = Column(
@@ -2633,15 +2632,104 @@ class ServiceLocation(ORMbase):
         ForeignKey("service.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-    )
-    operator_id = Column(
-        Integer,
-        ForeignKey("operator.id", ondelete="SET NULL"),
-        index=True,
+        unique=True,
     )
     landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
     location = Column(Geometry(geometry_type="POINT", srid=4326))
     accuracy = Column(Float)
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class Trace(ORMbase):
+    """
+    Represents a route trace record associated with a company.
+
+    This table stores trace records that define a named trace belonging to a company.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the trace record.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id`.
+            Indicates the company associated with this trace record.
+            Cascades on delete — if the company is removed, related trace records are deleted.
+
+        name (String(4096), not null,):
+            Name of the trace.
+            Maximum 4096 characters long.
+            Unique together with `company_id` to prevent duplicate trace names within the same company.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the trace record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the trace record was created.
+    """
+
+    __tablename__ = "trace"
+    __table_args__ = (UniqueConstraint("name", "company_id"),)
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    name = Column(String(4096), nullable=False)
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class LocationInTrace(ORMbase):
+    """
+    Represents a location record associated with a trace.
+
+    This table stores locations associated with a trace, including the geospatial point, type of location, and timestamps.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the location in trace record.
+
+        trace_id (Integer, not null):
+            Foreign key referencing `trace.id`.
+            Indicates the trace associated with this location in trace record.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id`.
+            Indicates the company associated with this trace record.
+            Cascades on delete — if the company is removed, related trace records are deleted.
+
+        location (Geometry(geometry_type="POINT", srid=4326), not null):
+            Geospatial point representing the recorded location.
+
+        location_type (Integer, not null, default=LocationType.WAYPOINT):
+            Type of the location. Mapped from the `LocationType` enum.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the location in trace record was created.
+    """
+
+    __tablename__ = "location_in_trace"
+
+    id = Column(Integer, primary_key=True)
+    trace_id = Column(
+        Integer,
+        ForeignKey("trace.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    location = Column(Geometry(geometry_type="POINT", srid=4326), nullable=False)
+    location_type = Column(Integer, nullable=False, default=LocationType.WAYPOINT)
+    # Metadata
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())

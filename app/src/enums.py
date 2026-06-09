@@ -201,3 +201,18 @@ class FareScope(IntEnum):
 
     GLOBAL = 1
     LOCAL = 2
+
+
+class PaperTicketWarning(IntEnum):
+    """Warnings associated with a paper ticket upload."""
+
+    OPERATOR_NOT_FOUND = 1
+    OPERATOR_MISMATCH = 2
+
+
+class LocationType(IntEnum):
+    """Type of location in trace records."""
+
+    WAYPOINT = 1
+    INTERMEDIATE_STOP = 2
+    MAIN_STOP = 3
