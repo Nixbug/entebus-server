@@ -65,6 +65,10 @@ from app.src.enums import (
     ServiceStatus,
     TicketingMode,
     DutyStatus,
+    JobType,
+    FrequencyType,
+    TriggeringMode,
+    Day,
 )
 
 
@@ -2732,4 +2736,87 @@ class LocationInTrace(ORMbase):
     location = Column(Geometry(geometry_type="POINT", srid=4326), nullable=False)
     location_type = Column(Integer, nullable=False, default=LocationType.WAYPOINT)
     # Metadata
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class JOB(ORMbase):
+    """
+    Represents a scheduled background job.
+
+    This table stores information about background jobs that are scheduled to run at specific times.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the job record.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id`.
+            Indicates the company associated with this job record.
+            Cascades on delete — if the company is removed, related job records are deleted.
+
+        name(String(128), not null):
+            Name of the job.
+            Maximum 128 characters long.
+
+        description (TEXT, nullable):
+            Optional description or notes about the job.
+            Maximum 1024 characters long.
+
+        job_type (Integer, not null, default=JobType.SERVICE_CREATION):
+            Type of the job. Mapped from the `JobType` enum.
+
+        frequency_type (Integer, not null, default=FrequencyType.WEEKLY):
+            Frequency type for scheduling the job. Mapped from the `FrequencyType` enum.
+
+        frequency (Array(Integer), nullable=False):
+            Array of integers representing the specific schedule based on the frequency type.
+
+        trigger_at (Time(timezone=True), not null):
+            Time of the day when the job should be triggered.
+
+        triggering_mode (Integer, not null, default=TriggeringMode.AUTO):
+            Mode of triggering the job. Mapped from the `TriggeringMode` enum.
+
+        next_trigger_on (DateTime, nullable):
+            Timestamp indicating the next scheduled trigger time for the job.
+
+        last_trigger_on (DateTime, nullable):
+            Timestamp indicating the last time the job was triggered.
+
+        trigger_from (DateTime, nullable):
+            Timestamp indicating the start of the period during which the job should be triggered.
+
+        trigger_till (DateTime, nullable):
+            Timestamp indicating the end of the period during which the job should be triggered.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+        Timestamp automatically updated whenever the job record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the job record was created.
+    """
+
+    __tablename__ = "job"
+    __table_args__ = (UniqueConstraint("name", "company_id"),)
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    name = Column(String(128), nullable=False)
+    description = Column(TEXT)
+    job_type = Column(Integer, nullable=False, default=JobType.SERVICE_CREATION)
+    frequency_type = Column(Integer, nullable=False, default=FrequencyType.WEEKLY)
+    frequency = Column(ARRAY(Integer), nullable=False)
+    trigger_at = Column(Time(timezone=True), nullable=False)
+    triggering_mode = Column(Integer, nullable=False, default=TriggeringMode.AUTO)
+    next_trigger_on = Column(DateTime(timezone=True))
+    last_trigger_on = Column(DateTime(timezone=True))
+    trigger_from = Column(DateTime(timezone=True))
+    trigger_till = Column(DateTime(timezone=True))
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())

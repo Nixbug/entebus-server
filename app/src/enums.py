@@ -145,6 +145,7 @@ class TriggeringMode(IntEnum):
 
     AUTO = 1
     MANUAL = 2
+    DISABLED = 3
 
 
 class ServiceStatus(IntEnum):
@@ -216,3 +217,18 @@ class LocationType(IntEnum):
     WAYPOINT = 1
     INTERMEDIATE_STOP = 2
     MAIN_STOP = 3
+
+
+class JobType(IntEnum):
+    """Types of background jobs."""
+
+    SERVICE_CREATION = 1
+    STATEMENT_CREATION = 2
+
+
+class FrequencyType(IntEnum):
+    """Frequency types for scheduling."""
+
+    WEEKLY = 1
+    MONTHLY = 2
+    YEARLY = 3  

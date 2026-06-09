@@ -24,6 +24,7 @@ redis_client = Redis(
 def acquire_lock(
     lock_id: str,
     timeout: int = LOCK_TIMEOUT_SECONDS,
+    blocking: bool = True,
     blocking_timeout: int = LOCK_MAX_WAIT_SECONDS,
 ) -> Lock:
     """
@@ -32,6 +33,7 @@ def acquire_lock(
     Args:
         lock_id (str): Unique identifier for the lock.
         timeout (int): Lock expiration in seconds (auto-released after this).
+        blocking (bool): Whether to block until the lock is acquired.
         blocking_timeout (int): Maximum time (in seconds) to wait for lock acquisition.
 
     Returns:
@@ -45,8 +47,8 @@ def acquire_lock(
     try:
         lock = redis_client.lock(lock_name, timeout=timeout)
         acquired = lock.acquire(
-            blocking=True,
-            blocking_timeout=blocking_timeout,
+            blocking=blocking,
+            blocking_timeout=blocking_timeout if blocking else None,
         )
 
     except Exception as e:
