@@ -206,7 +206,7 @@ def create_fare(session: Session, form_param: CreateForm) -> dict:
         dict: The created fare data.
     """
 
-    if form_param.scope == FareScope.LOCAL and form_param.company_id is not None:
+    if form_param.scope == FareScope.LOCAL:
         local_fare_count = (
             session.query(Fare)
             .filter(
@@ -215,7 +215,6 @@ def create_fare(session: Session, form_param: CreateForm) -> dict:
             )
             .count()
         )
-
         if local_fare_count >= MAX_LOCAL_FARES_PER_COMPANY:
             raise exceptions.LimitExceeded(Fare)
 
