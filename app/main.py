@@ -21,6 +21,7 @@ from app.api.controller import app_executive, app_operator, app_vendor, app_publ
 from app.src.urls import URL_HEALTH
 
 app = FastAPI(title=API_TITLE, version=API_VERSION)
+
 # Configure CORS (Cross-Origin Resource Sharing)
 origins = ["*"]
 app.add_middleware(
