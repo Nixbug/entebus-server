@@ -14,8 +14,6 @@ This module:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from threading import Thread
-from app.src.scheduler import job_runner
 
 from app.src.schemas import HealthStatus
 from app.src.constants import API_TITLE, API_VERSION
@@ -56,7 +54,3 @@ async def health_check():
     - It returns a simple JSON response indicating the current status and version of the API.
     """
     return {"status": "OK", "version": API_VERSION}
-
-
-thread = Thread(target=job_runner)
-thread.start()
