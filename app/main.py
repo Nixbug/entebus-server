@@ -14,6 +14,8 @@ This module:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from threading import Thread
+from app.src.scheduler import job_runner
 
 from app.src.schemas import HealthStatus
 from app.src.constants import API_TITLE, API_VERSION
@@ -21,7 +23,6 @@ from app.api.controller import app_executive, app_operator, app_vendor, app_publ
 from app.src.urls import URL_HEALTH
 
 app = FastAPI(title=API_TITLE, version=API_VERSION)
-
 # Configure CORS (Cross-Origin Resource Sharing)
 origins = ["*"]
 app.add_middleware(
@@ -55,3 +56,7 @@ async def health_check():
     - It returns a simple JSON response indicating the current status and version of the API.
     """
     return {"status": "OK", "version": API_VERSION}
+
+
+thread = Thread(target=job_runner)
+thread.start()

@@ -2,6 +2,8 @@ from redis import Redis
 from typing import Optional
 from redis.exceptions import LockError
 from redis.lock import Lock
+import json
+from typing import Any
 
 from app.src import exceptions
 from app.src.constants import (
@@ -77,3 +79,37 @@ def release_lock(lock: Optional[Lock]) -> None:
             return
         except Exception as e:
             exceptions.handle(e)
+
+
+def queue_push(queue_name: str, data: dict[str, Any]) -> None:
+    """
+    Push an item to the end of a Redis queue.
+
+    Args:
+        queue_name: Name of the Redis queue.
+        data: Dictionary payload to push. The data is serialized to JSON
+            before being stored in Redis.
+    """
+    redis_client.rpush(queue_name, json.dumps(data))
+
+
+def queue_pop(queue_name: str) -> dict[str, Any] | None:
+    """
+    Pop and return the next item from a Redis queue.
+
+    Args:
+        queue_name: Name of the Redis queue.
+
+    Returns:
+        The next dictionary payload in the queue, or None if the queue
+        is empty.
+
+    Redis queues follow FIFO (First In, First Out) order, so the first
+    item added to the queue is the first item returned.
+    """
+    item = redis_client.lpop(queue_name)
+
+    if item is None:
+        return None
+
+    return json.loads(item)
