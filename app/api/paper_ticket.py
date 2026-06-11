@@ -57,17 +57,40 @@ route_operator = APIRouter()
 # ---------------------------------------------------------------------------
 ## Output Schema
 # ---------------------------------------------------------------------------
-class TicketSchema(BaseModel):
+class MinimalPaperTicketDetailSchema(BaseModel):
+    """Schema for the paper ticket batch response."""
+
     sequence_id: int
     warnings: List[PaperTicketWarning] = Field(default_factory=list)
     uploaded_by: int | None = None
 
 
-class PaperTicketSchema(BaseModel):
+class MinimalPaperTicketSchema(BaseModel):
+    """Schema for paper ticket batch response."""
+
     id: int
     duty_id: int
-    ticket: TicketSchema
+    ticket: MinimalPaperTicketDetailSchema
     created_on: datetime
+
+
+class PaperTicketDetailSchema(MinimalPaperTicketDetailSchema):
+    """schema for paper ticket detail response."""
+
+    ticket_types: List[TicketTypeSchema]
+    pickup_point: int
+    dropping_point: int
+    extras: dict = Field(default_factory=dict)
+    created_on: datetime
+
+
+class PaperTicketSchema(MinimalPaperTicketSchema):
+    """schema for paper ticket response."""
+
+    service_id: int
+    company_id: int
+    amount: TwoDecimalPlaces
+    ticket: PaperTicketDetailSchema
 
 
 # ---------------------------------------------------------------------------
