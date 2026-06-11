@@ -25,7 +25,11 @@ from app.src.db import (
     VendorToken,
 )
 from app.src.enums import FareScope, OrderIn
-from app.src.constants import JSX_TIMEOUT_MS, JSX_MAX_MEMORY_BYTES
+from app.src.constants import (
+    JSX_TIMEOUT_MS,
+    JSX_MAX_MEMORY_BYTES,
+    MAX_LOCAL_FARES_PER_COMPANY,
+)
 from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
@@ -201,6 +205,19 @@ def create_fare(session: Session, form_param: CreateForm) -> dict:
     Returns:
         dict: The created fare data.
     """
+
+    if form_param.scope == FareScope.LOCAL:
+        local_fare_count = (
+            session.query(Fare)
+            .filter(
+                Fare.company_id == form_param.company_id,
+                Fare.scope == FareScope.LOCAL,
+            )
+            .count()
+        )
+        if local_fare_count >= MAX_LOCAL_FARES_PER_COMPANY:
+            raise exceptions.LimitExceeded(Fare)
+
     form_param.attributes = form_param.attributes.model_dump()
     validate_fare_function(form_param.function, form_param.attributes)
     fare = Fare(
@@ -337,6 +354,7 @@ POST_EXCEPTIONS_COMMON = [
     exceptions.JSTimeLimitExceeded(),
     exceptions.JSMemoryLimitExceeded(),
     exceptions.UnknownTicketType(),
+    exceptions.LimitExceeded(Fare),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -369,6 +387,9 @@ POST_DESCRIPTION = (
     .add_line("The fare function is validated against the provided attributes.")
     .add_line(
         f"The maximum allowed size for the fare function is `{JSX_MAX_MEMORY_BYTES // 1024} KB` and maximum execution time is `{JSX_TIMEOUT_MS} ms`."
+    )
+    .add_line(
+        f"Local fare creation is limited to `{MAX_LOCAL_FARES_PER_COMPANY}` fares per company. Requests exceeding this limit will be rejected."
     )
     .add_line("Preferable dynamic fare version is 1.")
     .add_line("Preferable distance unit is meter and currency is INR.")
