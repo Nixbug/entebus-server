@@ -56,7 +56,7 @@ from app.src.filters import (
     NameFilter,
     enum_str,
 )
-from app.src.constants import MAX_OPERATOR_ROLES
+from app.src.constants import MAX_OPERATOR_ROLE
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -160,7 +160,7 @@ def create_role(session: Session, form_param: CreateForm) -> dict:
         .count()
     )
 
-    if role_count >= MAX_OPERATOR_ROLES:
+    if role_count >= MAX_OPERATOR_ROLE:
         raise exceptions.LimitExceeded(OperatorRole)
 
     permissions = form_param.permissions.model_dump()

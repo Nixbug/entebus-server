@@ -138,7 +138,7 @@ MAX_LOCAL_FARES_PER_COMPANY = 50  # Maximum LOCAL fares per company
 
 
 # ---------------------------------------------------------------------------
-# Roles per constraints executive/operator
+# Role per constraints executive/operator
 # ---------------------------------------------------------------------------
-MAX_EXECUTIVE_ROLES = 5
-MAX_OPERATOR_ROLES = 5
+MAX_EXECUTIVE_ROLE = 5
+MAX_OPERATOR_ROLE = 5
