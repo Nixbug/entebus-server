@@ -66,28 +66,28 @@ class PermissionPath(StrEnum):
 class CRUDPermission(PermissionBase):
     """Generic CRUD permission set — reused by most entities."""
 
-    create: bool = Field(default=False, description="Allow creation")
-    update: bool = Field(default=False, description="Allow updating")
-    delete: bool = Field(default=False, description="Allow deletion")
+    create: bool = Field(description="Allow creation")
+    update: bool = Field(description="Allow updating")
+    delete: bool = Field(description="Allow deletion")
 
 
 class TokenPermission(PermissionBase):
     """Specialized permissions for token management."""
 
-    fetch: bool = Field(default=False, description="Allow fetching token details")
-    delete: bool = Field(default=False, description="Allow deleting token")
+    fetch: bool = Field(description="Allow fetching token details")
+    delete: bool = Field(description="Allow deleting token")
 
 
 class DutyPermission(PermissionBase):
     """Duty related permissions."""
 
-    update: bool = Field(default=False, description="Allow updating duties")
+    update: bool = Field(description="Allow updating duties")
 
 
 class CreatePermission(PermissionBase):
     """Single action create permission."""
 
-    create: bool = Field(default=False, description="Allow creation")
+    create: bool = Field(description="Allow creation")
 
 
 class OperatorPermissions(CRUDPermission):
@@ -109,16 +109,14 @@ class ServicePermissions(CRUDPermission):
 class CompanyPermission(PermissionBase):
     """Company related permissions."""
 
-    update: bool = Field(default=False, description="Allow updating company details")
-    vehicle: CRUDPermission = Field(default_factory=CRUDPermission.all_denied)
-    fare: CRUDPermission = Field(default_factory=CRUDPermission.all_denied)
-    route: CRUDPermission = Field(default_factory=CRUDPermission.all_denied)
-    trace: CRUDPermission = Field(default_factory=CRUDPermission.all_denied)
-    operator: OperatorPermissions = Field(
-        default_factory=OperatorPermissions.all_denied
-    )
-    service: ServicePermissions = Field(default_factory=ServicePermissions.all_denied)
-    schedule: CRUDPermission = Field(default_factory=CRUDPermission.all_denied)
+    update: bool = Field(description="Allow updating company details")
+    vehicle: CRUDPermission
+    fare: CRUDPermission
+    route: CRUDPermission
+    trace: CRUDPermission
+    operator: OperatorPermissions
+    service: ServicePermissions
+    schedule: CRUDPermission
 
 
 class PermissionSchema(PermissionBase):
