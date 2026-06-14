@@ -135,3 +135,10 @@ MIN_IMAGE_FILE_SIZE = 1 * 1024  # Minimum allowed file size in bytes (1 KB)
 MAX_ROUTES_PER_COMPANY = 100  # Maximum routes per company
 MAX_OPERATORS_PER_COMPANY = 100  # Maximum operators per company
 MAX_LOCAL_FARES_PER_COMPANY = 50  # Maximum LOCAL fares per company
+
+
+# ---------------------------------------------------------------------------
+# Roles per constraints executive/operator
+# ---------------------------------------------------------------------------
+MAX_EXECUTIVE_ROLES = 5
+MAX_OPERATOR_ROLES = 5
