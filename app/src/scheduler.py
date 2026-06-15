@@ -21,6 +21,7 @@ JOB_BATCH_SIZE = 100
 def master_logic() -> bool:
     """
     Master logic to push jobs to the queue.
+
     Returns:
         bool: True if jobs were pushed to the queue, False otherwise.
     """
@@ -103,10 +104,12 @@ def slave_logic():
 def run_job(session: Session, job: JOB) -> bool:
     """
     Execute the job logic.
-    args:
+
+    Args:
         session (Session): SQLAlchemy session for database operations.
         job (JOB): The job object to be executed.
-    returns:
+
+    Returns:
         bool: True if the job executed successfully, False otherwise.
     """
     time.sleep(10)
