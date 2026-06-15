@@ -112,5 +112,8 @@ def run_job(session: Session, job: JOB) -> bool:
     Returns:
         bool: True if the job executed successfully, False otherwise.
     """
+    utc_now = datetime.now(timezone.utc)
+    if job.next_trigger_on > utc_now and job.triggering_mode == TriggeringMode.AUTO:
+        return False
     time.sleep(10)
     return True
