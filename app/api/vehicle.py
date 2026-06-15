@@ -66,6 +66,7 @@ from app.src.filters import (
     PaginationFilter,
     NameFilter,
 )
+from app.src.constants import MAX_COMPANY_VEHICLES
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -248,7 +249,23 @@ def validate_manufactured_on(
     return manufactured_on
 
 
-def create_vehicle(session: Session, form_param: CreateForm) -> dict:
+def validate_company_vehicle_limit(
+    session: Session,
+    company_id: int,
+):
+    vehicle_count = (
+        session.query(Vehicle).filter(Vehicle.company_id == company_id).count()
+    )
+
+    if vehicle_count >= MAX_COMPANY_VEHICLES:
+        raise exceptions.VehicleLimitReached()
+
+
+def create_vehicle(
+    session: Session,
+    form_param: CreateForm,
+    enforce_limit: bool = False,
+) -> dict:
     """
     Creates a new vehicle record in the database.
 
@@ -259,6 +276,12 @@ def create_vehicle(session: Session, form_param: CreateForm) -> dict:
     Returns:
         dict: The created vehicle data.
     """
+    if enforce_limit:
+        validate_company_vehicle_limit(
+            session=session,
+            company_id=form_param.company_id,
+        )
+
     validate_manufactured_on(form_param)
     vehicle = Vehicle(
         company_id=form_param.company_id,
@@ -436,6 +459,7 @@ POST_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
     exceptions.InvalidValue(Vehicle.manufactured_on),
+    exceptions.VehicleLimitReached(),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -497,6 +521,7 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of vehicles.")
     description=(
         POST_DESCRIPTION.copy()
         .add_line("Logged-in executive must have `company.vehicle.create` permission.")
+        .add_line("Executives are not subject to the company vehicle limit.")
         .to_string()
     ),
 )
@@ -639,6 +664,7 @@ async def fetch_vehicles_for_executive(
     description=(
         POST_DESCRIPTION.copy()
         .add_line("Logged-in operator must have `company.vehicle.create` permission.")
+        .add_line("Companies are limited to 100 vehicles when created by operators.")
         .to_string()
     ),
 )
@@ -662,7 +688,9 @@ async def create_vehicle_for_operator(
                 company_id=token.company_id,
                 status=VehicleStatus.CREATED,
             ),
+            enforce_limit=True,
         )
+
         log_event(token, request_info, vehicle_data)
         return vehicle_data
     except Exception as e:

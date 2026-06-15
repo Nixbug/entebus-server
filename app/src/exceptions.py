@@ -526,3 +526,13 @@ class LockAcquireTimeout(APIException):
     status_code = status.HTTP_423_LOCKED
     detail = "Lock acquisition timed out"
     headers = {"X-Error": "LockAcquireTimeout"}
+
+
+class VehicleLimitReached(APIException):
+    """
+    Raised when a company exceeds the allowed vehicle limit.
+    """
+
+    status_code = status.HTTP_409_CONFLICT
+    detail = "Vehicle limit reached for company"
+    headers = {"X-Error": "VehicleLimitReached"}
