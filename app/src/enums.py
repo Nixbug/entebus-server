@@ -127,6 +127,21 @@ class TicketingMode(IntEnum):
     DIGITAL = 2
     CONVENTIONAL = 3
 
+class Month(IntEnum):
+    """Months of the year (used for scheduling)."""
+
+    JANUARY = 1
+    FEBRUARY = 2
+    MARCH = 3
+    APRIL = 4
+    MAY = 5
+    JUNE = 6
+    JULY = 7
+    AUGUST = 8
+    SEPTEMBER = 9
+    OCTOBER = 10
+    NOVEMBER = 11
+    DECEMBER = 12
 
 class Day(IntEnum):
     """Days of the week (used for scheduling)."""

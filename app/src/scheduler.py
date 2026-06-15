@@ -83,10 +83,14 @@ def slave_routine(job_id: int):
         utc_now = datetime.now(timezone.utc)
         job.last_trigger_on = utc_now
         job.next_trigger_on = utc_now
+
+        job.next_trigger_on = calculate_next_trigger_on(job.last_trigger_on)
+        job.last_trigger_on = utc_now
+        is_ok = run_job(session, job)
+        if not is_ok:
+            job.triggering_mode = TriggeringMode.DISABLED
         session.add(job)
         session.commit()
-
-        run_job(session, job)
 
     finally:
         release_lock(job_lock)
