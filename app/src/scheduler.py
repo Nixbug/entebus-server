@@ -18,9 +18,9 @@ GLOB_LAST_JOB_ID = "gb_last_job_id"
 JOB_BATCH_SIZE = 100
 
 
-def master_logic() -> bool:
+def master_routine() -> bool:
     """
-    Master logic to push jobs to the queue.
+    Master routine to push jobs to the queue.
 
     Returns:
         bool: True if jobs were pushed to the queue, False otherwise.
@@ -29,6 +29,7 @@ def master_logic() -> bool:
     try:
         session = SessionLocal()
         lock = acquire_lock(LOCK_QUEUE_PUSH_LOCK, blocking=False)
+        # If the lock is not acquired, it means another master is already pushing jobs, so we skip this cycle.
         if not lock.locked():
             return False
 
@@ -66,25 +67,16 @@ def master_logic() -> bool:
     return True
 
 
-def slave_logic():
+def slave_routine(job_id: int):
     """
-    Slave logic to pop jobs from the queue and execute them.
+    Slave routine to pop jobs from the queue and execute them.
     """
     job_lock = None
     try:
         session = SessionLocal()
-        queued_job = queue_pop(JOB_QUEUE_NAME)
-        job_id = queued_job.get("job_id") if queued_job else None
         job_lock = acquire_lock(f"lk_job_{job_id}")
 
-        if job_id is None:
-            return
-
-        job = session.get(
-            JOB,
-            job_id,
-        )
-
+        job = session.get(JOB, job_id)
         if job is None:
             return
 
@@ -117,3 +109,20 @@ def run_job(session: Session, job: JOB) -> bool:
         return False
     time.sleep(10)
     return True
+
+
+def run_scheduler():
+    """
+    Run the scheduler in an infinite loop, alternating between master and slave routines.
+    """
+    while True:
+        master_routine()
+
+        while True:
+            job = queue_pop(JOB_QUEUE_NAME)
+            job_id = job.get("job_id") if job else None
+
+            if job_id is None:
+                break
+            slave_routine(job_id)
+        time.sleep(1)
