@@ -2771,6 +2771,9 @@ class JOB(ORMbase):
         frequency (Array(Integer), nullable=False):
             Array of integers representing the specific schedule based on the frequency type.
 
+        frequency_delta (Integer):
+            Additional scheduling value, such as the day of the month for yearly schedules.
+
         trigger_at (Time(timezone=True), not null):
             Time of the day when the job should be triggered.
 
@@ -2811,6 +2814,7 @@ class JOB(ORMbase):
     job_type = Column(Integer, nullable=False, default=JobType.SERVICE_CREATION)
     frequency_type = Column(Integer, nullable=False, default=FrequencyType.WEEKLY)
     frequency = Column(ARRAY(Integer), nullable=False)
+    frequency_delta = Column(Integer)
     trigger_at = Column(Time(timezone=True), nullable=False)
     triggering_mode = Column(Integer, nullable=False, default=TriggeringMode.AUTO)
     next_trigger_on = Column(DateTime(timezone=True))

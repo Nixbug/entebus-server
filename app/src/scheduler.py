@@ -1,8 +1,9 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 import time
+from calendar import monthrange
 
-from app.src.enums import TriggeringMode
+from app.src.enums import TriggeringMode, FrequencyType
 from app.src.redis import (
     acquire_lock,
     release_lock,
@@ -81,10 +82,7 @@ def slave_routine(job_id: int):
             return
 
         utc_now = datetime.now(timezone.utc)
-        job.last_trigger_on = utc_now
-        job.next_trigger_on = utc_now
-
-        job.next_trigger_on = calculate_next_trigger_on(job.last_trigger_on)
+        job.next_trigger_on = calculate_next_trigger_on(job)
         job.last_trigger_on = utc_now
         is_ok = run_job(session, job)
         if not is_ok:
@@ -130,3 +128,60 @@ def run_scheduler():
                 break
             slave_routine(job_id)
         time.sleep(1)
+
+
+def calculate_next_trigger_on(job):
+    last_trigger_on = job.last_trigger_on
+
+    if last_trigger_on is None:
+        last_trigger_on = datetime.utcnow()
+
+    if job.frequency_type == FrequencyType.WEEKLY:
+        days = sorted(job.frequency)
+        current_day = last_trigger_on.weekday()
+
+        for day in days:
+            if day > current_day:
+                return last_trigger_on + timedelta(days=day - current_day)
+
+        return last_trigger_on + timedelta(days=(days[0] - current_day + 7))
+
+    if job.frequency_type == FrequencyType.MONTHLY:
+        year = last_trigger_on.year
+        month = last_trigger_on.month
+        day = job.frequency
+
+        if day <= last_trigger_on.day:
+            month += 1
+
+            if month > 12:
+                month = 1
+                year += 1
+
+        return datetime(
+            year,
+            month,
+            min(day, monthrange(year, month)[1]),
+        )
+
+    if job.frequency_type == FrequencyType.YEARLY:
+        year = last_trigger_on.year
+        month = int(job.frequency)
+        day = int(job.frequency_delta)
+
+        candidate = datetime(
+            year,
+            month,
+            min(day, monthrange(year, month)[1]),
+        )
+
+        if candidate <= last_trigger_on:
+            year += 1
+
+            candidate = datetime(
+                year,
+                month,
+                min(day, monthrange(year, month)[1]),
+            )
+
+        return candidate
