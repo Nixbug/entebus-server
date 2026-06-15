@@ -175,12 +175,10 @@ async def create_executive_role_for_executive(
         )
 
         role_count = session.query(ExecutiveRole).count()
-
         if role_count >= MAX_EXECUTIVE_ROLE:
             raise exceptions.LimitExceeded(ExecutiveRole)
 
         form_param.permissions = form_param.permissions.model_dump()
-
         role = ExecutiveRole(
             name=form_param.name,
             permissions=form_param.permissions,

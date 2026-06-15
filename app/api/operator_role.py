@@ -159,7 +159,6 @@ def create_role(session: Session, form_param: CreateForm) -> dict:
         .filter(OperatorRole.company_id == form_param.company_id)
         .count()
     )
-
     if role_count >= MAX_OPERATOR_ROLE:
         raise exceptions.LimitExceeded(OperatorRole)
 
