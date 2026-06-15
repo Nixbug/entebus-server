@@ -130,7 +130,16 @@ def run_scheduler():
         time.sleep(1)
 
 
-def calculate_next_trigger_on(job):
+def calculate_next_trigger_on(job) -> datetime:
+    """
+    Calculate the next trigger time for a job based on its frequency type and last trigger time.
+
+    Args:
+        job (JOB): The job object for which to calculate the next trigger time.
+
+    Returns:
+        datetime: The calculated next trigger time.
+    """
     last_trigger_on = job.last_trigger_on
 
     if last_trigger_on is None:
