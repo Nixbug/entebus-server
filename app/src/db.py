@@ -66,9 +66,7 @@ from app.src.enums import (
     TicketingMode,
     DutyStatus,
     JobType,
-    FrequencyType,
     TriggeringMode,
-    Day,
 )
 
 
