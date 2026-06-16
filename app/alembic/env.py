@@ -32,18 +32,9 @@ target_metadata = ORMbase.metadata
 
 
 def include_name(name, type_, parent_names):
-    # Keep autogenerate scoped to app-owned objects only.
-    if type_ == "schema":
-        return name in {None, "public"}
-
-    # Ignore DB-extension/system tables (e.g. PostGIS/Tiger/Topology) by only
-    # including tables that exist in ORM metadata.
-    if type_ == "table":
-        schema_name = parent_names.get("schema_name")
-        table_key = f"{schema_name}.{name}" if schema_name else name
-        return table_key in target_metadata.tables
-
-    return True
+    if type_ == "schema" and name in {"public"}:
+        return True
+    return False
 
 
 def run_migrations_offline() -> None:
