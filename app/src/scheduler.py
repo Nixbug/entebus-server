@@ -126,7 +126,11 @@ def load_jobs_to_queue() -> int:
         last_job_id = int(redis_client.get(GLOB_LAST_JOB_ID) or 0)
         jobs = (
             session.query(Job)
-            .filter(Job.id > last_job_id, Job.triggering_mode == TriggeringMode.AUTO)
+            .filter(
+                Job.id > last_job_id,
+                Job.triggering_mode == TriggeringMode.AUTO,
+                Job.next_trigger_on <= datetime.now(timezone.utc),
+            )
             .order_by(Job.id)
             .limit(JOB_QUEUE_BATCH_SIZE)
             .all()
@@ -192,7 +196,7 @@ def run_job_from_queue(job_id: int):
         if not can_run_again or job.next_trigger_on is None:
             job.triggering_mode = TriggeringMode.DISABLED
 
-        session.add(job)
+        session.flush()
         session.commit()
     finally:
         release_lock(job_lock)
