@@ -108,7 +108,6 @@ def queue_pop(queue_name: str) -> dict[str, Any] | None:
     item added to the queue is the first item returned.
     """
     item = redis_client.lpop(queue_name)
-
     if item is None:
         return None
 
