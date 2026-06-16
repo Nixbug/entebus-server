@@ -277,6 +277,7 @@ def delete_role(session: Session, role: OperatorRole) -> dict:
 POST_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
+    exceptions.LimitExceeded(OperatorRole),
 ]
 
 PATCH_EXCEPTIONS = [
