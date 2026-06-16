@@ -2739,7 +2739,7 @@ class LocationInTrace(ORMbase):
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
 
 
-class JOB(ORMbase):
+class Job(ORMbase):
     """
     Represents a scheduled background job.
 
@@ -2754,9 +2754,9 @@ class JOB(ORMbase):
             Indicates the company associated with this job record.
             Cascades on delete — if the company is removed, related job records are deleted.
 
-        name(String(128), not null):
+        name(String(32), not null):
             Name of the job.
-            Maximum 128 characters long.
+            Maximum 32 characters long.
 
         description (TEXT, nullable):
             Optional description or notes about the job.
@@ -2765,14 +2765,9 @@ class JOB(ORMbase):
         job_type (Integer, not null, default=JobType.SERVICE_CREATION):
             Type of the job. Mapped from the `JobType` enum.
 
-        frequency_type (Integer, not null, default=FrequencyType.WEEKLY):
-            Frequency type for scheduling the job. Mapped from the `FrequencyType` enum.
-
-        frequency (Array(Integer), nullable=False):
-            Array of integers representing the specific schedule based on the frequency type.
-
-        frequency_delta (Integer):
-            Additional scheduling value, such as the day of the month for yearly schedules.
+        recurrence_rule (TEXT, nullable):
+            Optional recurrence rule for the job, expressed in a standard format (iCalendar RRULE RFC5545).
+            Maximum 256 characters long.
 
         trigger_at (Time(timezone=True), not null):
             Time of the day when the job should be triggered.
@@ -2809,12 +2804,10 @@ class JOB(ORMbase):
         nullable=False,
         index=True,
     )
-    name = Column(String(128), nullable=False)
+    name = Column(String(32), nullable=False)
     description = Column(TEXT)
     job_type = Column(Integer, nullable=False, default=JobType.SERVICE_CREATION)
-    frequency_type = Column(Integer, nullable=False, default=FrequencyType.WEEKLY)
-    frequency = Column(ARRAY(Integer), nullable=False)
-    frequency_delta = Column(Integer)
+    recurrence_rule = Column(TEXT, nullable=False)
     trigger_at = Column(Time(timezone=True), nullable=False)
     triggering_mode = Column(Integer, nullable=False, default=TriggeringMode.AUTO)
     next_trigger_on = Column(DateTime(timezone=True))
