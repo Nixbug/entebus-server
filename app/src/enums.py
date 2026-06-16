@@ -129,8 +129,7 @@ class TicketingMode(IntEnum):
 
 
 class TriggeringMode(IntEnum):
-    """Service triggering configuration."""
-
+    """Job triggering configuration."""
     AUTO = 1
     MANUAL = 2
     DISABLED = 3
