@@ -40,6 +40,7 @@ from app.src.functions import (
     update_if_changed,
 )
 from app.src.description import Description
+from app.src.constants import MAX_EXECUTIVE_ROLE
 
 route_executive = APIRouter()
 
@@ -103,6 +104,7 @@ class QueryParams(
 POST_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
+    exceptions.LimitExceeded(ExecutiveRole),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -172,8 +174,15 @@ async def create_executive_role_for_executive(
             session, access_token, [PermissionPath.CREATE_EXECUTIVE_ROLE]
         )
 
+        role_count = session.query(ExecutiveRole).count()
+        if role_count >= MAX_EXECUTIVE_ROLE:
+            raise exceptions.LimitExceeded(ExecutiveRole)
+
         form_param.permissions = form_param.permissions.model_dump()
-        role = ExecutiveRole(name=form_param.name, permissions=form_param.permissions)
+        role = ExecutiveRole(
+            name=form_param.name,
+            permissions=form_param.permissions,
+        )
         session.add(role)
         session.commit()
         session.refresh(role)
