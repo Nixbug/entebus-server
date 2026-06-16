@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from typing import Optional
+from redis import exceptions
 from sqlalchemy.orm import Session
 import time
 from dateutil import rrule as rrulelib
@@ -116,9 +117,10 @@ def load_jobs_to_queue() -> int:
     queue_lock = None
     try:
         session = SessionLocal()
-        queue_lock = acquire_lock(JOB_QUEUE_PUSH_LOCK, blocking=False)
-        # If the lock is not acquired, it means another master is already pushing jobs, so we skip this cycle.
-        if not queue_lock.locked():
+        try:
+            queue_lock = acquire_lock(JOB_QUEUE_PUSH_LOCK, blocking=False)
+        except exceptions.LockAcquireTimeout:
+            # Another master is already pushing jobs, skip this cycle.
             return 0
 
         last_job_id = int(redis_client.get(GLOB_LAST_JOB_ID) or 0)
