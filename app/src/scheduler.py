@@ -1,9 +1,11 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
+from typing import Optional
 from sqlalchemy.orm import Session
 import time
-from calendar import monthrange
+from dateutil import rrule as rrulelib
 
-from app.src.enums import TriggeringMode, FrequencyType
+from app.src.constants import TMZ_PRIMARY
+from app.src.enums import JobType, TriggeringMode
 from app.src.redis import (
     acquire_lock,
     release_lock,
@@ -11,35 +13,118 @@ from app.src.redis import (
     queue_push,
     queue_pop,
 )
-from app.src.db import JOB, SessionLocal
+from app.src.db import Job, SessionLocal
 
+# ---------------------------------------------------------------------------
+## Constants and configurations
+# ---------------------------------------------------------------------------
 JOB_QUEUE_NAME = "job_queue"
-LOCK_QUEUE_PUSH_LOCK = "lk_job_queue_push"
+JOB_QUEUE_PUSH_LOCK = "lk_job_queue_push"
+JOB_QUEUE_BATCH_SIZE = 100
 GLOB_LAST_JOB_ID = "gb_last_job_id"
-JOB_BATCH_SIZE = 100
 
 
-def master_routine() -> bool:
+# ---------------------------------------------------------------------------
+## Job execution logic
+# ---------------------------------------------------------------------------
+def run_service_creation_job(session: Session, job: Job) -> bool:
     """
-    Master routine to push jobs to the queue.
+    Placeholder function to execute a service creation job.
+    """
+    time.sleep(1)
+    print(f"Executed service creation job {job.id} at {datetime.now(timezone.utc)}")
+    return True
+
+
+def run_statement_creation_job(session: Session, job: Job) -> bool:
+    """
+    Placeholder function to execute a statement creation job.
+    """
+    time.sleep(1)
+    print(f"Executed statement creation job {job.id} at {datetime.now(timezone.utc)}")
+    return True
+
+
+# ---------------------------------------------------------------------------
+## Scheduler logic
+# ---------------------------------------------------------------------------
+def calculate_next_trigger_on(job: Job) -> Optional[datetime]:
+    """
+    Calculate the next datetime the job should be triggered.
+
+    Args:
+        job (Job): The job object containing scheduling information.
 
     Returns:
-        bool: True if jobs were pushed to the queue, False otherwise.
+        Optional[datetime]: The next trigger datetime, or None if the job should not be triggered again.
     """
-    lock = None
+    utc_now = datetime.now(tz=TMZ_PRIMARY)
+    # Return None if the validity window has already closed.
+    if job.trigger_till is not None and utc_now >= job.trigger_till:
+        return None
+
+    if job.last_trigger_on is not None:
+        base_date = job.last_trigger_on.date()
+    elif job.trigger_from is not None:
+        base_date = job.trigger_from.date()
+    else:
+        base_date = utc_now.date()
+
+    time_of_day = job.trigger_at
+    start_datetime = datetime(
+        base_date.year,
+        base_date.month,
+        base_date.day,
+        time_of_day.hour,
+        time_of_day.minute,
+        time_of_day.second,
+        tzinfo=time_of_day.tzinfo or timezone.utc,
+    )
+    rule = rrulelib.rrulestr(
+        job.recurrence_rule,
+        dtstart=start_datetime,
+        ignoretz=False,
+    )
+    # The Reference point for searching the next occurrence.
+    reference_point: datetime = (
+        job.last_trigger_on if job.last_trigger_on is not None else utc_now
+    )
+    candidate = rule.after(reference_point, inc=False)
+    # RRULE exhausted (e.g. COUNT or UNTIL reached)
+    if candidate is None:
+        return None
+
+    # Clamp candidate to trigger_from if it exists and candidate is before it
+    if job.trigger_from is not None and candidate < job.trigger_from:
+        return None
+    if job.trigger_till is not None and candidate >= job.trigger_till:
+        return None
+
+    return candidate
+
+
+def load_jobs_to_queue() -> int:
+    """
+    Master routine to push jobs to the queue.
+    Only one master should be active at a time, enforced by a distributed lock.
+
+    Returns:
+        int: The number of jobs pushed to the queue.
+    """
+    queue_lock = None
     try:
         session = SessionLocal()
-        lock = acquire_lock(LOCK_QUEUE_PUSH_LOCK, blocking=False)
+        queue_lock = acquire_lock(JOB_QUEUE_PUSH_LOCK, blocking=False)
         # If the lock is not acquired, it means another master is already pushing jobs, so we skip this cycle.
-        if not lock.locked():
-            return False
+        if not queue_lock.locked():
+            return 0
 
         last_job_id = int(redis_client.get(GLOB_LAST_JOB_ID) or 0)
         jobs = (
-            session.query(JOB)
-            .filter(JOB.id > last_job_id, JOB.triggering_mode == TriggeringMode.AUTO)
-            .order_by(JOB.id)
-            .limit(JOB_BATCH_SIZE)
+            session.query(Job)
+            .filter(Job.id > last_job_id, Job.triggering_mode == TriggeringMode.AUTO)
+            .order_by(Job.id)
+            .limit(JOB_QUEUE_BATCH_SIZE)
             .all()
         )
 
@@ -63,62 +148,60 @@ def master_routine() -> bool:
             )
     finally:
         session.close()
-        release_lock(lock)
+        release_lock(queue_lock)
 
-    return True
+    return len(jobs)
 
 
-def slave_routine(job_id: int):
+def run_job_from_queue(job_id: int):
     """
-    Slave routine to pop jobs from the queue and execute them.
+    Execute a job from the queue.
+
+    Args:
+        job_id (int): The ID of the job to be executed.
     """
     job_lock = None
     try:
         session = SessionLocal()
         job_lock = acquire_lock(f"lk_job_{job_id}")
 
-        job = session.get(JOB, job_id)
+        job = session.query(Job).filter(Job.id == job_id).first()
         if job is None:
             return
 
         utc_now = datetime.now(timezone.utc)
+        if job.next_trigger_on is None:
+            return
+        if job.next_trigger_on > utc_now:
+            return
+        if not job.triggering_mode == TriggeringMode.AUTO:
+            return
+
         job.next_trigger_on = calculate_next_trigger_on(job)
         job.last_trigger_on = utc_now
-        is_ok = run_job(session, job)
-        if not is_ok:
+
+        if job.job_type == JobType.SERVICE_CREATION:
+            can_run_again = run_service_creation_job(session, job)
+        elif job.job_type == JobType.STATEMENT_CREATION:
+            can_run_again = run_statement_creation_job(session, job)
+
+        if not can_run_again or job.next_trigger_on is None:
             job.triggering_mode = TriggeringMode.DISABLED
+
         session.add(job)
         session.commit()
-
     finally:
         release_lock(job_lock)
         session.close()
 
 
-def run_job(session: Session, job: JOB) -> bool:
+def start_job_runner():
     """
-    Execute the job logic.
-
-    Args:
-        session (Session): SQLAlchemy session for database operations.
-        job (JOB): The job object to be executed.
-
-    Returns:
-        bool: True if the job executed successfully, False otherwise.
-    """
-    utc_now = datetime.now(timezone.utc)
-    if job.next_trigger_on > utc_now and job.triggering_mode == TriggeringMode.AUTO:
-        return False
-    time.sleep(10)
-    return True
-
-
-def run_scheduler():
-    """
-    Run the scheduler in an infinite loop, alternating between master and slave routines.
+    Main loop for the job runner. Continuously loads jobs into the queue and processes them.
+    Designed to be run in a separate process or thread.
     """
     while True:
-        master_routine()
+        load_jobs_to_queue()
 
         while True:
             job = queue_pop(JOB_QUEUE_NAME)
@@ -126,71 +209,6 @@ def run_scheduler():
 
             if job_id is None:
                 break
-            slave_routine(job_id)
-        time.sleep(1)
+            run_job_from_queue(job_id)
 
-
-def calculate_next_trigger_on(job) -> datetime:
-    """
-    Calculate the next trigger time for a job based on its frequency type and last trigger time.
-
-    Args:
-        job (JOB): The job object for which to calculate the next trigger time.
-
-    Returns:
-        datetime: The calculated next trigger time.
-    """
-    last_trigger_on = job.last_trigger_on
-
-    if last_trigger_on is None:
-        last_trigger_on = datetime.utcnow()
-
-    if job.frequency_type == FrequencyType.WEEKLY:
-        days = sorted(job.frequency)
-        current_day = last_trigger_on.weekday()
-
-        for day in days:
-            if day > current_day:
-                return last_trigger_on + timedelta(days=day - current_day)
-
-        return last_trigger_on + timedelta(days=(days[0] - current_day + 7))
-
-    if job.frequency_type == FrequencyType.MONTHLY:
-        year = last_trigger_on.year
-        month = last_trigger_on.month
-        day = job.frequency
-
-        if day <= last_trigger_on.day:
-            month += 1
-
-            if month > 12:
-                month = 1
-                year += 1
-
-        return datetime(
-            year,
-            month,
-            min(day, monthrange(year, month)[1]),
-        )
-
-    if job.frequency_type == FrequencyType.YEARLY:
-        year = last_trigger_on.year
-        month = int(job.frequency)
-        day = int(job.frequency_delta)
-
-        candidate = datetime(
-            year,
-            month,
-            min(day, monthrange(year, month)[1]),
-        )
-
-        if candidate <= last_trigger_on:
-            year += 1
-
-            candidate = datetime(
-                year,
-                month,
-                min(day, monthrange(year, month)[1]),
-            )
-
-        return candidate
+        time.sleep(30)
