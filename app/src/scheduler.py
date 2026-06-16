@@ -89,14 +89,16 @@ def calculate_next_trigger_on(job: Job) -> Optional[datetime]:
     reference_point: datetime = (
         job.last_trigger_on if job.last_trigger_on is not None else utc_now
     )
+    # If trigger_from is in the future, ensure we don't search before it.
+    if job.trigger_from is not None and reference_point < job.trigger_from:
+        reference_point = job.trigger_from
+
     candidate = rule.after(reference_point, inc=False)
     # RRULE exhausted (e.g. COUNT or UNTIL reached)
     if candidate is None:
         return None
 
-    # Clamp candidate to trigger_from if it exists and candidate is before it
-    if job.trigger_from is not None and candidate < job.trigger_from:
-        return None
+    # Clamp candidate to trigger_till if it's beyond it.
     if job.trigger_till is not None and candidate >= job.trigger_till:
         return None
 
@@ -195,9 +197,9 @@ def run_job_from_queue(job_id: int):
         session.close()
 
 
-def start_job_runner():
+def start_job_manager():
     """
-    Main loop for the job runner. Continuously loads jobs into the queue and processes them.
+    Main loop for the job manager. Continuously loads jobs into the queue and processes them.
     Designed to be run in a separate process or thread.
     """
     while True:
