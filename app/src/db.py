@@ -2763,8 +2763,8 @@ class Job(ORMbase):
         job_type (Integer, not null, default=JobType.SERVICE_CREATION):
             Type of the job. Mapped from the `JobType` enum.
 
-        recurrence_rule (TEXT, nullable):
-            Optional recurrence rule for the job, expressed in a standard format (iCalendar RRULE RFC5545).
+        recurrence_rule (TEXT, not null):
+            Required recurrence rule for the job, expressed in iCalendar RRULE (RFC5545) format.
             Maximum 256 characters long.
 
         trigger_at (Time(timezone=True), not null):
