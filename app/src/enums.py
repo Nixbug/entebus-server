@@ -128,23 +128,12 @@ class TicketingMode(IntEnum):
     CONVENTIONAL = 3
 
 
-class Day(IntEnum):
-    """Days of the week (used for scheduling)."""
-
-    MONDAY = 0
-    TUESDAY = 1
-    WEDNESDAY = 2
-    THURSDAY = 3
-    FRIDAY = 4
-    SATURDAY = 5
-    SUNDAY = 6
-
-
 class TriggeringMode(IntEnum):
-    """Service triggering configuration."""
+    """Job triggering configuration."""
 
     AUTO = 1
     MANUAL = 2
+    DISABLED = 3
 
 
 class ServiceStatus(IntEnum):
@@ -216,3 +205,10 @@ class LocationType(IntEnum):
     WAYPOINT = 1
     INTERMEDIATE_STOP = 2
     MAIN_STOP = 3
+
+
+class JobType(IntEnum):
+    """Types of background jobs."""
+
+    SERVICE_CREATION = 1
+    STATEMENT_CREATION = 2
