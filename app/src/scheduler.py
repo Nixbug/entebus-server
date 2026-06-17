@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 from typing import Optional
-from app.src import exceptions
 from sqlalchemy.orm import Session
 import time
 from dateutil import rrule as rrulelib
 
+from app.src import exceptions
 from app.src.constants import TMZ_PRIMARY
 from app.src.enums import JobType, TriggeringMode
 from app.src.redis import (
