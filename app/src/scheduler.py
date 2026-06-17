@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import Optional
-from redis import exceptions
+from app.src import exceptions
 from sqlalchemy.orm import Session
 import time
 from dateutil import rrule as rrulelib
