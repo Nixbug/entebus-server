@@ -86,7 +86,7 @@ def calculate_next_trigger_on(job: Job) -> Optional[datetime]:
         dtstart=start_datetime,
         ignoretz=False,
     )
-    # Use "now" as the minimum reference so we don't backfill missed windows
+    # Use "utc_now" as the minimum reference so we don't backfill missed windows
     # and accidentally schedule an already-due occurrence again.
     reference_point: datetime = utc_now
     if job.last_trigger_on is not None and job.last_trigger_on > reference_point:
