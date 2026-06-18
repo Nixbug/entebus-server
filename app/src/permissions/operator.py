@@ -58,9 +58,9 @@ class PermissionPath(StrEnum):
 
     CREATE_COMPANY_SERVICE_STATEMENT = "company.service.statement.create"
 
-    CREATE_COMPANY_SCHEDULE = "company.schedule.create"
-    UPDATE_COMPANY_SCHEDULE = "company.schedule.update"
-    DELETE_COMPANY_SCHEDULE = "company.schedule.delete"
+    CREATE_COMPANY_JOB = "company.job.create"
+    UPDATE_COMPANY_JOB = "company.job.update"
+    DELETE_COMPANY_JOB = "company.job.delete"
 
 
 class CRUDPermission(PermissionBase):
@@ -116,7 +116,7 @@ class CompanyPermission(PermissionBase):
     trace: CRUDPermission
     operator: OperatorPermissions
     service: ServicePermissions
-    schedule: CRUDPermission
+    job: CRUDPermission
 
 
 class PermissionSchema(PermissionBase):
