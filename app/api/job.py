@@ -163,15 +163,93 @@ class CreateFormForOP(BaseModel):
 
     name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN)
     description: str | None = Field(default=None, max_length=1024)
-    job_type: JobType = Field(default=JobType.SERVICE_CREATION)
+    job_type: JobType = Field(
+        description=enum_str(JobType), default=JobType.SERVICE_CREATION
+    )
     recurrence_rule: str = Field(min_length=1, max_length=256)
     trigger_at: datetime = Field()
     triggering_mode: TriggeringMode = Field(default=TriggeringMode.AUTO)
-    trigger_from: datetime | None = None
-    trigger_till: datetime | None = None
+    trigger_from: datetime | None = Field(default=None)
+    trigger_till: datetime | None = Field(default=None)
 
 
 class CreateFormForEX(CreateFormForOP):
     """Form data for creating a new job for an executive."""
 
     company_id: int = Field()
+
+
+class CreateForm(CreateFormForEX):
+    """Generic combined form data for creating a new job."""
+
+    pass
+
+
+class UpdateForm(BaseModel):
+    """Form data for updating a job."""
+
+    name: str = Field(default=None, min_length=1, max_length=32, pattern=NAME_PATTERN)
+    description: str | None = Field(default=None, max_length=1024)
+    job_type: JobType = Field(default=None, description=enum_str(JobType))
+    recurrence_rule: str = Field(default=None, min_length=1, max_length=256)
+    trigger_at: datetime = Field(default=None)
+    triggering_mode: TriggeringMode = Field(default=None)
+    trigger_from: datetime | None = Field(default=None)
+    trigger_till: datetime | None = Field(default=None)
+
+
+# ---------------------------------------------------------------------------
+## Query Parameters
+# ---------------------------------------------------------------------------
+class OrderBy(StrEnum):
+    """Enum for ordering service results."""
+
+    ID = "id"
+    CREATED_ON = "created_on"
+    UPDATED_ON = "updated_on"
+    TRIGGER_FROM = "trigger_from"
+    TRIGGER_TILL = "trigger_till"
+    NEXT_TRIGGER_ON = "next_trigger_on"
+    LAST_TRIGGER_ON = "last_trigger_on"
+
+
+class QueryParamsForOP(
+    IDFilter, CreatedOnFilter, UpdatedOnFilter, NameFilter, PaginationFilter
+):
+    """Query parameters for operators."""
+
+    search: str | None = Field(Query(default=None))
+    description: str | None = Field(Query(default=None))
+    job_type_list: List[JobType] | None = Field(
+        Query(default=None, description=enum_str(JobType))
+    )
+    recurrence_rule: str | None = Field(Query(default=None))
+    trigger_at_ge: datetime | None = Field(Query(default=None))
+    trigger_at_le: datetime | None = Field(Query(default=None))
+    triggering_mode_list: List[TriggeringMode] | None = Field(
+        Query(default=None, description=enum_str(TriggeringMode))
+    )
+    next_trigger_on_ge: datetime | None = Field(Query(default=None))
+    next_trigger_on_le: datetime | None = Field(Query(default=None))
+    last_trigger_on_ge: datetime | None = Field(Query(default=None))
+    last_trigger_on_le: datetime | None = Field(Query(default=None))
+    trigger_from_ge: datetime | None = Field(Query(default=None))
+    trigger_from_le: datetime | None = Field(Query(default=None))
+    trigger_till_ge: datetime | None = Field(Query(default=None))
+    trigger_till_le: datetime | None = Field(Query(default=None))
+    order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
+    order_in: OrderIn = Field(
+        Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
+    )
+
+
+class QueryParamsForEX(QueryParamsForOP):
+    """Query parameters for executive users."""
+
+    company_id: int | None = Field(Query(default=None))
+
+
+class QueryParams(QueryParamsForEX):
+    """Generic combined query parameters for jobs."""
+
+    pass

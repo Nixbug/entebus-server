@@ -192,8 +192,8 @@ class QueryParamsForEX(QueryParamsForPU):
     status_list: List[BusinessStatus] | None = Field(
         Query(default=None, description=enum_str(BusinessStatus))
     )
-    address: str | None = Field(Query(default=None, min_length=1, max_length=512))
-    description: str | None = Field(Query(default=None, min_length=1, max_length=1024))
+    address: str | None = Field(Query(default=None))
+    description: str | None = Field(Query(default=None))
 
 
 class QueryParams(QueryParamsForEX):
