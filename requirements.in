@@ -18,3 +18,4 @@ pyproj
 redis
 py-mini-racer
 Pillow
+python-dateutil
