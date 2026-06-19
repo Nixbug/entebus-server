@@ -18,6 +18,7 @@ from io import BytesIO
 from PIL import Image, UnidentifiedImageError
 from shapely.geometry.base import BaseGeometry
 from shapely import Polygon, wkt, errors
+from dateutil.rrule import rrulestr
 
 from app.src.functions import (
     get_by_path,
@@ -391,6 +392,26 @@ def validate_srid_4326(geometry: BaseGeometry) -> bool:
         for geom in geometry.geoms:
             validate_srid_4326(geom)
 
+    return True
+
+
+def validate_rrule_string(rrule_string: str) -> bool:
+    """
+    Validate a recurrence rule (RRULE) string.
+
+    Args:
+        rrule_string (str): The RRULE string to validate.
+
+    Returns:
+        bool: True if the RRULE string is valid.
+
+    Raises:
+        InvalidRRULEstring: If the RRULE string is invalid.
+    """
+    try:
+        rrulestr(rrule_string)
+    except Exception:
+        raise exceptions.InvalidRRULEstring()
     return True
 
 

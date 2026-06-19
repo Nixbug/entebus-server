@@ -1,6 +1,7 @@
 {
     "cSpell.words": [
         "AABB",
+        "dateutil",
         "Entebus",
         "geoalchemy",
         "geofence",
@@ -8,9 +9,10 @@
         "ilike",
         "jsonable",
         "Nixbug",
-        "onupdate",
         "ondelete",
+        "onupdate",
         "OPENOBSERVE",
+        "rrule",
         "sessionmaker",
         "sqlstate"
     ]
