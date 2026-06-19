@@ -6,7 +6,7 @@ updating, deleting, and retrieving job information. Uses Pydantic schemas for
 input validation and structured output.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from enum import StrEnum
 from sqlalchemy import or_
 from fastapi import APIRouter, Depends, Query, Response, status
@@ -67,7 +67,7 @@ class JobSchema(BaseModel):
     description: str | None = None
     job_type: int
     recurrence_rule: str
-    trigger_at: str
+    trigger_at: time
     triggering_mode: int
     next_trigger_on: datetime | None = None
     last_trigger_on: datetime | None = None
@@ -89,7 +89,7 @@ class CreateFormForOP(BaseModel):
         description=enum_str(JobType), default=JobType.SERVICE_CREATION
     )
     recurrence_rule: str = Field(min_length=1, max_length=256)
-    trigger_at: datetime = Field()
+    trigger_at: time = Field()
     triggering_mode: TriggeringMode = Field(default=TriggeringMode.AUTO)
     trigger_from: datetime | None = Field(default=None)
     trigger_till: datetime | None = Field(default=None)
@@ -113,7 +113,7 @@ class UpdateForm(BaseModel):
     name: str = Field(default=None, min_length=1, max_length=32, pattern=NAME_PATTERN)
     description: str | None = Field(default=None, max_length=1024)
     recurrence_rule: str = Field(default=None, min_length=1, max_length=256)
-    trigger_at: datetime = Field(default=None)
+    trigger_at: time = Field(default=None)
     triggering_mode: TriggeringMode = Field(default=None)
     trigger_from: datetime | None = Field(default=None)
     trigger_till: datetime | None = Field(default=None)
@@ -145,8 +145,8 @@ class QueryParamsForOP(
         Query(default=None, description=enum_str(JobType))
     )
     recurrence_rule: str | None = Field(Query(default=None))
-    trigger_at_ge: datetime | None = Field(Query(default=None))
-    trigger_at_le: datetime | None = Field(Query(default=None))
+    trigger_at_ge: time | None = Field(Query(default=None))
+    trigger_at_le: time | None = Field(Query(default=None))
     triggering_mode_list: List[TriggeringMode] | None = Field(
         Query(default=None, description=enum_str(TriggeringMode))
     )
@@ -227,21 +227,27 @@ def update_job(
     Returns:
         Tuple[bool, dict]: A tuple containing a boolean indicating if updates were made, and the updated job data.
     """
-    job = validate_id(session, Job, id, extra_filter=extra_filter_for_job)
+    job = validate_id(session, Job, id, Job.id, extra_filter=extra_filter_for_job)
     if form_param.recurrence_rule is not None:
         validate_rrule_string(form_param.recurrence_rule)
-
-    update_if_changed(job, form_param)
+    update_data = form_param.model_dump(exclude_unset=True)
+    update_if_changed(job, update_data)
     have_updates = session.is_modified(job)
     if have_updates:
         # If any of the fields that affect the next trigger time are updated, we need to recalculate it.
-        if form_param.recurrence_rule is not None or form_param.trigger_at is not None:
+        need_critical_change = (
+            form_param.recurrence_rule is not None
+            or form_param.trigger_at is not None
+            or form_param.trigger_from is not None
+            or form_param.trigger_till is not None
+        )
+        if need_critical_change:
             # The next_trigger_on will always be after the current time.
             job.next_trigger_on = datetime.now(timezone.utc)
             job.next_trigger_on = calculate_next_trigger_on(job)
-
         session.flush()
         session.commit()
+
     job_data = jsonable_encoder(job)
     return have_updates, job_data
 
@@ -320,10 +326,10 @@ def search_job(session: Session, query_params: QueryParams) -> List[Job]:
         )
 
     # Generalized filters
-    query = apply_id_filters(query, query_params)
-    query = apply_name_filters(query, query_params)
-    query = apply_created_on_filters(query, query_params)
-    query = apply_updated_on_filters(query, query_params)
+    query = apply_id_filters(query, Job, query_params)
+    query = apply_name_filters(query, Job, query_params)
+    query = apply_created_on_filters(query, Job, query_params)
+    query = apply_updated_on_filters(query, Job, query_params)
 
     # Ordering and pagination
     ordering_attr = getattr(Job, query_params.order_by.value)
@@ -512,7 +518,6 @@ async def delete_job_for_executive(
         if job is not None:
             job_data = delete_job(session, job)
             log_event(token, request_info, job_data)
-        log_event(token, request_info, job_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
@@ -568,7 +573,7 @@ async def create_job_for_operator(
         session = SessionLocal()
         token = authorize_operator(
             session,
-            access_token,
+            access_token.credentials,
             [OperatorPermissionPath.CREATE_COMPANY_JOB],
         )
 
@@ -605,7 +610,7 @@ async def update_job_for_operator(
         session = SessionLocal()
         token = authorize_operator(
             session,
-            access_token,
+            access_token.credentials,
             [OperatorPermissionPath.UPDATE_COMPANY_JOB],
         )
 
@@ -645,7 +650,7 @@ async def delete_job_for_operator(
         session = SessionLocal()
         token = authorize_operator(
             session,
-            access_token,
+            access_token.credentials,
             [OperatorPermissionPath.DELETE_COMPANY_JOB],
         )
 
@@ -678,7 +683,7 @@ async def get_jobs_for_operator(
 ):
     try:
         session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token)
+        token = verify_token(session, OperatorToken, access_token.credentials)
 
         return search_job(
             session,
