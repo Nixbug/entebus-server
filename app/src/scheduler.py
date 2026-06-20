@@ -64,9 +64,9 @@ def calculate_next_trigger_on(job: Job) -> Optional[datetime]:
     if job.trigger_till is not None and utc_now >= job.trigger_till:
         return None
 
-    if job.last_trigger_on is not None:
+    if job.last_trigger_on is not None and (job.last_trigger_on > job.trigger_from):
         base_date = job.last_trigger_on.date()
-    elif job.trigger_from is not None:
+    elif job.trigger_from is not None and (job.trigger_from > utc_now):
         base_date = job.trigger_from.date()
     else:
         base_date = utc_now.date()
