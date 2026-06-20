@@ -202,9 +202,13 @@ def create_job(session: Session, form_param: CreateForm) -> dict:
         trigger_from=form_param.trigger_from,
         trigger_till=form_param.trigger_till,
     )
-    # The next_trigger_on will always be after the current time.
-    job.next_trigger_on = datetime.now(timezone.utc)
-    job.next_trigger_on = calculate_next_trigger_on(job)
+
+    if job.triggering_mode == TriggeringMode.AUTO:
+        job.next_trigger_on = datetime.now(timezone.utc)
+        job.next_trigger_on = calculate_next_trigger_on(job)
+    else:
+        job.next_trigger_on = None
+
     session.add(job)
     session.commit()
     session.refresh(job)
@@ -234,17 +238,20 @@ def update_job(
     update_if_changed(job, update_data)
     have_updates = session.is_modified(job)
     if have_updates:
-        # If any of the fields that affect the next trigger time are updated, we need to recalculate it.
-        need_critical_change = (
-            form_param.recurrence_rule is not None
-            or form_param.trigger_at is not None
-            or form_param.trigger_from is not None
-            or form_param.trigger_till is not None
-        )
-        if need_critical_change:
-            # The next_trigger_on will always be after the current time.
-            job.next_trigger_on = datetime.now(timezone.utc)
-            job.next_trigger_on = calculate_next_trigger_on(job)
+        if job.triggering_mode != TriggeringMode.AUTO:
+            job.next_trigger_on = None
+        else:
+            # If any of the fields that affect the next trigger time are updated, we need to recalculate it.
+            need_critical_change = (
+                form_param.recurrence_rule is not None
+                or form_param.trigger_at is not None
+                or form_param.trigger_from is not None
+                or form_param.trigger_till is not None
+            )
+            if need_critical_change:
+                # The next_trigger_on will always be after the current time.
+                job.next_trigger_on = datetime.now(timezone.utc)
+                job.next_trigger_on = calculate_next_trigger_on(job)
         session.flush()
         session.commit()
 
