@@ -292,9 +292,9 @@ def search_job(session: Session, query_params: QueryParams) -> List[Job]:
             Job.recurrence_rule.ilike(f"%{query_params.recurrence_rule}%")
         )
     if query_params.trigger_at_ge is not None:
-        query = query.filter(Job.trigger_at >= query_params.trigger_at_ge.time())
+        query = query.filter(Job.trigger_at >= query_params.trigger_at_ge)
     if query_params.trigger_at_le is not None:
-        query = query.filter(Job.trigger_at <= query_params.trigger_at_le.time())
+        query = query.filter(Job.trigger_at <= query_params.trigger_at_le)
     if query_params.triggering_mode_list is not None:
         query = query.filter(Job.triggering_mode.in_(query_params.triggering_mode_list))
     if query_params.next_trigger_on_ge is not None:
