@@ -233,7 +233,7 @@ def update_job(
     job = validate_id(session, Job, id, Job.id, extra_filter=extra_filter_for_job)
     if form_param.recurrence_rule is not None:
         validate_rrule_string(form_param.recurrence_rule)
-    
+
     update_data = form_param.model_dump(exclude_unset=True)
     update_if_changed(job, update_data)
     have_updates = session.is_modified(job)
@@ -356,13 +356,13 @@ def search_job(session: Session, query_params: QueryParams) -> List[Job]:
 POST_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
-    exceptions.InvalidRRULEstring(),
+    exceptions.InvalidRRULEString(),
 ]
 
 PATCH_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
-    exceptions.InvalidRRULEstring(),
+    exceptions.InvalidRRULEString(),
 ]
 
 DELETE_EXCEPTIONS = [

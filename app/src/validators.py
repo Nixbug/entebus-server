@@ -406,12 +406,12 @@ def validate_rrule_string(rrule_string: str) -> bool:
         bool: True if the RRULE string is valid.
 
     Raises:
-        InvalidRRULEstring: If the RRULE string is invalid.
+        InvalidRRULEString: If the RRULE string is invalid.
     """
     try:
         rrulestr(rrule_string)
     except Exception:
-        raise exceptions.InvalidRRULEstring()
+        raise exceptions.InvalidRRULEString()
     return True
 
 
