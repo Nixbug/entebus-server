@@ -252,6 +252,7 @@ def update_job(
                 job.next_trigger_on = calculate_next_trigger_on(job)
         session.flush()
         session.commit()
+        session.refresh(job)
 
     job_data = jsonable_encoder(job)
     return have_updates, job_data
