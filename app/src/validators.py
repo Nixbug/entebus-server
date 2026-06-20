@@ -50,6 +50,7 @@ from app.src.constants import (
     MIN_IMAGE_FILE_SIZE,
     MAX_IMAGE_RESOLUTION,
     MIN_IMAGE_RESOLUTION,
+    TMZ_PRIMARY,
 )
 from app.src.dynamic_fare.v1 import DynamicFare
 
@@ -409,7 +410,7 @@ def validate_rrule_string(rrule_string: str) -> bool:
         InvalidRRULEString: If the RRULE string is invalid.
     """
     try:
-        rrulestr(rrule_string)
+        rrulestr(rrule_string, dtstart=datetime.now(tz=TMZ_PRIMARY), ignoretz=False)
     except Exception:
         raise exceptions.InvalidRRULEString()
     return True
