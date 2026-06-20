@@ -6,7 +6,7 @@ updating, deleting, and retrieving job information. Uses Pydantic schemas for
 input validation and structured output.
 """
 
-from datetime import datetime, time, timezone
+from datetime import datetime, time
 from enum import StrEnum
 from sqlalchemy import or_
 from fastapi import APIRouter, Depends, Query, Response, status
