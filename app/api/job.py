@@ -204,7 +204,6 @@ def create_job(session: Session, form_param: CreateForm) -> dict:
     )
 
     if job.triggering_mode == TriggeringMode.AUTO:
-        job.next_trigger_on = datetime.now(timezone.utc)
         job.next_trigger_on = calculate_next_trigger_on(job)
     else:
         job.next_trigger_on = None
@@ -234,6 +233,7 @@ def update_job(
     job = validate_id(session, Job, id, Job.id, extra_filter=extra_filter_for_job)
     if form_param.recurrence_rule is not None:
         validate_rrule_string(form_param.recurrence_rule)
+    
     update_data = form_param.model_dump(exclude_unset=True)
     update_if_changed(job, update_data)
     have_updates = session.is_modified(job)
@@ -249,8 +249,6 @@ def update_job(
                 or form_param.trigger_till is not None
             )
             if need_critical_change:
-                # The next_trigger_on will always be after the current time.
-                job.next_trigger_on = datetime.now(timezone.utc)
                 job.next_trigger_on = calculate_next_trigger_on(job)
         session.flush()
         session.commit()
