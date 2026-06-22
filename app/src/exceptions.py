@@ -397,6 +397,16 @@ class InvalidAABB(APIException):
     headers = {"X-Error": "InvalidAABB"}
 
 
+class InvalidRRULEString(APIException):
+    """
+    Raised when an invalid RRULE string is provided.
+    """
+
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    detail = "Invalid RRULE string"
+    headers = {"X-Error": "InvalidRRULEString"}
+
+
 class OverlappingLandmarkBoundary(APIException):
     """
     Raised when a landmark boundary overlaps with another landmark boundary.

@@ -18,6 +18,7 @@ from io import BytesIO
 from PIL import Image, UnidentifiedImageError
 from shapely.geometry.base import BaseGeometry
 from shapely import Polygon, wkt, errors
+from dateutil.rrule import rrulestr
 
 from app.src.functions import (
     get_by_path,
@@ -49,6 +50,7 @@ from app.src.constants import (
     MIN_IMAGE_FILE_SIZE,
     MAX_IMAGE_RESOLUTION,
     MIN_IMAGE_RESOLUTION,
+    TMZ_PRIMARY,
 )
 from app.src.dynamic_fare.v1 import DynamicFare
 
@@ -391,6 +393,26 @@ def validate_srid_4326(geometry: BaseGeometry) -> bool:
         for geom in geometry.geoms:
             validate_srid_4326(geom)
 
+    return True
+
+
+def validate_rrule_string(rrule_string: str) -> bool:
+    """
+    Validate a recurrence rule (RRULE) string.
+
+    Args:
+        rrule_string (str): The RRULE string to validate.
+
+    Returns:
+        bool: True if the RRULE string is valid.
+
+    Raises:
+        InvalidRRULEString: If the RRULE string is invalid.
+    """
+    try:
+        rrulestr(rrule_string, dtstart=datetime.now(tz=TMZ_PRIMARY), ignoretz=False)
+    except Exception:
+        raise exceptions.InvalidRRULEString()
     return True
 
 

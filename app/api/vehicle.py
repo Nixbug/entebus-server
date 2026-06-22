@@ -91,11 +91,11 @@ class MaskedVehicleSchema(BaseModel):
 class VehicleSchema(MaskedVehicleSchema):
     """Schema for vehicle response."""
 
-    manufactured_on: Optional[datetime]
-    insurance_upto: Optional[datetime]
-    pollution_upto: Optional[datetime]
-    fitness_upto: Optional[datetime]
-    road_tax_upto: Optional[datetime]
+    manufactured_on: datetime | None
+    insurance_upto: datetime | None
+    pollution_upto: datetime | None
+    fitness_upto: datetime | None
+    road_tax_upto: datetime | None
     status: int
     version: int
 

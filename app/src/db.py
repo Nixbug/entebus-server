@@ -2775,6 +2775,7 @@ class Job(ORMbase):
 
         next_trigger_on (DateTime, nullable):
             Timestamp indicating the next scheduled trigger time for the job.
+            Next trigger can become null if the job is completed or disabled, or if the recurrence rule does not allow for future triggers.
 
         last_trigger_on (DateTime, nullable):
             Timestamp indicating the last time the job was triggered.

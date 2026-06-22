@@ -38,6 +38,7 @@ from app.api import (
     vendor_token,
     landmark_in_route,
     service_location,
+    job,
 )
 from app.src.enums import AppID
 
@@ -88,6 +89,7 @@ app_executive.include_router(service.route_executive)
 app_executive.include_router(paper_ticket.route_executive)
 app_executive.include_router(trace.route_executive)
 app_executive.include_router(location_in_trace.route_executive)
+app_executive.include_router(job.route_executive)
 
 
 # ------------------------------------------------------
@@ -130,6 +132,7 @@ app_operator.include_router(service.route_operator)
 app_operator.include_router(paper_ticket.route_operator)
 app_operator.include_router(trace.route_operator)
 app_operator.include_router(location_in_trace.route_operator)
+app_operator.include_router(job.route_operator)
 
 
 # ------------------------------------------------------
