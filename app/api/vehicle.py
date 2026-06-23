@@ -29,7 +29,7 @@ from app.src.enums import (
     OrderIn,
     VehicleStatus,
 )
-from app.src.constants import TMZ_PRIMARY
+from app.src.constants import MAX_VEHICLES_PER_COMPANY, TMZ_PRIMARY
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src import exceptions
@@ -259,6 +259,14 @@ def create_vehicle(session: Session, form_param: CreateForm) -> dict:
     Returns:
         dict: The created vehicle data.
     """
+    vehicle_count = (
+        session.query(Vehicle)
+        .filter(Vehicle.company_id == form_param.company_id)
+        .count()
+    )
+    if vehicle_count >= MAX_VEHICLES_PER_COMPANY:
+        raise exceptions.LimitExceeded(Vehicle)
+
     validate_manufactured_on(form_param)
     vehicle = Vehicle(
         company_id=form_param.company_id,
@@ -436,6 +444,7 @@ POST_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
     exceptions.InvalidValue(Vehicle.manufactured_on),
+    exceptions.LimitExceeded(Vehicle),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -464,6 +473,7 @@ POST_DESCRIPTION = (
     .add_line("Duplicate registration numbers are not allowed.")
     .add_line("Manufactured date cannot be in the future.")
     .add_line("By default, the vehicle status is set to CREATED.")
+    .add_line(f"Maximum vehicles per company is limited to {MAX_VEHICLES_PER_COMPANY}.")
 )
 
 PATCH_DESCRIPTION = (
