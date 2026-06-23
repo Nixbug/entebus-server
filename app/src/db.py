@@ -23,7 +23,6 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
-    String,
     UniqueConstraint,
     event,
     Connection,
@@ -151,7 +150,7 @@ class Executive(ORMbase):
         id (Integer, unique, not null):
             Primary identifier for the executive.
 
-        username (String(32), unique, not null):
+        username (TEXT, unique, not null):
             Username used for login or identification within the system.
             Ideally, the username shouldn't be changed once set.
             It should start with an alphabet (uppercase or lowercase).
@@ -203,7 +202,7 @@ class Executive(ORMbase):
     __tablename__ = "executive"
 
     id = Column(Integer, primary_key=True)
-    username = Column(String(32), nullable=False, unique=True)
+    username = Column(TEXT, nullable=False, unique=True)
     password = Column(TEXT, nullable=False)
     gender = Column(Integer, nullable=False, default=GenderType.OTHER)
     full_name = Column(TEXT)
@@ -242,7 +241,7 @@ class ExecutiveRole(ORMbase):
         id (Integer, unique, not null):
             Primary identifier for the executive role.
 
-        name (String(32), unique, not null):
+        name (TEXT, unique, not null):
             Name or label for the role.
             It should be 4-32 characters long.
 
@@ -260,7 +259,7 @@ class ExecutiveRole(ORMbase):
     __tablename__ = "executive_role"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(32), nullable=False, unique=True)
+    name = Column(TEXT, nullable=False, unique=True)
     permissions = Column(JSONB, nullable=False, default=dict)
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(
@@ -338,12 +337,12 @@ class ExecutiveToken(ORMbase):
             Identifies the executive associated with this token.
             Cascades on delete — if the executive is removed, related tokens are deleted.
 
-        access_token (String, not null, unique, default=lambda: token_hex(32)):
+        access_token (TEXT, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal access token.
             Used to authenticate the executive on subsequent requests.
             In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749).
 
-        refresh_token (String, not null, unique, default=lambda: token_hex(32)):
+        refresh_token (TEXT, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal refresh token.
             Used to refresh the access token when needed.
             In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749).
@@ -384,10 +383,10 @@ class ExecutiveToken(ORMbase):
     )
     # Tokens
     access_token = Column(
-        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+        TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
     refresh_token = Column(
-        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+        TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
     # Expirations
     expires_in = Column(Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY)
@@ -421,14 +420,16 @@ class ExecutiveImage(ORMbase):
             Foreign key referencing `executive.id` to whom this image belongs.
             Cascades on delete — if the executive is removed, related image is deleted.
 
-        file_name (String(128), not null):
+        file_name (TEXT, not null):
             Original name of the uploaded image file, including extension.
+            Maximum 128 characters long.
 
         file_size (Integer, not null):
             Size of the uploaded file in bytes.
 
-        file_type (String(128), not null):
+        file_type (TEXT, not null):
             MIME type of the uploaded file (e.g., "image/jpeg", "image/png").
+            Maximum 128 characters long.
 
        created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the image record was initially created.
@@ -445,9 +446,9 @@ class ExecutiveImage(ORMbase):
         index=True,
     )
     # File metadata
-    file_name = Column(String(128), nullable=False)
+    file_name = Column(TEXT, nullable=False)
     file_size = Column(Integer, nullable=False)
-    file_type = Column(String(128), nullable=False)
+    file_type = Column(TEXT, nullable=False)
     # Metadata
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
 
@@ -476,11 +477,11 @@ class OperatorToken(ORMbase):
             Identifies the operator associated with this token.
             Cascades on delete — if the operator is removed, related tokens are deleted.
 
-        access_token (String(64), not null, unique, default=lambda: token_hex(32)):
+        access_token (TEXT, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal access token.
             Used to authenticate the operator on subsequent requests.
 
-        refresh_token (String(64), not null, unique, default=lambda: token_hex(32)):
+        refresh_token (TEXT, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal refresh token.
             Used to refresh the access token when needed.
 
@@ -525,10 +526,10 @@ class OperatorToken(ORMbase):
     )
     # Tokens
     access_token = Column(
-        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+        TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
     refresh_token = Column(
-        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+        TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
     # Expirations
     expires_in = Column(Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY)
@@ -565,7 +566,7 @@ class OperatorRole(ORMbase):
             Identifies the company that owns the role.
             Cascades on delete — if the company is removed, related roles are deleted.
 
-        name (String(32), not null):
+        name (TEXT, not null):
             Name or label for the role.
             It should be 4-32 characters long.
 
@@ -590,7 +591,7 @@ class OperatorRole(ORMbase):
         nullable=False,
         index=True,
     )
-    name = Column(String(32), nullable=False)
+    name = Column(TEXT, nullable=False)
     permissions = Column(JSONB, nullable=False, default=dict)
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
@@ -685,11 +686,11 @@ class VendorToken(ORMbase):
             Identifies the vendor associated with this token.
             Cascades on delete — if the vendor is removed, related tokens are deleted.
 
-        access_token (String(64), not null, unique, default=lambda: token_hex(32)):
+        access_token (TEXT, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal access token.
             Used to authenticate the vendor on subsequent requests.
 
-        refresh_token (String(64), not null, unique, default=lambda: token_hex(32)):
+        refresh_token (TEXT, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal refresh token.
             Used to refresh the access token when needed.
 
@@ -734,10 +735,10 @@ class VendorToken(ORMbase):
     )
     # Tokens
     access_token = Column(
-        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+        TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
     refresh_token = Column(
-        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+        TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
     # Expirations
     expires_in = Column(Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY)
@@ -774,7 +775,7 @@ class VendorRole(ORMbase):
             Identifies the business that owns the role.
             Cascades on delete — if the business is removed, related roles are deleted.
 
-        name (String(32), not null):
+        name (TEXT, not null):
             Name or label for the role.
             Should be 4-32 characters long.
 
@@ -799,7 +800,7 @@ class VendorRole(ORMbase):
         nullable=False,
         index=True,
     )
-    name = Column(String(32), nullable=False)
+    name = Column(TEXT, nullable=False)
     permissions = Column(JSONB, nullable=False, default=list)
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
@@ -896,7 +897,7 @@ class Landmark(ORMbase):
         id (Integer, unique, not null):
             Primary identifier for the landmark.
 
-        name (String(32), not null, indexed):
+        name (TEXT, not null, indexed):
             Official name of the landmark.
             It should be 1-32 characters long.
             May include space ( ), hyphen (-), period (.), and underscore (_).
@@ -905,7 +906,7 @@ class Landmark(ORMbase):
             Version number incremented on updates.
             Useful for tracking changes and synchronizing updated boundaries.
 
-        alias_names (ARRAY(String(32)), nullable):
+        alias_names (ARRAY(TEXT), nullable):
             Optional list of alternative or local names for the landmark.
             Each alias can be up to 32 characters long.
 
@@ -927,9 +928,9 @@ class Landmark(ORMbase):
     __tablename__ = "landmark"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(32), nullable=False, index=True)
+    name = Column(TEXT, nullable=False, index=True)
     version = Column(Integer, nullable=False, default=1)
-    alias_names = Column(ARRAY(String(32)))
+    alias_names = Column(ARRAY(TEXT))
     boundary = Column(Geometry(geometry_type="POLYGON", srid=4326), nullable=False)
     type = Column(Integer, nullable=False, default=LandmarkType.LOCAL, index=True)
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
@@ -1030,7 +1031,7 @@ class Company(ORMbase):
         id (Integer, unique, not null):
             Primary identifier for the company.
 
-        name (String(32), unique, not null):
+        name (TEXT, unique, not null):
             Name of the company.
             Must be unique and is required.
             Maximum 32 characters long.
@@ -1070,7 +1071,7 @@ class Company(ORMbase):
     __tablename__ = "company"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(32), nullable=False, unique=True)
+    name = Column(TEXT, nullable=False, unique=True)
     status = Column(Integer, nullable=False, default=CompanyStatus.UNDER_VERIFICATION)
     type = Column(Integer, nullable=False, default=CompanyType.OTHER)
     description = Column(TEXT)
@@ -1099,7 +1100,7 @@ class Operator(ORMbase):
             Identifies the company to which the operator belongs.
             Cascades on delete — if the company is removed, related operators are deleted.
 
-        username (String(32), not null):
+        username (TEXT, not null):
             Username used for login or identification within the company.
             Ideally, the username shouldn't be changed once set.
             It should start with an alphabet (uppercase or lowercase).
@@ -1161,7 +1162,7 @@ class Operator(ORMbase):
         nullable=False,
         index=True,
     )
-    username = Column(String(32), nullable=False)
+    username = Column(TEXT, nullable=False)
     password = Column(TEXT, nullable=False)
     gender = Column(Integer, nullable=False, default=GenderType.OTHER)
     description = Column(TEXT)
@@ -1206,14 +1207,16 @@ class OperatorImage(ORMbase):
             Foreign key referencing `operator.id` to whom this image belongs.
             Cascades on delete — if the operator is removed, related image is deleted.
 
-        file_name (String(128), not null):
+        file_name (TEXT, not null):
             Original name of the uploaded image file, including extension.
+            Maximum 128 characters long.
 
         file_size (Integer, not null):
             Size of the uploaded file in bytes.
 
-        file_type (String(128), not null):
+        file_type (TEXT, not null):
             MIME type of the uploaded file (e.g., "image/jpeg", "image/png").
+            Maximum 128 characters long.
 
         created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the image record was initially created.
@@ -1236,9 +1239,9 @@ class OperatorImage(ORMbase):
         index=True,
     )
     # File metadata
-    file_name = Column(String(128), nullable=False)
+    file_name = Column(TEXT, nullable=False)
     file_size = Column(Integer, nullable=False)
-    file_type = Column(String(128), nullable=False)
+    file_type = Column(TEXT, nullable=False)
     # Metadata
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
 
@@ -1256,7 +1259,7 @@ class Business(ORMbase):
         id (Integer, unique, not null):
             Primary identifier for the business.
 
-        name (String(32), unique, not null):
+        name (TEXT, unique, not null):
             Name of the business.
             Must be unique and is required.
             Maximum 32 characters long.
@@ -1296,7 +1299,7 @@ class Business(ORMbase):
     __tablename__ = "business"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(32), nullable=False, unique=True)
+    name = Column(TEXT, nullable=False, unique=True)
     status = Column(Integer, nullable=False, default=BusinessStatus.ACTIVE)
     type = Column(Integer, nullable=False, default=BusinessType.OTHER)
     description = Column(TEXT)
@@ -1325,7 +1328,7 @@ class Vendor(ORMbase):
             Identifies the business to which the vendor belongs.
             Cascades on delete — if the business is removed, related vendors are deleted.
 
-        username (String(32), not null):
+        username (TEXT, not null):
             Username used for login or identification within the business.
             Ideally, the username shouldn't be changed once set.
             It should start with an alphabet (uppercase or lowercase).
@@ -1387,7 +1390,7 @@ class Vendor(ORMbase):
         nullable=False,
         index=True,
     )
-    username = Column(String(32), nullable=False)
+    username = Column(TEXT, nullable=False)
     password = Column(TEXT, nullable=False)
     gender = Column(Integer, nullable=False, default=GenderType.OTHER)
     description = Column(TEXT)
@@ -1432,14 +1435,16 @@ class VendorImage(ORMbase):
             Foreign key referencing `vendor.id` to whom this image belongs.
             Cascades on delete — if the vendor is removed, related image is deleted.
 
-        file_name (String(128), not null):
+        file_name (TEXT, not null):
             Original name of the uploaded image file, including extension.
+            Maximum 128 characters long.
 
         file_size (Integer, not null):
             Size of the uploaded file in bytes.
 
-        file_type (String(128), not null):
+        file_type (TEXT, not null):
             MIME type of the uploaded file (e.g., "image/jpeg", "image/png").
+            Maximum 128 characters long.
 
         created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the image record was initially created.
@@ -1462,9 +1467,9 @@ class VendorImage(ORMbase):
         index=True,
     )
     # File metadata
-    file_name = Column(String(128), nullable=False)
+    file_name = Column(TEXT, nullable=False)
     file_size = Column(Integer, nullable=False)
-    file_type = Column(String(128), nullable=False)
+    file_type = Column(TEXT, nullable=False)
     # Metadata
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
 
@@ -1481,7 +1486,7 @@ class Wallet(ORMbase):
         id (Integer, unique, not null):
             Primary identifier for the wallet.
 
-        name (String(32), not null):
+        name (TEXT, not null):
             Name of the wallet.
             Must not be null.
             Maximum 32 characters.
@@ -1503,7 +1508,7 @@ class Wallet(ORMbase):
     )
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(32), nullable=False)
+    name = Column(TEXT, nullable=False)
     balance = Column(Numeric(10, 2), nullable=False, default=0)
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
@@ -1779,13 +1784,13 @@ class Vehicle(ORMbase):
             Foreign key referencing `company.id` to whom this vehicle belongs.
             Cascades on delete — if the company is removed, related vehicles are deleted.
 
-        registration_number (String(16), not null):
+        registration_number (TEXT, not null):
             This should be an immutable value.
             Vehicle registration number.
             Must be unique per company and non-null.
             Indexed for fast lookup.
 
-        name (String(32),  not null):
+        name (TEXT, not null):
             Name or model of the vehicle.
             Maximum 32 characters long.
 
@@ -1827,8 +1832,8 @@ class Vehicle(ORMbase):
         nullable=False,
         index=True,
     )
-    registration_number = Column(String(16), nullable=False, index=True)
-    name = Column(String(32), nullable=False, index=True)
+    registration_number = Column(TEXT, nullable=False, index=True)
+    name = Column(TEXT, nullable=False, index=True)
     capacity = Column(Integer, nullable=False)
     version = Column(Integer, nullable=False, default=1)
     manufactured_on = Column(DateTime(timezone=True))
@@ -1861,14 +1866,16 @@ class VehicleImage(ORMbase):
             Foreign key referencing `vehicle.id` to whom this image belongs.
             Cascades on delete — if the vehicle is removed, related images are deleted.
 
-        file_name (String(128), not null):
+        file_name (TEXT, not null):
             Original name of the uploaded image file, including extension.
+            Maximum 128 characters long.
 
         file_size (Integer, not null):
             Size of the uploaded file in bytes.
 
-        file_type (String(128), not null):
+        file_type (TEXT, not null):
             MIME type of the uploaded file (e.g., "image/jpeg", "image/png").
+            Maximum 128 characters long.
 
         created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the image record was initially created.
@@ -1891,9 +1898,9 @@ class VehicleImage(ORMbase):
         index=True,
     )
     # File metadata
-    file_name = Column(String(128), nullable=False)
+    file_name = Column(TEXT, nullable=False)
     file_size = Column(Integer, nullable=False)
-    file_type = Column(String(128), nullable=False)
+    file_type = Column(TEXT, nullable=False)
     # Metadata
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
 
@@ -1914,7 +1921,7 @@ class Route(ORMbase):
             Foreign key referencing `company.id` to whom this route belongs.
             Cascades on delete — if the company is removed, related routes are deleted.
 
-        name (String(4096), not null):
+        name (TEXT, not null):
             Name of the route.
             Maximum 4096 characters long.
 
@@ -1943,7 +1950,7 @@ class Route(ORMbase):
         nullable=False,
         index=True,
     )
-    name = Column(String(4096), nullable=False)
+    name = Column(TEXT, nullable=False)
     start_time = Column(Time(timezone=True), nullable=False)
     status = Column(Integer, nullable=False, default=RouteStatus.INVALID)
     # Metadata
@@ -2038,7 +2045,7 @@ class Fare(ORMbase):
             Version number incremented on updates
             Useful for tracking changes and synchronizing fare updates.
 
-        name (String(32), not null):
+        name (TEXT, not null):
             Official name of the fare.
             Maximum 32 characters long.
 
@@ -2067,7 +2074,7 @@ class Fare(ORMbase):
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("company.id", ondelete="CASCADE"))
     version = Column(Integer, nullable=False, default=1)
-    name = Column(String(32), nullable=False)
+    name = Column(TEXT, nullable=False)
     attributes = Column(JSONB, nullable=False)
     function = Column(TEXT, nullable=False)
     scope = Column(Integer, nullable=False, default=FareScope.GLOBAL)
@@ -2107,7 +2114,7 @@ class Service(ORMbase):
         company_id (Integer, not null):
             Foreign key referencing `company.id` that operates the service.
 
-        name (String(128), not null):
+        name (TEXT, not null):
             Name of the service.
             Maximum 128 characters long.
 
@@ -2131,7 +2138,7 @@ class Service(ORMbase):
             Foreign key referencing `route.id`.
             Identifies the route that this service operates on.
 
-        registration_number (String(16), not null):
+        registration_number (TEXT, not null):
             Registration number of the vehicle assigned to this service.
 
         ticket_mode (Integer, not null, default=TicketingMode.HYBRID):
@@ -2180,7 +2187,7 @@ class Service(ORMbase):
 
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("company.id"), nullable=False, index=True)
-    name = Column(String(128), nullable=False)
+    name = Column(TEXT, nullable=False)
     fare_in_service_id = Column(
         Integer, ForeignKey("fare_in_service.id"), nullable=False
     )
@@ -2194,7 +2201,7 @@ class Service(ORMbase):
         index=True,
     )
     route_id = Column(Integer, ForeignKey("route.id", ondelete="SET NULL"), index=True)
-    registration_number = Column(String(16), nullable=False, index=True)
+    registration_number = Column(TEXT, nullable=False, index=True)
     ticket_mode = Column(Integer, nullable=False, default=TicketingMode.HYBRID)
     status = Column(Integer, nullable=False, default=ServiceStatus.CREATED)
     starting_at = Column(DateTime(timezone=True), nullable=False)
@@ -2293,7 +2300,7 @@ class FareInService(ORMbase):
             Version of the fare at the time of assignment.
             Used to track which version of the fare is applied to the service.
 
-        name (String(32), not null):
+        name (TEXT, not null):
             Name of the fare at the time of snapshot.
 
         attributes (JSONB, not null):
@@ -2320,7 +2327,7 @@ class FareInService(ORMbase):
     id = Column(Integer, primary_key=True)
     fare_id = Column(Integer, nullable=False, index=True)
     version = Column(Integer, nullable=False)
-    name = Column(String(32), nullable=False)
+    name = Column(TEXT, nullable=False)
     attributes = Column(JSONB, nullable=False)
     function = Column(TEXT, nullable=False)
     # Metadata
@@ -2407,10 +2414,10 @@ class VehicleInService(ORMbase):
             Version of the vehicle at the time of assignment.
             Used to track which version of the vehicle is applied to the service.
 
-        registration_number (String(16), not null):
+        registration_number (TEXT, not null):
             Vehicle registration number at the time of snapshot.
 
-        name (String(32), not null):
+        name (TEXT, not null):
             Name or model of the vehicle at the time of snapshot.
 
         capacity (Integer, not null):
@@ -2433,8 +2440,8 @@ class VehicleInService(ORMbase):
     id = Column(Integer, primary_key=True)
     vehicle_id = Column(Integer, nullable=False, index=True)
     version = Column(Integer, nullable=False)
-    registration_number = Column(String(16), nullable=False)
-    name = Column(String(32), nullable=False)
+    registration_number = Column(TEXT, nullable=False)
+    name = Column(TEXT, nullable=False)
     capacity = Column(Integer, nullable=False)
     # Metadata
     reference_count = Column(Integer, nullable=False, default=1)
@@ -2659,7 +2666,7 @@ class Trace(ORMbase):
             Indicates the company associated with this trace record.
             Cascades on delete — if the company is removed, related trace records are deleted.
 
-        name (String(4096), not null,):
+        name (TEXT, not null):
             Name of the trace.
             Maximum 4096 characters long.
             Unique together with `company_id` to prevent duplicate trace names within the same company.
@@ -2681,7 +2688,7 @@ class Trace(ORMbase):
         nullable=False,
         index=True,
     )
-    name = Column(String(4096), nullable=False)
+    name = Column(TEXT, nullable=False)
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
@@ -2752,7 +2759,7 @@ class Job(ORMbase):
             Indicates the company associated with this job record.
             Cascades on delete — if the company is removed, related job records are deleted.
 
-        name(String(32), not null):
+        name(TEXT, not null):
             Name of the job.
             Maximum 32 characters long.
 
@@ -2803,7 +2810,7 @@ class Job(ORMbase):
         nullable=False,
         index=True,
     )
-    name = Column(String(32), nullable=False)
+    name = Column(TEXT, nullable=False)
     description = Column(TEXT)
     job_type = Column(Integer, nullable=False, default=JobType.SERVICE_CREATION)
     recurrence_rule = Column(TEXT, nullable=False)
