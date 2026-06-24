@@ -227,21 +227,6 @@ class UnknownValue(APIException):
         super().__init__(detail=detail)
 
 
-class InvalidAssociation(APIException):
-    """
-    Raised when an association between two columns is invalid.
-    """
-
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-    headers = {"X-Error": "InvalidAssociation"}
-
-    def __init__(
-        self, column_1: InstrumentedAttribute, column_2: InstrumentedAttribute
-    ):
-        detail = f"The {column_1.name} is not associated with {column_2.name}"
-        super().__init__(detail=detail)
-
-
 class InvalidValue(APIException):
     """
     Raised when an invalid id or value is provided.

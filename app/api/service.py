@@ -170,8 +170,8 @@ class PrivateServiceSchema(PublicServiceSchema):
 # ---------------------------------------------------------------------------
 ## Input Forms
 # ---------------------------------------------------------------------------
-class CreateForm(BaseModel):
-    """Form data for creating a new service."""
+class CreateFormForOP(BaseModel):
+    """Form data for creating a new service for an operator."""
 
     route_id: int = Field()
     fare_id: int = Field()
@@ -183,6 +183,18 @@ class CreateForm(BaseModel):
         description=enum_str(TicketingMode), default=TicketingMode.HYBRID
     )
     starting_at: datetime = Field()
+
+
+class CreateFormForEX(CreateFormForOP):
+    """Form data for creating a new service for an executive."""
+
+    company_id: int = Field()
+
+
+class CreateForm(CreateFormForEX):
+    """Generic combined form data for creating a new service."""
+
+    pass
 
 
 class UpdateForm(BaseModel):
@@ -606,12 +618,17 @@ def create_service(
     Raises:
         exceptions.InactiveResource: If the vehicle, company, or route is not active/verified/valid.
         exceptions.InvalidValue: If the starting date is not valid.
-        exceptions.InvalidAssociation: If there are invalid associations between vehicle, route, fare, and company.
     """
     service_overlapping_lock = None
     fare_lock = None
     vehicle_lock = None
     try:
+        company = validate_id(
+            session,
+            Company,
+            form_param.company_id,
+            Service.company_id,
+        )
         vehicle = validate_id(
             session,
             Vehicle,
@@ -634,21 +651,6 @@ def create_service(
             extra_filter=extra_filter_for_fare,
         )
 
-        if vehicle.company_id != route.company_id:
-            raise exceptions.InvalidAssociation(
-                VehicleInService.vehicle_id, LandmarkInRoute.route_id
-            )
-        if fare.scope != FareScope.GLOBAL:
-            if fare.company_id != vehicle.company_id:
-                raise exceptions.InvalidAssociation(
-                    FareInService.fare_id, VehicleInService.vehicle_id
-                )
-        company = validate_id(
-            session,
-            Company,
-            vehicle.company_id,
-            Service.company_id,
-        )
         # validations
         if vehicle.status != VehicleStatus.ACTIVE:
             raise exceptions.InactiveResource(Vehicle)
@@ -818,10 +820,6 @@ def update_service(
                 "vehicle_id",
                 extra_filter=extra_filter_for_vehicle,
             )
-            if vehicle.company_id != service.company_id:
-                raise exceptions.InvalidAssociation(
-                    VehicleInService.vehicle_id, Service.company_id
-                )
         if "route_id" in update_data:
             route = validate_id(
                 session,
@@ -830,10 +828,6 @@ def update_service(
                 "route_id",
                 extra_filter=extra_filter_for_route,
             )
-            if route.company_id != service.company_id:
-                raise exceptions.InvalidAssociation(
-                    LandmarkInRoute.route_id, Service.company_id
-                )
         if "fare_id" in update_data:
             fare = validate_id(
                 session,
@@ -842,10 +836,6 @@ def update_service(
                 "fare_id",
                 extra_filter=extra_filter_for_fare,
             )
-            if fare.scope != FareScope.GLOBAL and fare.company_id != service.company_id:
-                raise exceptions.InvalidAssociation(
-                    FareInService.fare_id, Service.company_id
-                )
         _allowed_service_status_transitions = {
             ServiceStatus.CREATED: [ServiceStatus.CACHED],
             ServiceStatus.CACHED: [ServiceStatus.ENDED],
@@ -1260,10 +1250,6 @@ POST_EXCEPTIONS = [
     exceptions.OverlappingService(),
     exceptions.InvalidValue(Service.starting_at),
     exceptions.UnknownValue(Service.company_id),
-    exceptions.InvalidAssociation(
-        VehicleInService.vehicle_id, LandmarkInRoute.route_id
-    ),
-    exceptions.InvalidAssociation(FareInService.fare_id, VehicleInService.vehicle_id),
     exceptions.LockAcquireTimeout(),
 ]
 
@@ -1280,9 +1266,6 @@ PATCH_EXCEPTIONS = [
     exceptions.OverlappingService(),
     exceptions.DataInUse(Service),
     exceptions.InvalidValue(Service.starting_at),
-    exceptions.InvalidAssociation(VehicleInService.vehicle_id, Service.company_id),
-    exceptions.InvalidAssociation(LandmarkInRoute.route_id, Service.company_id),
-    exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id),
     exceptions.LockAcquireTimeout(),
 ]
 
@@ -1375,10 +1358,13 @@ GET_DETAIL_DESCRIPTION = Description().add_head("Fetch service details by ID.")
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=POST_DESCRIPTION.copy()
     .add_line("Logged in executive must have `company.service.create` permission.")
+    .add_line(
+        "`company_id` is required and used to validate route, fare, and vehicle ownership."
+    )
     .to_string(),
 )
 async def create_service_for_executive(
-    form_param: CreateForm,
+    form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
@@ -1387,9 +1373,14 @@ async def create_service_for_executive(
         token = authorize_executive(
             session, access_token, [ExecutivePermissionPath.CREATE_COMPANY_SERVICE]
         )
+
         service_data = create_service(
             session,
             form_param,
+            extra_filter_for_route=(Route.company_id == form_param.company_id),
+            extra_filter_for_vehicle=(Vehicle.company_id == form_param.company_id),
+            extra_filter_for_fare=(Fare.company_id == form_param.company_id)
+            | (Fare.scope == FareScope.GLOBAL),
         )
         log_event(token, request_info, service_data)
         return service_data
@@ -1421,10 +1412,16 @@ async def update_service_for_executive(
             session, access_token, [ExecutivePermissionPath.UPDATE_COMPANY_SERVICE]
         )
 
+        service = validate_id(session, Service, id, Service.id)
         have_updates, service_data = update_service(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            extra_filter_for_service=(Service.company_id == service.company_id),
+            extra_filter_for_route=(Route.company_id == service.company_id),
+            extra_filter_for_vehicle=(Vehicle.company_id == service.company_id),
+            extra_filter_for_fare=(Fare.company_id == service.company_id)
+            | (Fare.scope == FareScope.GLOBAL),
         )
         if have_updates:
             log_event(token, request_info, service_data)
@@ -1535,7 +1532,7 @@ async def delete_service_for_executive(
     .to_string(),
 )
 async def create_service_for_operator(
-    form_param: CreateForm,
+    form_param: CreateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
 ):
@@ -1549,7 +1546,7 @@ async def create_service_for_operator(
 
         service_data = create_service(
             session,
-            form_param,
+            CreateForm(**form_param.model_dump(), company_id=token.company_id),
             extra_filter_for_route=(Route.company_id == token.company_id),
             extra_filter_for_vehicle=(Vehicle.company_id == token.company_id),
             extra_filter_for_fare=(Fare.company_id == token.company_id)

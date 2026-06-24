@@ -18,6 +18,7 @@ from sqlalchemy.orm.session import Session
 from app.api.bearer import bearer_operator, oauth2_executive
 from app.src import exceptions
 from app.src.db import (
+    Company,
     ExecutiveToken,
     Fare,
     Job,
@@ -85,8 +86,8 @@ class ServiceAutomationSchema(BaseModel):
 # ---------------------------------------------------------------------------
 ## Input Forms
 # ---------------------------------------------------------------------------
-class CreateForm(BaseModel):
-    """Form data for creating a new service automation."""
+class CreateFormForOP(BaseModel):
+    """Form data for creating a new service automation for an operator."""
 
     job_id: int | None = Field(default=None)
     name: str = Field(min_length=1, max_length=128, pattern=NAME_PATTERN)
@@ -98,6 +99,18 @@ class CreateForm(BaseModel):
         description=enum_str(TicketingMode), default=TicketingMode.HYBRID
     )
     starting_at: time = Field()
+
+
+class CreateFormForEX(CreateFormForOP):
+    """Form data for creating a new service automation for an executive."""
+
+    company_id: int = Field()
+
+
+class CreateForm(CreateFormForEX):
+    """Generic combined form data for creating a new service automation."""
+
+    pass
 
 
 class UpdateForm(BaseModel):
@@ -217,23 +230,8 @@ def create_service_automation(
         extra_filter=extra_filter_for_fare,
     )
 
-    # Validations
-    if job is not None and job.company_id != route.company_id:
-        raise exceptions.InvalidAssociation(
-            ServiceAutomation.job_id, ServiceAutomation.route_id
-        )
-    if route.company_id != vehicle.company_id:
-        raise exceptions.InvalidAssociation(
-            ServiceAutomation.route_id, ServiceAutomation.vehicle_id
-        )
-    if fare.scope != FareScope.GLOBAL:
-        if fare.company_id != vehicle.company_id:
-            raise exceptions.InvalidAssociation(
-                ServiceAutomation.fare_id, ServiceAutomation.vehicle_id
-            )
-
     service_automation = ServiceAutomation(
-        company_id=route.company_id,
+        company_id=form_param.company_id,
         job_id=form_param.job_id,
         name=form_param.name,
         description=form_param.description,
@@ -287,56 +285,37 @@ def update_service_automation(
 
     update_data = form_param.model_dump(exclude_unset=True)
     if "job_id" in update_data and update_data["job_id"] is not None:
-        job = validate_id(
+        validate_id(
             session,
             Job,
             form_param.job_id,
             ServiceAutomation.job_id,
             extra_filter=extra_filter_for_job,
         )
-        if job.company_id != service_automation.company_id:
-            raise exceptions.InvalidAssociation(
-                ServiceAutomation.job_id, ServiceAutomation.company_id
-            )
     if "route_id" in update_data:
-        route = validate_id(
+        validate_id(
             session,
             Route,
             form_param.route_id,
             ServiceAutomation.route_id,
             extra_filter=extra_filter_for_route,
         )
-        if route.company_id != service_automation.company_id:
-            raise exceptions.InvalidAssociation(
-                ServiceAutomation.route_id, ServiceAutomation.company_id
-            )
     if "fare_id" in update_data:
-        fare = validate_id(
+        validate_id(
             session,
             Fare,
             form_param.fare_id,
             ServiceAutomation.fare_id,
             extra_filter=extra_filter_for_fare,
         )
-        if (
-            fare.scope != FareScope.GLOBAL
-            and fare.company_id != service_automation.company_id
-        ):
-            raise exceptions.InvalidAssociation(
-                ServiceAutomation.fare_id, ServiceAutomation.company_id
-            )
     if "vehicle_id" in update_data:
-        vehicle = validate_id(
+        validate_id(
             session,
             Vehicle,
             form_param.vehicle_id,
             ServiceAutomation.vehicle_id,
             extra_filter=extra_filter_for_vehicle,
         )
-        if vehicle.company_id != service_automation.company_id:
-            raise exceptions.InvalidAssociation(
-                ServiceAutomation.vehicle_id, ServiceAutomation.company_id
-            )
 
     update_if_changed(service_automation, update_data)
     have_updates = session.is_modified(service_automation)
@@ -446,13 +425,6 @@ POST_EXCEPTIONS = [
     exceptions.UnknownValue(ServiceAutomation.route_id),
     exceptions.UnknownValue(ServiceAutomation.fare_id),
     exceptions.UnknownValue(ServiceAutomation.vehicle_id),
-    exceptions.InvalidAssociation(ServiceAutomation.job_id, ServiceAutomation.route_id),
-    exceptions.InvalidAssociation(
-        ServiceAutomation.route_id, ServiceAutomation.vehicle_id
-    ),
-    exceptions.InvalidAssociation(
-        ServiceAutomation.fare_id, ServiceAutomation.vehicle_id
-    ),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -463,18 +435,6 @@ PATCH_EXCEPTIONS = [
     exceptions.UnknownValue(ServiceAutomation.route_id),
     exceptions.UnknownValue(ServiceAutomation.fare_id),
     exceptions.UnknownValue(ServiceAutomation.vehicle_id),
-    exceptions.InvalidAssociation(
-        ServiceAutomation.job_id, ServiceAutomation.company_id
-    ),
-    exceptions.InvalidAssociation(
-        ServiceAutomation.route_id, ServiceAutomation.company_id
-    ),
-    exceptions.InvalidAssociation(
-        ServiceAutomation.fare_id, ServiceAutomation.company_id
-    ),
-    exceptions.InvalidAssociation(
-        ServiceAutomation.vehicle_id, ServiceAutomation.company_id
-    ),
 ]
 
 DELETE_EXCEPTIONS = [
@@ -526,11 +486,14 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of service automations.
     description=(
         POST_DESCRIPTION.copy()
         .add_line("Logged in executive must have `company.service.create` permission.")
+        .add_line(
+            "`company_id` is required and used to validate job, route, fare, and vehicle ownership."
+        )
         .to_string()
     ),
 )
 async def create_service_automation_for_executive(
-    form_param: CreateForm,
+    form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
@@ -545,6 +508,11 @@ async def create_service_automation_for_executive(
         service_automation_data = create_service_automation(
             session,
             CreateForm(**form_param.model_dump()),
+            extra_filter_for_job=(Job.company_id == form_param.company_id),
+            extra_filter_for_route=(Route.company_id == form_param.company_id),
+            extra_filter_for_fare=(Fare.company_id == form_param.company_id)
+            | (Fare.scope == FareScope.GLOBAL),
+            extra_filter_for_vehicle=(Vehicle.company_id == form_param.company_id),
         )
         log_event(token, request_info, service_automation_data)
         return service_automation_data
@@ -580,10 +548,26 @@ async def update_service_automation_for_executive(
             [ExecutivePermissionPath.UPDATE_COMPANY_SERVICE],
         )
 
+        service_automation = validate_id(
+            session,
+            ServiceAutomation,
+            id,
+            ServiceAutomation.id,
+        )
         have_updates, service_automation_data = update_service_automation(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            extra_filter_for_service_automation=(
+                ServiceAutomation.company_id == service_automation.company_id
+            ),
+            extra_filter_for_job=(Job.company_id == service_automation.company_id),
+            extra_filter_for_route=(Route.company_id == service_automation.company_id),
+            extra_filter_for_fare=(Fare.company_id == service_automation.company_id)
+            | (Fare.scope == FareScope.GLOBAL),
+            extra_filter_for_vehicle=(
+                Vehicle.company_id == service_automation.company_id
+            ),
         )
         if have_updates:
             log_event(token, request_info, service_automation_data)
@@ -676,7 +660,7 @@ async def fetch_service_automations_for_executive(
     ),
 )
 async def create_service_automation_for_operator(
-    form_param: CreateForm,
+    form_param: CreateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
 ):
@@ -690,7 +674,7 @@ async def create_service_automation_for_operator(
 
         service_automation_data = create_service_automation(
             session,
-            CreateForm(**form_param.model_dump()),
+            CreateForm(**form_param.model_dump(), company_id=token.company_id),
             extra_filter_for_job=(Job.company_id == token.company_id),
             extra_filter_for_route=(Route.company_id == token.company_id),
             extra_filter_for_fare=(Fare.company_id == token.company_id)
