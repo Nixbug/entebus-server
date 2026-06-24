@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from enum import StrEnum
 from fastapi.encoders import jsonable_encoder
-from typing import Any, Dict, List
+from typing import List
 from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel, Field
 from datetime import timedelta
@@ -616,21 +616,21 @@ def create_service(
             session,
             Vehicle,
             form_param.vehicle_id,
-            "vehicle_id",
+            Service.vehicle_id,
             extra_filter=extra_filter_for_vehicle,
         )
         route = validate_id(
             session,
             Route,
             form_param.route_id,
-            "route_id",
+            Service.route_id,
             extra_filter=extra_filter_for_route,
         )
         fare = validate_id(
             session,
             Fare,
             form_param.fare_id,
-            "fare_id",
+            Service.fare_id,
             extra_filter=extra_filter_for_fare,
         )
 

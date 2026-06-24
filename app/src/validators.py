@@ -6,7 +6,7 @@ making it easier for developers to integrate them into their projects.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, List, Type, Union
+from typing import Any, List, Type, TypeVar, Union
 from dns.enum import IntEnum
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import InstrumentedAttribute
@@ -497,25 +497,28 @@ def is_valid_transition(
     return new_state in transitions[old_state]
 
 
+T = TypeVar("T", bound="ORMbase")
+
+
 def validate_id(
     session: Session,
-    model_cls: Type[ORMbase],
+    model_cls: Type[T],
     unique_id: int,
     column: Union[InstrumentedAttribute, str],
     extra_filter: ClauseElement[bool] | None = None,
-) -> Any:
+) -> T:
     """
     Generic function to validate an ID based on a given model class.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[ORMbase]): The ORM model class.
+        model_cls (Type[T]): The ORM model class.
         unique_id (int): The ID of the record to fetch.
         column (InstrumentedAttribute | str): ORM column or field name for error messages.
         extra_filter (ClauseElement[bool] | None): Additional filters to apply, defaults to None.
 
     Returns:
-        Any: The instance of the model class matching the given ID.
+        T: The instance of the model class matching the given ID.
 
     Raises:
         UnknownValue: If no instance with the provided ID exists.

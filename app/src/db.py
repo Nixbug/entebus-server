@@ -2823,3 +2823,84 @@ class Job(ORMbase):
     # Metadata
     updated_on = Column(DateTime(timezone=True), onupdate=func.now())
     created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+
+
+class ServiceAutomation(ORMbase):
+    """
+    Represents an automated service creation configuration.
+
+    This table stores configurations for automatically creating services based on predefined parameters.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the service automation record.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id`.
+            Indicates the company associated with this service automation record.
+            Cascades on delete — if the company is removed, related service automation records are deleted.
+
+        job_id (Integer):
+            Foreign key referencing `job.id`.
+            The job that triggers this service automation.
+
+        name (TEXT, not null):
+            Name of the service creation automation.
+            Maximum 128 characters long.
+
+        description (TEXT, nullable):
+            Optional description or notes about the service creation automation.
+            Maximum 1024 characters long.
+
+        route_id (Integer, not null):
+            Foreign key referencing `route.id`.
+            Indicates the route associated with this service creation automation.
+            Cascades on delete — if the route is removed, related service automation records are deleted.
+
+        fare_id (Integer, not null):
+            Foreign key referencing `fare.id`.
+            Indicates the fare associated with this service creation automation.
+            Cascades on delete — if the fare is removed, related service automation records are deleted.
+
+        vehicle_id (Integer, not null):
+            Foreign key referencing `vehicle.id`.
+            Indicates the vehicle associated with this service creation automation.
+            Cascades on delete — if the vehicle is removed, related service automation records are deleted.
+
+        ticket_mode (Integer, not null, default=TicketingMode.HYBRID):
+            Ticketing mode for the service creation automation. Mapped from the `TicketingMode` enum.
+
+        starting_at (Time(timezone=True), not null):
+            The time of the day at which the service should start.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+        Timestamp automatically updated whenever the service creation automation record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the service creation automation record was created.
+    """
+
+    __tablename__ = "service_automation"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(
+        Integer,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    job_id = Column(Integer, ForeignKey("job.id"), index=True)
+    name = Column(TEXT, nullable=False)
+    description = Column(TEXT)
+    route_id = Column(
+        Integer, ForeignKey("route.id", ondelete="CASCADE"), nullable=False
+    )
+    fare_id = Column(Integer, ForeignKey("fare.id", ondelete="CASCADE"), nullable=False)
+    vehicle_id = Column(
+        Integer, ForeignKey("vehicle.id", ondelete="CASCADE"), nullable=False
+    )
+    ticket_mode = Column(Integer, nullable=False, default=TicketingMode.HYBRID)
+    starting_at = Column(Time(timezone=True), nullable=False)
+    # Metadata
+    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
+    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
