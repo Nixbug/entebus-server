@@ -287,7 +287,7 @@ def update_service_automation(
     )
 
     update_data = form_param.model_dump(exclude_unset=True)
-    if "job_id" in update_data:
+    if "job_id" in update_data and update_data["job_id"] is not None:
         job = validate_id(
             session,
             Job,
