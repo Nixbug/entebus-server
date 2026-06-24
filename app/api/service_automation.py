@@ -692,7 +692,7 @@ async def create_service_automation_for_operator(
 
         service_automation_data = create_service_automation(
             session,
-            CreateForm(**form_param.model_dump(), company_id=token.company_id),
+            CreateForm(**form_param.model_dump()),
             extra_filter_for_job=(Job.company_id == token.company_id),
             extra_filter_for_route=(Route.company_id == token.company_id),
             extra_filter_for_fare=(Fare.company_id == token.company_id)
