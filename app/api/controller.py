@@ -29,6 +29,7 @@ from app.api import (
     paper_ticket,
     route,
     service,
+    service_automation,
     service_assignment,
     trace,
     vehicle,
@@ -83,6 +84,7 @@ app_executive.include_router(route.route_executive)
 app_executive.include_router(landmark_in_route.route_executive)
 app_executive.include_router(fare.route_executive)
 app_executive.include_router(duty.route_executive)
+app_executive.include_router(service_automation.route_executive)
 app_executive.include_router(service_assignment.route_executive)
 app_executive.include_router(service_location.route_executive)
 app_executive.include_router(service.route_executive)
@@ -126,6 +128,7 @@ app_operator.include_router(route.route_operator)
 app_operator.include_router(landmark_in_route.route_operator)
 app_operator.include_router(fare.route_operator)
 app_operator.include_router(duty.route_operator)
+app_operator.include_router(service_automation.route_operator)
 app_operator.include_router(service_assignment.route_operator)
 app_operator.include_router(service_location.route_operator)
 app_operator.include_router(service.route_operator)
