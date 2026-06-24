@@ -187,13 +187,15 @@ def create_service_automation(
     Returns:
         dict: The created service automation data.
     """
-    job = validate_id(
-        session,
-        Job,
-        form_param.job_id,
-        ServiceAutomation.job_id,
-        extra_filter=extra_filter_for_job,
-    )
+    job = None
+    if form_param.job_id is not None:
+        job = validate_id(
+            session,
+            Job,
+            form_param.job_id,
+            ServiceAutomation.job_id,
+            extra_filter=extra_filter_for_job,
+        )
     vehicle = validate_id(
         session,
         Vehicle,
@@ -217,13 +219,13 @@ def create_service_automation(
     )
 
     # Validations
-    if job.company_id != route.company_id:
+    if job is not None and job.company_id != route.company_id:
         raise exceptions.InvalidAssociation(
             ServiceAutomation.job_id, ServiceAutomation.route_id
         )
-    if job.company_id != vehicle.company_id:
+    if route.company_id != vehicle.company_id:
         raise exceptions.InvalidAssociation(
-            ServiceAutomation.job_id, ServiceAutomation.vehicle_id
+            ServiceAutomation.route_id, ServiceAutomation.vehicle_id
         )
     if fare.scope != FareScope.GLOBAL:
         if fare.company_id != vehicle.company_id:
