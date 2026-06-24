@@ -234,7 +234,7 @@ def create_service_automation(
             )
 
     service_automation = ServiceAutomation(
-        company_id=job.company_id,
+        company_id=route.company_id,
         job_id=form_param.job_id,
         name=form_param.name,
         description=form_param.description,
