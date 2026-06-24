@@ -220,10 +220,12 @@ def generate_landmark_in_route_payload(
     }
 
 
-def generate_service_payload(route_id: int, fare_id: int, vehicle_id: int):
+def generate_service_payload(
+    route_id: int, fare_id: int, vehicle_id: int, company_id: int | None = None
+):
     # choose a start offset in minutes (5–1439) to avoid `starting_at` == now
     minutes_offset = int(np.random.randint(5, 1440))
-    return {
+    payload = {
         "starting_at": (
             datetime.now(timezone.utc) + timedelta(minutes=minutes_offset)
         ).isoformat(),
@@ -231,13 +233,21 @@ def generate_service_payload(route_id: int, fare_id: int, vehicle_id: int):
         "fare_id": fare_id,
         "vehicle_id": vehicle_id,
     }
+    if company_id is not None:
+        payload["company_id"] = company_id
+    return payload
 
 
-def generate_service_assignment_payload(service_id: int, operator_id: int) -> dict:
-    return {
+def generate_service_assignment_payload(
+    service_id: int, operator_id: int, company_id: int | None = None
+) -> dict:
+    payload = {
         "service_id": service_id,
         "operator_id": operator_id,
     }
+    if company_id is not None:
+        payload["company_id"] = company_id
+    return payload
 
 
 # Utility function to generate a random image for testing purposes
