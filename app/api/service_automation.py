@@ -86,8 +86,8 @@ class ServiceAutomationSchema(BaseModel):
 # ---------------------------------------------------------------------------
 ## Input Forms
 # ---------------------------------------------------------------------------
-class CreateFormForOP(BaseModel):
-    """Form data for creating a new service automation for an operator."""
+class CreateForm(BaseModel):
+    """Form data for creating a new service automation."""
 
     job_id: int | None = Field(default=None)
     name: str = Field(min_length=1, max_length=128, pattern=NAME_PATTERN)
@@ -99,18 +99,6 @@ class CreateFormForOP(BaseModel):
         description=enum_str(TicketingMode), default=TicketingMode.HYBRID
     )
     starting_at: time = Field()
-
-
-class CreateFormForEX(CreateFormForOP):
-    """Form data for creating a new service automation for an executive."""
-
-    company_id: int = Field()
-
-
-class CreateForm(CreateFormForEX):
-    """Generic combined form data for creating a new service automation."""
-
-    pass
 
 
 class UpdateForm(BaseModel):
@@ -189,55 +177,23 @@ def create_service_automation(
     Creates a new service automation record in the database.
 
     Args:
-            session (Session): SQLAlchemy database session.
-            form_param (CreateForm): Form data for creating a service automation.
-            extra_filter_for_job: Optional filter for validating the job.
-            extra_filter_for_route: Optional filter for validating the route.
-            extra_filter_for_fare: Optional filter for validating the fare.
-            extra_filter_for_vehicle: Optional filter for validating the vehicle.
+        session (Session): SQLAlchemy database session.
+        form_param (CreateForm): Form data for creating a service automation.
+        extra_filter_for_job: Optional filter for validating the job.
+        extra_filter_for_route: Optional filter for validating the route.
+        extra_filter_for_fare: Optional filter for validating the fare.
+        extra_filter_for_vehicle: Optional filter for validating the vehicle.
 
     Returns:
-            dict: The created service automation data.
+        dict: The created service automation data.
     """
-    validate_id(session, Company, form_param.company_id, ServiceAutomation.company_id)
-
-    if form_param.job_id is not None:
-        job = validate_id(
-            session,
-            Job,
-            form_param.job_id,
-            ServiceAutomation.job_id,
-            extra_filter=extra_filter_for_job,
-        )
-        if job.company_id != form_param.company_id:
-            raise exceptions.InvalidAssociation(
-                ServiceAutomation.job_id, ServiceAutomation.company_id
-            )
-
-    route = validate_id(
+    job = validate_id(
         session,
-        Route,
-        form_param.route_id,
-        ServiceAutomation.route_id,
-        extra_filter=extra_filter_for_route,
+        Job,
+        form_param.job_id,
+        ServiceAutomation.job_id,
+        extra_filter=extra_filter_for_job,
     )
-    if route.company_id != form_param.company_id:
-        raise exceptions.InvalidAssociation(
-            ServiceAutomation.route_id, ServiceAutomation.company_id
-        )
-
-    fare = validate_id(
-        session,
-        Fare,
-        form_param.fare_id,
-        ServiceAutomation.fare_id,
-        extra_filter=extra_filter_for_fare,
-    )
-    if fare.scope != FareScope.GLOBAL and fare.company_id != form_param.company_id:
-        raise exceptions.InvalidAssociation(
-            ServiceAutomation.fare_id, ServiceAutomation.company_id
-        )
-
     vehicle = validate_id(
         session,
         Vehicle,
@@ -245,13 +201,38 @@ def create_service_automation(
         ServiceAutomation.vehicle_id,
         extra_filter=extra_filter_for_vehicle,
     )
-    if vehicle.company_id != form_param.company_id:
+    route = validate_id(
+        session,
+        Route,
+        form_param.route_id,
+        ServiceAutomation.route_id,
+        extra_filter=extra_filter_for_route,
+    )
+    fare = validate_id(
+        session,
+        Fare,
+        form_param.fare_id,
+        ServiceAutomation.fare_id,
+        extra_filter=extra_filter_for_fare,
+    )
+
+    # Validations
+    if job.company_id != route.company_id:
         raise exceptions.InvalidAssociation(
-            ServiceAutomation.vehicle_id, ServiceAutomation.company_id
+            ServiceAutomation.job_id, ServiceAutomation.route_id
         )
+    if job.company_id != vehicle.company_id:
+        raise exceptions.InvalidAssociation(
+            ServiceAutomation.job_id, ServiceAutomation.vehicle_id
+        )
+    if fare.scope != FareScope.GLOBAL:
+        if fare.company_id != vehicle.company_id:
+            raise exceptions.InvalidAssociation(
+                ServiceAutomation.fare_id, ServiceAutomation.vehicle_id
+            )
 
     service_automation = ServiceAutomation(
-        company_id=form_param.company_id,
+        company_id=job.company_id,
         job_id=form_param.job_id,
         name=form_param.name,
         description=form_param.description,
@@ -262,6 +243,7 @@ def create_service_automation(
         starting_at=form_param.starting_at,
     )
     session.add(service_automation)
+
     session.commit()
     session.refresh(service_automation)
     service_automation_data = jsonable_encoder(service_automation)
@@ -282,17 +264,17 @@ def update_service_automation(
     Updates an existing service automation record in the database.
 
     Args:
-            session (Session): SQLAlchemy database session.
-            id (int): ID of the service automation to update.
-            form_param (UpdateForm): Form data for updating the service automation.
-            extra_filter_for_service_automation: Optional filter for validating the service automation.
-            extra_filter_for_job: Optional filter for validating the job.
-            extra_filter_for_route: Optional filter for validating the route.
-            extra_filter_for_fare: Optional filter for validating the fare.
-            extra_filter_for_vehicle: Optional filter for validating the vehicle.
+        session (Session): SQLAlchemy database session.
+        id (int): ID of the service automation to update.
+        form_param (UpdateForm): Form data for updating the service automation.
+        extra_filter_for_service_automation: Optional filter for validating the service automation.
+        extra_filter_for_job: Optional filter for validating the job.
+        extra_filter_for_route: Optional filter for validating the route.
+        extra_filter_for_fare: Optional filter for validating the fare.
+        extra_filter_for_vehicle: Optional filter for validating the vehicle.
 
     Returns:
-            Tuple[bool, dict]: A tuple containing a boolean indicating whether any updates were made and the updated service automation data.
+        Tuple[bool, dict]: A tuple containing a boolean indicating whether any updates were made and the updated service automation data.
     """
     service_automation = validate_id(
         session,
@@ -303,8 +285,7 @@ def update_service_automation(
     )
 
     update_data = form_param.model_dump(exclude_unset=True)
-
-    if "job_id" in update_data and form_param.job_id is not None:
+    if "job_id" in update_data:
         job = validate_id(
             session,
             Job,
@@ -316,7 +297,6 @@ def update_service_automation(
             raise exceptions.InvalidAssociation(
                 ServiceAutomation.job_id, ServiceAutomation.company_id
             )
-
     if "route_id" in update_data:
         route = validate_id(
             session,
@@ -329,7 +309,6 @@ def update_service_automation(
             raise exceptions.InvalidAssociation(
                 ServiceAutomation.route_id, ServiceAutomation.company_id
             )
-
     if "fare_id" in update_data:
         fare = validate_id(
             session,
@@ -345,7 +324,6 @@ def update_service_automation(
             raise exceptions.InvalidAssociation(
                 ServiceAutomation.fare_id, ServiceAutomation.company_id
             )
-
     if "vehicle_id" in update_data:
         vehicle = validate_id(
             session,
@@ -376,11 +354,11 @@ def delete_service_automation(
     Deletes a service automation from the database.
 
     Args:
-            session (Session): SQLAlchemy database session.
-            service_automation (ServiceAutomation): Service automation to delete.
+        session (Session): SQLAlchemy database session.
+        service_automation (ServiceAutomation): Service automation to delete.
 
     Returns:
-            dict: JSON-encoded representation of the deleted service automation.
+        dict: JSON-encoded representation of the deleted service automation.
     """
     service_automation_data = jsonable_encoder(service_automation)
     session.delete(service_automation)
@@ -388,18 +366,18 @@ def delete_service_automation(
     return service_automation_data
 
 
-def search_service_automations(
+def search_service_automation(
     session: Session, query_params: QueryParams
 ) -> List[ServiceAutomation]:
     """
     Searches for service automations based on the provided query parameters.
 
     Args:
-            session (Session): SQLAlchemy database session.
-            query_params (QueryParams): Query parameters for filtering and sorting service automations.
+        session (Session): SQLAlchemy database session.
+        query_params (QueryParams): Query parameters for filtering and sorting service automations.
 
     Returns:
-            List[ServiceAutomation]: A list of service automations matching the search criteria.
+        List[ServiceAutomation]: A list of service automations matching the search criteria.
     """
     query = session.query(ServiceAutomation)
     if query_params.company_id is not None:
@@ -427,6 +405,7 @@ def search_service_automations(
             ServiceAutomation.starting_at <= query_params.starting_at_le
         )
 
+    # Common search
     if query_params.search:
         search = f"%{query_params.search}%"
         query = query.filter(
@@ -436,11 +415,13 @@ def search_service_automations(
             )
         )
 
+    # General filters
     query = apply_id_filters(query, ServiceAutomation, query_params)
     query = apply_name_filters(query, ServiceAutomation, query_params)
     query = apply_created_on_filters(query, ServiceAutomation, query_params)
     query = apply_updated_on_filters(query, ServiceAutomation, query_params)
 
+    # Ordering and Pagination
     ordering_attr = getattr(ServiceAutomation, query_params.order_by.value)
     ordering_func = (
         ordering_attr.asc
@@ -554,7 +535,7 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of service automations.
     ),
 )
 async def create_service_automation_for_executive(
-    form_param: CreateFormForEX,
+    form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
@@ -673,7 +654,7 @@ async def fetch_service_automations_for_executive(
         session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
 
-        return search_service_automations(
+        return search_service_automation(
             session,
             QueryParams(**query_params.model_dump()),
         )
@@ -700,7 +681,7 @@ async def fetch_service_automations_for_executive(
     ),
 )
 async def create_service_automation_for_operator(
-    form_param: CreateFormForOP,
+    form_param: CreateForm,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
 ):
@@ -837,7 +818,7 @@ async def fetch_service_automations_for_operator(
         session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
 
-        return search_service_automations(
+        return search_service_automation(
             session,
             QueryParams(**query_params.model_dump(), company_id=token.company_id),
         )
