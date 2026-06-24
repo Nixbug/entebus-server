@@ -442,22 +442,18 @@ def search_service_automation(
 POST_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
-    exceptions.UnknownValue(ServiceAutomation.company_id),
     exceptions.UnknownValue(ServiceAutomation.job_id),
     exceptions.UnknownValue(ServiceAutomation.route_id),
     exceptions.UnknownValue(ServiceAutomation.fare_id),
     exceptions.UnknownValue(ServiceAutomation.vehicle_id),
     exceptions.InvalidAssociation(
-        ServiceAutomation.job_id, ServiceAutomation.company_id
+        ServiceAutomation.job_id, ServiceAutomation.route_id
     ),
     exceptions.InvalidAssociation(
-        ServiceAutomation.route_id, ServiceAutomation.company_id
+        ServiceAutomation.route_id, ServiceAutomation.vehicle_id
     ),
     exceptions.InvalidAssociation(
-        ServiceAutomation.fare_id, ServiceAutomation.company_id
-    ),
-    exceptions.InvalidAssociation(
-        ServiceAutomation.vehicle_id, ServiceAutomation.company_id
+        ServiceAutomation.fare_id, ServiceAutomation.vehicle_id
     ),
 ]
 
