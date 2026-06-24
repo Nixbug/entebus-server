@@ -446,9 +446,7 @@ POST_EXCEPTIONS = [
     exceptions.UnknownValue(ServiceAutomation.route_id),
     exceptions.UnknownValue(ServiceAutomation.fare_id),
     exceptions.UnknownValue(ServiceAutomation.vehicle_id),
-    exceptions.InvalidAssociation(
-        ServiceAutomation.job_id, ServiceAutomation.route_id
-    ),
+    exceptions.InvalidAssociation(ServiceAutomation.job_id, ServiceAutomation.route_id),
     exceptions.InvalidAssociation(
         ServiceAutomation.route_id, ServiceAutomation.vehicle_id
     ),
