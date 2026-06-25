@@ -304,6 +304,7 @@ def update_business(
     )
 
     update_data = form_param.model_dump(exclude_unset=True)
+    wallet = None
     if "location" in update_data:
         old_location_geom = wkb.loads(bytes(business.location.data))
         new_location_geom = validate_location(form_param.location)
@@ -327,13 +328,11 @@ def update_business(
         update_data.pop("name")
 
     update_if_changed(business, update_data)
-    have_updates = session.is_modified(business) or (
-        wallet and session.is_modified(wallet)
-    )
-    if have_updates:
+    updated = session.is_modified(business) or (wallet and session.is_modified(wallet))
+    if updated:
         session.commit()
         session.refresh(business)
-    return have_updates, business_to_dict(business)
+    return updated, business_to_dict(business)
 
 
 def search_businesses(session: Session, query_params: QueryParams) -> List[Business]:
@@ -567,12 +566,12 @@ async def update_business_for_executive(
             [ExecutivePermissionPath.UPDATE_BUSINESS],
         )
 
-        have_updates, business_data = update_business(
+        updated, business_data = update_business(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
         )
-        if have_updates:
+        if updated:
             log_event(token, request_info, business_data)
         return business_data
     except Exception as e:
@@ -671,13 +670,13 @@ async def update_business_for_vendor(
             [VendorPermissionPath.UPDATE_BUSINESS],
         )
 
-        have_updates, business_data = update_business(
+        updated, business_data = update_business(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
             token.business_id,
         )
-        if have_updates:
+        if updated:
             log_event(token, request_info, business_data)
         return business_data
     except Exception as e:
