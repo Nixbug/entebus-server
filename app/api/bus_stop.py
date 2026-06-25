@@ -238,7 +238,9 @@ def update_bus_stop(
         form_param (UpdateForm): Form data for updating the bus stop.
 
     Returns:
-        tuple[bool, dict]: A tuple containing a boolean indicating if updates were made and the updated bus stop data with location in WKT format.
+        Tuple[bool, dict]:
+            - bool: True if the bus stop was modified and the changes were committed.
+            - dict: JSON-encoded representation of the updated bus stop.
     """
     bus_stop = validate_id(session, BusStop, id, BusStop.id)
 
@@ -249,8 +251,7 @@ def update_bus_stop(
             session, form_param.location, bus_stop.landmark_id
         )
         if new_location_geom.wkt != old_location_geom.wkt:
-            location = wkt.dumps(new_location_geom)
-            bus_stop.location = location
+            bus_stop.location = wkt.dumps(new_location_geom)
         update_data.pop("location")
 
     update_if_changed(bus_stop, update_data)
@@ -329,7 +330,9 @@ def delete_bus_stop(session: Session, id: int) -> tuple[bool, dict]:
         id (int): ID of the bus stop to delete.
 
     Returns:
-        tuple[bool, dict]: A tuple containing a boolean indicating if the bus stop was deleted and the deleted bus stop data.
+        Tuple[bool, dict]:
+            - bool: True if the bus stop was found and deleted, False otherwise.
+            - dict: JSON-encoded representation of the deleted bus stop, or an empty dictionary if not found.
     """
     bus_stop = session.query(BusStop).filter(BusStop.id == id).first()
     if bus_stop is not None:
