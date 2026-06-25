@@ -16,7 +16,6 @@ from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive, bearer_operator
 from app.src.db import (
-    Company,
     ExecutiveToken,
     Operator,
     OperatorRole,
