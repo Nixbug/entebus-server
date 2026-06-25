@@ -289,6 +289,7 @@ def update_company(
         session (Session): SQLAlchemy database session.
         id (int): ID of the company to update.
         form_param (UpdateForm): Form data containing fields to update.
+        company_id (int | None): Optional company ID for additional filtering.
 
     Returns:
         Tuple[bool, dict]:
