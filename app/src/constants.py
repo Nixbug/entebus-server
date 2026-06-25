@@ -136,7 +136,7 @@ MAX_ROUTES_PER_COMPANY = 100  # Maximum routes per company
 MAX_OPERATORS_PER_COMPANY = 100  # Maximum operators per company
 MAX_LOCAL_FARES_PER_COMPANY = 50  # Maximum LOCAL fares per company
 MAX_VEHICLES_PER_COMPANY = 100  # Maximum vehicles per company
-MAX_TRACES_PER_COMPANY = 3  # Maximum traces per company
+MAX_TRACES_PER_COMPANY = 100  # Maximum traces per company
 
 # ---------------------------------------------------------------------------
 # Role constraints (executive/operator)
