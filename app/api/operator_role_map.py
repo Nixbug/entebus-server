@@ -67,11 +67,23 @@ class OperatorRoleMapSchema(BaseModel):
 # ---------------------------------------------------------------------------
 ## Input Forms
 # ---------------------------------------------------------------------------
-class CreateForm(BaseModel):
-    """Form data for creating a new operator role mapping."""
+class CreateFormForOP(BaseModel):
+    """Form data for creating a new operator role mapping for an operator."""
 
     role_id: int = Field()
     operator_id: int = Field()
+
+
+class CreateFormForEX(CreateFormForOP):
+    """Form data for creating a new operator role mapping for an executive."""
+
+    company_id: int = Field()
+
+
+class CreateForm(CreateFormForEX):
+    """Generic combined form data for creating a new operator role mapping."""
+
+    pass
 
 
 class UpdateForm(BaseModel):
@@ -138,7 +150,6 @@ def create_role_map(
     Raises:
         exceptions.UnknownValue: If the specified role_id or operator_id does not exist
             or does not satisfy the respective filter condition.
-        exceptions.InvalidAssociation: If the specified role and operator do not belong to the same company.
     """
     operator = validate_id(
         session,
@@ -154,13 +165,9 @@ def create_role_map(
         OperatorRoleMap.role_id,
         extra_filter=extra_filter_for_role,
     )
-    if role.company_id != operator.company_id:
-        raise exceptions.InvalidAssociation(
-            OperatorRoleMap.role_id, OperatorRoleMap.operator_id
-        )
 
     role_map = OperatorRoleMap(
-        role_id=role.id, operator_id=operator.id, company_id=operator.company_id
+        role_id=role.id, operator_id=operator.id, company_id=form_param.company_id
     )
     session.add(role_map)
     session.commit()
@@ -191,9 +198,7 @@ def update_role_map(
 
      Raises:
         exceptions.UnknownValue: If the specified role_id does not exist or does not satisfy the role_filter condition.
-        exceptions.InvalidAssociation: If the new role does not belong to the same company as the operator.
     """
-
     role_map = validate_id(
         session,
         OperatorRoleMap,
@@ -203,18 +208,14 @@ def update_role_map(
     )
 
     if form_param.role_id is not None and role_map.role_id != form_param.role_id:
-        role = validate_id(
+        operator_role = validate_id(
             session,
             OperatorRole,
             form_param.role_id,
             OperatorRoleMap.role_id,
             extra_filter=extra_filter_for_role,
         )
-        if role.company_id != role_map.company_id:
-            raise exceptions.InvalidAssociation(
-                OperatorRoleMap.role_id, OperatorRoleMap.operator_id
-            )
-        role_map.role_id = form_param.role_id
+        role_map.role_id = operator_role.id
 
     have_updates = session.is_modified(role_map)
     if have_updates:
@@ -292,7 +293,6 @@ POST_EXCEPTIONS = [
     exceptions.NoPermission(),
     exceptions.UnknownValue(OperatorRoleMap.operator_id),
     exceptions.UnknownValue(OperatorRoleMap.role_id),
-    exceptions.InvalidAssociation(OperatorRoleMap.role_id, OperatorRoleMap.operator_id),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -300,7 +300,6 @@ PATCH_EXCEPTIONS = [
     exceptions.NoPermission(),
     exceptions.UnknownValue(OperatorRoleMap.id),
     exceptions.UnknownValue(OperatorRoleMap.role_id),
-    exceptions.InvalidAssociation(OperatorRoleMap.role_id, OperatorRoleMap.operator_id),
 ]
 
 DELETE_EXCEPTIONS = [
@@ -355,11 +354,14 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of operator role mappin
         .add_line(
             "Logged-in executive must have `company.operator.role.update` permission."
         )
+        .add_line(
+            "`company_id` is required and used to validate operator and role ownership."
+        )
         .to_string()
     ),
 )
 async def create_operator_role_map_for_executive(
-    form_param: CreateForm,
+    form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
@@ -371,7 +373,12 @@ async def create_operator_role_map_for_executive(
             [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
 
-        role_map_data = create_role_map(session, form_param)
+        role_map_data = create_role_map(
+            session,
+            CreateForm(**form_param.model_dump()),
+            extra_filter_for_operator=(Operator.company_id == form_param.company_id),
+            extra_filter_for_role=(OperatorRole.company_id == form_param.company_id),
+        )
         log_event(token, request_info, role_map_data)
         return role_map_data
     except Exception as e:
@@ -409,10 +416,20 @@ async def update_operator_role_map_for_executive(
             [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
 
+        role_map = validate_id(
+            session,
+            OperatorRoleMap,
+            id,
+            OperatorRoleMap.id,
+        )
         have_updates, role_map_data = update_role_map(
             session,
             id,
             form_param,
+            extra_filter_for_role_map=(
+                OperatorRoleMap.company_id == role_map.company_id
+            ),
+            extra_filter_for_role=(OperatorRole.company_id == role_map.company_id),
         )
         if have_updates:
             log_event(token, request_info, role_map_data)
@@ -507,7 +524,7 @@ async def fetch_operator_role_maps_for_executive(
     ),
 )
 async def create_operator_role_map_for_operator(
-    form_param: CreateForm,
+    form_param: CreateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
 ):
@@ -521,7 +538,7 @@ async def create_operator_role_map_for_operator(
 
         role_map_data = create_role_map(
             session,
-            form_param,
+            CreateForm(**form_param.model_dump(), company_id=token.company_id),
             extra_filter_for_operator=(Operator.company_id == token.company_id),
             extra_filter_for_role=(OperatorRole.company_id == token.company_id),
         )

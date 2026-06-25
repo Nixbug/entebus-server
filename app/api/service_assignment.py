@@ -64,11 +64,23 @@ class ServiceAssignmentSchema(BaseModel):
 # ---------------------------------------------------------------------------
 ## Input Forms
 # ---------------------------------------------------------------------------
-class CreateForm(BaseModel):
-    """Form data for creating a service assignment."""
+class CreateFormForOP(BaseModel):
+    """Form data for creating a service assignment for an operator."""
 
     service_id: int = Field()
     operator_id: int = Field()
+
+
+class CreateFormForEX(CreateFormForOP):
+    """Form data for creating a service assignment for an executive."""
+
+    company_id: int = Field()
+
+
+class CreateForm(CreateFormForEX):
+    """Generic combined form data for creating a service assignment."""
+
+    pass
 
 
 class UpdateForm(BaseModel):
@@ -135,7 +147,6 @@ def create_service_assignment(
 
     Raises:
         exceptions.UnknownValue: If the specified service_id or operator_id does not exist.
-        exceptions.InvalidAssociation: If the service or operator do not belong to the same company.
     """
     service = validate_id(
         session,
@@ -151,12 +162,8 @@ def create_service_assignment(
         ServiceAssignment.operator_id,
         extra_filter=extra_filter_for_operator,
     )
-    if service.company_id != operator.company_id:
-        raise exceptions.InvalidAssociation(
-            ServiceAssignment.service_id, ServiceAssignment.operator_id
-        )
     service_assignment = ServiceAssignment(
-        company_id=operator.company_id,
+        company_id=service.company_id,
         service_id=service.id,
         operator_id=operator.id,
     )
@@ -208,7 +215,6 @@ def update_service_assignment(
 
     Raises:
         exceptions.UnknownValue: If the specified operator_id does not exist.
-        exceptions.InvalidAssociation: If the new operator does not belong to the same company.
     """
     service_assignment = validate_id(
         session,
@@ -222,17 +228,13 @@ def update_service_assignment(
         form_param.operator_id is not None
         and service_assignment.operator_id != form_param.operator_id
     ):
-        operator = validate_id(
+        validate_id(
             session,
             Operator,
             form_param.operator_id,
             ServiceAssignment.operator_id,
             extra_filter=extra_filter_for_operator,
         )
-        if operator.company_id != service_assignment.company_id:
-            raise exceptions.InvalidAssociation(
-                ServiceAssignment.operator_id, ServiceAssignment.company_id
-            )
         service_assignment.operator_id = form_param.operator_id
 
     have_updates = session.is_modified(service_assignment)
@@ -314,9 +316,6 @@ POST_EXCEPTIONS = [
     exceptions.NoPermission(),
     exceptions.UnknownValue(ServiceAssignment.service_id),
     exceptions.UnknownValue(ServiceAssignment.operator_id),
-    exceptions.InvalidAssociation(
-        ServiceAssignment.service_id, ServiceAssignment.operator_id
-    ),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -324,9 +323,6 @@ PATCH_EXCEPTIONS = [
     exceptions.NoPermission(),
     exceptions.UnknownValue(ServiceAssignment.id),
     exceptions.UnknownValue(ServiceAssignment.operator_id),
-    exceptions.InvalidAssociation(
-        ServiceAssignment.operator_id, ServiceAssignment.company_id
-    ),
 ]
 
 DELETE_EXCEPTIONS = [
@@ -381,11 +377,14 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of service assignments.
         .add_line(
             "Logged-in executive must have `company.service.assignment.create` permission."
         )
+        .add_line(
+            "`company_id` is required and used to validate service and operator ownership."
+        )
         .to_string()
     ),
 )
 async def create_service_assignment_for_executive(
-    form_param: CreateForm,
+    form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
 ):
@@ -399,7 +398,9 @@ async def create_service_assignment_for_executive(
 
         service_assignment_data = create_service_assignment(
             session,
-            form_param,
+            CreateForm(**form_param.model_dump()),
+            extra_filter_for_service=(Service.company_id == form_param.company_id),
+            extra_filter_for_operator=(Operator.company_id == form_param.company_id),
         )
         log_event(token, request_info, service_assignment_data)
         return service_assignment_data
@@ -438,8 +439,22 @@ async def update_service_assignment_for_executive(
             [ExecutivePermissionPath.UPDATE_COMPANY_SERVICE_ASSIGNMENT],
         )
 
+        service_assignment = validate_id(
+            session,
+            ServiceAssignment,
+            id,
+            ServiceAssignment.id,
+        )
         have_updates, service_assignment_data = update_service_assignment(
-            session, id, form_param
+            session,
+            id,
+            form_param,
+            extra_filter_for_assignment=(
+                ServiceAssignment.company_id == service_assignment.company_id
+            ),
+            extra_filter_for_operator=(
+                Operator.company_id == service_assignment.company_id
+            ),
         )
         if have_updates:
             log_event(token, request_info, service_assignment_data)
@@ -542,7 +557,7 @@ async def fetch_service_assignments_for_executive(
     ),
 )
 async def create_service_assignment_for_operator(
-    form_param: CreateForm,
+    form_param: CreateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
 ):
@@ -556,7 +571,7 @@ async def create_service_assignment_for_operator(
 
         service_assignment_data = create_service_assignment(
             session,
-            form_param,
+            CreateForm(**form_param.model_dump(), company_id=token.company_id),
             extra_filter_for_service=(Service.company_id == token.company_id),
             extra_filter_for_operator=(Operator.company_id == token.company_id),
         )
