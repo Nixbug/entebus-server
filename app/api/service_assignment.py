@@ -228,7 +228,7 @@ def update_service_assignment(
         form_param.operator_id is not None
         and service_assignment.operator_id != form_param.operator_id
     ):
-        operator = validate_id(
+        validate_id(
             session,
             Operator,
             form_param.operator_id,
