@@ -144,9 +144,7 @@ def create_trace(session: Session, form_param: CreateForm) -> dict:
         dict: The created trace data.
     """
     trace_count = (
-        session.query(Trace)
-        .filter(Trace.company_id == form_param.company_id)
-        .count()
+        session.query(Trace).filter(Trace.company_id == form_param.company_id).count()
     )
     if trace_count >= MAX_TRACES_PER_COMPANY:
         raise exceptions.LimitExceeded(Trace)
