@@ -425,10 +425,10 @@ def delete_business(session: Session, id: int) -> tuple[bool, dict]:
         business_data = business_to_dict(business)
         session.delete(business)
         session.commit()
+
         # Delete vendor images from object storage
         for vendor_image in vendor_images:
             delete_file(VENDOR_IMAGES, str(vendor_image.id))
-
         return True, business_data
     return False, {}
 

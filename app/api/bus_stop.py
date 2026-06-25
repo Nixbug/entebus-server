@@ -255,11 +255,11 @@ def update_bus_stop(
         update_data.pop("location")
 
     update_if_changed(bus_stop, update_data)
-    have_updates = session.is_modified(bus_stop)
-    if have_updates:
+    updated = session.is_modified(bus_stop)
+    if updated:
         session.commit()
         session.refresh(bus_stop)
-    return have_updates, bus_stop_to_dict(bus_stop)
+    return updated, bus_stop_to_dict(bus_stop)
 
 
 def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusStop]:

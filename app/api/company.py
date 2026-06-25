@@ -19,12 +19,13 @@ from sqlalchemy import func, String, or_
 from geoalchemy2 import Geography
 
 from app.api.bearer import oauth2_executive, bearer_operator
-from app.src.buckets import OPERATOR_IMAGES
+from app.src.buckets import OPERATOR_IMAGES, VEHICLE_IMAGES
 from app.src.db import (
     Company,
     ExecutiveToken,
     OperatorToken,
     SessionLocal,
+    VehicleImage,
     Wallet,
     CompanyWallet,
     OperatorImage,
@@ -203,7 +204,7 @@ class QueryParams(QueryParamsForEX):
 
 
 # ---------------------------------------------------------------------------
-## Functions
+## Helper Functions
 # ---------------------------------------------------------------------------
 def validate_location(location_wkt: str) -> Point:
     """
@@ -218,13 +219,69 @@ def validate_location(location_wkt: str) -> Point:
     # Validate WKT and SRID
     location_geom = validate_wkt_string(location_wkt, Point)
     validate_srid_4326(location_geom)
-
     return location_geom
 
 
+def company_to_dict(company: Company) -> dict:
+    """
+    Convert a Company SQLAlchemy model instance to a dictionary with WKT location in WKT format.
+
+    Args:
+        company (Company): Company model instance.
+
+    Returns:
+        dict: Dictionary representation of the company with company location in WKT format.
+    """
+    company_data = jsonable_encoder(
+        company,
+        exclude={Company.location.name},
+    )
+    company_data[Company.location.name] = (wkb.loads(bytes(company.location.data))).wkt
+    return company_data
+
+
+# ---------------------------------------------------------------------------
+## Core Functions
+# ---------------------------------------------------------------------------
+def create_company(session: Session, form_param: CreateForm) -> dict:
+    """
+    Creates a new Company with the provided form data.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        form_param (CreateForm): Form data for creating a new company.
+
+    Returns:
+        dict: Created company data with location in WKT format.
+    """
+    # Validate location (WKT and SRID)
+    location_geom = validate_location(form_param.location)
+    location = wkt.dumps(location_geom)
+
+    company = Company(
+        name=form_param.name,
+        status=form_param.status,
+        type=form_param.type,
+        description=form_param.description,
+        address=form_param.address,
+        location=location,
+    )
+    session.add(company)
+    # Create Wallet
+    wallet = Wallet(name=form_param.name, balance=0)
+    session.add(wallet)
+    session.flush()
+    # Link Company to Wallet
+    company_wallet = CompanyWallet(company_id=company.id, wallet_id=wallet.id)
+    session.add(company_wallet)
+    session.commit()
+    session.refresh(company)
+    return company_to_dict(company)
+
+
 def update_company(
-    session: Session, id: int, form_param: UpdateForm, extra_filter_for_company=None
-) -> Tuple[bool, dict]:
+    session: Session, id: int, form_param: UpdateForm, company_id: int | None = None
+) -> tuple[bool, dict]:
     """
     Updates a Company with the provided form data.
 
@@ -232,28 +289,29 @@ def update_company(
         session (Session): SQLAlchemy database session.
         id (int): ID of the company to update.
         form_param (UpdateForm): Form data containing fields to update.
-        extra_filter_for_company (optional): Additional filter to apply when validating the company ID.
 
     Returns:
-    Tuple[bool, dict]:
+        Tuple[bool, dict]:
             - bool: True if the company was modified and the changes were committed.
             - dict: JSON-encoded representation of the updated company.
     """
     company = validate_id(
-        session, Company, id, Company.id, extra_filter=extra_filter_for_company
+        session,
+        Company,
+        id,
+        Company.id,
+        extra_filter=(Company.id == company_id) if company_id else None,
     )
+
     update_data = form_param.model_dump(exclude_unset=True)
-    # Validate location if changed
-    if form_param.location is not None:
-        new_geom = validate_location(form_param.location)
-        old_geom = wkb.loads(bytes(company.location.data))
-
-        if new_geom.wkt != old_geom.wkt:
-            company.location = wkt.dumps(new_geom)
-        update_data.pop("location")
-
     wallet = None
-    if form_param.name is not None:
+    if "location" in update_data:
+        old_location_geom = wkb.loads(bytes(company.location.data))
+        new_location_geom = validate_location(form_param.location)
+        if new_location_geom.wkt != old_location_geom.wkt:
+            company.location = wkt.dumps(new_location_geom)
+        update_data.pop("location")
+    if "name" in update_data:
         if form_param.name != company.name:
             company.name = form_param.name
             company_wallet = (
@@ -270,22 +328,13 @@ def update_company(
         update_data.pop("name")
 
     update_if_changed(company, update_data)
-    have_updates = session.is_modified(company) or (
-        wallet and session.is_modified(wallet)
-    )
-    if have_updates:
+    updated = session.is_modified(company) or (wallet and session.is_modified(wallet))
+    if updated:
         session.commit()
         session.refresh(company)
 
-    company_data = jsonable_encoder(
-        company,
-        exclude={Company.location.name},
-    )
-    company_data[Company.location.name] = (wkb.loads(bytes(company.location.data))).wkt
-    return have_updates, company_data
 
-
-def search_company(session: Session, query_params: QueryParams) -> List[Company]:
+def search_companies(session: Session, query_params: QueryParams) -> List[Company]:
     """
     Search for companies based on provided query parameters.
 
@@ -348,17 +397,43 @@ def search_company(session: Session, query_params: QueryParams) -> List[Company]
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    query = query.with_entities(
-        Company,
-        func.ST_AsText(Company.location).label("location_wkt"),
-    )
-    results = query.all()
-    companies = []
-    for company_obj, location_wkt in results:
-        company_obj.location = location_wkt
-        companies.append(company_obj)
-
+    companies = query.all()
     return companies
+
+
+def delete_company(session: Session, id: int) -> tuple[bool, dict]:
+    """
+    Delete a company from the database.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        id (int): ID of the company to delete.
+
+    Returns:
+        Tuple[bool, dict]:
+            - bool: True if the company was found and deleted, False otherwise.
+            - dict: JSON-encoded representation of the deleted company, or an empty dictionary if not found.
+    """
+    company = session.query(Company).filter(Company.id == id).first()
+    if company is not None:
+        operator_images = (
+            session.query(OperatorImage).filter(OperatorImage.company_id == id).all()
+        )
+        vehicle_images = (
+            session.query(VehicleImage).filter(VehicleImage.company_id == id).all()
+        )
+        company_data = company_to_dict(company)
+        session.delete(company)
+        session.commit()
+
+        # Delete operator images from object storage
+        for operator_image in operator_images:
+            delete_file(OPERATOR_IMAGES, str(operator_image.id))
+        # Delete vehicle images from object storage
+        for vehicle_image in vehicle_images:
+            delete_file(VEHICLE_IMAGES, str(vehicle_image.id))
+        return True, company_data
+    return False, {}
 
 
 # ---------------------------------------------------------------------------
@@ -460,35 +535,7 @@ async def create_company_for_executive(
             [ExecutivePermissionPath.CREATE_COMPANY],
         )
 
-        # Validate location (WKT and SRID)
-        location_geom = validate_location(form_param.location)
-        validated_location = wkt.dumps(location_geom)
-
-        company = Company(
-            name=form_param.name,
-            status=form_param.status,
-            type=form_param.type,
-            description=form_param.description,
-            address=form_param.address,
-            location=validated_location,
-        )
-        session.add(company)
-
-        # Create Wallet
-        wallet = Wallet(name=form_param.name, balance=0)
-        session.add(wallet)
-        session.flush()
-
-        # Link Company to Wallet
-        company_wallet = CompanyWallet(company_id=company.id, wallet_id=wallet.id)
-        session.add(company_wallet)
-        session.commit()
-        session.refresh(company)
-
-        company_data = jsonable_encoder(company, exclude={Company.location.name})
-        company_data[Company.location.name] = (
-            wkb.loads(bytes(company.location.data))
-        ).wkt
+        company_data = create_company(session, form_param)
         log_event(token, request_info, company_data)
         return company_data
     except Exception as e:
@@ -523,10 +570,10 @@ async def update_company_for_executive(
             [ExecutivePermissionPath.UPDATE_COMPANY],
         )
 
-        have_updates, company_data = update_company(
+        updated, company_data = update_company(
             session, id, UpdateForm(**form_param.model_dump(exclude_unset=True))
         )
-        if have_updates:
+        if updated:
             log_event(token, request_info, company_data)
         return company_data
     except Exception as e:
@@ -551,10 +598,10 @@ async def fetch_companies_for_executive(
         session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
 
-        return search_company(
-            session,
-            QueryParams(**query_params.model_dump()),
-        )
+        return [
+            company_to_dict(company)
+            for company in search_companies(session, query_params)
+        ]
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -586,27 +633,8 @@ async def delete_company_for_executive(
             [ExecutivePermissionPath.DELETE_COMPANY],
         )
 
-        company = session.query(Company).filter(Company.id == id).first()
-        if company is not None:
-            operator_images = (
-                session.query(OperatorImage)
-                .filter(OperatorImage.company_id == id)
-                .all()
-            )
-            company_data = jsonable_encoder(
-                company,
-                exclude={Company.location.name},
-            )
-            company_data[Company.location.name] = (
-                wkb.loads(bytes(company.location.data))
-            ).wkt
-            session.delete(company)
-            session.commit()
-
-            # Delete operator images
-            for operator_image in operator_images:
-                delete_file(OPERATOR_IMAGES, str(operator_image.id))
-
+        deleted, company_data = delete_company(session, id)
+        if deleted:
             log_event(token, request_info, company_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
@@ -644,13 +672,13 @@ async def update_company_for_operator(
             [OperatorPermissionPath.UPDATE_COMPANY],
         )
 
-        have_updates, company_data = update_company(
+        updated, company_data = update_company(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            extra_filter_for_company=(Company.id == token.company_id),
+            token.company_id,
         )
-        if have_updates:
+        if updated:
             log_event(token, request_info, company_data)
         return company_data
     except Exception as e:
@@ -673,9 +701,12 @@ async def fetch_companies_for_operator(access_token=Depends(bearer_operator)):
         token = verify_token(session, OperatorToken, access_token.credentials)
 
         query_params = resolve_model_defaults(
-            QueryParams, id_list=[token.company_id], offset=0, limit=1
+            QueryParams, id=token.company_id, offset=0, limit=1
         )
-        return search_company(session, query_params)
+        return [
+            company_to_dict(company)
+            for company in search_companies(session, query_params)
+        ]
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -706,15 +737,10 @@ async def fetch_companies_for_public(
     try:
         session = SessionLocal()
 
-        return search_company(
-            session,
-            QueryParams(
-                **query_params.model_dump(),
-                status_list=[CompanyStatus.VERIFIED],
-                address=None,
-                description=None,
-            ),
+        query_params = QueryParams(
+            **query_params.model_dump(), status_list=[CompanyStatus.VERIFIED]
         )
+        return search_companies(session, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:
