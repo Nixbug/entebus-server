@@ -17,7 +17,6 @@ from sqlalchemy.orm.session import Session
 from app.api.bearer import bearer_operator, oauth2_executive
 from app.src import exceptions
 from app.src.db import (
-    Company,
     ExecutiveToken,
     Operator,
     OperatorToken,
