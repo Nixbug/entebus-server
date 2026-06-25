@@ -332,6 +332,7 @@ def update_company(
     if updated:
         session.commit()
         session.refresh(company)
+    return updated, company_to_dict(company)
 
 
 def search_companies(session: Session, query_params: QueryParams) -> List[Company]:
