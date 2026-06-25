@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.src.db import Company, ExecutiveToken, OperatorToken, Trace, SessionLocal
 from app.src.description import Description
+from app.src.constants import MAX_TRACES_PER_COMPANY
 from app.src import exceptions
 from app.src.enums import OrderIn
 from app.src.filters import (
@@ -142,6 +143,12 @@ def create_trace(session: Session, form_param: CreateForm) -> dict:
     Returns:
         dict: The created trace data.
     """
+    trace_count = (
+        session.query(Trace).filter(Trace.company_id == form_param.company_id).count()
+    )
+    if trace_count >= MAX_TRACES_PER_COMPANY:
+        raise exceptions.LimitExceeded(Trace)
+
     trace = Trace(
         company_id=form_param.company_id,
         name=form_param.name,
@@ -253,6 +260,7 @@ def search_trace(session: Session, query_params: QueryParams) -> List[Trace]:
 POST_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
+    exceptions.LimitExceeded(Trace),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -278,6 +286,7 @@ POST_DESCRIPTION = (
     Description()
     .add_head("Creates a new trace.")
     .add_line("Duplicate trace names are not allowed.")
+    .add_line(f"Maximum traces per company is limited to {MAX_TRACES_PER_COMPANY}.")
 )
 
 PATCH_DESCRIPTION = (

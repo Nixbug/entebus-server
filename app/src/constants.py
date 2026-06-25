@@ -84,6 +84,8 @@ MAX_LANDMARK_UPDATE_DISTANCE = 1000  # 1 km
 MIN_LANDMARKS_PER_ROUTE = 2  # Minimum number of landmarks per route
 MAX_LANDMARKS_PER_ROUTE = 100  # # Maximum number of landmarks per route
 MAX_ROUTE_DISTANCE = 10000 * 1000  # Maximum  route length in meters (10000 km)
+
+
 # ---------------------------------------------------------------------------
 # Service/duty constraints
 # ---------------------------------------------------------------------------
@@ -120,6 +122,7 @@ LOCK_MAX_WAIT_SECONDS = 10
 # ---------------------------------------------------------------------------
 DYNAMIC_FARE_VERSION = 1  # Current dynamic fare version
 
+
 # ---------------------------------------------------------------------------
 # Image constants
 # ---------------------------------------------------------------------------
@@ -136,6 +139,7 @@ MAX_ROUTES_PER_COMPANY = 100  # Maximum routes per company
 MAX_OPERATORS_PER_COMPANY = 100  # Maximum operators per company
 MAX_LOCAL_FARES_PER_COMPANY = 50  # Maximum LOCAL fares per company
 MAX_VEHICLES_PER_COMPANY = 100  # Maximum vehicles per company
+MAX_TRACES_PER_COMPANY = 100  # Maximum traces per company
 
 
 # ---------------------------------------------------------------------------
