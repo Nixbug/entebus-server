@@ -192,7 +192,6 @@ def update_executive(
     executive = validate_id(session, Executive, id, Executive.id)
 
     update_data = form_param.model_dump(exclude_unset=True)
-    update_if_changed(executive, update_data)
     if "status" in update_data:
         if form_param.status == AccountStatus.SUSPENDED:
             session.query(ExecutiveToken).filter(
