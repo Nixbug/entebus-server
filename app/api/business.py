@@ -280,7 +280,7 @@ def create_business(session: Session, form_param: CreateForm) -> dict:
 
 
 def update_business(
-    session: Session, id: int, form_param: UpdateForm, business_id: int | None = None
+    session: Session, id: int, form_param: UpdateForm, business_filter=None
 ) -> tuple[bool, dict]:
     """
     Updates a Business with the provided form data.
@@ -289,7 +289,7 @@ def update_business(
         session (Session): SQLAlchemy database session.
         id (int): ID of the business to update.
         form_param (UpdateForm): Form data containing fields to update.
-        business_id (int | None): Optional business ID for additional filtering.
+        business_filter (Optional): Additional filter for business validation.
 
     Returns:
         Tuple[bool, dict]:
@@ -297,11 +297,7 @@ def update_business(
             - dict: JSON-encoded representation of the updated business.
     """
     business = validate_id(
-        session,
-        Business,
-        id,
-        Business.id,
-        extra_filter=(Business.id == business_id) if business_id else None,
+        session, Business, id, Business.id, extra_filter=business_filter
     )
 
     update_data = form_param.model_dump(exclude_unset=True)
@@ -675,7 +671,7 @@ async def update_business_for_vendor(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            token.business_id,
+            business_filter=(Business.id == token.business_id),
         )
         if updated:
             log_event(token, request_info, business_data)

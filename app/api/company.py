@@ -280,7 +280,7 @@ def create_company(session: Session, form_param: CreateForm) -> dict:
 
 
 def update_company(
-    session: Session, id: int, form_param: UpdateForm, company_id: int | None = None
+    session: Session, id: int, form_param: UpdateForm, company_filter=None
 ) -> tuple[bool, dict]:
     """
     Updates a Company with the provided form data.
@@ -289,20 +289,14 @@ def update_company(
         session (Session): SQLAlchemy database session.
         id (int): ID of the company to update.
         form_param (UpdateForm): Form data containing fields to update.
-        company_id (int | None): Optional company ID for additional filtering.
+        company_filter (Optional): Additional filter for company validation.
 
     Returns:
         Tuple[bool, dict]:
             - bool: True if the company was modified and the changes were committed.
             - dict: JSON-encoded representation of the updated company.
     """
-    company = validate_id(
-        session,
-        Company,
-        id,
-        Company.id,
-        extra_filter=(Company.id == company_id) if company_id else None,
-    )
+    company = validate_id(session, Company, id, Company.id, extra_filter=company_filter)
 
     update_data = form_param.model_dump(exclude_unset=True)
     wallet = None
@@ -678,7 +672,7 @@ async def update_company_for_operator(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            token.company_id,
+            company_filter=(Company.id == token.company_id),
         )
         if updated:
             log_event(token, request_info, company_data)
