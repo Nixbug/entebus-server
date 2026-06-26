@@ -190,9 +190,9 @@ def search_executive_roles(
     # Ordering and pagination
     ordering_attr = getattr(ExecutiveRole, query_params.order_by.value)
     ordering_func = (
-        ordering_attr.asc()
+        ordering_attr.asc
         if query_params.order_in == OrderIn.ASCENDING
-        else ordering_attr.desc()
+        else ordering_attr.desc
     )
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
