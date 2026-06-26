@@ -8,10 +8,12 @@ input validation and structured output.
 
 from datetime import datetime
 from enum import StrEnum
+from typing import List
 from fastapi import APIRouter, Query, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy import or_, String
+from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive
 from app.src.db import ExecutiveRole, ExecutiveToken, SessionLocal
@@ -99,6 +101,129 @@ class QueryParams(
 
 
 # ---------------------------------------------------------------------------
+## Core Functions
+# ---------------------------------------------------------------------------
+def create_executive_role(session: Session, form_param: CreateForm) -> dict:
+    """
+    Creates a new executive role with the provided form data.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        form_param (CreateForm): Form data for creating a new executive role.
+
+    Returns:
+        dict: Created executive role data.
+    """
+    role_count = session.query(ExecutiveRole).count()
+    if role_count >= MAX_EXECUTIVE_ROLE:
+        raise exceptions.LimitExceeded(ExecutiveRole)
+
+    executive_role = ExecutiveRole(
+        name=form_param.name,
+        permissions=form_param.permissions.model_dump(),
+    )
+    session.add(executive_role)
+    session.commit()
+    session.refresh(executive_role)
+    return jsonable_encoder(executive_role)
+
+
+def update_executive_role(
+    session: Session, id: int, form_param: UpdateForm
+) -> tuple[bool, dict]:
+    """
+    Updates an ExecutiveRole with the provided form data.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        id (int): ID of the executive role to update.
+        form_param (UpdateForm): Form data containing fields to update.
+
+    Returns:
+        Tuple[bool, dict]:
+            - bool: True if the executive role was modified and the changes were committed.
+            - dict: JSON-encoded representation of the updated executive role.
+    """
+    executive_role = validate_id(session, ExecutiveRole, id, ExecutiveRole.id)
+
+    update_data = form_param.model_dump(exclude_unset=True)
+
+    update_if_changed(executive_role, update_data)
+    updated = session.is_modified(executive_role)
+    if updated:
+        session.commit()
+        session.refresh(executive_role)
+    return updated, jsonable_encoder(executive_role)
+
+
+def search_executive_roles(
+    session: Session, query_params: QueryParams
+) -> List[ExecutiveRole]:
+    """
+    Searches for executive roles based on the provided query parameters.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        query_params (QueryParams): Query parameters for filtering, searching, and pagination.
+
+    Returns:
+        List[ExecutiveRole]: List of executive roles matching the search criteria.
+    """
+    query = session.query(ExecutiveRole)
+
+    # Common search
+    if query_params.search:
+        search = f"%{query_params.search}%"
+        query = query.filter(
+            or_(
+                ExecutiveRole.id.cast(String).ilike(search),
+                ExecutiveRole.name.ilike(search),
+            )
+        )
+
+    # Generalized filters
+    query = apply_id_filters(query, ExecutiveRole, query_params)
+    query = apply_created_on_filters(query, ExecutiveRole, query_params)
+    query = apply_updated_on_filters(query, ExecutiveRole, query_params)
+    query = apply_name_filters(query, ExecutiveRole, query_params)
+
+    # Ordering and pagination
+    ordering_attr = getattr(ExecutiveRole, query_params.order_by.value)
+    ordering_func = (
+        ordering_attr.asc()
+        if query_params.order_in == OrderIn.ASCENDING
+        else ordering_attr.desc()
+    )
+    query = query.order_by(ordering_func())
+    query = query.offset(query_params.offset).limit(query_params.limit)
+
+    executive_roles = query.all()
+    return executive_roles
+
+
+def delete_executive_role(session: Session, id: int) -> tuple[bool, dict]:
+    """
+    Delete an executive role from the database.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        id (int): ID of the executive role to delete.
+
+    Returns:
+        Tuple[bool, dict]:
+            - bool: True if the executive role was found and deleted, False otherwise.
+            - dict: JSON-encoded representation of the deleted executive role, or an empty dictionary if not found.
+    """
+    executive_role = session.query(ExecutiveRole).filter(ExecutiveRole.id == id).first()
+    if executive_role is not None:
+        executive_role_data = jsonable_encoder(executive_role)
+        session.delete(executive_role)
+        session.commit()
+        return True, executive_role_data
+    return False, {}
+
+
+# ---------------------------------------------------------------------------
 ## Common exceptions
 # ---------------------------------------------------------------------------
 POST_EXCEPTIONS = [
@@ -174,22 +299,9 @@ async def create_executive_role_for_executive(
             session, access_token, [PermissionPath.CREATE_EXECUTIVE_ROLE]
         )
 
-        role_count = session.query(ExecutiveRole).count()
-        if role_count >= MAX_EXECUTIVE_ROLE:
-            raise exceptions.LimitExceeded(ExecutiveRole)
-
-        form_param.permissions = form_param.permissions.model_dump()
-        role = ExecutiveRole(
-            name=form_param.name,
-            permissions=form_param.permissions,
-        )
-        session.add(role)
-        session.commit()
-        session.refresh(role)
-
-        role_data = jsonable_encoder(role)
-        log_event(token, request_info, role_data)
-        return role_data
+        executive_role_data = create_executive_role(session, form_param)
+        log_event(token, request_info, executive_role_data)
+        return executive_role_data
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -217,18 +329,10 @@ async def update_executive_role_for_executive(
             session, access_token, [PermissionPath.UPDATE_EXECUTIVE_ROLE]
         )
 
-        role = validate_id(session, ExecutiveRole, id, ExecutiveRole.id)
-        update_data = form_param.model_dump(exclude_unset=True)
-        update_if_changed(role, update_data)
-        have_updates = session.is_modified(role)
-        if have_updates:
-            session.commit()
-            session.refresh(role)
-
-        role_data = jsonable_encoder(role)
-        if have_updates:
-            log_event(token, request_info, role_data)
-        return role_data
+        updated, executive_role_data = update_executive_role(session, id, form_param)
+        if updated:
+            log_event(token, request_info, executive_role_data)
+        return executive_role_data
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -254,12 +358,9 @@ async def delete_executive_role_for_executive(
             session, access_token, [PermissionPath.DELETE_EXECUTIVE_ROLE]
         )
 
-        role = session.query(ExecutiveRole).filter(ExecutiveRole.id == id).first()
-        if role is not None:
-            role_data = jsonable_encoder(role)
-            session.delete(role)
-            session.commit()
-            log_event(token, request_info, role_data)
+        deleted, executive_role_data = delete_executive_role(session, id)
+        if deleted:
+            log_event(token, request_info, executive_role_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
@@ -283,36 +384,7 @@ async def fetch_executive_roles_for_executive(
         session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
 
-        query = session.query(ExecutiveRole)
-
-        # Common search
-        if query_params.search:
-            search = f"%{query_params.search}%"
-            query = query.filter(
-                or_(
-                    ExecutiveRole.id.cast(String).ilike(search),
-                    ExecutiveRole.name.ilike(search),
-                )
-            )
-
-        # Generalized filters
-        query = apply_id_filters(query, ExecutiveRole, query_params)
-        query = apply_created_on_filters(query, ExecutiveRole, query_params)
-        query = apply_updated_on_filters(query, ExecutiveRole, query_params)
-        query = apply_name_filters(query, ExecutiveRole, query_params)
-
-        # Ordering and pagination
-        ordering_attr = getattr(ExecutiveRole, query_params.order_by.value)
-        ordering_func = (
-            ordering_attr.asc
-            if query_params.order_in == OrderIn.ASCENDING
-            else ordering_attr.desc
-        )
-        query = query.order_by(ordering_func())
-        query = query.offset(query_params.offset).limit(query_params.limit)
-
-        roles = query.all()
-        return roles
+        return search_executive_roles(session, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:
