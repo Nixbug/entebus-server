@@ -497,7 +497,7 @@ def is_valid_transition(
     return new_state in transitions[old_state]
 
 
-T = TypeVar("T", bound="ORMbase")
+T = TypeVar("T", bound=ORMbase)
 
 
 def validate_id(
