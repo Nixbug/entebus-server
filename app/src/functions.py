@@ -515,7 +515,7 @@ def get_area(geom: BaseGeometry) -> float:
     return projected_geom.area
 
 
-T = TypeVar("T", bound="BaseModel")
+T = TypeVar("T", bound=BaseModel)
 
 
 def resolve_model_defaults(model_cls: Type[T], **overrides) -> T:
