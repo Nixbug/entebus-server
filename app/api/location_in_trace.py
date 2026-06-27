@@ -184,7 +184,7 @@ def create_location_in_trace(
             )
             if location_count >= MAX_LOCATIONS_PER_TRACES:
                 raise exceptions.LimitExceeded(LocationInTrace)
-            
+
             location_in_trace = LocationInTrace(
                 trace_id=form_param.trace_id,
                 company_id=trace.company_id,
@@ -288,7 +288,9 @@ POST_DESCRIPTION = (
     .add_line("Use WGS84 compatible coordinates within SRID 4326 bounds.")
     .add_line("Supports batch uploads")
     .add_line("A maximum of 50 locations can be uploaded in a single batch upload.")
-    .add_line(f"A maximum of {MAX_LOCATIONS_PER_TRACES} locations can be associated with a single trace.")
+    .add_line(
+        f"A maximum of {MAX_LOCATIONS_PER_TRACES} locations can be associated with a single trace."
+    )
 )
 
 GET_DESCRIPTION = (
