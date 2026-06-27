@@ -23,7 +23,7 @@ from app.src.db import (
     Trace,
 )
 from app.src.description import Description
-from app.src.constants import MAX_LOCATIONS_PER_TRACES
+from app.src.constants import MAX_LOCATIONS_PER_TRACE
 from app.src.enums import LocationType, OrderIn
 from app.src.filters import (
     CreatedOnFilter,
@@ -172,19 +172,17 @@ def create_location_in_trace(
         LocationInTrace.trace_id,
         extra_filter=extra_filter_for_trace,
     )
+    location_count = (
+        session.query(LocationInTrace)
+        .filter(LocationInTrace.trace_id == form_param.trace_id)
+        .count()
+    )
+    if location_count >= MAX_LOCATIONS_PER_TRACE:
+        raise exceptions.LimitExceeded(LocationInTrace)
     for location_data in form_param.trace_locations:
         for location in location_data.locations:
             geometry = validate_wkt_string(location, Point)
             validate_srid_4326(geometry)
-
-            location_count = (
-                session.query(LocationInTrace)
-                .filter(LocationInTrace.trace_id == form_param.trace_id)
-                .count()
-            )
-            if location_count >= MAX_LOCATIONS_PER_TRACES:
-                raise exceptions.LimitExceeded(LocationInTrace)
-
             location_in_trace = LocationInTrace(
                 trace_id=form_param.trace_id,
                 company_id=trace.company_id,
@@ -289,7 +287,7 @@ POST_DESCRIPTION = (
     .add_line("Supports batch uploads")
     .add_line("A maximum of 50 locations can be uploaded in a single batch upload.")
     .add_line(
-        f"A maximum of {MAX_LOCATIONS_PER_TRACES} locations can be associated with a single trace."
+        f"A maximum of {MAX_LOCATIONS_PER_TRACE} locations can be associated with a single trace."
     )
 )
 
