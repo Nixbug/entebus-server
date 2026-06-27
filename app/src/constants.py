@@ -140,6 +140,7 @@ MAX_OPERATORS_PER_COMPANY = 100  # Maximum operators per company
 MAX_LOCAL_FARES_PER_COMPANY = 50  # Maximum LOCAL fares per company
 MAX_VEHICLES_PER_COMPANY = 100  # Maximum vehicles per company
 MAX_TRACES_PER_COMPANY = 100  # Maximum traces per company
+MAX_LOCATIONS_PER_TRACES = 65536 # Maximum locations per trace
 
 
 # ---------------------------------------------------------------------------

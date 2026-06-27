@@ -23,6 +23,7 @@ from app.src.db import (
     Trace,
 )
 from app.src.description import Description
+from app.src.constants import MAX_LOCATIONS_PER_TRACES
 from app.src.enums import LocationType, OrderIn
 from app.src.filters import (
     CreatedOnFilter,
@@ -176,6 +177,14 @@ def create_location_in_trace(
             geometry = validate_wkt_string(location, Point)
             validate_srid_4326(geometry)
 
+            location_count = (
+                session.query(LocationInTrace)
+                .filter(LocationInTrace.trace_id == form_param.trace_id)
+                .count()
+            )
+            if location_count >= MAX_LOCATIONS_PER_TRACES:
+                raise exceptions.LimitExceeded(LocationInTrace)
+            
             location_in_trace = LocationInTrace(
                 trace_id=form_param.trace_id,
                 company_id=trace.company_id,
@@ -259,6 +268,7 @@ POST_EXCEPTIONS = [
     exceptions.InvalidWKTStringOrType(),
     exceptions.InvalidSRID4326(),
     exceptions.UnknownValue(LocationInTrace.trace_id),
+    exceptions.LimitExceeded(LocationInTrace),
 ]
 
 GET_EXCEPTIONS = [
@@ -278,6 +288,7 @@ POST_DESCRIPTION = (
     .add_line("Use WGS84 compatible coordinates within SRID 4326 bounds.")
     .add_line("Supports batch uploads")
     .add_line("A maximum of 50 locations can be uploaded in a single batch upload.")
+    .add_line(f"A maximum of {MAX_LOCATIONS_PER_TRACES} locations can be associated with a single trace.")
 )
 
 GET_DESCRIPTION = (
