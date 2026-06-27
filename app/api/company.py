@@ -734,7 +734,10 @@ async def fetch_companies_for_public(
         session = SessionLocal()
 
         query_params = QueryParams(
-            **query_params.model_dump(), status_list=[CompanyStatus.VERIFIED]
+            **query_params.model_dump(),
+            status_list=[CompanyStatus.VERIFIED],
+            address=None,
+            description=None,
         )
         return search_companies(session, query_params)
     except Exception as e:

@@ -733,9 +733,13 @@ async def fetch_businesses_for_public(
         session = SessionLocal()
 
         query_params = QueryParams(
-            **query_params.model_dump(), status_list=[BusinessStatus.ACTIVE]
+            **query_params.model_dump(),
+            status_list=[BusinessStatus.ACTIVE],
+            address=None,
+            description=None,
         )
-        return search_businesses(session, query_params)
+        businesses = search_businesses(session, query_params)
+        return businesses
     except Exception as e:
         exceptions.handle(e)
     finally:
