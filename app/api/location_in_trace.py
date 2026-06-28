@@ -180,7 +180,7 @@ def create_location_in_trace(
     )
     if location_count >= MAX_LOCATIONS_PER_TRACE:
         raise exceptions.LimitExceeded(LocationInTrace)
-    
+
     for location_data in form_param.trace_locations:
         for location in location_data.locations:
             geometry = validate_wkt_string(location, Point)
