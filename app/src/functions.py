@@ -8,7 +8,7 @@ import pyproj
 from enum import Enum
 from io import BytesIO
 from PIL import Image
-from typing import Any, List, Dict, Type, Union
+from typing import Any, List, Dict, Type, TypeVar, Union
 from fastapi import Query, Request
 from pydantic import BaseModel
 from sqlalchemy import Column, asc, desc
@@ -515,16 +515,19 @@ def get_area(geom: BaseGeometry) -> float:
     return projected_geom.area
 
 
-def resolve_model_defaults(model_cls: Type[BaseModel], **overrides):
+T = TypeVar("T", bound=BaseModel)
+
+
+def resolve_model_defaults(model_cls: Type[T], **overrides) -> T:
     """
     Build a model instance with all Query() defaults resolved to concrete values.
 
     Args:
-        model_cls (Type[BaseModel]): The Pydantic model class to build.
+        model_cls (Type[T]): The Pydantic model class to build.
         **overrides: Field values to override the defaults.
 
     Returns:
-        BaseModel: An instance of model_cls with all Query() defaults resolved.
+        T: An instance of model_cls with all Query() defaults resolved.
     """
     data = {}
     for field_name, field_info in model_cls.model_fields.items():

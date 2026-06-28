@@ -121,10 +121,10 @@ class QueryParams(QueryParamsForEX):
 
 
 # ---------------------------------------------------------------------------
-## Functions
+## Core Functions
 # ---------------------------------------------------------------------------
 def update_duty(
-    session: Session, id: int, form_param: UpdateForm, extra_filter_for_duty=None
+    session: Session, id: int, form_param: UpdateForm, company_id: int | None = None
 ) -> tuple[bool, dict]:
     """
     Updates a duty record based on the requested status transition.
@@ -137,15 +137,21 @@ def update_duty(
         session (Session): SQLAlchemy database session.
         id (int): ID of the duty to update.
         form_param (UpdateForm): Form data containing new status.
-        extra_filter_for_duty (optional): Additional filter to apply when validating the duty ID.
+        company_id (int | None): ID of the company associated with the duty.
 
     Returns:
-        tuple[bool, dict]: (have_updates, duty_data)
+        Tuple[bool, dict]:
+            - bool: True if the duty was modified and the changes were committed.
+            - dict: JSON-encoded representation of the updated duty.
     """
     service_lock = None
     try:
         duty = validate_id(
-            session, Duty, id, Duty.id, extra_filter=extra_filter_for_duty
+            session,
+            Duty,
+            id,
+            Duty.id,
+            extra_filter=(Duty.company_id == company_id) if company_id else None,
         )
         service_lock = acquire_lock(construct_service_transition_lock(duty.service_id))
         session.refresh(duty)
@@ -157,46 +163,49 @@ def update_duty(
 
         update_data = form_param.model_dump(exclude_unset=True)
         service = None
-        if "status" in update_data and update_data["status"] != duty.status:
-            new_status = update_data["status"]
-            validate_state_transition(
-                allowed_duty_status_transitions,
-                duty.status,
-                new_status,
-                Duty.status,
-            )
-            if new_status == DutyStatus.ENDED:
-                duty.collection = (
-                    session.query(func.sum(PaperTicket.amount))
-                    .filter(PaperTicket.duty_id == duty.id)
-                    .scalar()
+        if "status" in update_data:
+            if form_param.status != duty.status:
+                validate_state_transition(
+                    allowed_duty_status_transitions,
+                    duty.status,
+                    form_param.status,
+                    Duty.status,
                 )
-                utc_now = datetime.now(timezone.utc)
-                duty.finished_on = utc_now
-            elif new_status == DutyStatus.STARTED:
-                duty.finished_on = None
-                duty.collection = 0
-                service = (
-                    session.query(Service).filter(Service.id == duty.service_id).first()
-                )
-                if service.status == ServiceStatus.ENDED:
-                    service.status = ServiceStatus.STARTED
-            duty.status = new_status
+                # Handle status transitions
+                if form_param.status == DutyStatus.ENDED:
+                    duty.collection = (
+                        session.query(func.sum(PaperTicket.amount))
+                        .filter(PaperTicket.duty_id == duty.id)
+                        .scalar()
+                    )
+                    utc_now = datetime.now(timezone.utc)
+                    duty.finished_on = utc_now
+                elif form_param.status == DutyStatus.STARTED:
+                    duty.finished_on = None
+                    duty.collection = 0
+                    service = (
+                        session.query(Service)
+                        .filter(Service.id == duty.service_id)
+                        .first()
+                    )
+                    if service.status == ServiceStatus.ENDED:
+                        service.status = ServiceStatus.STARTED
+                duty.status = form_param.status
+                update_data.pop("status")
 
-        have_updates = session.is_modified(duty) or (
-            service is not None and session.is_modified(service)
+        updated = session.is_modified(duty) or (
+            service and session.is_modified(service)
         )
-        if have_updates:
+        if updated:
             session.commit()
             session.refresh(duty)
-
         duty_data = jsonable_encoder(duty)
-        return have_updates, duty_data
+        return updated, duty_data
     finally:
         release_lock(service_lock)
 
 
-def search_duty(session: Session, query_params: QueryParams) -> List[Duty]:
+def search_duties(session: Session, query_params: QueryParams) -> List[Duty]:
     """
     Search for Duties based on provided query parameters.
 
@@ -304,10 +313,10 @@ async def update_duty_for_executive(
             [ExecutivePermissionPath.UPDATE_COMPANY_SERVICE_DUTY],
         )
 
-        have_updates, duty_data = update_duty(
+        updated, duty_data = update_duty(
             session, id, UpdateForm(**form_param.model_dump(exclude_unset=True))
         )
-        if have_updates:
+        if updated:
             log_event(token, request_info, duty_data)
         return duty_data
     except Exception as e:
@@ -332,7 +341,7 @@ async def fetch_duties_for_executive(
         session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
 
-        return search_duty(session, QueryParams(**query_params.model_dump()))
+        return search_duties(session, QueryParams(**query_params.model_dump()))
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -371,13 +380,13 @@ async def update_duty_for_operator(
             [OperatorPermissionPath.UPDATE_COMPANY_SERVICE_DUTY],
         )
 
-        have_updates, duty_data = update_duty(
+        updated, duty_data = update_duty(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            extra_filter_for_duty=(Duty.company_id == token.company_id),
+            token.company_id,
         )
-        if have_updates:
+        if updated:
             log_event(token, request_info, duty_data)
         return duty_data
     except Exception as e:
@@ -402,13 +411,10 @@ async def fetch_duties_for_operator(
         session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
 
-        return search_duty(
-            session,
-            QueryParams(
-                **query_params.model_dump(),
-                company_id=token.company_id,
-            ),
+        query_params = QueryParams(
+            **query_params.model_dump(), company_id=token.company_id
         )
+        return search_duties(session, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:

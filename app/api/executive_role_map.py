@@ -11,6 +11,7 @@ from fastapi import APIRouter, Response, status, Depends, Query
 from enum import StrEnum
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive
 from app.src.db import (
@@ -89,6 +90,128 @@ class QueryParams(UpdatedOnFilter, CreatedOnFilter, IDFilter, PaginationFilter):
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
     )
+
+
+# ---------------------------------------------------------------------------
+## Core Functions
+# ---------------------------------------------------------------------------
+def create_executive_role_map(session: Session, form_param: CreateForm) -> dict:
+    """
+    Creates a new executive role mapping with the provided form data.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        form_param (CreateForm): Form data for creating a new executive role mapping.
+
+    Returns:
+        dict: Created executive role mapping data.
+    """
+    validate_id(
+        session, Executive, form_param.executive_id, ExecutiveRoleMap.executive_id
+    )
+    validate_id(session, ExecutiveRole, form_param.role_id, ExecutiveRoleMap.role_id)
+
+    role_map = ExecutiveRoleMap(
+        role_id=form_param.role_id, executive_id=form_param.executive_id
+    )
+    session.add(role_map)
+    session.commit()
+    session.refresh(role_map)
+    return jsonable_encoder(role_map)
+
+
+def update_executive_role_map(
+    session: Session, id: int, form_param: UpdateForm
+) -> tuple[bool, dict]:
+    """
+    Updates an Executive role mapping with the provided form data.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        id (int): ID of the executive role mapping to update.
+        form_param (UpdateForm): Form data containing fields to update.
+
+    Returns:
+        Tuple[bool, dict]:
+            - bool: True if the executive role mapping was modified and the changes were committed.
+            - dict: JSON-encoded representation of the updated executive role mapping.
+    """
+    role_map = validate_id(session, ExecutiveRoleMap, id, ExecutiveRoleMap.id)
+
+    update_data = form_param.model_dump(exclude_unset=True)
+    if "role_id" in update_data:
+        if role_map.role_id != form_param.role_id:
+            validate_id(
+                session, ExecutiveRole, form_param.role_id, ExecutiveRoleMap.role_id
+            )
+            role_map.role_id = form_param.role_id
+            update_data.pop("role_id")
+
+    updated = session.is_modified(role_map)
+    if updated:
+        session.commit()
+        session.refresh(role_map)
+    return updated, jsonable_encoder(role_map)
+
+
+def search_executive_role_maps(
+    session: Session, query_params: QueryParams
+) -> list[ExecutiveRoleMap]:
+    """
+    Searches for executive role mappings based on the provided query parameters.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        query_params (QueryParams): Query parameters for filtering and pagination.
+
+    Returns:
+        list[ExecutiveRoleMap]: List of executive role mappings matching the query parameters.
+    """
+    query = session.query(ExecutiveRoleMap)
+    if query_params.role_id is not None:
+        query = query.filter(ExecutiveRoleMap.role_id == query_params.role_id)
+    if query_params.executive_id is not None:
+        query = query.filter(ExecutiveRoleMap.executive_id == query_params.executive_id)
+
+    # Generalized filters
+    query = apply_id_filters(query, ExecutiveRoleMap, query_params)
+    query = apply_created_on_filters(query, ExecutiveRoleMap, query_params)
+    query = apply_updated_on_filters(query, ExecutiveRoleMap, query_params)
+
+    # Ordering and pagination
+    ordering_attr = getattr(ExecutiveRoleMap, query_params.order_by.value)
+    ordering_func = (
+        ordering_attr.asc
+        if query_params.order_in == OrderIn.ASCENDING
+        else ordering_attr.desc
+    )
+    query = query.order_by(ordering_func())
+    query = query.offset(query_params.offset).limit(query_params.limit)
+
+    role_maps = query.all()
+    return role_maps
+
+
+def delete_executive_role_map(session: Session, id: int) -> tuple[bool, dict]:
+    """
+    Deletes an executive role mapping from the database.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        id (int): ID of the executive role mapping to delete.
+
+    Returns:
+        Tuple[bool, dict]:
+            - bool: True if the executive role mapping was found and deleted.
+            - dict: JSON-encoded representation of the deleted executive role mapping.
+    """
+    role_map = session.query(ExecutiveRoleMap).filter(ExecutiveRoleMap.id == id).first()
+    if role_map is not None:
+        role_map_data = jsonable_encoder(role_map)
+        session.delete(role_map)
+        session.commit()
+        return True, role_map_data
+    return False, {}
 
 
 # ---------------------------------------------------------------------------
@@ -171,20 +294,7 @@ async def create_executive_role_map_for_executive(
             session, access_token, [PermissionPath.UPDATE_EXECUTIVE_ROLE]
         )
 
-        validate_id(
-            session, Executive, form_param.executive_id, ExecutiveRoleMap.executive_id
-        )
-        validate_id(
-            session, ExecutiveRole, form_param.role_id, ExecutiveRoleMap.role_id
-        )
-        role_map = ExecutiveRoleMap(
-            role_id=form_param.role_id, executive_id=form_param.executive_id
-        )
-        session.add(role_map)
-        session.commit()
-        session.refresh(role_map)
-
-        role_map_data = jsonable_encoder(role_map)
+        role_map_data = create_executive_role_map(session, form_param)
         log_event(token, request_info, role_map_data)
         return role_map_data
     except Exception as e:
@@ -214,20 +324,8 @@ async def update_executive_role_map_for_executive(
             session, access_token, [PermissionPath.UPDATE_EXECUTIVE_ROLE]
         )
 
-        role_map = validate_id(session, ExecutiveRoleMap, id, ExecutiveRoleMap.id)
-        if form_param.role_id is not None and role_map.role_id != form_param.role_id:
-            validate_id(
-                session, ExecutiveRole, form_param.role_id, ExecutiveRoleMap.role_id
-            )
-            role_map.role_id = form_param.role_id
-
-        have_updates = session.is_modified(role_map)
-        if have_updates:
-            session.commit()
-            session.refresh(role_map)
-
-        role_map_data = jsonable_encoder(role_map)
-        if have_updates:
+        updated, role_map_data = update_executive_role_map(session, id, form_param)
+        if updated:
             log_event(token, request_info, role_map_data)
         return role_map_data
     except Exception as e:
@@ -255,13 +353,8 @@ async def delete_executive_role_map_for_executive(
             session, access_token, [PermissionPath.UPDATE_EXECUTIVE_ROLE]
         )
 
-        role_map = (
-            session.query(ExecutiveRoleMap).filter(ExecutiveRoleMap.id == id).first()
-        )
-        if role_map is not None:
-            role_map_data = jsonable_encoder(role_map)
-            session.delete(role_map)
-            session.commit()
+        deleted, role_map_data = delete_executive_role_map(session, id)
+        if deleted:
             log_event(token, request_info, role_map_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
@@ -286,31 +379,7 @@ async def fetch_executive_role_maps_for_executive(
         session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
 
-        query = session.query(ExecutiveRoleMap)
-        if query_params.role_id is not None:
-            query = query.filter(ExecutiveRoleMap.role_id == query_params.role_id)
-        if query_params.executive_id is not None:
-            query = query.filter(
-                ExecutiveRoleMap.executive_id == query_params.executive_id
-            )
-
-        # Generalized filters
-        query = apply_id_filters(query, ExecutiveRoleMap, query_params)
-        query = apply_created_on_filters(query, ExecutiveRoleMap, query_params)
-        query = apply_updated_on_filters(query, ExecutiveRoleMap, query_params)
-
-        # Ordering and pagination
-        ordering_attr = getattr(ExecutiveRoleMap, query_params.order_by.value)
-        ordering_func = (
-            ordering_attr.asc
-            if query_params.order_in == OrderIn.ASCENDING
-            else ordering_attr.desc
-        )
-        query = query.order_by(ordering_func())
-        query = query.offset(query_params.offset).limit(query_params.limit)
-
-        role_maps = query.all()
-        return role_maps
+        return search_executive_role_maps(session, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:

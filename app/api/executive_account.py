@@ -14,6 +14,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic_extra_types.phone_numbers import PhoneNumber
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import String, or_
+from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive
 from app.src.buckets import EXECUTIVE_IMAGES
@@ -144,6 +145,154 @@ class QueryParams(
 
 
 # ---------------------------------------------------------------------------
+## Core Functions
+# ---------------------------------------------------------------------------
+def create_executive(session: Session, form_param: CreateForm) -> dict:
+    """
+    Creates a new executive account with the provided form data.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        form_param (CreateForm): Form data for creating a new executive account.
+
+    Returns:
+        dict: Created executive account data.
+    """
+    executive = Executive(
+        username=form_param.username,
+        password=form_param.password,
+        gender=form_param.gender,
+        full_name=form_param.full_name,
+        designation=form_param.designation,
+        phone_number=form_param.phone_number,
+        email_id=form_param.email_id,
+    )
+    session.add(executive)
+    session.commit()
+    session.refresh(executive)
+    return jsonable_encoder(executive, exclude={Executive.password.name})
+
+
+def update_executive(
+    session: Session, id: int, form_param: UpdateForm
+) -> tuple[bool, dict]:
+    """
+    Updates an Executive account with the provided form data.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        id (int): ID of the executive account to update.
+        form_param (UpdateForm): Form data containing fields to update.
+
+    Returns:
+        Tuple[bool, dict]:
+            - bool: True if the executive account was modified and the changes were committed.
+            - dict: JSON-encoded representation of the updated executive account.
+    """
+    executive = validate_id(session, Executive, id, Executive.id)
+
+    update_data = form_param.model_dump(exclude_unset=True)
+    if "status" in update_data:
+        if form_param.status == AccountStatus.SUSPENDED:
+            session.query(ExecutiveToken).filter(
+                ExecutiveToken.executive_id == id,
+                ExecutiveToken.is_revoked.is_(False),
+            ).update({ExecutiveToken.is_revoked: True})
+        executive.status = form_param.status
+        update_data.pop("status")
+
+    update_if_changed(executive, update_data)
+    updated = session.is_modified(executive)
+    if updated:
+        session.commit()
+        session.refresh(executive)
+    return updated, jsonable_encoder(executive, exclude={Executive.password.name})
+
+
+def search_executives(session: Session, query_params: QueryParams) -> List[Executive]:
+    """
+    Searches for executive accounts based on the provided query parameters.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        query_params (QueryParams): Query parameters for filtering and pagination.
+
+    Returns:
+        List[Executive]: List of executive accounts matching the search criteria.
+    """
+    query = session.query(Executive)
+    if query_params.designation is not None:
+        query = query.filter(
+            Executive.designation.ilike(f"%{query_params.designation}%")
+        )
+
+    # Common search
+    if query_params.search:
+        search = f"%{query_params.search}%"
+        query = query.filter(
+            or_(
+                Executive.id.cast(String).ilike(search),
+                Executive.username.ilike(search),
+                Executive.full_name.ilike(search),
+                Executive.designation.ilike(search),
+                Executive.phone_number.ilike(search),
+                Executive.email_id.ilike(search),
+            )
+        )
+
+    # Generalized filters
+    query = apply_id_filters(query, Executive, query_params)
+    query = apply_created_on_filters(query, Executive, query_params)
+    query = apply_updated_on_filters(query, Executive, query_params)
+    query = apply_account_filters(query, Executive, query_params)
+    query = apply_status_filters(query, Executive, query_params)
+
+    # Ordering and pagination
+    ordering_attr = getattr(Executive, query_params.order_by.value)
+    ordering_func = (
+        ordering_attr.asc
+        if query_params.order_in == OrderIn.ASCENDING
+        else ordering_attr.desc
+    )
+    query = query.order_by(ordering_func())
+    query = query.offset(query_params.offset).limit(query_params.limit)
+
+    executives = query.all()
+    return executives
+
+
+def delete_executive(session: Session, id: int) -> tuple[bool, dict]:
+    """
+    Delete an executive account from the database.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        id (int): ID of the executive account to delete.
+
+    Returns:
+        Tuple[bool, dict]:
+            - bool: True if the executive account was found and deleted, False otherwise.
+            - dict: JSON-encoded representation of the deleted executive account, or an empty dictionary if not found.
+    """
+    executive = session.query(Executive).filter(Executive.id == id).first()
+    if executive is not None:
+        executive_images = (
+            session.query(ExecutiveImage)
+            .filter(ExecutiveImage.executive_id == id)
+            .all()
+        )
+        executive_data = jsonable_encoder(executive, exclude={Executive.password.name})
+        session.delete(executive)
+        session.commit()
+
+        # Delete executive images from object storage
+        for executive_image in executive_images:
+            delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
+        return True, executive_data
+    return False, {}
+
+
+# ---------------------------------------------------------------------------
 ## Common exceptions
 # ---------------------------------------------------------------------------
 POST_EXCEPTIONS = [
@@ -194,6 +343,7 @@ DELETE_DESCRIPTION = (
     .add_line("Self-deletion is not allowed for safety reasons.")
     .add_line("Returns 204 No Content even if the specified account does not exist.")
     .add_line("Logged-in executive must have the `executive.delete` permission.")
+    .add_line("All associated executive images will be deleted upon account deletion.")
 )
 
 GET_DESCRIPTION = Description().add_head("Fetches a list of executives.")
@@ -222,20 +372,7 @@ async def create_executive_account_for_executive(
             session, access_token, [PermissionPath.CREATE_EXECUTIVE]
         )
 
-        executive = Executive(
-            username=form_param.username,
-            password=form_param.password,
-            gender=form_param.gender,
-            full_name=form_param.full_name,
-            designation=form_param.designation,
-            phone_number=form_param.phone_number,
-            email_id=form_param.email_id,
-        )
-        session.add(executive)
-        session.commit()
-        session.refresh(executive)
-
-        executive_data = jsonable_encoder(executive, exclude={Executive.password.name})
+        executive_data = create_executive(session, form_param)
         log_event(token, request_info, executive_data)
         return executive_data
     except Exception as e:
@@ -262,36 +399,15 @@ async def update_executive_account_for_executive(
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
 
-        executive = validate_id(session, Executive, id, Executive.id)
-        update_data = form_param.model_dump(exclude_unset=True)
-        is_self_update = executive.id == token.executive_id
+        is_self_update = id == token.executive_id
         if not is_self_update:
             roles = get_executive_roles(session, token)
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
-        if is_self_update and Executive.status.key in update_data:
+        if is_self_update and form_param.status is not None:
             raise exceptions.NoPermission()
 
-        # Revoking all the tokens for a suspended executive
-        tokens_revoked = False
-        if form_param.status == AccountStatus.SUSPENDED:
-            tokens_revoked = (
-                session.query(ExecutiveToken)
-                .filter(
-                    ExecutiveToken.executive_id == id,
-                    ExecutiveToken.is_revoked.is_(False),
-                )
-                .update({ExecutiveToken.is_revoked: True})
-                > 0
-            )
-
-        update_if_changed(executive, update_data)
-        have_updates = session.is_modified(executive) or tokens_revoked
-        if have_updates:
-            session.commit()
-            session.refresh(executive)
-
-        executive_data = jsonable_encoder(executive, exclude={Executive.password.name})
-        if have_updates:
+        updated, executive_data = update_executive(session, id, form_param)
+        if updated:
             log_event(token, request_info, executive_data)
         return executive_data
     except Exception as e:
@@ -321,22 +437,9 @@ async def delete_executive_account_for_executive(
 
         if token.executive_id == id:
             raise exceptions.NoPermission()
-        executive = session.query(Executive).filter(Executive.id == id).first()
-        if executive is not None:
-            executive_image = (
-                session.query(ExecutiveImage)
-                .filter(ExecutiveImage.executive_id == id)
-                .first()
-            )
-            executive_data = jsonable_encoder(
-                executive, exclude={Executive.password.name}
-            )
-            session.delete(executive)
-            session.commit()
-            # Delete executive image
-            if executive_image is not None:
-                delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
 
+        deleted, executive_data = delete_executive(session, id)
+        if deleted:
             log_event(token, request_info, executive_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
@@ -361,45 +464,7 @@ async def fetch_executive_accounts_for_executive(
         session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
 
-        query = session.query(Executive)
-        if query_params.designation is not None:
-            query = query.filter(
-                Executive.designation.ilike(f"%{query_params.designation}%")
-            )
-
-        # Common search
-        if query_params.search:
-            search = f"%{query_params.search}%"
-            query = query.filter(
-                or_(
-                    Executive.id.cast(String).ilike(search),
-                    Executive.username.ilike(search),
-                    Executive.full_name.ilike(search),
-                    Executive.designation.ilike(search),
-                    Executive.phone_number.ilike(search),
-                    Executive.email_id.ilike(search),
-                )
-            )
-
-        # Generalized filters
-        query = apply_id_filters(query, Executive, query_params)
-        query = apply_created_on_filters(query, Executive, query_params)
-        query = apply_updated_on_filters(query, Executive, query_params)
-        query = apply_account_filters(query, Executive, query_params)
-        query = apply_status_filters(query, Executive, query_params)
-
-        # Ordering and pagination
-        ordering_attr = getattr(Executive, query_params.order_by.value)
-        ordering_func = (
-            ordering_attr.asc
-            if query_params.order_in == OrderIn.ASCENDING
-            else ordering_attr.desc
-        )
-        query = query.order_by(ordering_func())
-        query = query.offset(query_params.offset).limit(query_params.limit)
-
-        executives = query.all()
-        return executives
+        return search_executives(session, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:

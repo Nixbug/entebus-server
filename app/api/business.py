@@ -8,7 +8,7 @@ input validation and structured output.
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Tuple, List
+from typing import List
 from fastapi import APIRouter, Query, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -203,7 +203,7 @@ class QueryParams(QueryParamsForEX):
 
 
 # ---------------------------------------------------------------------------
-## Functions
+## Helper Functions
 # ---------------------------------------------------------------------------
 def validate_location(location_wkt: str) -> Point:
     """
@@ -220,9 +220,68 @@ def validate_location(location_wkt: str) -> Point:
     return location_geom
 
 
+def business_to_dict(business: Business) -> dict:
+    """
+    Convert a Business SQLAlchemy model instance to a dictionary with WKT location in WKT format.
+
+    Args:
+        business (Business): Business model instance.
+
+    Returns:
+        dict: Dictionary representation of the business with business location in WKT format.
+    """
+    business_data = jsonable_encoder(
+        business,
+        exclude={Business.location.name},
+    )
+    business_data[Business.location.name] = (
+        wkb.loads(bytes(business.location.data))
+    ).wkt
+    return business_data
+
+
+# ---------------------------------------------------------------------------
+## Core Functions
+# ---------------------------------------------------------------------------
+def create_business(session: Session, form_param: CreateForm) -> dict:
+    """
+    Creates a new Business with the provided form data.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        form_param (CreateForm): Form data for creating a new business.
+
+    Returns:
+        dict: Created business data with location in WKT format.
+    """
+    # Validate location (WKT and SRID)
+    location_geom = validate_location(form_param.location)
+    location = wkt.dumps(location_geom)
+
+    business = Business(
+        name=form_param.name,
+        status=form_param.status,
+        type=form_param.type,
+        description=form_param.description,
+        address=form_param.address,
+        location=location,
+    )
+    session.add(business)
+    # Create Wallet
+    wallet = Wallet(name=form_param.name, balance=0)
+    session.add(wallet)
+    session.flush()
+    # Link Business to Wallet
+    business_wallet = BusinessWallet(business_id=business.id, wallet_id=wallet.id)
+    session.add(business_wallet)
+    session.commit()
+    session.refresh(business)
+    return business_to_dict(business)
+
+
 def update_business(
-    session: Session, id: int, form_param: UpdateForm, extra_filter_for_business=None
-) -> Tuple[bool, dict]:
+    session: Session, id: int, form_param: UpdateForm, business_filter=None
+) -> tuple[bool, dict]:
     """
     Updates a Business with the provided form data.
 
@@ -230,7 +289,7 @@ def update_business(
         session (Session): SQLAlchemy database session.
         id (int): ID of the business to update.
         form_param (UpdateForm): Form data containing fields to update.
-        extra_filter_for_business (optional): Additional filter to apply when fetching the business for update.
+        business_filter (Optional): Additional filter for business validation.
 
     Returns:
         Tuple[bool, dict]:
@@ -238,20 +297,18 @@ def update_business(
             - dict: JSON-encoded representation of the updated business.
     """
     business = validate_id(
-        session, Business, id, Business.id, extra_filter=extra_filter_for_business
+        session, Business, id, Business.id, extra_filter=business_filter
     )
+
     update_data = form_param.model_dump(exclude_unset=True)
-    # Validate location if changed
-    if form_param.location is not None:
-        new_geom = validate_location(form_param.location)
-        old_geom = wkb.loads(bytes(business.location.data))
-
-        if new_geom.wkt != old_geom.wkt:
-            business.location = wkt.dumps(new_geom)
-        update_data.pop("location")
-
     wallet = None
-    if form_param.name is not None:
+    if "location" in update_data:
+        old_location_geom = wkb.loads(bytes(business.location.data))
+        new_location_geom = validate_location(form_param.location)
+        if new_location_geom.wkt != old_location_geom.wkt:
+            business.location = wkt.dumps(new_location_geom)
+        update_data.pop("location")
+    if "name" in update_data:
         if form_param.name != business.name:
             business.name = form_param.name
             business_wallet = (
@@ -268,24 +325,14 @@ def update_business(
         update_data.pop("name")
 
     update_if_changed(business, update_data)
-    have_updates = session.is_modified(business) or (
-        wallet and session.is_modified(wallet)
-    )
-    if have_updates:
+    updated = session.is_modified(business) or (wallet and session.is_modified(wallet))
+    if updated:
         session.commit()
         session.refresh(business)
-
-    business_data = jsonable_encoder(
-        business,
-        exclude={Business.location.name},
-    )
-    business_data[Business.location.name] = (
-        wkb.loads(bytes(business.location.data))
-    ).wkt
-    return have_updates, business_data
+    return updated, business_to_dict(business)
 
 
-def search_business(session: Session, query_params: QueryParams) -> List[Business]:
+def search_businesses(session: Session, query_params: QueryParams) -> List[Business]:
     """
     Search for businesses based on provided query parameters.
 
@@ -350,17 +397,37 @@ def search_business(session: Session, query_params: QueryParams) -> List[Busines
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    query = query.with_entities(
-        Business,
-        func.ST_AsText(Business.location).label("location_wkt"),
-    )
-    results = query.all()
-    businesses = []
-    for business_obj, location_wkt in results:
-        business_obj.location = location_wkt
-        businesses.append(business_obj)
-
+    businesses = query.all()
     return businesses
+
+
+def delete_business(session: Session, id: int) -> tuple[bool, dict]:
+    """
+    Delete a business from the database.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        id (int): ID of the business to delete.
+
+    Returns:
+        Tuple[bool, dict]:
+            - bool: True if the business was found and deleted, False otherwise.
+            - dict: JSON-encoded representation of the deleted business, or an empty dictionary if not found.
+    """
+    business = session.query(Business).filter(Business.id == id).first()
+    if business is not None:
+        vendor_images = (
+            session.query(VendorImage).filter(VendorImage.business_id == id).all()
+        )
+        business_data = business_to_dict(business)
+        session.delete(business)
+        session.commit()
+
+        # Delete vendor images from object storage
+        for vendor_image in vendor_images:
+            delete_file(VENDOR_IMAGES, str(vendor_image.id))
+        return True, business_data
+    return False, {}
 
 
 # ---------------------------------------------------------------------------
@@ -461,35 +528,7 @@ async def create_business_for_executive(
             [ExecutivePermissionPath.CREATE_BUSINESS],
         )
 
-        # Validate location (WKT and SRID)
-        location_geom = validate_location(form_param.location)
-        validated_location = wkt.dumps(location_geom)
-
-        business = Business(
-            name=form_param.name,
-            status=form_param.status,
-            type=form_param.type,
-            description=form_param.description,
-            address=form_param.address,
-            location=validated_location,
-        )
-        session.add(business)
-
-        # Create Wallet
-        wallet = Wallet(name=form_param.name, balance=0)
-        session.add(wallet)
-        session.flush()
-
-        # Link Business to Wallet
-        business_wallet = BusinessWallet(business_id=business.id, wallet_id=wallet.id)
-        session.add(business_wallet)
-        session.commit()
-        session.refresh(business)
-
-        business_data = jsonable_encoder(business, exclude={Business.location.name})
-        business_data[Business.location.name] = (
-            wkb.loads(bytes(business.location.data))
-        ).wkt
+        business_data = create_business(session, form_param)
         log_event(token, request_info, business_data)
         return business_data
     except Exception as e:
@@ -524,13 +563,12 @@ async def update_business_for_executive(
             [ExecutivePermissionPath.UPDATE_BUSINESS],
         )
 
-        have_updates, business_data = update_business(
+        updated, business_data = update_business(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
         )
-
-        if have_updates:
+        if updated:
             log_event(token, request_info, business_data)
         return business_data
     except Exception as e:
@@ -555,10 +593,10 @@ async def fetch_businesses_for_executive(
         session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
 
-        return search_business(
-            session,
-            QueryParams(**query_params.model_dump()),
-        )
+        return [
+            business_to_dict(business)
+            for business in search_businesses(session, query_params)
+        ]
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -590,25 +628,8 @@ async def delete_business_for_executive(
             [ExecutivePermissionPath.DELETE_BUSINESS],
         )
 
-        business = session.query(Business).filter(Business.id == id).first()
-        if business is not None:
-            vendor_images = (
-                session.query(VendorImage).filter(VendorImage.business_id == id).all()
-            )
-            business_data = jsonable_encoder(
-                business,
-                exclude={Business.location.name},
-            )
-            business_data[Business.location.name] = (
-                wkb.loads(bytes(business.location.data))
-            ).wkt
-            session.delete(business)
-            session.commit()
-
-            # Delete vendor images from object storage
-            for vendor_image in vendor_images:
-                delete_file(VENDOR_IMAGES, str(vendor_image.id))
-
+        deleted, business_data = delete_business(session, id)
+        if deleted:
             log_event(token, request_info, business_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
@@ -646,14 +667,13 @@ async def update_business_for_vendor(
             [VendorPermissionPath.UPDATE_BUSINESS],
         )
 
-        have_updates, business_data = update_business(
+        updated, business_data = update_business(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            extra_filter_for_business=(Business.id == token.business_id),
+            business_filter=(Business.id == token.business_id),
         )
-
-        if have_updates:
+        if updated:
             log_event(token, request_info, business_data)
         return business_data
     except Exception as e:
@@ -676,9 +696,12 @@ async def fetch_businesses_for_vendor(access_token=Depends(bearer_vendor)):
         token = verify_token(session, VendorToken, access_token.credentials)
 
         query_params = resolve_model_defaults(
-            QueryParams, id_list=[token.business_id], offset=0, limit=1
+            QueryParams, id=token.business_id, offset=0, limit=1
         )
-        return search_business(session, query_params)
+        return [
+            business_to_dict(business)
+            for business in search_businesses(session, query_params)
+        ]
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -709,15 +732,14 @@ async def fetch_businesses_for_public(
     try:
         session = SessionLocal()
 
-        return search_business(
-            session,
-            QueryParams(
-                **query_params.model_dump(),
-                status_list=[BusinessStatus.ACTIVE],
-                address=None,
-                description=None,
-            ),
+        query_params = QueryParams(
+            **query_params.model_dump(),
+            status_list=[BusinessStatus.ACTIVE],
+            address=None,
+            description=None,
         )
+        businesses = search_businesses(session, query_params)
+        return businesses
     except Exception as e:
         exceptions.handle(e)
     finally:
