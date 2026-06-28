@@ -172,6 +172,7 @@ def create_location_in_trace(
         LocationInTrace.trace_id,
         extra_filter=extra_filter_for_trace,
     )
+
     location_count = (
         session.query(LocationInTrace)
         .filter(LocationInTrace.trace_id == form_param.trace_id)
@@ -179,6 +180,7 @@ def create_location_in_trace(
     )
     if location_count >= MAX_LOCATIONS_PER_TRACE:
         raise exceptions.LimitExceeded(LocationInTrace)
+    
     for location_data in form_param.trace_locations:
         for location in location_data.locations:
             geometry = validate_wkt_string(location, Point)
