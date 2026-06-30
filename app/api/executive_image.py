@@ -297,7 +297,9 @@ DELETE_DESCRIPTION = (
     .add_line(
         "To delete another executive's image, the `executive.update` permission is required."
     )
-    .add_line("If the image does not exist, the operation returns 204 No Content.")
+    .add_line(
+        "Even with permission if the image does not exist, the operation returns 204 No Content."
+    )
 )
 
 GET_DESCRIPTION = Description().add_head("Fetches executive images.")
