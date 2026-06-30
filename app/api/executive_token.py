@@ -13,9 +13,10 @@ from fastapi import APIRouter, Depends, Query, Response, status, Form
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive
-from app.src.db import ExecutiveToken, SessionLocal
+from app.src.db import Executive, ExecutiveToken, SessionLocal
 from app.src import exceptions
 from app.src.description import Description
 from app.src.enums import PlatformType, GrantType, OrderIn
@@ -121,6 +122,220 @@ class QueryParams(ClientDataFilter, CreatedOnFilter, IDFilter, PaginationFilter)
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
     )
+
+
+# ---------------------------------------------------------------------------
+## Helper Functions
+# ---------------------------------------------------------------------------
+def executive_token_to_dict(executive_token: ExecutiveToken) -> tuple[dict, dict]:
+    """
+    Convert an ExecutiveToken SQLAlchemy model instance to a dictionary.
+
+    Args:
+        executive_token (ExecutiveToken): ExecutiveToken model instance.
+
+    Returns:
+        Tuple[dict, dict]:
+            - dict: JSON-encoded representation of the executive token.
+            - dict: Log data related to the executive token.
+    """
+    executive_token_data = jsonable_encoder(executive_token)
+    executive_token_log_data = executive_token_data.copy()
+    executive_token_log_data.pop(ExecutiveToken.access_token.name)
+    executive_token_log_data.pop(ExecutiveToken.refresh_token.name)
+    return executive_token_data, executive_token_log_data
+
+
+# ---------------------------------------------------------------------------
+## Core Functions
+# ---------------------------------------------------------------------------
+def create_executive_token(
+    session: Session, form_param: CreateForm, executive: Executive
+) -> tuple[dict, dict, ExecutiveToken]:
+    """
+    Creates a new executive token with the provided form data.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        form_param (CreateForm): Form data for creating a new executive token.
+        executive (Executive): Executive for whom the token is being created.
+
+    Returns:
+        Tuple[dict, dict, ExecutiveToken]:
+            - dict: Created executive token data.
+            - dict: Log data related to the executive token.
+            - ExecutiveToken: The created ExecutiveToken instance.
+    """
+    cleanup_old_tokens(
+        session,
+        ExecutiveToken,
+        ExecutiveToken.executive_id == executive.id,
+        MAX_EXECUTIVE_TOKENS - 1,
+    )
+
+    executive_token = ExecutiveToken(
+        executive_id=executive.id,
+        platform_type=form_param.platform_type,
+        client_details=form_param.client_details,
+    )
+    session.add(executive_token)
+    session.commit()
+    session.refresh(executive_token)
+    return executive_token_to_dict(executive_token), executive_token
+
+
+def refresh_executive_token(
+    session: Session, executive_token: ExecutiveToken
+) -> tuple[dict, dict]:
+    """
+    Refresh an executive's token with the provided form data.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        executive_token (ExecutiveToken): ExecutiveToken model instance to be refreshed.
+
+    Returns:
+        Tuple[dict, dict]:
+            - dict: JSON-encoded representation of the updated executive token.
+            - dict: Log data related to the updated executive token.
+    """
+    executive_token.is_revoked = True
+    cleanup_old_tokens(
+        session,
+        ExecutiveToken,
+        ExecutiveToken.executive_id == executive_token.executive_id,
+        MAX_EXECUTIVE_TOKENS - 1,
+    )
+
+    refreshed_executive_token = ExecutiveToken(
+        executive_id=executive_token.executive_id,
+        platform_type=executive_token.platform_type,
+        client_details=executive_token.client_details,
+    )
+    session.add(refreshed_executive_token)
+    session.commit()
+    session.refresh(refreshed_executive_token)
+    return executive_token_to_dict(refreshed_executive_token)
+
+
+def revoke_executive_token(
+    session: Session, form_param: LogoutForm, executive_token: ExecutiveToken
+) -> tuple[bool, dict, dict]:
+    """
+    Revokes an executive's token.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        form_param (LogoutForm): Form data containing the token to revoke.
+        executive_token (ExecutiveToken): The token of the executive requesting this action.
+
+    Returns:
+        Tuple[bool, dict, dict]:
+            - bool: True if the executive token was found and revoked, False otherwise.
+            - dict: JSON-encoded representation of the revoked executive token.
+            - dict: Log data related to the revoked executive token.
+    """
+    token_to_revoke = (
+        session.query(ExecutiveToken)
+        .filter(ExecutiveToken.executive_id == executive_token.executive_id)
+        .filter(
+            (ExecutiveToken.access_token == form_param.token)
+            | (ExecutiveToken.refresh_token == form_param.token)
+        )
+        .filter(ExecutiveToken.is_revoked.is_(False))
+        .first()
+    )
+    if token_to_revoke:
+        token_to_revoke.is_revoked = True
+        session.commit()
+        session.refresh(token_to_revoke)
+        return True, executive_token_to_dict(token_to_revoke)
+    return False, {}, {}
+
+
+def delete_executive_token(
+    session: Session, id: int, executive_token: ExecutiveToken, has_permission: bool
+) -> tuple[bool, dict, dict]:
+    """
+    Deletes an executive token from the database.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        id (int): ID of the executive token to delete.
+        executive_token (ExecutiveToken): The token of the executive requesting this action.
+        has_permission (bool): Whether the executive has permission to delete other executives' tokens.
+
+    Returns:
+        Tuple[bool, dict, dict]:
+            - bool: True if the executive token was found and deleted.
+            - dict: JSON-encoded representation of the deleted executive token.
+            - dict: Log data related to the deleted executive token.
+    """
+    token_to_delete = (
+        session.query(ExecutiveToken)
+        .filter(ExecutiveToken.id == id)
+        .filter(ExecutiveToken.is_revoked.is_(False))
+        .first()
+    )
+
+    if token_to_delete is None:
+        return False, {}, {}
+    if (
+        not has_permission
+        and token_to_delete.executive_id != executive_token.executive_id
+    ):
+        raise exceptions.NoPermission()
+
+    token_to_delete.is_revoked = True
+    session.commit()
+    session.refresh(token_to_delete)
+    return True, executive_token_to_dict(token_to_delete)
+
+
+def search_executive_role_maps(
+    session: Session,
+    query_params: QueryParams,
+    executive_token: ExecutiveToken,
+    has_permission: bool,
+) -> list[ExecutiveToken]:
+    """
+    Searches for executive tokens based on query parameters and permissions.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        query_params (QueryParams): Parameters for filtering, ordering, and pagination.
+        executive_token (ExecutiveToken): The token of the executive requesting this action.
+        has_permission (bool): Whether the executive has permission to view other executives' tokens.
+
+    Returns:
+        list[ExecutiveToken]: List of executive tokens matching the query parameters.
+    """
+    query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked == False)
+    if not has_permission:
+        if query_params.executive_id not in (None, executive_token.executive_id):
+            raise exceptions.NoPermission()
+        # Restrict to only the logged-in executive's tokens
+        query = query.filter(
+            ExecutiveToken.executive_id == executive_token.executive_id
+        )
+
+    # Generalized filters
+    query = apply_id_filters(query, ExecutiveToken, query_params)
+    query = apply_created_on_filters(query, ExecutiveToken, query_params)
+    query = apply_client_data_filters(query, ExecutiveToken, query_params)
+
+    # Ordering and pagination
+    ordering_attr = getattr(ExecutiveToken, OrderBy(query_params.order_by).value)
+    ordering_func = (
+        ordering_attr.asc
+        if query_params.order_in == OrderIn.ASCENDING
+        else ordering_attr.desc
+    )
+    query = query.order_by(ordering_func())
+    query = query.offset(query_params.offset).limit(query_params.limit)
+
+    executive_tokens = query.all()
+    return executive_tokens
 
 
 # ---------------------------------------------------------------------------
@@ -256,30 +471,11 @@ async def create_executive_token_for_executive(
         session = SessionLocal()
         executive = authenticate_executive(session, credentials)
 
-        # Remove excess tokens
-        cleanup_old_tokens(
-            session,
-            ExecutiveToken,
-            ExecutiveToken.executive_id == executive.id,
-            MAX_EXECUTIVE_TOKENS - 1,
+        executive_token_data, executive_token_log_data, executive_token = (
+            create_executive_token(session, form_param, executive)
         )
-
-        # Create new token
-        token = ExecutiveToken(
-            executive_id=executive.id,
-            platform_type=form_param.platform_type,
-            client_details=form_param.client_details,
-        )
-        session.add(token)
-        session.commit()
-        session.refresh(token)
-
-        token_data = jsonable_encoder(token)
-        token_log_data = token_data.copy()
-        token_log_data.pop(ExecutiveToken.access_token.name)
-        token_log_data.pop(ExecutiveToken.refresh_token.name)
-        log_event(token, request_info, token_log_data)
-        return token_data
+        log_event(executive_token, request_info, executive_token_log_data)
+        return executive_token_data
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -300,33 +496,13 @@ async def refresh_executive_token_for_executive(
 ):
     try:
         session = SessionLocal()
-        # Validate and revoke the old refresh token
         token = validate_and_revoke_refresh_token(session, ExecutiveToken, form_param)
-        # Create new token
-        refresh_token = ExecutiveToken(
-            executive_id=token.executive_id,
-            platform_type=token.platform_type,
-            client_details=token.client_details,
-        )
-        session.add(refresh_token)
-        session.flush()
 
-        # Remove excess tokens
-        cleanup_old_tokens(
-            session,
-            ExecutiveToken,
-            ExecutiveToken.executive_id == token.executive_id,
-            MAX_EXECUTIVE_TOKENS,
+        refreshed_token_data, refreshed_token_log_data = refresh_executive_token(
+            session, token
         )
-        session.commit()
-        session.refresh(refresh_token)
-
-        token_data = jsonable_encoder(refresh_token)
-        token_log_data = token_data.copy()
-        token_log_data.pop(ExecutiveToken.access_token.name)
-        token_log_data.pop(ExecutiveToken.refresh_token.name)
-        log_event(token, request_info, token_log_data)
-        return token_data
+        log_event(token, request_info, refreshed_token_log_data)
+        return refreshed_token_data
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -349,26 +525,11 @@ async def revoke_executive_token_for_executive(
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
 
-        token_to_revoke = (
-            session.query(ExecutiveToken)
-            .filter(ExecutiveToken.executive_id == token.executive_id)
-            .filter(
-                (ExecutiveToken.access_token == form_param.token)
-                | (ExecutiveToken.refresh_token == form_param.token)
-            )
-            .filter(ExecutiveToken.is_revoked.is_(False))
-            .first()
+        revoked, _, revoked_token_log_data = revoke_executive_token(
+            session, form_param, token
         )
-        if token_to_revoke:
-            token_to_revoke.is_revoked = True
-            session.commit()
-            session.refresh(token_to_revoke)
-
-            token_log_data = jsonable_encoder(token_to_revoke)
-            token_log_data.pop(ExecutiveToken.access_token.name)
-            token_log_data.pop(ExecutiveToken.refresh_token.name)
-            log_event(token, request_info, token_log_data)
-
+        if revoked:
+            log_event(token, request_info, revoked_token_log_data)
         return Response(status_code=status.HTTP_200_OK)
     except Exception as e:
         exceptions.handle(e)
@@ -392,6 +553,7 @@ async def delete_executive_token_for_executive(
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
+
         roles = get_executive_roles(session, token)
         has_permission = verify_permission(
             roles,
@@ -399,26 +561,11 @@ async def delete_executive_token_for_executive(
             False,
         )
 
-        token_to_delete = (
-            session.query(ExecutiveToken)
-            .filter(ExecutiveToken.id == id)
-            .filter(ExecutiveToken.is_revoked.is_(False))
-            .first()
+        deleted, _, token_log_data = delete_executive_token(
+            session, id, token, has_permission
         )
-        if token_to_delete is None:
-            return Response(status_code=status.HTTP_204_NO_CONTENT)
-        if not has_permission and token_to_delete.executive_id != token.executive_id:
-            raise exceptions.NoPermission()
-
-        # Revoke the chosen token
-        token_to_delete.is_revoked = True
-        session.commit()
-        session.refresh(token_to_delete)
-
-        token_log_data = jsonable_encoder(token_to_delete)
-        token_log_data.pop(ExecutiveToken.access_token.name)
-        token_log_data.pop(ExecutiveToken.refresh_token.name)
-        log_event(token, request_info, token_log_data)
+        if deleted:
+            log_event(token, request_info, token_log_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
@@ -441,6 +588,7 @@ async def fetch_executive_tokens_for_executive(
     try:
         session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
+
         roles = get_executive_roles(session, token)
         has_permission = verify_permission(
             roles,
@@ -448,30 +596,7 @@ async def fetch_executive_tokens_for_executive(
             False,
         )
 
-        query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked == False)
-        if not has_permission:
-            if query_params.executive_id not in (None, token.executive_id):
-                raise exceptions.NoPermission()
-            # Restrict to only the logged-in executive's tokens
-            query = query.filter(ExecutiveToken.executive_id == token.executive_id)
-
-        # Generalized filters
-        query = apply_id_filters(query, ExecutiveToken, query_params)
-        query = apply_created_on_filters(query, ExecutiveToken, query_params)
-        query = apply_client_data_filters(query, ExecutiveToken, query_params)
-
-        # Ordering and pagination
-        ordering_attr = getattr(ExecutiveToken, OrderBy(query_params.order_by).value)
-        ordering_func = (
-            ordering_attr.asc
-            if query_params.order_in == OrderIn.ASCENDING
-            else ordering_attr.desc
-        )
-        query = query.order_by(ordering_func())
-        query = query.offset(query_params.offset).limit(query_params.limit)
-
-        tokens = query.all()
-        return tokens
+        return search_executive_role_maps(session, query_params, token, has_permission)
     except Exception as e:
         exceptions.handle(e)
     finally:
