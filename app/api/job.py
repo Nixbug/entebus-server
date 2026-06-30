@@ -177,7 +177,7 @@ class QueryParams(QueryParamsForEX):
 
 
 # ---------------------------------------------------------------------------
-## Functions
+## Core Functions
 # ---------------------------------------------------------------------------
 def create_job(session: Session, form_param: CreateForm) -> dict:
     """
@@ -202,21 +202,18 @@ def create_job(session: Session, form_param: CreateForm) -> dict:
         trigger_from=form_param.trigger_from,
         trigger_till=form_param.trigger_till,
     )
-
     if job.triggering_mode == TriggeringMode.AUTO:
         job.next_trigger_on = calculate_next_trigger_on(job)
     else:
         job.next_trigger_on = None
-
     session.add(job)
     session.commit()
     session.refresh(job)
-    job_data = jsonable_encoder(job)
-    return job_data
+    return jsonable_encoder(job)
 
 
 def update_job(
-    session: Session, id: int, form_param: UpdateForm, extra_filter_for_job=None
+    session: Session, id: int, form_param: UpdateForm, job_filter=None
 ) -> Tuple[bool, dict]:
     """
     Updates an existing job record in the database.
@@ -225,19 +222,24 @@ def update_job(
         session (Session): SQLAlchemy database session.
         id (int): ID of the job to update.
         form_param (UpdateForm): Form data for updating the job.
-        extra_filter_for_job: Optional additional filter to apply when validating the job ID.
+        job_filter: Optional additional filter to apply when validating the job ID.
 
-    Returns:
-        Tuple[bool, dict]: A tuple containing a boolean indicating if updates were made, and the updated job data.
+        Tuple[bool, dict]:
+            - bool: True if the job was modified and the changes were committed.
+            - dict: JSON-encoded representation of the updated job.
     """
-    job = validate_id(session, Job, id, Job.id, extra_filter=extra_filter_for_job)
-    if form_param.recurrence_rule is not None:
-        validate_rrule_string(form_param.recurrence_rule)
+    job = validate_id(session, Job, id, Job.id, extra_filter=job_filter)
 
     update_data = form_param.model_dump(exclude_unset=True)
+    if "recurrence_rule" in update_data:
+        if form_param.recurrence_rule != job.recurrence_rule:
+            validate_rrule_string(form_param.recurrence_rule)
+            job.recurrence_rule = form_param.recurrence_rule
+        update_data.pop("recurrence_rule")
+
     update_if_changed(job, update_data)
-    have_updates = session.is_modified(job)
-    if have_updates:
+    updated = session.is_modified(job)
+    if updated:
         if job.triggering_mode != TriggeringMode.AUTO:
             job.next_trigger_on = None
         else:
@@ -253,26 +255,33 @@ def update_job(
         session.flush()
         session.commit()
         session.refresh(job)
-
-    job_data = jsonable_encoder(job)
-    return have_updates, job_data
+    return updated, jsonable_encoder(job)
 
 
-def delete_job(session: Session, job: Job) -> dict:
+def delete_job(session: Session, id: int, job_filter=None) -> tuple[bool, dict]:
     """
     Deletes a job from the database.
 
     Args:
         session (Session): SQLAlchemy database session.
-        job (Job): Job to delete.
+        id (int): ID of the job to delete.
+        job_filter: Optional additional filter to apply when validating the job ID.
 
     Returns:
-        dict: JSON-encoded representation of the deleted job.
+        Tuple[bool, dict]:
+            - bool: True if the job was found and deleted, False otherwise.
+            - dict: JSON-encoded representation of the deleted job, or an empty dictionary if not found.
     """
-    job_data = jsonable_encoder(job)
-    session.delete(job)
-    session.commit()
-    return job_data
+    query = session.query(Job).filter(Job.id == id)
+    if job_filter is not None:
+        query = query.filter(job_filter)
+    job = query.first()
+    if job is not None:
+        job_data = jsonable_encoder(job)
+        session.delete(job)
+        session.commit()
+        return True, job_data
+    return False, {}
 
 
 def search_job(session: Session, query_params: QueryParams) -> List[Job]:
@@ -520,9 +529,8 @@ async def delete_job_for_executive(
             [ExecutivePermissionPath.DELETE_COMPANY_JOB],
         )
 
-        job = session.query(Job).filter(Job.id == id).first()
-        if job is not None:
-            job_data = delete_job(session, job)
+        deleted, job_data = delete_job(session, id)
+        if deleted:
             log_event(token, request_info, job_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
@@ -624,7 +632,7 @@ async def update_job_for_operator(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            extra_filter_for_job=(Job.company_id == token.company_id),
+            job_filter=(Job.company_id == token.company_id),
         )
         if have_updates:
             log_event(token, request_info, job_data)
@@ -660,13 +668,10 @@ async def delete_job_for_operator(
             [OperatorPermissionPath.DELETE_COMPANY_JOB],
         )
 
-        job = (
-            session.query(Job)
-            .filter(Job.id == id, Job.company_id == token.company_id)
-            .first()
+        deleted, job_data = delete_job(
+            session, id, job_filter=(Job.company_id == token.company_id)
         )
-        if job is not None:
-            job_data = delete_job(session, job)
+        if deleted:
             log_event(token, request_info, job_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
