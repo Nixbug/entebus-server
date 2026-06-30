@@ -319,7 +319,7 @@ def search_executive_role_maps(
     Returns:
         list[ExecutiveToken]: List of executive tokens matching the query parameters.
     """
-    query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked == False)
+    query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked.is_(False))
     if not has_permission:
         if query_params.executive_id not in (None, executive_token.executive_id):
             raise exceptions.NoPermission()
