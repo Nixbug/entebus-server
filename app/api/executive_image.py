@@ -132,7 +132,9 @@ async def create_executive_image(session: Session, form_param: CreateForm) -> di
     Returns:
         dict: Created executive image data.
     """
-    validate_id(session, Executive, form_param.executive_id, ExecutiveImage.executive_id)
+    validate_id(
+        session, Executive, form_param.executive_id, ExecutiveImage.executive_id
+    )
     file_bytes = await form_param.file.read()
     validate_image(file_bytes, form_param.file.filename)
     executive_image = ExecutiveImage(
@@ -295,7 +297,7 @@ DELETE_DESCRIPTION = (
     .add_line(
         "To delete another executive's image, the `executive.update` permission is required."
     )
-    .add_line("Returns 204 No Content even if the specified image does not exist.")
+    .add_line("If the image does not exist, the operation returns 204 No Content.")
 )
 
 GET_DESCRIPTION = Description().add_head("Fetches executive images.")
