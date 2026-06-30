@@ -327,6 +327,8 @@ def search_executive_role_maps(
         query = query.filter(
             ExecutiveToken.executive_id == executive_token.executive_id
         )
+    elif query_params.executive_id is not None:
+        query = query.filter(ExecutiveToken.executive_id == query_params.executive_id)
 
     # Generalized filters
     query = apply_id_filters(query, ExecutiveToken, query_params)
