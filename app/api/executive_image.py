@@ -132,7 +132,7 @@ async def create_executive_image(session: Session, form_param: CreateForm) -> di
     Returns:
         dict: Created executive image data.
     """
-    validate_id(session, Executive, form_param.executive_id, Executive.id)
+    validate_id(session, Executive, form_param.executive_id, ExecutiveImage.executive_id)
     file_bytes = await form_param.file.read()
     validate_image(file_bytes, form_param.file.filename)
     executive_image = ExecutiveImage(
