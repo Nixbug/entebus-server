@@ -252,7 +252,10 @@ def revoke_executive_token(
         token_to_revoke.is_revoked = True
         session.commit()
         session.refresh(token_to_revoke)
-        return True, executive_token_to_dict(token_to_revoke)
+        revoked_token_data, revoked_token_log_data = executive_token_to_dict(
+            token_to_revoke
+        )
+        return True, revoked_token_data, revoked_token_log_data
     return False, {}, {}
 
 
@@ -292,7 +295,10 @@ def delete_executive_token(
     token_to_delete.is_revoked = True
     session.commit()
     session.refresh(token_to_delete)
-    return True, executive_token_to_dict(token_to_delete)
+    deleted_token_data, deleted_token_log_data = executive_token_to_dict(
+        token_to_delete
+    )
+    return True, deleted_token_data, deleted_token_log_data
 
 
 def search_executive_role_maps(
