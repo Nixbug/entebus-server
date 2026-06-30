@@ -263,7 +263,7 @@ def delete_executive_token(
     session: Session, id: int, executive_token: ExecutiveToken, has_permission: bool
 ) -> tuple[bool, dict, dict]:
     """
-    Deletes an executive token from the database.
+    Revokes an executive token (marks it as revoked).
 
     Args:
         session (Session): Active SQLAlchemy database session.
