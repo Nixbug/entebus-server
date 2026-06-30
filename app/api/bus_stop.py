@@ -1,14 +1,15 @@
 """
 Bus Stop API Router for EnteBus.
 
-Provides endpoints for managing bus stops, including creation,
-update, deletion, and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing bus stops:
+    - POST (executive)
+    - PATCH (executive)
+    - DELETE (executive)
+    - GET (executive, vendor, operator, public)
 """
 
 from datetime import datetime
 from enum import StrEnum
-from typing import List
 from fastapi import APIRouter, Response, Query, status, Depends
 from fastapi.encoders import jsonable_encoder
 from geoalchemy2 import Geography
@@ -17,6 +18,7 @@ from sqlalchemy.orm.session import Session
 from shapely.geometry import Point
 from shapely import wkb, wkt
 from sqlalchemy import String, func, or_
+from geoalchemy2.shape import from_shape
 
 from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
 from app.src.db import (
@@ -36,7 +38,7 @@ from app.src.filters import (
     UpdatedOnFilter,
 )
 from app.src.permissions.executive import PermissionPath
-from app.src import exceptions
+from app.src import exceptions, schemas
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_BUS_STOP
 from app.src.openobserve import log_event
@@ -99,8 +101,10 @@ class CreateForm(BaseModel):
 class UpdateForm(BaseModel):
     """Form data for updating a bus stop."""
 
-    name: str = Field(min_length=1, max_length=128, pattern=NAME_PATTERN, default=None)
-    location: str = Field(
+    name: str | None = Field(
+        min_length=1, max_length=128, pattern=NAME_PATTERN, default=None
+    )
+    location: str | None = Field(
         default=None,
         description=(
             "Accepts only SRID 4326 (WGS84), and a valid WKT string representing a `POINT`."
@@ -138,7 +142,7 @@ class QueryParams(
             ),
         )
     )
-    landmark_id_list: List[int] | None = Field(Query(default=None))
+    landmark_id_list: list[int] | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
@@ -169,13 +173,12 @@ def validate_location(session: Session, location_wkt: str, landmark_id: int) -> 
     location_geom = validate_wkt_string(location_wkt, Point)
     validate_srid_4326(location_geom)
 
-    # Validate location is within landmark boundary
+    # Validate if the location is within landmark boundary
     landmark = validate_id(session, Landmark, landmark_id, BusStop.landmark_id)
 
     boundary_geom = wkb.loads(bytes(landmark.boundary.data))
     if not boundary_geom.contains(location_geom):
         raise exceptions.BusStopOutsideLandmark()
-
     return location_geom
 
 
@@ -199,13 +202,20 @@ def bus_stop_to_dict(bus_stop: BusStop) -> dict:
 # ---------------------------------------------------------------------------
 ## Core Functions
 # ---------------------------------------------------------------------------
-def create_bus_stop(session: Session, form_param: CreateForm) -> dict:
+def create_bus_stop(
+    session: Session,
+    form_param: CreateForm,
+    token: ExecutiveToken,
+    request_info: schemas.RequestInfo,
+) -> dict:
     """
     Create a new bus stop in the database.
 
     Args:
         session (Session): Active SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a new bus stop.
+        token (ExecutiveToken): Authenticated executive token.
+        request_info (schemas.RequestInfo): Request information for logging.
 
     Returns:
         dict: Created bus stop data with location in WKT format.
@@ -223,7 +233,6 @@ def create_bus_stop(session: Session, form_param: CreateForm) -> dict:
         session, form_param.location, form_param.landmark_id
     )
     location = wkt.dumps(location_geom)
-
     bus_stop = BusStop(
         name=form_param.name,
         landmark_id=form_param.landmark_id,
@@ -232,12 +241,19 @@ def create_bus_stop(session: Session, form_param: CreateForm) -> dict:
     session.add(bus_stop)
     session.commit()
     session.refresh(bus_stop)
-    return bus_stop_to_dict(bus_stop)
+
+    bus_stop_data = bus_stop_to_dict(bus_stop)
+    log_event(token, request_info, bus_stop_data)
+    return bus_stop_data
 
 
 def update_bus_stop(
-    session: Session, id: int, form_param: UpdateForm
-) -> tuple[bool, dict]:
+    session: Session,
+    id: int,
+    form_param: UpdateForm,
+    token: ExecutiveToken,
+    request_info: schemas.RequestInfo,
+) -> dict:
     """
     Update an existing bus stop in the database.
 
@@ -245,11 +261,11 @@ def update_bus_stop(
         session (Session): Active SQLAlchemy database session.
         id (int): ID of the bus stop to update.
         form_param (UpdateForm): Form data for updating the bus stop.
+        token (ExecutiveToken): Authenticated executive token.
+        request_info (schemas.RequestInfo): Request information for logging.
 
     Returns:
-        Tuple[bool, dict]:
-            - bool: True if the bus stop was modified and the changes were committed.
-            - dict: JSON-encoded representation of the updated bus stop.
+        dict: Updated bus stop data with location in WKT format.
     """
     bus_stop = validate_id(session, BusStop, id, BusStop.id)
 
@@ -257,21 +273,45 @@ def update_bus_stop(
     if "location" in update_data:
         old_location_geom = wkb.loads(bytes(bus_stop.location.data))
         new_location_geom = validate_location(
-            session, form_param.location, bus_stop.landmark_id
+            session, update_data["location"], bus_stop.landmark_id
         )
         if new_location_geom.wkt != old_location_geom.wkt:
-            bus_stop.location = wkt.dumps(new_location_geom)
+            bus_stop.location = from_shape(new_location_geom, srid=4326)
         update_data.pop("location")
 
     update_if_changed(bus_stop, update_data)
     updated = session.is_modified(bus_stop)
+
+    bus_stop_data = bus_stop_to_dict(bus_stop)
     if updated:
         session.commit()
         session.refresh(bus_stop)
-    return updated, bus_stop_to_dict(bus_stop)
+        log_event(token, request_info, bus_stop_data)
+    return bus_stop_data
 
 
-def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusStop]:
+def delete_bus_stop(
+    session: Session, id: int, token: ExecutiveToken, request_info: schemas.RequestInfo
+):
+    """
+    Delete a bus stop from the database.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        id (int): ID of the bus stop to delete.
+        token (ExecutiveToken): Authenticated executive token.
+        request_info (schemas.RequestInfo): Request information for logging.
+    """
+    bus_stop = session.query(BusStop).filter(BusStop.id == id).first()
+
+    if bus_stop is not None:
+        bus_stop_data = bus_stop_to_dict(bus_stop)
+        session.delete(bus_stop)
+        session.commit()
+        log_event(token, request_info, bus_stop_data)
+
+
+def search_bus_stops(session: Session, query_params: QueryParams) -> list[BusStop]:
     """
     Search for bus stops based on provided query parameters.
 
@@ -283,7 +323,7 @@ def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusSto
         query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
-        List[BusStop]: List of bus stops that match the search criteria.
+        list[BusStop]: List of bus stops that match the search criteria.
     """
     query = session.query(BusStop)
     validated_location = None
@@ -328,28 +368,6 @@ def search_bus_stops(session: Session, query_params: QueryParams) -> List[BusSto
 
     bus_stops = query.all()
     return bus_stops
-
-
-def delete_bus_stop(session: Session, id: int) -> tuple[bool, dict]:
-    """
-    Delete a bus stop from the database.
-
-    Args:
-        session (Session): Active SQLAlchemy database session.
-        id (int): ID of the bus stop to delete.
-
-    Returns:
-        Tuple[bool, dict]:
-            - bool: True if the bus stop was found and deleted, False otherwise.
-            - dict: JSON-encoded representation of the deleted bus stop, or an empty dictionary if not found.
-    """
-    bus_stop = session.query(BusStop).filter(BusStop.id == id).first()
-    if bus_stop is not None:
-        bus_stop_data = bus_stop_to_dict(bus_stop)
-        session.delete(bus_stop)
-        session.commit()
-        return True, bus_stop_data
-    return False, {}
 
 
 # ---------------------------------------------------------------------------
@@ -446,20 +464,16 @@ async def create_bus_stop_for_executive(
     request_info=Depends(get_request_info),
 ):
     try:
-        session = SessionLocal()
-        token = authorize_executive(
-            session,
-            access_token,
-            [PermissionPath.CREATE_BUS_STOP],
-        )
+        with SessionLocal() as session:
+            token = authorize_executive(
+                session,
+                access_token,
+                [PermissionPath.CREATE_BUS_STOP],
+            )
 
-        bus_stop_data = create_bus_stop(session, form_param)
-        log_event(token, request_info, bus_stop_data)
-        return bus_stop_data
+            return create_bus_stop(session, form_param, token, request_info)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.patch(
@@ -477,21 +491,16 @@ async def update_bus_stop_for_executive(
     request_info=Depends(get_request_info),
 ):
     try:
-        session = SessionLocal()
-        token = authorize_executive(
-            session,
-            access_token,
-            [PermissionPath.UPDATE_BUS_STOP],
-        )
+        with SessionLocal() as session:
+            token = authorize_executive(
+                session,
+                access_token,
+                [PermissionPath.UPDATE_BUS_STOP],
+            )
 
-        updated, bus_stop_data = update_bus_stop(session, id, form_param)
-        if updated:
-            log_event(token, request_info, bus_stop_data)
-        return bus_stop_data
+            return update_bus_stop(session, id, form_param, token, request_info)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -508,28 +517,24 @@ async def delete_bus_stop_for_executive(
     request_info=Depends(get_request_info),
 ):
     try:
-        session = SessionLocal()
-        token = authorize_executive(
-            session,
-            access_token,
-            [PermissionPath.DELETE_BUS_STOP],
-        )
+        with SessionLocal() as session:
+            token = authorize_executive(
+                session,
+                access_token,
+                [PermissionPath.DELETE_BUS_STOP],
+            )
 
-        deleted, bus_stop_data = delete_bus_stop(session, id)
-        if deleted:
-            log_event(token, request_info, bus_stop_data)
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
+            delete_bus_stop(session, id, token, request_info)
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
     URL_BUS_STOP,
     summary="Fetch bus stop",
     tags=["Bus Stop"],
-    response_model=List[BusStopSchema],
+    response_model=list[BusStopSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
@@ -538,17 +543,15 @@ async def fetch_bus_stops_for_executive(
     access_token=Depends(oauth2_executive),
 ):
     try:
-        session = SessionLocal()
-        verify_token(session, ExecutiveToken, access_token)
+        with SessionLocal() as session:
+            verify_token(session, ExecutiveToken, access_token)
 
-        return [
-            bus_stop_to_dict(bus_stop)
-            for bus_stop in search_bus_stops(session, query_params)
-        ]
+            return [
+                bus_stop_to_dict(bus_stop)
+                for bus_stop in search_bus_stops(session, query_params)
+            ]
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -558,7 +561,7 @@ async def fetch_bus_stops_for_executive(
     URL_BUS_STOP,
     summary="Fetch bus stop",
     tags=["Bus Stop"],
-    response_model=List[BusStopSchema],
+    response_model=list[BusStopSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
@@ -567,17 +570,15 @@ async def fetch_bus_stops_for_vendor(
     access_token=Depends(bearer_vendor),
 ):
     try:
-        session = SessionLocal()
-        verify_token(session, VendorToken, access_token.credentials)
+        with SessionLocal() as session:
+            verify_token(session, VendorToken, access_token.credentials)
 
-        return [
-            bus_stop_to_dict(bus_stop)
-            for bus_stop in search_bus_stops(session, query_params)
-        ]
+            return [
+                bus_stop_to_dict(bus_stop)
+                for bus_stop in search_bus_stops(session, query_params)
+            ]
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -587,7 +588,7 @@ async def fetch_bus_stops_for_vendor(
     URL_BUS_STOP,
     summary="Fetch bus stop",
     tags=["Bus Stop"],
-    response_model=List[BusStopSchema],
+    response_model=list[BusStopSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
@@ -596,17 +597,15 @@ async def fetch_bus_stops_for_operator(
     access_token=Depends(bearer_operator),
 ):
     try:
-        session = SessionLocal()
-        verify_token(session, OperatorToken, access_token.credentials)
+        with SessionLocal() as session:
+            verify_token(session, OperatorToken, access_token.credentials)
 
-        return [
-            bus_stop_to_dict(bus_stop)
-            for bus_stop in search_bus_stops(session, query_params)
-        ]
+            return [
+                bus_stop_to_dict(bus_stop)
+                for bus_stop in search_bus_stops(session, query_params)
+            ]
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -616,7 +615,7 @@ async def fetch_bus_stops_for_operator(
     URL_BUS_STOP,
     summary="Fetch bus stop",
     tags=["Bus Stop"],
-    response_model=List[BusStopSchema],
+    response_model=list[BusStopSchema],
     responses=fuse_exception_responses(
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
@@ -624,13 +623,10 @@ async def fetch_bus_stops_for_operator(
 )
 async def fetch_bus_stops_for_public(query_params: QueryParams = Depends()):
     try:
-        session = SessionLocal()
-
-        return [
-            bus_stop_to_dict(bus_stop)
-            for bus_stop in search_bus_stops(session, query_params)
-        ]
+        with SessionLocal() as session:
+            return [
+                bus_stop_to_dict(bus_stop)
+                for bus_stop in search_bus_stops(session, query_params)
+            ]
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
