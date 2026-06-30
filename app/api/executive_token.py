@@ -181,7 +181,10 @@ def create_executive_token(
     session.add(executive_token)
     session.commit()
     session.refresh(executive_token)
-    return executive_token_to_dict(executive_token), executive_token
+    executive_token_data, executive_token_log_data = executive_token_to_dict(
+        executive_token
+    )
+    return executive_token_data, executive_token_log_data, executive_token
 
 
 def refresh_executive_token(
