@@ -41,6 +41,7 @@ from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_BUS_STOP
 from app.src.openobserve import log_event
 from app.src.description import Description
+from app.src.constants import MAX_BUS_STOPS_PER_LANDMARK
 from app.src.validators import (
     verify_token,
     validate_id,
@@ -209,6 +210,14 @@ def create_bus_stop(session: Session, form_param: CreateForm) -> dict:
     Returns:
         dict: Created bus stop data with location in WKT format.
     """
+    bus_stop_count = (
+        session.query(BusStop)
+        .filter(BusStop.landmark_id == form_param.landmark_id)
+        .count()
+    )
+    if bus_stop_count >= MAX_BUS_STOPS_PER_LANDMARK:
+        raise exceptions.LimitExceeded(BusStop)
+
     # Validate location (WKT, SRID, and landmark boundary)
     location_geom = validate_location(
         session, form_param.location, form_param.landmark_id
@@ -353,6 +362,7 @@ POST_EXCEPTIONS = [
     exceptions.InvalidSRID4326(),
     exceptions.UnknownValue(BusStop.landmark_id),
     exceptions.BusStopOutsideLandmark(),
+    exceptions.LimitExceeded(BusStop),
 ]
 
 PATCH_EXCEPTIONS = [
@@ -387,6 +397,9 @@ POST_DESCRIPTION = (
     .add_line("Use WGS84 compatible coordinates within SRID 4326 bounds.")
     .add_line("The location must be within the boundary of the landmark.")
     .add_line("Logged-in executive must have `landmark.bus_stop.create` permission.")
+    .add_line(
+        f"A maximum of {MAX_BUS_STOPS_PER_LANDMARK} bus stops are allowed per landmark."
+    )
 )
 
 PATCH_DESCRIPTION = (
