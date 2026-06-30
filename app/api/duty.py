@@ -124,7 +124,7 @@ class QueryParams(QueryParamsForEX):
 ## Core Functions
 # ---------------------------------------------------------------------------
 def update_duty(
-    session: Session, id: int, form_param: UpdateForm, company_id: int | None = None
+    session: Session, id: int, form_param: UpdateForm, duty_filter=None
 ) -> tuple[bool, dict]:
     """
     Updates a duty record based on the requested status transition.
@@ -137,7 +137,7 @@ def update_duty(
         session (Session): SQLAlchemy database session.
         id (int): ID of the duty to update.
         form_param (UpdateForm): Form data containing new status.
-        company_id (int | None): ID of the company associated with the duty.
+        duty_filter (Optional): Additional filter for duty validation.
 
     Returns:
         Tuple[bool, dict]:
@@ -146,13 +146,7 @@ def update_duty(
     """
     service_lock = None
     try:
-        duty = validate_id(
-            session,
-            Duty,
-            id,
-            Duty.id,
-            extra_filter=(Duty.company_id == company_id) if company_id else None,
-        )
+        duty = validate_id(session, Duty, id, Duty.id, extra_filter=duty_filter)
         service_lock = acquire_lock(construct_service_transition_lock(duty.service_id))
         session.refresh(duty)
 
@@ -384,7 +378,7 @@ async def update_duty_for_operator(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            token.company_id,
+            duty_filter=(Duty.company_id == token.company_id),
         )
         if updated:
             log_event(token, request_info, duty_data)

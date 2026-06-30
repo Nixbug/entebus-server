@@ -7,12 +7,14 @@ input validation and structured output.
 """
 
 from enum import StrEnum
+from typing import List
 from fastapi import APIRouter, Depends, Response, Query, status, Form, UploadFile, File
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from io import BytesIO
 from datetime import datetime
+from sqlalchemy.orm.session import Session
 
 from app.src.buckets import EXECUTIVE_IMAGES
 from app.src import exceptions
@@ -117,6 +119,141 @@ class ImageQueryParams(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+## Core Functions
+# ---------------------------------------------------------------------------
+async def create_executive_image(session: Session, form_param: CreateForm) -> dict:
+    """
+    Creates a new ExecutiveImage with the provided form data.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        form_param (CreateForm): Form data for creating a new executive image.
+
+    Returns:
+        dict: Created executive image data.
+    """
+    validate_id(
+        session, Executive, form_param.executive_id, ExecutiveImage.executive_id
+    )
+    file_bytes = await form_param.file.read()
+    validate_image(file_bytes, form_param.file.filename)
+    executive_image = ExecutiveImage(
+        executive_id=form_param.executive_id,
+        file_name=form_param.file.filename,
+        file_type=form_param.file.content_type,
+        file_size=len(file_bytes),
+    )
+    session.add(executive_image)
+    session.flush()
+    upload_file(
+        EXECUTIVE_IMAGES,
+        str(executive_image.id),
+        len(file_bytes),
+        BytesIO(file_bytes),
+    )
+    session.commit()
+    session.refresh(executive_image)
+    return jsonable_encoder(executive_image)
+
+
+def search_executive_images(
+    session: Session, query_params: QueryParams
+) -> List[ExecutiveImage]:
+    """
+    Searches for executive images based on the provided query parameters.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        query_params (QueryParams): Query parameters for filtering and pagination.
+
+    Returns:
+        List[ExecutiveImage]: List of executive images matching the search criteria.
+    """
+    query = session.query(ExecutiveImage)
+    if query_params.executive_id is not None:
+        query = query.filter(ExecutiveImage.executive_id == query_params.executive_id)
+
+    # Generalized filters
+    query = apply_id_filters(query, ExecutiveImage, query_params)
+    query = apply_created_on_filters(query, ExecutiveImage, query_params)
+    query = apply_picture_filters(query, ExecutiveImage, query_params)
+
+    # Ordering and pagination
+    ordering_attr = getattr(ExecutiveImage, query_params.order_by.value)
+    ordering_func = (
+        ordering_attr.asc
+        if query_params.order_in == OrderIn.ASCENDING
+        else ordering_attr.desc
+    )
+    query = query.order_by(ordering_func())
+    query = query.offset(query_params.offset).limit(query_params.limit)
+
+    executive_images = query.all()
+    return executive_images
+
+
+def search_executive_image(
+    session: Session, id: int, query_params: ImageQueryParams
+) -> StreamingResponse:
+    """
+    Retrieves an executive image by its ID and optionally resizes it.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        id (int): ID of the executive image to retrieve.
+        query_params (ImageQueryParams): Query parameters for resizing the image.
+
+    Returns:
+        StreamingResponse: The executive image if found, else raises an exception.
+    """
+    executive_image = (
+        session.query(ExecutiveImage).filter(ExecutiveImage.id == id).first()
+    )
+    if executive_image is not None:
+        file_bytes = download_file(EXECUTIVE_IMAGES, str(executive_image.id))
+        resized_bytes = resize_image(
+            file_bytes,
+            width=query_params.width,
+            height=query_params.height,
+        )
+
+        return StreamingResponse(
+            BytesIO(resized_bytes),
+            media_type=executive_image.file_type,
+            headers={
+                "Content-Disposition": f'inline; filename="{executive_image.file_name}"',
+                "Cache-Control": "public, max-age=31536000, immutable",
+            },
+        )
+    raise exceptions.UnknownValue(ExecutiveImage.id)
+
+
+def delete_executive_image(
+    session: Session, executive_image: ExecutiveImage | None
+) -> tuple[bool, dict]:
+    """
+    Deletes an executive image.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        executive_image (ExecutiveImage | None): The executive image to delete or None.
+
+    Returns:
+        Tuple[bool, dict]:
+            - bool: True if the executive image was found and deleted, False otherwise.
+            - dict: JSON-encoded representation of the deleted executive image.
+    """
+    if executive_image is not None:
+        executive_image_data = jsonable_encoder(executive_image)
+        session.delete(executive_image)
+        session.commit()
+
+        delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
+        return True, executive_image_data
+    return False, {}
+
+
+# ---------------------------------------------------------------------------
 ## Common exceptions
 # ---------------------------------------------------------------------------
 POST_EXCEPTIONS = [
@@ -160,7 +297,9 @@ DELETE_DESCRIPTION = (
     .add_line(
         "To delete another executive's image, the `executive.update` permission is required."
     )
-    .add_line("Returns 204 No Content even if the specified image does not exist.")
+    .add_line(
+        "Even with permission if the image does not exist, the operation returns 204 No Content."
+    )
 )
 
 GET_DESCRIPTION = Description().add_head("Fetches executive images.")
@@ -197,32 +336,7 @@ async def upload_executive_image_for_executive(
             roles = get_executive_roles(session, token)
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
 
-        validate_id(
-            session,
-            Executive,
-            form_param.executive_id,
-            ExecutiveImage.executive_id,
-        )
-        file_bytes = await form_param.file.read()
-        validate_image(file_bytes, form_param.file.filename)
-        executive_image = ExecutiveImage(
-            executive_id=form_param.executive_id,
-            file_name=form_param.file.filename,
-            file_type=form_param.file.content_type,
-            file_size=len(file_bytes),
-        )
-        session.add(executive_image)
-        session.flush()
-        upload_file(
-            EXECUTIVE_IMAGES,
-            str(executive_image.id),
-            len(file_bytes),
-            BytesIO(file_bytes),
-        )
-        session.commit()
-        session.refresh(executive_image)
-
-        executive_image_data = jsonable_encoder(executive_image)
+        executive_image_data = await create_executive_image(session, form_param)
         log_event(token, request_info, executive_image_data)
         return executive_image_data
     except Exception as e:
@@ -258,14 +372,9 @@ async def delete_executive_image_for_executive(
             roles = get_executive_roles(session, token)
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
 
-        if executive_image is None:
-            return Response(status_code=status.HTTP_204_NO_CONTENT)
-        executive_image_data = jsonable_encoder(executive_image)
-        session.delete(executive_image)
-        session.commit()
-        delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
-
-        log_event(token, request_info, executive_image_data)
+        deleted, executive_image_data = delete_executive_image(session, executive_image)
+        if deleted:
+            log_event(token, request_info, executive_image_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
@@ -289,29 +398,7 @@ async def fetch_executive_images_for_executive(
         session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
 
-        query = session.query(ExecutiveImage)
-        if query_params.executive_id is not None:
-            query = query.filter(
-                ExecutiveImage.executive_id == query_params.executive_id
-            )
-
-        # Generalized filters
-        query = apply_id_filters(query, ExecutiveImage, query_params)
-        query = apply_created_on_filters(query, ExecutiveImage, query_params)
-        query = apply_picture_filters(query, ExecutiveImage, query_params)
-
-        # Ordering and pagination
-        ordering_attr = getattr(ExecutiveImage, query_params.order_by.value)
-        ordering_func = (
-            ordering_attr.asc
-            if query_params.order_in == OrderIn.ASCENDING
-            else ordering_attr.desc
-        )
-        query = query.order_by(ordering_func())
-        query = query.offset(query_params.offset).limit(query_params.limit)
-
-        executive_images = query.all()
-        return executive_images
+        return search_executive_images(session, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:
@@ -334,26 +421,7 @@ async def download_executive_image_for_executive(
         session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
 
-        executive_image = (
-            session.query(ExecutiveImage).filter(ExecutiveImage.id == id).first()
-        )
-        if executive_image is not None:
-            file_bytes = download_file(EXECUTIVE_IMAGES, str(executive_image.id))
-            resized_bytes = resize_image(
-                file_bytes,
-                width=query_params.width,
-                height=query_params.height,
-            )
-
-            return StreamingResponse(
-                BytesIO(resized_bytes),
-                media_type=executive_image.file_type,
-                headers={
-                    "Content-Disposition": f'inline; filename="{executive_image.file_name}"',
-                    "Cache-Control": "public, max-age=31536000, immutable",
-                },
-            )
-        raise exceptions.UnknownValue(ExecutiveImage.id)
+        return search_executive_image(session, id, query_params)
     except Exception as e:
         exceptions.handle(e)
     finally:
