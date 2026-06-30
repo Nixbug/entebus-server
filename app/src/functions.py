@@ -59,7 +59,7 @@ def get_request_info(request: Request) -> schemas.RequestInfo:
 
 def fuse_exception_responses(
     exceptions: List[exceptions.APIException],
-) -> Dict[int, dict]:
+) -> Dict[int | str, Dict[str, Any]]:
     """
     Generate OpenAPI response documentation by fusing multiple APIException instances.
 
@@ -67,7 +67,7 @@ def fuse_exception_responses(
         exceptions (List[exceptions.APIException]): List of instantiated exceptions.
 
     Returns:
-        Dict[int, dict]: A dictionary of OpenAPI response specs grouped by status code.
+        Dict[int | str, Dict[str, Any]]: A dictionary of OpenAPI response specs grouped by status code.
     """
     responses = {}
 
