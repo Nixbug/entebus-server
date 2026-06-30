@@ -301,7 +301,7 @@ def delete_executive_token(
     return True, deleted_token_data, deleted_token_log_data
 
 
-def search_executive_role_maps(
+def search_executive_tokens(
     session: Session,
     query_params: QueryParams,
     executive_token: ExecutiveToken,
@@ -607,7 +607,7 @@ async def fetch_executive_tokens_for_executive(
             False,
         )
 
-        return search_executive_role_maps(session, query_params, token, has_permission)
+        return search_executive_tokens(session, query_params, token, has_permission)
     except Exception as e:
         exceptions.handle(e)
     finally:
