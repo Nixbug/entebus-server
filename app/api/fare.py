@@ -192,7 +192,7 @@ def construct_fare_reference_lock(fare_id: int) -> str:
 
 
 # ---------------------------------------------------------------------------
-## Functions
+## Core Functions
 # ---------------------------------------------------------------------------
 def create_fare(session: Session, form_param: CreateForm) -> dict:
     """
@@ -205,7 +205,6 @@ def create_fare(session: Session, form_param: CreateForm) -> dict:
     Returns:
         dict: The created fare data.
     """
-
     if form_param.scope == FareScope.LOCAL:
         local_fare_count = (
             session.query(Fare)
@@ -218,71 +217,87 @@ def create_fare(session: Session, form_param: CreateForm) -> dict:
         if local_fare_count >= MAX_LOCAL_FARES_PER_COMPANY:
             raise exceptions.LimitExceeded(Fare)
 
-    form_param.attributes = form_param.attributes.model_dump()
-    validate_fare_function(form_param.function, form_param.attributes)
+    attributes = form_param.attributes.model_dump()
+    validate_fare_function(form_param.function, attributes)
     fare = Fare(
         company_id=form_param.company_id,
         name=form_param.name,
-        attributes=form_param.attributes,
+        attributes=attributes,
         function=form_param.function,
         scope=form_param.scope,
     )
     session.add(fare)
     session.commit()
     session.refresh(fare)
-    fare_data = jsonable_encoder(fare)
-    return fare_data
+    return jsonable_encoder(fare)
 
 
 def update_fare(
-    session: Session, id: int, form_param: UpdateForm, extra_filter_for_fare=None
+    session: Session, id: int, form_param: UpdateForm, fare_filter=None
 ) -> Tuple[bool, dict]:
     """
-    Updates an existing fare record in the database.
+    Update an existing fare in the database.
 
     Args:
-        session (Session): SQLAlchemy database session.
+        session (Session): Active SQLAlchemy database session.
         id (int): ID of the fare to update.
         form_param (UpdateForm): Form data for updating the fare.
-        extra_filter_for_fare (optional): Additional filter to apply when validating the fare ID.
+        fare_filter (Optional): Additional filter to apply when fetching the fare.
 
     Returns:
-        Tuple[bool, dict]: A tuple containing a boolean indicating whether any updates were made and the updated fare data.
+        Tuple[bool, dict]:
+            - bool: True if the fare was modified and the changes were committed.
+            - dict: JSON-encoded representation of the updated fare.
     """
-    fare = validate_id(session, Fare, id, Fare.id, extra_filter=extra_filter_for_fare)
+    fare = validate_id(session, Fare, id, Fare.id, extra_filter=fare_filter)
+
     update_data = form_param.model_dump(exclude_unset=True)
-    if form_param.attributes is not None:
-        attribute_data = form_param.attributes.model_dump()
-        if attribute_data != fare.attributes:
-            fare.attributes = attribute_data
+    revalidate_fare = False
+    if "attributes" in update_data:
+        attributes = form_param.attributes.model_dump()
+        if attributes != fare.attributes:
+            fare.attributes = attributes
+            revalidate_fare = True
         update_data.pop("attributes")
+    if "function" in update_data:
+        revalidate_fare = True
+
     update_if_changed(fare, update_data)
-    validate_fare_function(fare.function, fare.attributes)
-    have_updates = session.is_modified(fare)
-    if have_updates:
+    if revalidate_fare:
+        validate_fare_function(fare.function, fare.attributes)
+    updated = session.is_modified(fare)
+    if updated:
         fare.version += 1
         session.commit()
         session.refresh(fare)
-
     fare_data = jsonable_encoder(fare)
-    return have_updates, fare_data
+    return updated, fare_data
 
 
-def delete_fare(session: Session, fare: Fare) -> dict:
+def delete_fare(session: Session, id: int, fare_filter=None) -> tuple[bool, dict]:
     """
-    Deletes a fare from the database.
+    Delete a fare from the database.
 
     Args:
-        session (Session): SQLAlchemy database session.
-        fare (Fare): Fare to delete.
+        session (Session): Active SQLAlchemy database session.
+        id (int): ID of the fare to delete.
+        fare_filter (Optional): Additional filter to apply when fetching the fare.
 
     Returns:
-        dict: JSON-encoded representation of the deleted fare.
+        Tuple[bool, dict]:
+            - bool: True if the fare was found and deleted, False otherwise.
+            - dict: JSON-encoded representation of the deleted fare, or an empty dictionary if not found.
     """
-    fare_data = jsonable_encoder(fare)
-    session.delete(fare)
-    session.commit()
-    return fare_data
+    query = session.query(Fare).filter(Fare.id == id)
+    if fare_filter is not None:
+        query = query.filter(fare_filter)
+    fare = query.first()
+    if fare is not None:
+        fare_data = jsonable_encoder(fare)
+        session.delete(fare)
+        session.commit()
+        return True, fare_data
+    return False, {}
 
 
 def search_fare(session: Session, query_params: QueryParams) -> List[Fare]:
@@ -459,7 +474,6 @@ async def create_fare_for_executive(
         if form_param.company_id is not None:
             validate_id(session, Company, form_param.company_id, Fare.company_id)
         fare_data = create_fare(session, CreateForm(**form_param.model_dump()))
-
         log_event(token, request_info, fare_data)
         return fare_data
     except Exception as e:
@@ -494,10 +508,10 @@ async def update_fare_for_executive(
             [ExecutivePermissionPath.UPDATE_COMPANY_FARE],
         )
 
-        have_updates, fare_data = update_fare(
+        updated, fare_data = update_fare(
             session, id, UpdateForm(**form_param.model_dump(exclude_unset=True))
         )
-        if have_updates:
+        if updated:
             log_event(token, request_info, fare_data)
         return fare_data
     except Exception as e:
@@ -533,9 +547,8 @@ async def delete_fare_for_executive(
             [ExecutivePermissionPath.DELETE_COMPANY_FARE],
         )
 
-        fare = session.query(Fare).filter(Fare.id == id).first()
-        if fare is not None:
-            fare_data = delete_fare(session, fare)
+        deleted, fare_data = delete_fare(session, id)
+        if deleted:
             log_event(token, request_info, fare_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
@@ -609,7 +622,6 @@ async def create_fare_for_operator(
                 scope=FareScope.LOCAL,
             ),
         )
-
         log_event(token, request_info, fare_data)
         return fare_data
     except Exception as e:
@@ -645,13 +657,13 @@ async def update_fare_for_operator(
             [OperatorPermissionPath.UPDATE_COMPANY_FARE],
         )
 
-        have_updates, fare_data = update_fare(
+        updated, fare_data = update_fare(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            extra_filter_for_fare=(Fare.company_id == token.company_id),
+            fare_filter=(Fare.company_id == token.company_id),
         )
-        if have_updates:
+        if updated:
             log_event(token, request_info, fare_data)
         return fare_data
     except Exception as e:
@@ -687,13 +699,10 @@ async def delete_fare_for_operator(
             [OperatorPermissionPath.DELETE_COMPANY_FARE],
         )
 
-        fare = (
-            session.query(Fare)
-            .filter(Fare.id == id, Fare.company_id == token.company_id)
-            .first()
+        deleted, fare_data = delete_fare(
+            session, id, fare_filter=(Fare.company_id == token.company_id)
         )
-        if fare is not None:
-            fare_data = delete_fare(session, fare)
+        if deleted:
             log_event(token, request_info, fare_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
