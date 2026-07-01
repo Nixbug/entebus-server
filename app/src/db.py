@@ -5,11 +5,19 @@ This module:
 - Configures the SQLAlchemy engine, session factory, and base class.
 - Defines ORM models for core entities.
 
+Schema conventions:
+- Primary key `id` columns use `BigInteger`.
+- Foreign key ID columns also use `BigInteger` to match referenced PKs.
+- Enum/status/type fields use `Integer`.
+
 All ORM models should inherit from `ORMbase`.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time as dt_time
+from decimal import Decimal
+from typing import Any, Generator
 from geoalchemy2 import Geometry
+from geoalchemy2.elements import WKBElement
 from sqlalchemy import (
     ARRAY,
     CheckConstraint,
@@ -19,9 +27,9 @@ from sqlalchemy import (
     create_engine,
     Boolean,
     TEXT,
-    Column,
     DateTime,
     ForeignKey,
+    BigInteger,
     Integer,
     UniqueConstraint,
     event,
@@ -30,7 +38,8 @@ from sqlalchemy import (
     inspect,
     Time,
 )
-from sqlalchemy.orm import sessionmaker, DeclarativeBase, Mapper
+from sqlalchemy.orm import Session, sessionmaker, DeclarativeBase, Mapper, Mapped
+import sqlalchemy.orm as orm
 from secrets import token_hex
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -83,6 +92,15 @@ def get_db_url() -> str:
 db_url = get_db_url()
 engine = create_engine(url=db_url, echo=False)
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
+
+
+def get_db_session() -> Generator[Session, None, None]:
+    """Provide a database session for dependency injection."""
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -201,19 +219,27 @@ class Executive(ORMbase):
 
     __tablename__ = "executive"
 
-    id = Column(Integer, primary_key=True)
-    username = Column(TEXT, nullable=False, unique=True)
-    password = Column(TEXT, nullable=False)
-    gender = Column(Integer, nullable=False, default=GenderType.OTHER)
-    full_name = Column(TEXT)
-    designation = Column(TEXT)
-    status = Column(Integer, nullable=False, default=AccountStatus.ACTIVE)
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    username: Mapped[str] = orm.mapped_column(TEXT, nullable=False, unique=True)
+    password: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    gender: Mapped[GenderType] = orm.mapped_column(
+        Integer, nullable=False, default=GenderType.OTHER
+    )
+    full_name: Mapped[str | None] = orm.mapped_column(TEXT)
+    designation: Mapped[str | None] = orm.mapped_column(TEXT)
+    status: Mapped[AccountStatus] = orm.mapped_column(
+        Integer, nullable=False, default=AccountStatus.ACTIVE
+    )
     # Contact details
-    phone_number = Column(TEXT)
-    email_id = Column(TEXT)
+    phone_number: Mapped[str | None] = orm.mapped_column(TEXT)
+    email_id: Mapped[str | None] = orm.mapped_column(TEXT)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 @event.listens_for(Executive, "before_insert")
@@ -258,12 +284,16 @@ class ExecutiveRole(ORMbase):
 
     __tablename__ = "executive_role"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(TEXT, nullable=False, unique=True)
-    permissions = Column(JSONB, nullable=False, default=dict)
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False, unique=True)
+    permissions: Mapped[dict[str, Any]] = orm.mapped_column(
+        JSONB, nullable=False, default=dict
+    )
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
     )
 
 
@@ -300,22 +330,26 @@ class ExecutiveRoleMap(ORMbase):
     __tablename__ = "executive_role_map"
     __table_args__ = (UniqueConstraint("role_id", "executive_id"),)
 
-    id = Column(Integer, primary_key=True)
-    role_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    role_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("executive_role.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    executive_id = Column(
-        Integer,
+    executive_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("executive.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class ExecutiveToken(ORMbase):
@@ -374,35 +408,43 @@ class ExecutiveToken(ORMbase):
 
     __tablename__ = "executive_token"
 
-    id = Column(Integer, primary_key=True)
-    executive_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    executive_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("executive.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Tokens
-    access_token = Column(
+    access_token: Mapped[str] = orm.mapped_column(
         TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
-    refresh_token = Column(
+    refresh_token: Mapped[str] = orm.mapped_column(
         TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
     # Expirations
-    expires_in = Column(Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY)
-    refresh_before = Column(
+    expires_in: Mapped[int] = orm.mapped_column(
+        Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY
+    )
+    refresh_before: Mapped[datetime] = orm.mapped_column(
         DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc)
         + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY),
     )
-    is_revoked = Column(Boolean, nullable=False, default=False)
+    is_revoked: Mapped[bool] = orm.mapped_column(Boolean, nullable=False, default=False)
     # Device related details
-    platform_type = Column(Integer, default=PlatformType.OTHER)
-    client_details = Column(TEXT)
+    platform_type: Mapped[PlatformType | None] = orm.mapped_column(
+        Integer, default=PlatformType.OTHER
+    )
+    client_details: Mapped[str | None] = orm.mapped_column(TEXT)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class ExecutiveImage(ORMbase):
@@ -437,20 +479,22 @@ class ExecutiveImage(ORMbase):
 
     __tablename__ = "executive_image"
 
-    id = Column(Integer, primary_key=True)
-    executive_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    executive_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("executive.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
     # File metadata
-    file_name = Column(TEXT, nullable=False)
-    file_size = Column(Integer, nullable=False)
-    file_type = Column(TEXT, nullable=False)
+    file_name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    file_size: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    file_type: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
     # Metadata
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class OperatorToken(ORMbase):
@@ -511,41 +555,49 @@ class OperatorToken(ORMbase):
 
     __tablename__ = "operator_token"
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    operator_id = Column(
-        Integer,
+    operator_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("operator.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Tokens
-    access_token = Column(
+    access_token: Mapped[str] = orm.mapped_column(
         TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
-    refresh_token = Column(
+    refresh_token: Mapped[str] = orm.mapped_column(
         TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
     # Expirations
-    expires_in = Column(Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY)
-    refresh_before = Column(
+    expires_in: Mapped[int] = orm.mapped_column(
+        Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY
+    )
+    refresh_before: Mapped[datetime] = orm.mapped_column(
         DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc)
         + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY),
     )
-    is_revoked = Column(Boolean, nullable=False, default=False)
+    is_revoked: Mapped[bool] = orm.mapped_column(Boolean, nullable=False, default=False)
     # Device related details
-    platform_type = Column(Integer, default=PlatformType.OTHER)
-    client_details = Column(TEXT)
+    platform_type: Mapped[PlatformType | None] = orm.mapped_column(
+        Integer, default=PlatformType.OTHER
+    )
+    client_details: Mapped[str | None] = orm.mapped_column(TEXT)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class OperatorRole(ORMbase):
@@ -584,19 +636,23 @@ class OperatorRole(ORMbase):
     __tablename__ = "operator_role"
     __table_args__ = (UniqueConstraint("company_id", "name"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    name = Column(TEXT, nullable=False)
-    permissions = Column(JSONB, nullable=False, default=dict)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    permissions: Mapped[dict[str, Any]] = orm.mapped_column(
+        JSONB, nullable=False, default=dict
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
     )
 
 
@@ -638,28 +694,32 @@ class OperatorRoleMap(ORMbase):
     __tablename__ = "operator_role_map"
     __table_args__ = (UniqueConstraint("company_id", "role_id", "operator_id"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    role_id = Column(
-        Integer,
+    role_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("operator_role.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    operator_id = Column(
-        Integer,
+    operator_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("operator.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class VendorToken(ORMbase):
@@ -720,41 +780,49 @@ class VendorToken(ORMbase):
 
     __tablename__ = "vendor_token"
 
-    id = Column(Integer, primary_key=True)
-    business_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    business_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("business.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    vendor_id = Column(
-        Integer,
+    vendor_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("vendor.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Tokens
-    access_token = Column(
+    access_token: Mapped[str] = orm.mapped_column(
         TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
-    refresh_token = Column(
+    refresh_token: Mapped[str] = orm.mapped_column(
         TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
     # Expirations
-    expires_in = Column(Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY)
-    refresh_before = Column(
+    expires_in: Mapped[int] = orm.mapped_column(
+        Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY
+    )
+    refresh_before: Mapped[datetime] = orm.mapped_column(
         DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc)
         + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY),
     )
-    is_revoked = Column(Boolean, nullable=False, default=False)
+    is_revoked: Mapped[bool] = orm.mapped_column(Boolean, nullable=False, default=False)
     # Device related details
-    platform_type = Column(Integer, default=PlatformType.OTHER)
-    client_details = Column(TEXT)
+    platform_type: Mapped[PlatformType | None] = orm.mapped_column(
+        Integer, default=PlatformType.OTHER
+    )
+    client_details: Mapped[str | None] = orm.mapped_column(TEXT)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class VendorRole(ORMbase):
@@ -793,19 +861,23 @@ class VendorRole(ORMbase):
     __tablename__ = "vendor_role"
     __table_args__ = (UniqueConstraint("business_id", "name"),)
 
-    id = Column(Integer, primary_key=True)
-    business_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    business_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("business.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    name = Column(TEXT, nullable=False)
-    permissions = Column(JSONB, nullable=False, default=list)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    permissions: Mapped[list[Any]] = orm.mapped_column(
+        JSONB, nullable=False, default=list
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
     )
 
 
@@ -847,28 +919,32 @@ class VendorRoleMap(ORMbase):
     __tablename__ = "vendor_role_map"
     __table_args__ = (UniqueConstraint("business_id", "role_id", "vendor_id"),)
 
-    id = Column(Integer, primary_key=True)
-    business_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    business_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("business.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    role_id = Column(
-        Integer,
+    role_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("vendor_role.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    vendor_id = Column(
-        Integer,
+    vendor_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("vendor.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Landmark(ORMbase):
@@ -927,14 +1003,24 @@ class Landmark(ORMbase):
 
     __tablename__ = "landmark"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(TEXT, nullable=False, index=True)
-    version = Column(Integer, nullable=False, default=1)
-    alias_names = Column(ARRAY(TEXT))
-    boundary = Column(Geometry(geometry_type="POLYGON", srid=4326), nullable=False)
-    type = Column(Integer, nullable=False, default=LandmarkType.LOCAL, index=True)
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False, index=True)
+    version: Mapped[int] = orm.mapped_column(Integer, nullable=False, default=1)
+    alias_names: Mapped[list[str]] = orm.mapped_column(
+        ARRAY(TEXT), nullable=False, default=list
+    )
+    boundary: Mapped[WKBElement] = orm.mapped_column(
+        Geometry(geometry_type="POLYGON", srid=4326), nullable=False
+    )
+    type: Mapped[LandmarkType] = orm.mapped_column(
+        Integer, nullable=False, default=LandmarkType.LOCAL, index=True
+    )
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
+    )
 
     __table_args__ = (
         Index("ix_landmark_alias_names_gin", alias_names, postgresql_using="gin"),
@@ -994,18 +1080,22 @@ class BusStop(ORMbase):
 
     __tablename__ = "bus_stop"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(TEXT, nullable=False)
-    landmark_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    landmark_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey(Landmark.id, ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    location = Column(Geometry(geometry_type="POINT", srid=4326), nullable=False)
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+    location: Mapped[WKBElement] = orm.mapped_column(
+        Geometry(geometry_type="POINT", srid=4326), nullable=False
+    )
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
     )
 
     __table_args__ = (
@@ -1070,17 +1160,29 @@ class Company(ORMbase):
 
     __tablename__ = "company"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(TEXT, nullable=False, unique=True)
-    status = Column(Integer, nullable=False, default=CompanyStatus.UNDER_VERIFICATION)
-    type = Column(Integer, nullable=False, default=CompanyType.OTHER)
-    description = Column(TEXT)
-    address = Column(TEXT, nullable=False)
-    location = Column(Geometry(geometry_type="POINT", srid=4326), nullable=False)
-    settings = Column(JSONB, default=dict)  # For future expansion
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False, unique=True)
+    status: Mapped[CompanyStatus] = orm.mapped_column(
+        Integer, nullable=False, default=CompanyStatus.UNDER_VERIFICATION
+    )
+    type: Mapped[CompanyType] = orm.mapped_column(
+        Integer, nullable=False, default=CompanyType.OTHER
+    )
+    description: Mapped[str | None] = orm.mapped_column(TEXT)
+    address: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    location: Mapped[WKBElement] = orm.mapped_column(
+        Geometry(geometry_type="POINT", srid=4326), nullable=False
+    )
+    settings: Mapped[dict[str, Any]] = orm.mapped_column(
+        JSONB, nullable=False, default=dict
+    )  # For future expansion
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Operator(ORMbase):
@@ -1155,25 +1257,35 @@ class Operator(ORMbase):
     __tablename__ = "operator"
     __table_args__ = (UniqueConstraint("username", "company_id"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    username = Column(TEXT, nullable=False)
-    password = Column(TEXT, nullable=False)
-    gender = Column(Integer, nullable=False, default=GenderType.OTHER)
-    description = Column(TEXT)
-    type = Column(Integer, nullable=False, default=OperatorType.NORMAL)
-    full_name = Column(TEXT)
-    status = Column(Integer, nullable=False, default=AccountStatus.ACTIVE)
-    phone_number = Column(TEXT)
-    email_id = Column(TEXT)
+    username: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    password: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    gender: Mapped[GenderType] = orm.mapped_column(
+        Integer, nullable=False, default=GenderType.OTHER
+    )
+    description: Mapped[str | None] = orm.mapped_column(TEXT)
+    type: Mapped[OperatorType] = orm.mapped_column(
+        Integer, nullable=False, default=OperatorType.NORMAL
+    )
+    full_name: Mapped[str | None] = orm.mapped_column(TEXT)
+    status: Mapped[AccountStatus] = orm.mapped_column(
+        Integer, nullable=False, default=AccountStatus.ACTIVE
+    )
+    phone_number: Mapped[str | None] = orm.mapped_column(TEXT)
+    email_id: Mapped[str | None] = orm.mapped_column(TEXT)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 @event.listens_for(Operator, "before_insert")
@@ -1224,26 +1336,28 @@ class OperatorImage(ORMbase):
 
     __tablename__ = "operator_image"
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    operator_id = Column(
-        Integer,
+    operator_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("operator.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
     # File metadata
-    file_name = Column(TEXT, nullable=False)
-    file_size = Column(Integer, nullable=False)
-    file_type = Column(TEXT, nullable=False)
+    file_name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    file_size: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    file_type: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
     # Metadata
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Business(ORMbase):
@@ -1298,17 +1412,29 @@ class Business(ORMbase):
 
     __tablename__ = "business"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(TEXT, nullable=False, unique=True)
-    status = Column(Integer, nullable=False, default=BusinessStatus.ACTIVE)
-    type = Column(Integer, nullable=False, default=BusinessType.OTHER)
-    description = Column(TEXT)
-    address = Column(TEXT, nullable=False)
-    location = Column(Geometry(geometry_type="POINT", srid=4326), nullable=False)
-    settings = Column(JSONB, default=dict)
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False, unique=True)
+    status: Mapped[BusinessStatus] = orm.mapped_column(
+        Integer, nullable=False, default=BusinessStatus.ACTIVE
+    )
+    type: Mapped[BusinessType] = orm.mapped_column(
+        Integer, nullable=False, default=BusinessType.OTHER
+    )
+    description: Mapped[str | None] = orm.mapped_column(TEXT)
+    address: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    location: Mapped[WKBElement] = orm.mapped_column(
+        Geometry(geometry_type="POINT", srid=4326), nullable=False
+    )
+    settings: Mapped[dict[str, Any]] = orm.mapped_column(
+        JSONB, nullable=False, default=dict
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Vendor(ORMbase):
@@ -1383,25 +1509,35 @@ class Vendor(ORMbase):
     __tablename__ = "vendor"
     __table_args__ = (UniqueConstraint("username", "business_id"),)
 
-    id = Column(Integer, primary_key=True)
-    business_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    business_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("business.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    username = Column(TEXT, nullable=False)
-    password = Column(TEXT, nullable=False)
-    gender = Column(Integer, nullable=False, default=GenderType.OTHER)
-    description = Column(TEXT)
-    type = Column(Integer, nullable=False, default=VendorType.NORMAL)
-    full_name = Column(TEXT)
-    status = Column(Integer, nullable=False, default=AccountStatus.ACTIVE)
-    phone_number = Column(TEXT)
-    email_id = Column(TEXT)
+    username: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    password: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    gender: Mapped[GenderType] = orm.mapped_column(
+        Integer, nullable=False, default=GenderType.OTHER
+    )
+    description: Mapped[str | None] = orm.mapped_column(TEXT)
+    type: Mapped[VendorType] = orm.mapped_column(
+        Integer, nullable=False, default=VendorType.NORMAL
+    )
+    full_name: Mapped[str | None] = orm.mapped_column(TEXT)
+    status: Mapped[AccountStatus] = orm.mapped_column(
+        Integer, nullable=False, default=AccountStatus.ACTIVE
+    )
+    phone_number: Mapped[str | None] = orm.mapped_column(TEXT)
+    email_id: Mapped[str | None] = orm.mapped_column(TEXT)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 @event.listens_for(Vendor, "before_insert")
@@ -1452,26 +1588,28 @@ class VendorImage(ORMbase):
 
     __tablename__ = "vendor_image"
 
-    id = Column(Integer, primary_key=True)
-    business_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    business_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("business.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    vendor_id = Column(
-        Integer,
+    vendor_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("vendor.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
     # File metadata
-    file_name = Column(TEXT, nullable=False)
-    file_size = Column(Integer, nullable=False)
-    file_type = Column(TEXT, nullable=False)
+    file_name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    file_size: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    file_type: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
     # Metadata
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Wallet(ORMbase):
@@ -1507,12 +1645,18 @@ class Wallet(ORMbase):
         CheckConstraint("balance >= 0", name="ck_wallet_balance_non_negative"),
     )
 
-    id = Column(Integer, primary_key=True)
-    name = Column(TEXT, nullable=False)
-    balance = Column(Numeric(10, 2), nullable=False, default=0)
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    balance: Mapped[Decimal] = orm.mapped_column(
+        Numeric(10, 2), nullable=False, default=0
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class CompanyWallet(ORMbase):
@@ -1542,22 +1686,24 @@ class CompanyWallet(ORMbase):
 
     __tablename__ = "company_wallet"
 
-    id = Column(Integer, primary_key=True)
-    wallet_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    wallet_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("wallet.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    company_id = Column(
-        Integer,
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
     # Metadata
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class BusinessWallet(ORMbase):
@@ -1587,22 +1733,24 @@ class BusinessWallet(ORMbase):
 
     __tablename__ = "business_wallet"
 
-    id = Column(Integer, primary_key=True)
-    wallet_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    wallet_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("wallet.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    business_id = Column(
-        Integer,
+    business_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("business.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
     # Metadata
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class BankAccount(ORMbase):
@@ -1657,16 +1805,22 @@ class BankAccount(ORMbase):
 
     __tablename__ = "bank_account"
 
-    id = Column(Integer, primary_key=True)
-    bank_name = Column(TEXT, nullable=False)
-    branch_name = Column(TEXT)
-    account_number = Column(TEXT, nullable=False)
-    holder_name = Column(TEXT, nullable=False)
-    ifsc = Column(TEXT, nullable=False)
-    account_type = Column(Integer, nullable=False, default=BankAccountType.OTHER)
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    bank_name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    branch_name: Mapped[str | None] = orm.mapped_column(TEXT)
+    account_number: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    holder_name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    ifsc: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    account_type: Mapped[BankAccountType] = orm.mapped_column(
+        Integer, nullable=False, default=BankAccountType.OTHER
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class CompanyBankAccount(ORMbase):
@@ -1700,23 +1854,27 @@ class CompanyBankAccount(ORMbase):
 
     __tablename__ = "company_bank_account"
 
-    id = Column(Integer, primary_key=True)
-    bank_account_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    bank_account_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("bank_account.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
-    company_id = Column(
-        Integer,
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class BusinessBankAccount(ORMbase):
@@ -1750,23 +1908,27 @@ class BusinessBankAccount(ORMbase):
 
     __tablename__ = "business_bank_account"
 
-    id = Column(Integer, primary_key=True)
-    bank_account_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    bank_account_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("bank_account.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
-    business_id = Column(
-        Integer,
+    business_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("business.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Vehicle(ORMbase):
@@ -1825,26 +1987,36 @@ class Vehicle(ORMbase):
     __tablename__ = "vehicle"
     __table_args__ = (UniqueConstraint("registration_number", "company_id"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    registration_number = Column(TEXT, nullable=False, index=True)
-    name = Column(TEXT, nullable=False, index=True)
-    capacity = Column(Integer, nullable=False)
-    version = Column(Integer, nullable=False, default=1)
-    manufactured_on = Column(DateTime(timezone=True))
-    insurance_upto = Column(DateTime(timezone=True))
-    pollution_upto = Column(DateTime(timezone=True))
-    fitness_upto = Column(DateTime(timezone=True))
-    road_tax_upto = Column(DateTime(timezone=True))
-    status = Column(Integer, nullable=False, default=VehicleStatus.CREATED)
+    registration_number: Mapped[str] = orm.mapped_column(
+        TEXT, nullable=False, index=True
+    )
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False, index=True)
+    capacity: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    version: Mapped[int] = orm.mapped_column(Integer, nullable=False, default=1)
+    manufactured_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True)
+    )
+    insurance_upto: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    pollution_upto: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    fitness_upto: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    road_tax_upto: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    status: Mapped[VehicleStatus] = orm.mapped_column(
+        Integer, nullable=False, default=VehicleStatus.CREATED
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class VehicleImage(ORMbase):
@@ -1883,26 +2055,28 @@ class VehicleImage(ORMbase):
 
     __tablename__ = "vehicle_image"
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    vehicle_id = Column(
-        Integer,
+    vehicle_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("vehicle.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
     # File metadata
-    file_name = Column(TEXT, nullable=False)
-    file_size = Column(Integer, nullable=False)
-    file_type = Column(TEXT, nullable=False)
+    file_name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    file_size: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    file_type: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
     # Metadata
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Route(ORMbase):
@@ -1943,19 +2117,25 @@ class Route(ORMbase):
     __tablename__ = "route"
     __table_args__ = (UniqueConstraint("name", "company_id"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    name = Column(TEXT, nullable=False)
-    start_time = Column(Time(timezone=True), nullable=False)
-    status = Column(Integer, nullable=False, default=RouteStatus.INVALID)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    start_time: Mapped[dt_time] = orm.mapped_column(Time(timezone=True), nullable=False)
+    status: Mapped[RouteStatus] = orm.mapped_column(
+        Integer, nullable=False, default=RouteStatus.INVALID
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class LandmarkInRoute(ORMbase):
@@ -2004,23 +2184,32 @@ class LandmarkInRoute(ORMbase):
     __tablename__ = "landmark_in_route"
     __table_args__ = (UniqueConstraint("route_id", "distance_from_start"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    route_id = Column(
-        Integer, ForeignKey("route.id", ondelete="CASCADE"), nullable=False, index=True
+    route_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
+        ForeignKey("route.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
-    landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False, index=True)
-    distance_from_start = Column(Integer, nullable=False)
-    arrival_delta = Column(Integer, nullable=False)
-    departure_delta = Column(Integer, nullable=False)
+    landmark_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("landmark.id"), nullable=False, index=True
+    )
+    distance_from_start: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    arrival_delta: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    departure_delta: Mapped[int] = orm.mapped_column(Integer, nullable=False)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Fare(ORMbase):
@@ -2071,13 +2260,17 @@ class Fare(ORMbase):
 
     __tablename__ = "fare"
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(Integer, ForeignKey("company.id", ondelete="CASCADE"))
-    version = Column(Integer, nullable=False, default=1)
-    name = Column(TEXT, nullable=False)
-    attributes = Column(JSONB, nullable=False)
-    function = Column(TEXT, nullable=False)
-    scope = Column(Integer, nullable=False, default=FareScope.GLOBAL)
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int | None] = orm.mapped_column(
+        BigInteger, ForeignKey("company.id", ondelete="CASCADE")
+    )
+    version: Mapped[int] = orm.mapped_column(Integer, nullable=False, default=1)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    attributes: Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False)
+    function: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    scope: Mapped[FareScope] = orm.mapped_column(
+        Integer, nullable=False, default=FareScope.GLOBAL
+    )
     __table_args__ = (
         Index(
             "ix_fare_name_company_unique",
@@ -2094,8 +2287,12 @@ class Fare(ORMbase):
         ),
     )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Service(ORMbase):
@@ -2185,36 +2382,60 @@ class Service(ORMbase):
 
     __tablename__ = "service"
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(Integer, ForeignKey("company.id"), nullable=False, index=True)
-    name = Column(TEXT, nullable=False)
-    fare_in_service_id = Column(
-        Integer, ForeignKey("fare_in_service.id"), nullable=False
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("company.id"), nullable=False, index=True
     )
-    vehicle_in_service_id = Column(
-        Integer, ForeignKey("vehicle_in_service.id"), nullable=False
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    fare_in_service_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("fare_in_service.id"), nullable=False
     )
-    fare_id = Column(Integer, ForeignKey("fare.id", ondelete="SET NULL"), index=True)
-    vehicle_id = Column(
-        Integer,
+    vehicle_in_service_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("vehicle_in_service.id"), nullable=False
+    )
+    fare_id: Mapped[int | None] = orm.mapped_column(
+        BigInteger, ForeignKey("fare.id", ondelete="SET NULL"), index=True
+    )
+    vehicle_id: Mapped[int | None] = orm.mapped_column(
+        BigInteger,
         ForeignKey("vehicle.id", ondelete="SET NULL"),
         index=True,
     )
-    route_id = Column(Integer, ForeignKey("route.id", ondelete="SET NULL"), index=True)
-    registration_number = Column(TEXT, nullable=False, index=True)
-    ticket_mode = Column(Integer, nullable=False, default=TicketingMode.HYBRID)
-    status = Column(Integer, nullable=False, default=ServiceStatus.CREATED)
-    starting_at = Column(DateTime(timezone=True), nullable=False)
-    ending_at = Column(DateTime(timezone=True), nullable=False)
-    starting_landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
-    ending_landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
-    private_key = Column(TEXT, nullable=False)
-    public_key = Column(TEXT, nullable=False)
-    remark = Column(TEXT)
-    collection = Column(Numeric(10, 2))
+    route_id: Mapped[int | None] = orm.mapped_column(
+        BigInteger, ForeignKey("route.id", ondelete="SET NULL"), index=True
+    )
+    registration_number: Mapped[str] = orm.mapped_column(
+        TEXT, nullable=False, index=True
+    )
+    ticket_mode: Mapped[TicketingMode] = orm.mapped_column(
+        Integer, nullable=False, default=TicketingMode.HYBRID
+    )
+    status: Mapped[ServiceStatus] = orm.mapped_column(
+        Integer, nullable=False, default=ServiceStatus.CREATED
+    )
+    starting_at: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    ending_at: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    starting_landmark_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("landmark.id"), nullable=False
+    )
+    ending_landmark_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("landmark.id"), nullable=False
+    )
+    private_key: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    public_key: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    remark: Mapped[str | None] = orm.mapped_column(TEXT)
+    collection: Mapped[Decimal | None] = orm.mapped_column(Numeric(10, 2))
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class ServiceAssignment(ORMbase):
@@ -2253,28 +2474,32 @@ class ServiceAssignment(ORMbase):
     __tablename__ = "service_assignment"
     __table_args__ = (UniqueConstraint("service_id", "operator_id"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    service_id = Column(
-        Integer,
+    service_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("service.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    operator_id = Column(
-        Integer,
+    operator_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("operator.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class FareInService(ORMbase):
@@ -2324,16 +2549,20 @@ class FareInService(ORMbase):
     __tablename__ = "fare_in_service"
     __table_args__ = (UniqueConstraint("fare_id", "version"),)
 
-    id = Column(Integer, primary_key=True)
-    fare_id = Column(Integer, nullable=False, index=True)
-    version = Column(Integer, nullable=False)
-    name = Column(TEXT, nullable=False)
-    attributes = Column(JSONB, nullable=False)
-    function = Column(TEXT, nullable=False)
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    fare_id: Mapped[int] = orm.mapped_column(BigInteger, nullable=False, index=True)
+    version: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    attributes: Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False)
+    function: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
     # Metadata
-    reference_count = Column(Integer, nullable=False, default=1)
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    reference_count: Mapped[int] = orm.mapped_column(Integer, nullable=False, default=1)
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class LandmarkInService(ORMbase):
@@ -2375,20 +2604,28 @@ class LandmarkInService(ORMbase):
 
     __tablename__ = "landmark_in_service"
 
-    id = Column(Integer, primary_key=True)
-    service_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    service_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("service.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    landmark_id = Column(Integer, nullable=False, index=True)
-    distance_from_start = Column(Integer, nullable=False)
-    arrival_at = Column(DateTime(timezone=True), nullable=False)
-    departure_at = Column(DateTime(timezone=True), nullable=False)
+    landmark_id: Mapped[int] = orm.mapped_column(BigInteger, nullable=False, index=True)
+    distance_from_start: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    arrival_at: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    departure_at: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class VehicleInService(ORMbase):
@@ -2437,16 +2674,20 @@ class VehicleInService(ORMbase):
     __tablename__ = "vehicle_in_service"
     __table_args__ = (UniqueConstraint("vehicle_id", "version"),)
 
-    id = Column(Integer, primary_key=True)
-    vehicle_id = Column(Integer, nullable=False, index=True)
-    version = Column(Integer, nullable=False)
-    registration_number = Column(TEXT, nullable=False)
-    name = Column(TEXT, nullable=False)
-    capacity = Column(Integer, nullable=False)
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    vehicle_id: Mapped[int] = orm.mapped_column(BigInteger, nullable=False, index=True)
+    version: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    registration_number: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    capacity: Mapped[int] = orm.mapped_column(Integer, nullable=False)
     # Metadata
-    reference_count = Column(Integer, nullable=False, default=1)
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    reference_count: Mapped[int] = orm.mapped_column(Integer, nullable=False, default=1)
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Duty(ORMbase):
@@ -2497,31 +2738,37 @@ class Duty(ORMbase):
 
     __tablename__ = "duty"
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    operator_id = Column(
-        Integer,
+    operator_id: Mapped[int | None] = orm.mapped_column(
+        BigInteger,
         ForeignKey("operator.id", ondelete="SET NULL"),
         index=True,
     )
-    service_id = Column(
-        Integer,
+    service_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("service.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    status = Column(Integer, nullable=False, default=DutyStatus.STARTED)
-    started_on = Column(DateTime(timezone=True))
-    finished_on = Column(DateTime(timezone=True))
-    collection = Column(Numeric(10, 2))
+    status: Mapped[DutyStatus] = orm.mapped_column(
+        Integer, nullable=False, default=DutyStatus.STARTED
+    )
+    started_on: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    finished_on: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    collection: Mapped[Decimal | None] = orm.mapped_column(Numeric(10, 2))
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class PaperTicket(ORMbase):
@@ -2572,20 +2819,26 @@ class PaperTicket(ORMbase):
 
     __tablename__ = "paper_ticket"
 
-    id = Column(Integer, primary_key=True)
-    service_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    service_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("service.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    duty_id = Column(Integer, ForeignKey("duty.id"), nullable=False, index=True)
-    company_id = Column(Integer, ForeignKey("company.id"), nullable=False, index=True)
+    duty_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("duty.id"), nullable=False, index=True
+    )
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("company.id"), nullable=False, index=True
+    )
     # Ticket content
-    ticket = Column(JSONB, nullable=False)
-    amount = Column(Numeric(10, 2), nullable=False)
+    ticket: Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False)
+    amount: Mapped[Decimal] = orm.mapped_column(Numeric(10, 2), nullable=False)
     # Metadata
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class ServiceLocation(ORMbase):
@@ -2629,26 +2882,34 @@ class ServiceLocation(ORMbase):
 
     __tablename__ = "service_location"
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    service_id = Column(
-        Integer,
+    service_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("service.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
         unique=True,
     )
-    landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
-    location = Column(Geometry(geometry_type="POINT", srid=4326))
-    accuracy = Column(Float)
+    landmark_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("landmark.id"), nullable=False
+    )
+    location: Mapped[WKBElement | None] = orm.mapped_column(
+        Geometry(geometry_type="POINT", srid=4326)
+    )
+    accuracy: Mapped[float | None] = orm.mapped_column(Float)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Trace(ORMbase):
@@ -2681,17 +2942,21 @@ class Trace(ORMbase):
     __tablename__ = "trace"
     __table_args__ = (UniqueConstraint("name", "company_id"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    name = Column(TEXT, nullable=False)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class LocationInTrace(ORMbase):
@@ -2725,23 +2990,29 @@ class LocationInTrace(ORMbase):
 
     __tablename__ = "location_in_trace"
 
-    id = Column(Integer, primary_key=True)
-    trace_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    trace_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("trace.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    company_id = Column(
-        Integer,
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    location = Column(Geometry(geometry_type="POINT", srid=4326), nullable=False)
-    location_type = Column(Integer, nullable=False, default=LocationType.WAYPOINT)
+    location: Mapped[WKBElement] = orm.mapped_column(
+        Geometry(geometry_type="POINT", srid=4326), nullable=False
+    )
+    location_type: Mapped[LocationType] = orm.mapped_column(
+        Integer, nullable=False, default=LocationType.WAYPOINT
+    )
     # Metadata
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Job(ORMbase):
@@ -2803,26 +3074,38 @@ class Job(ORMbase):
     __tablename__ = "job"
     __table_args__ = (UniqueConstraint("name", "company_id"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    name = Column(TEXT, nullable=False)
-    description = Column(TEXT)
-    job_type = Column(Integer, nullable=False, default=JobType.SERVICE_CREATION)
-    recurrence_rule = Column(TEXT, nullable=False)
-    trigger_at = Column(Time(timezone=True), nullable=False)
-    triggering_mode = Column(Integer, nullable=False, default=TriggeringMode.AUTO)
-    next_trigger_on = Column(DateTime(timezone=True))
-    last_trigger_on = Column(DateTime(timezone=True))
-    trigger_from = Column(DateTime(timezone=True))
-    trigger_till = Column(DateTime(timezone=True))
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    description: Mapped[str | None] = orm.mapped_column(TEXT)
+    job_type: Mapped[JobType] = orm.mapped_column(
+        Integer, nullable=False, default=JobType.SERVICE_CREATION
+    )
+    recurrence_rule: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    trigger_at: Mapped[dt_time] = orm.mapped_column(Time(timezone=True), nullable=False)
+    triggering_mode: Mapped[TriggeringMode] = orm.mapped_column(
+        Integer, nullable=False, default=TriggeringMode.AUTO
+    )
+    next_trigger_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True)
+    )
+    last_trigger_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True)
+    )
+    trigger_from: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    trigger_till: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class ServiceAutomation(ORMbase):
@@ -2882,25 +3165,37 @@ class ServiceAutomation(ORMbase):
 
     __tablename__ = "service_automation"
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    job_id = Column(Integer, ForeignKey("job.id"), index=True)
-    name = Column(TEXT, nullable=False)
-    description = Column(TEXT)
-    route_id = Column(
-        Integer, ForeignKey("route.id", ondelete="CASCADE"), nullable=False
+    job_id: Mapped[int | None] = orm.mapped_column(
+        BigInteger, ForeignKey("job.id"), index=True
     )
-    fare_id = Column(Integer, ForeignKey("fare.id", ondelete="CASCADE"), nullable=False)
-    vehicle_id = Column(
-        Integer, ForeignKey("vehicle.id", ondelete="CASCADE"), nullable=False
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    description: Mapped[str | None] = orm.mapped_column(TEXT)
+    route_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("route.id", ondelete="CASCADE"), nullable=False
     )
-    ticket_mode = Column(Integer, nullable=False, default=TicketingMode.HYBRID)
-    starting_at = Column(Time(timezone=True), nullable=False)
+    fare_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("fare.id", ondelete="CASCADE"), nullable=False
+    )
+    vehicle_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("vehicle.id", ondelete="CASCADE"), nullable=False
+    )
+    ticket_mode: Mapped[TicketingMode] = orm.mapped_column(
+        Integer, nullable=False, default=TicketingMode.HYBRID
+    )
+    starting_at: Mapped[dt_time] = orm.mapped_column(
+        Time(timezone=True), nullable=False
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )

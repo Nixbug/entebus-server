@@ -4,6 +4,7 @@ This module provides helper functions commonly used across FastAPI routes.
 It offers reusable utilities that make it easier for developers to integrate them into their projects.
 """
 
+from geoalchemy2.elements import WKBElement
 import pyproj
 from enum import Enum
 from io import BytesIO
@@ -11,6 +12,7 @@ from PIL import Image
 from typing import Any, List, Dict, Type, TypeVar, Union
 from fastapi import Query, Request
 from pydantic import BaseModel
+from shapely import wkb
 from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
 from shapely.geometry.base import BaseGeometry
@@ -59,7 +61,7 @@ def get_request_info(request: Request) -> schemas.RequestInfo:
 
 def fuse_exception_responses(
     exceptions: List[exceptions.APIException],
-) -> Dict[int, dict]:
+) -> Dict[int | str, Dict[str, Any]]:
     """
     Generate OpenAPI response documentation by fusing multiple APIException instances.
 
@@ -67,7 +69,7 @@ def fuse_exception_responses(
         exceptions (List[exceptions.APIException]): List of instantiated exceptions.
 
     Returns:
-        Dict[int, dict]: A dictionary of OpenAPI response specs grouped by status code.
+        Dict[int | str, Dict[str, Any]]: A dictionary of OpenAPI response specs grouped by status code.
     """
     responses = {}
 
@@ -495,6 +497,10 @@ def resize_image(file_bytes: bytes, width: int = None, height: int = None) -> by
     buffer = BytesIO()
     image.save(buffer, image.format)
     return buffer.getvalue()
+
+
+def load_geometry(value: WKBElement) -> BaseGeometry:
+    return wkb.loads(bytes(value.data))
 
 
 def get_area(geom: BaseGeometry) -> float:

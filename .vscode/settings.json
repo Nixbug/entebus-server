@@ -16,5 +16,6 @@
         "rrule",
         "sessionmaker",
         "sqlstate"
-    ]
+    ],
+    "python.analysis.typeCheckingMode": "standard"
 }

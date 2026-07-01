@@ -416,18 +416,19 @@ def validate_rrule_string(rrule_string: str) -> bool:
     return True
 
 
-def validate_wkt_string(
-    wkt_string: str, expected_type: Type[BaseGeometry]
-) -> BaseGeometry:
+GeomT = TypeVar("GeomT", bound=BaseGeometry)
+
+
+def validate_wkt_string(wkt_string: str, expected_type: Type[GeomT]) -> GeomT:
     """
     Validate and parse a WKT string into a Shapely geometry of the expected type.
 
     Args:
         wkt_string (str): Well-Known Text (WKT) geometry string.
-        expected_type (Type[BaseGeometry]): Expected Shapely geometry class.
+        expected_type (Type[GeomT]): Expected Shapely geometry class.
 
     Returns:
-        BaseGeometry: Parsed Shapely geometry instance.
+        GeomT: Parsed Shapely geometry instance.
 
     Raises:
         InvalidWKTStringOrType: If WKT parsing fails or type does not match `expected_type`.
@@ -443,12 +444,12 @@ def validate_wkt_string(
     return geom
 
 
-def validate_AABB(geometry: BaseGeometry) -> bool:
+def validate_AABB(polygon: Polygon) -> bool:
     """
     Validate that the provided geometry is a valid Axis-Aligned Bounding Box (AABB).
 
     Args:
-        geometry (BaseGeometry): Shapely geometry instance to validate.
+        polygon (Polygon): Shapely geometry instance to validate.
 
     Returns:
         bool: True if the geometry is a valid AABB.
@@ -456,10 +457,10 @@ def validate_AABB(geometry: BaseGeometry) -> bool:
     Raises:
         InvalidAABB: If the geometry violates AABB structural or alignment rules.
     """
-    if not isinstance(geometry, Polygon):
+    if not isinstance(polygon, Polygon):
         raise exceptions.InvalidAABB()
 
-    coords = list(geometry.exterior.coords)
+    coords = list(polygon.exterior.coords)
     if len(coords) != 5:
         raise exceptions.InvalidAABB()
 

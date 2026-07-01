@@ -207,7 +207,6 @@ def validate_boundary(
         overlapping = overlapping.filter(Landmark.id != landmark_id)
     if overlapping.first():
         raise exceptions.OverlappingLandmarkBoundary()
-
     return boundary_geom
 
 

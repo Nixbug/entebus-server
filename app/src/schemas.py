@@ -5,7 +5,8 @@ These models define the structure of request/response payloads
 that are reused in multiple endpoints (e.g., error responses, health checks).
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+
 from app.src.enums import AppID
 
 
@@ -47,3 +48,24 @@ class ErrorResponse(BaseModel):
     """
 
     detail: str
+
+
+# To allow explicit nulls in PatchForm models, annotate fields with Annotated[..., "nullable"].
+class PatchForm(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def no_explicit_null(cls, data: object) -> object:
+        if data is None:
+            raise ValueError("Request body cannot be null")
+        if not isinstance(data, dict):
+            return data
+
+        nullable = {
+            field_name
+            for field_name, field_info in cls.model_fields.items()
+            if any(m == "nullable" for m in field_info.metadata)
+        }
+        null_fields = [k for k, v in data.items() if v is None and k not in nullable]
+        if null_fields:
+            raise ValueError(f"Fields cannot be set to null: {', '.join(null_fields)}")
+        return data

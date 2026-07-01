@@ -11,14 +11,21 @@ It ensures consistent error responses across the API.
 
 from traceback import format_exception
 from logging import getLogger
-from typing import Union
+from typing import TYPE_CHECKING, Union
 from fastapi import status, HTTPException
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
 from pydantic import ValidationError
 from redis.exceptions import RedisError
 from requests.exceptions import ConnectionError, Timeout
-from sqlalchemy.orm import DeclarativeMeta, InstrumentedAttribute
+from sqlalchemy.orm import InstrumentedAttribute
+
+if TYPE_CHECKING:
+    from app.src.db import ORMbase
+else:
+    # Runtime placeholder to avoid importing app.src.db and initializing DB engine.
+    class ORMbase:  # pragma: no cover
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -287,7 +294,7 @@ class InactiveResource(APIException):
     status_code = status.HTTP_412_PRECONDITION_FAILED
     headers = {"X-Error": "InactiveResource"}
 
-    def __init__(self, orm_class: DeclarativeMeta):
+    def __init__(self, orm_class: type[ORMbase]):
         detail = (
             f"The status of {orm_class.__name__} is not in an active or useful state"
         )
@@ -302,7 +309,7 @@ class DataInUse(APIException):
     status_code = status.HTTP_409_CONFLICT
     headers = {"X-Error": "DataInUse"}
 
-    def __init__(self, orm_class: DeclarativeMeta):
+    def __init__(self, orm_class: type[ORMbase]):
         detail = f"The {orm_class.__name__} is currently in use"
         super().__init__(detail=detail)
 
@@ -315,7 +322,7 @@ class LimitExceeded(APIException):
     status_code = status.HTTP_409_CONFLICT
     headers = {"X-Error": "LimitExceeded"}
 
-    def __init__(self, orm_class: DeclarativeMeta):
+    def __init__(self, orm_class: type[ORMbase]):
         detail = (
             f"The number of entries in {orm_class.__name__} exceeds the allowed limit."
         )
