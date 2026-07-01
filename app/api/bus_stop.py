@@ -1,5 +1,5 @@
 """
-Bus Stop API Router for EnteBus.
+Bus Stop API router.
 
 Provides endpoints for managing bus stops:
     - POST (executive)
