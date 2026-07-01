@@ -4,7 +4,7 @@ This module provides helper functions commonly used across FastAPI routes.
 It offers reusable utilities that make it easier for developers to integrate them into their projects.
 """
 
-from geoalchemy2 import WKBElement
+from geoalchemy2.elements import WKBElement
 import pyproj
 from enum import Enum
 from io import BytesIO
