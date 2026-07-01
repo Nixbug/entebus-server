@@ -234,18 +234,18 @@ def create_bus_stop(
     )
     location = wkt.dumps(location_geom)
 
-    with session.begin():
-        bus_stop = BusStop(
-            name=form_param.name,
-            landmark_id=form_param.landmark_id,
-            location=location,
-        )
-        session.add(bus_stop)
-        session.flush()
-        log_event(token, request_info, bus_stop_to_dict(bus_stop))
-
+    bus_stop = BusStop(
+        name=form_param.name,
+        landmark_id=form_param.landmark_id,
+        location=location,
+    )
+    session.add(bus_stop)
+    session.commit()
     session.refresh(bus_stop)
-    return bus_stop_to_dict(bus_stop)
+
+    bus_stop_data = bus_stop_to_dict(bus_stop)
+    log_event(token, request_info, bus_stop_data)
+    return bus_stop_data
 
 
 def update_bus_stop(
@@ -270,23 +270,23 @@ def update_bus_stop(
     """
     bus_stop = validate_id(session, BusStop, id, BusStop.id)
 
-    with session.begin():
-        update_data = form_param.model_dump(exclude_unset=True)
-        if "location" in update_data:
-            old_location_geom = wkb.loads(bytes(bus_stop.location.data))
-            new_location_geom = validate_location(
-                session, update_data["location"], bus_stop.landmark_id
-            )
-            if new_location_geom.wkt != old_location_geom.wkt:
-                bus_stop.location = from_shape(new_location_geom, srid=4326)
-            update_data.pop("location")
+    update_data = form_param.model_dump(exclude_unset=True)
+    if "location" in update_data:
+        old_location_geom = wkb.loads(bytes(bus_stop.location.data))
+        new_location_geom = validate_location(
+            session, update_data["location"], bus_stop.landmark_id
+        )
+        if new_location_geom.wkt != old_location_geom.wkt:
+            bus_stop.location = from_shape(new_location_geom, srid=4326)
+        update_data.pop("location")
 
-        update_if_changed(bus_stop, update_data)
-        if session.is_modified(bus_stop):
-            log_event(token, request_info, bus_stop_to_dict(bus_stop))
-
-    session.refresh(bus_stop)
-    return bus_stop_to_dict(bus_stop)
+    update_if_changed(bus_stop, update_data)
+    if session.is_modified(bus_stop):
+        session.commit()
+        session.refresh(bus_stop)
+    bus_stop_data = bus_stop_to_dict(bus_stop)
+    log_event(token, request_info, bus_stop_data)
+    return bus_stop_data
 
 
 def delete_bus_stop(
@@ -305,10 +305,10 @@ def delete_bus_stop(
     if bus_stop is None:
         return
 
-    with session.begin():
-        bus_stop_data = bus_stop_to_dict(bus_stop)
-        session.delete(bus_stop)
-        log_event(token, request_info, bus_stop_data)
+    bus_stop_data = bus_stop_to_dict(bus_stop)
+    session.delete(bus_stop)
+    session.commit()
+    log_event(token, request_info, bus_stop_data)
 
 
 def search_bus_stops(session: Session, query_params: QueryParams) -> list[BusStop]:
