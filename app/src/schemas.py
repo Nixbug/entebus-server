@@ -52,8 +52,6 @@ class ErrorResponse(BaseModel):
 
 
 # To allow explicit nulls in PatchForm models, annotate fields with Annotated[..., "nullable"].
-
-
 class PatchForm(BaseModel):
     @model_validator(mode="before")
     @classmethod
