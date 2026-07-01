@@ -11,7 +11,7 @@ It ensures consistent error responses across the API.
 
 from traceback import format_exception
 from logging import getLogger
-from typing import Union
+from typing import TYPE_CHECKING, Union
 from fastapi import status, HTTPException
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
@@ -20,7 +20,12 @@ from redis.exceptions import RedisError
 from requests.exceptions import ConnectionError, Timeout
 from sqlalchemy.orm import InstrumentedAttribute
 
-from app.src.db import ORMbase
+if TYPE_CHECKING:
+    from app.src.db import ORMbase
+else:
+    # Runtime placeholder to avoid importing app.src.db and initializing DB engine.
+    class ORMbase:  # pragma: no cover
+        pass
 
 
 # ---------------------------------------------------------------------------
