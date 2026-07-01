@@ -5,7 +5,6 @@ These models define the structure of request/response payloads
 that are reused in multiple endpoints (e.g., error responses, health checks).
 """
 
-from typing import Annotated
 from pydantic import BaseModel, model_validator
 
 from app.src.enums import AppID
