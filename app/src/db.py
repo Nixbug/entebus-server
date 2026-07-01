@@ -15,7 +15,7 @@ All ORM models should inherit from `ORMbase`.
 
 from datetime import datetime, timedelta, timezone, time as dt_time
 from decimal import Decimal
-from typing import Any
+from typing import Any, Generator
 from geoalchemy2 import Geometry
 from geoalchemy2.elements import WKBElement
 from sqlalchemy import (
@@ -38,7 +38,7 @@ from sqlalchemy import (
     inspect,
     Time,
 )
-from sqlalchemy.orm import sessionmaker, DeclarativeBase, Mapper, Mapped
+from sqlalchemy.orm import Session, sessionmaker, DeclarativeBase, Mapper, Mapped
 import sqlalchemy.orm as orm
 from secrets import token_hex
 from sqlalchemy.dialects.postgresql import JSONB
@@ -94,13 +94,13 @@ engine = create_engine(url=db_url, echo=False)
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
-def get_db_session():
+def get_db_session() -> Generator[Session, None, None]:
     """Provide a database session for dependency injection."""
-    db = SessionLocal()
+    session = SessionLocal()
     try:
-        yield db
+        yield session
     finally:
-        db.close()
+        session.close()
 
 
 # ---------------------------------------------------------------------------
