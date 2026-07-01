@@ -58,6 +58,7 @@ from app.src.functions import (
     enum_str,
     fuse_exception_responses,
     get_request_info,
+    load_geometry,
     update_if_changed,
 )
 
@@ -175,7 +176,7 @@ def validate_location(session: Session, location_wkt: str, landmark_id: int) -> 
     # Validate if the location is within landmark boundary
     landmark = validate_id(session, Landmark, landmark_id, BusStop.landmark_id)
 
-    boundary_geom = wkb.loads(bytes(landmark.boundary.data))
+    boundary_geom = load_geometry(landmark.boundary)
     if not boundary_geom.contains(location_geom):
         raise exceptions.BusStopOutsideLandmark()
     return location_geom
@@ -192,9 +193,7 @@ def bus_stop_to_dict(bus_stop: BusStop) -> dict:
         dict: A dictionary representation of the BusStop object.
     """
     bus_stop_data = jsonable_encoder(bus_stop, exclude={BusStop.location.name})
-    bus_stop_data[BusStop.location.name] = (
-        wkb.loads(bytes(bus_stop.location.data))
-    ).wkt
+    bus_stop_data[BusStop.location.name] = (load_geometry(bus_stop.location)).wkt
     return bus_stop_data
 
 
@@ -271,7 +270,7 @@ def update_bus_stop(
 
     update_data = form_param.model_dump(exclude_unset=True)
     if "location" in update_data:
-        old_location_geom = wkb.loads(bytes(bus_stop.location.data))
+        old_location_geom = load_geometry(bus_stop.location)
         new_location_geom = validate_location(
             session, update_data["location"], bus_stop.landmark_id
         )

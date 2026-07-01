@@ -4,6 +4,7 @@ This module provides helper functions commonly used across FastAPI routes.
 It offers reusable utilities that make it easier for developers to integrate them into their projects.
 """
 
+from geoalchemy2 import WKBElement
 import pyproj
 from enum import Enum
 from io import BytesIO
@@ -11,6 +12,7 @@ from PIL import Image
 from typing import Any, List, Dict, Type, TypeVar, Union
 from fastapi import Query, Request
 from pydantic import BaseModel
+from shapely import wkb
 from sqlalchemy import Column, asc, desc
 from sqlalchemy.orm.session import Session
 from shapely.geometry.base import BaseGeometry
@@ -495,6 +497,12 @@ def resize_image(file_bytes: bytes, width: int = None, height: int = None) -> by
     buffer = BytesIO()
     image.save(buffer, image.format)
     return buffer.getvalue()
+
+
+def load_geometry(value: WKBElement | str) -> BaseGeometry:
+    if isinstance(value, WKBElement):
+        return wkb.loads(bytes(value.data))
+    return wkb.loads(value, hex=True)
 
 
 def get_area(geom: BaseGeometry) -> float:
