@@ -221,31 +221,32 @@ def create_bus_stop(
     Returns:
         dict: Created bus stop data with location in WKT format.
     """
-    bus_stop_count = (
-        session.query(BusStop)
-        .filter(BusStop.landmark_id == form_param.landmark_id)
-        .count()
-    )
-    if bus_stop_count >= MAX_BUS_STOPS_PER_LANDMARK:
-        raise exceptions.LimitExceeded(BusStop)
+    with session.begin():
+        bus_stop_count = (
+            session.query(BusStop)
+            .filter(BusStop.landmark_id == form_param.landmark_id)
+            .count()
+        )
+        if bus_stop_count >= MAX_BUS_STOPS_PER_LANDMARK:
+            raise exceptions.LimitExceeded(BusStop)
 
-    # Validate location (WKT, SRID, and landmark boundary)
-    location_geom = validate_location(
-        session, form_param.location, form_param.landmark_id
-    )
-    location = wkt.dumps(location_geom)
-    bus_stop = BusStop(
-        name=form_param.name,
-        landmark_id=form_param.landmark_id,
-        location=location,
-    )
-    session.add(bus_stop)
-    session.commit()
+        # Validate location (WKT, SRID, and landmark boundary)
+        location_geom = validate_location(
+            session, form_param.location, form_param.landmark_id
+        )
+        location = wkt.dumps(location_geom)
+
+        bus_stop = BusStop(
+            name=form_param.name,
+            landmark_id=form_param.landmark_id,
+            location=location,
+        )
+        session.add(bus_stop)
+        session.flush()
+        log_event(token, request_info, bus_stop_to_dict(bus_stop))
+
     session.refresh(bus_stop)
-
-    bus_stop_data = bus_stop_to_dict(bus_stop)
-    log_event(token, request_info, bus_stop_data)
-    return bus_stop_data
+    return bus_stop_to_dict(bus_stop)
 
 
 def update_bus_stop(
@@ -268,27 +269,25 @@ def update_bus_stop(
     Returns:
         dict: Updated bus stop data with location in WKT format.
     """
-    bus_stop = validate_id(session, BusStop, id, BusStop.id)
+    with session.begin():
+        bus_stop = validate_id(session, BusStop, id, BusStop.id)
 
-    update_data = form_param.model_dump(exclude_unset=True)
-    if "location" in update_data:
-        old_location_geom = wkb.loads(bytes(bus_stop.location.data))
-        new_location_geom = validate_location(
-            session, update_data["location"], bus_stop.landmark_id
-        )
-        if new_location_geom.wkt != old_location_geom.wkt:
-            bus_stop.location = from_shape(new_location_geom, srid=4326)
-        update_data.pop("location")
+        update_data = form_param.model_dump(exclude_unset=True)
+        if "location" in update_data:
+            old_location_geom = wkb.loads(bytes(bus_stop.location.data))
+            new_location_geom = validate_location(
+                session, update_data["location"], bus_stop.landmark_id
+            )
+            if new_location_geom.wkt != old_location_geom.wkt:
+                bus_stop.location = from_shape(new_location_geom, srid=4326)
+            update_data.pop("location")
 
-    update_if_changed(bus_stop, update_data)
-    updated = session.is_modified(bus_stop)
+        update_if_changed(bus_stop, update_data)
+        if session.is_modified(bus_stop):
+            log_event(token, request_info, bus_stop_to_dict(bus_stop))
 
-    bus_stop_data = bus_stop_to_dict(bus_stop)
-    if updated:
-        session.commit()
-        session.refresh(bus_stop)
-        log_event(token, request_info, bus_stop_data)
-    return bus_stop_data
+    session.refresh(bus_stop)
+    return bus_stop_to_dict(bus_stop)
 
 
 def delete_bus_stop(
@@ -304,11 +303,12 @@ def delete_bus_stop(
         request_info (schemas.RequestInfo): Request information for logging.
     """
     bus_stop = session.query(BusStop).filter(BusStop.id == id).first()
+    if bus_stop is None:
+        return
 
-    if bus_stop is not None:
+    with session.begin():
         bus_stop_data = bus_stop_to_dict(bus_stop)
         session.delete(bus_stop)
-        session.commit()
         log_event(token, request_info, bus_stop_data)
 
 
