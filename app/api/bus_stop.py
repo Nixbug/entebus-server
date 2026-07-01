@@ -25,7 +25,6 @@ from app.src.db import (
     BusStop,
     ExecutiveToken,
     Landmark,
-    SessionLocal,
     OperatorToken,
     VendorToken,
     get_db_session,
