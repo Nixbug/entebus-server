@@ -274,7 +274,7 @@ def update_bus_stop(
         new_location_geom = validate_location(
             session, update_data["location"], bus_stop.landmark_id
         )
-        if new_location_geom.wkt != old_location_geom.wkt:
+        if not new_location_geom.equals(old_location_geom):
             bus_stop.location = wkt.dumps(new_location_geom)
         update_data.pop("location")
 
