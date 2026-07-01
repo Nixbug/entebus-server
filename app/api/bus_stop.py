@@ -184,13 +184,13 @@ def validate_location(session: Session, location_wkt: str, landmark_id: int) -> 
 
 def bus_stop_to_dict(bus_stop: BusStop) -> dict:
     """
-    Convert a BusStop SQLAlchemy model instance to a dictionary with location in WKT format.
+    Convert a BusStop object to a dictionary representation.
 
     Args:
-        bus_stop (BusStop): BusStop model instance.
+        bus_stop (BusStop): The BusStop object to convert.
 
     Returns:
-        dict: Dictionary representation of the bus stop with location in WKT format.
+        dict: A dictionary representation of the BusStop object.
     """
     bus_stop_data = jsonable_encoder(bus_stop, exclude={BusStop.location.name})
     bus_stop_data[BusStop.location.name] = (
