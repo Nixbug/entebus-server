@@ -318,7 +318,6 @@ def update_landmark(
                 if not bus_stop_geom.within(new_boundary_geom):
                     raise exceptions.BusStopOutsideLandmark()
             landmark.boundary = from_shape(new_boundary_geom, srid=4326)
-            setattr(landmark, Landmark.boundary.name, wkt.dumps(new_boundary_geom))
         update_data.pop("boundary")
 
     update_if_changed(landmark, update_data)
