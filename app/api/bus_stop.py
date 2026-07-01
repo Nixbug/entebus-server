@@ -28,6 +28,7 @@ from app.src.db import (
     SessionLocal,
     OperatorToken,
     VendorToken,
+    get_db_session,
 )
 from app.src.enums import OrderIn
 from app.src.filters import (
@@ -462,16 +463,13 @@ async def create_bus_stop_for_executive(
     form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        with SessionLocal() as session:
-            token = authorize_executive(
-                session,
-                access_token,
-                [PermissionPath.CREATE_BUS_STOP],
-            )
-
-            return create_bus_stop(session, form_param, token, request_info)
+        token = authorize_executive(
+            session, access_token, [PermissionPath.CREATE_BUS_STOP]
+        )
+        return create_bus_stop(session, form_param, token, request_info)
     except Exception as e:
         exceptions.handle(e)
 
@@ -489,16 +487,13 @@ async def update_bus_stop_for_executive(
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        with SessionLocal() as session:
-            token = authorize_executive(
-                session,
-                access_token,
-                [PermissionPath.UPDATE_BUS_STOP],
-            )
-
-            return update_bus_stop(session, id, form_param, token, request_info)
+        token = authorize_executive(
+            session, access_token, [PermissionPath.UPDATE_BUS_STOP]
+        )
+        return update_bus_stop(session, id, form_param, token, request_info)
     except Exception as e:
         exceptions.handle(e)
 
@@ -515,17 +510,14 @@ async def delete_bus_stop_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        with SessionLocal() as session:
-            token = authorize_executive(
-                session,
-                access_token,
-                [PermissionPath.DELETE_BUS_STOP],
-            )
-
-            delete_bus_stop(session, id, token, request_info)
-            return Response(status_code=status.HTTP_204_NO_CONTENT)
+        token = authorize_executive(
+            session, access_token, [PermissionPath.DELETE_BUS_STOP]
+        )
+        delete_bus_stop(session, id, token, request_info)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
 
@@ -541,15 +533,14 @@ async def delete_bus_stop_for_executive(
 async def fetch_bus_stops_for_executive(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        with SessionLocal() as session:
-            verify_token(session, ExecutiveToken, access_token)
-
-            return [
-                bus_stop_to_dict(bus_stop)
-                for bus_stop in search_bus_stops(session, query_params)
-            ]
+        verify_token(session, ExecutiveToken, access_token)
+        return [
+            bus_stop_to_dict(bus_stop)
+            for bus_stop in search_bus_stops(session, query_params)
+        ]
     except Exception as e:
         exceptions.handle(e)
 
@@ -568,15 +559,14 @@ async def fetch_bus_stops_for_executive(
 async def fetch_bus_stops_for_vendor(
     query_params: QueryParams = Depends(),
     access_token=Depends(bearer_vendor),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        with SessionLocal() as session:
-            verify_token(session, VendorToken, access_token.credentials)
-
-            return [
-                bus_stop_to_dict(bus_stop)
-                for bus_stop in search_bus_stops(session, query_params)
-            ]
+        verify_token(session, VendorToken, access_token.credentials)
+        return [
+            bus_stop_to_dict(bus_stop)
+            for bus_stop in search_bus_stops(session, query_params)
+        ]
     except Exception as e:
         exceptions.handle(e)
 
@@ -595,15 +585,14 @@ async def fetch_bus_stops_for_vendor(
 async def fetch_bus_stops_for_operator(
     query_params: QueryParams = Depends(),
     access_token=Depends(bearer_operator),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        with SessionLocal() as session:
-            verify_token(session, OperatorToken, access_token.credentials)
-
-            return [
-                bus_stop_to_dict(bus_stop)
-                for bus_stop in search_bus_stops(session, query_params)
-            ]
+        verify_token(session, OperatorToken, access_token.credentials)
+        return [
+            bus_stop_to_dict(bus_stop)
+            for bus_stop in search_bus_stops(session, query_params)
+        ]
     except Exception as e:
         exceptions.handle(e)
 
@@ -621,12 +610,13 @@ async def fetch_bus_stops_for_operator(
     ),
     description=(GET_DESCRIPTION.to_string()),
 )
-async def fetch_bus_stops_for_public(query_params: QueryParams = Depends()):
+async def fetch_bus_stops_for_public(
+    query_params: QueryParams = Depends(), session: Session = Depends(get_db_session)
+):
     try:
-        with SessionLocal() as session:
-            return [
-                bus_stop_to_dict(bus_stop)
-                for bus_stop in search_bus_stops(session, query_params)
-            ]
+        return [
+            bus_stop_to_dict(bus_stop)
+            for bus_stop in search_bus_stops(session, query_params)
+        ]
     except Exception as e:
         exceptions.handle(e)

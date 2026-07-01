@@ -94,6 +94,15 @@ engine = create_engine(url=db_url, echo=False)
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
+def get_db_session():
+    """Provide a database session for dependency injection."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 # ---------------------------------------------------------------------------
 # ORM Models
 # ---------------------------------------------------------------------------
