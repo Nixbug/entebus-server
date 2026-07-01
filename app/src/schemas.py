@@ -57,7 +57,12 @@ NullableField = Annotated[object, "nullable"]
 class PatchForm(BaseModel):
     @model_validator(mode="before")
     @classmethod
-    def no_explicit_null(cls, data: dict) -> dict:
+    def no_explicit_null(cls, data: object) -> object:
+        if data is None:
+            raise ValueError("Request body cannot be null")
+        if not isinstance(data, dict):
+            return data
+
         nullable = {
             field_name
             for field_name, field_info in cls.model_fields.items()
