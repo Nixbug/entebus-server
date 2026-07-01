@@ -1007,7 +1007,7 @@ class Landmark(ORMbase):
     name: Mapped[str] = orm.mapped_column(TEXT, nullable=False, index=True)
     version: Mapped[int] = orm.mapped_column(Integer, nullable=False, default=1)
     alias_names: Mapped[list[str]] = orm.mapped_column(ARRAY(TEXT))
-    boundary: Mapped[WKBElement] = orm.mapped_column(
+    boundary: Mapped[WKBElement | str] = orm.mapped_column(
         Geometry(geometry_type="POLYGON", srid=4326), nullable=False
     )
     type: Mapped[LandmarkType] = orm.mapped_column(
@@ -1086,7 +1086,7 @@ class BusStop(ORMbase):
         nullable=False,
         index=True,
     )
-    location: Mapped[WKBElement] = orm.mapped_column(
+    location: Mapped[WKBElement | str] = orm.mapped_column(
         Geometry(geometry_type="POINT", srid=4326), nullable=False
     )
     updated_on: Mapped[datetime | None] = orm.mapped_column(
@@ -1168,7 +1168,7 @@ class Company(ORMbase):
     )
     description: Mapped[str | None] = orm.mapped_column(TEXT)
     address: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
-    location: Mapped[WKBElement] = orm.mapped_column(
+    location: Mapped[WKBElement | str] = orm.mapped_column(
         Geometry(geometry_type="POINT", srid=4326), nullable=False
     )
     settings: Mapped[dict[str, Any]] = orm.mapped_column(
@@ -1420,7 +1420,7 @@ class Business(ORMbase):
     )
     description: Mapped[str | None] = orm.mapped_column(TEXT)
     address: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
-    location: Mapped[WKBElement] = orm.mapped_column(
+    location: Mapped[WKBElement | str] = orm.mapped_column(
         Geometry(geometry_type="POINT", srid=4326), nullable=False
     )
     settings: Mapped[dict[str, Any]] = orm.mapped_column(JSONB, default=dict)
@@ -2895,7 +2895,7 @@ class ServiceLocation(ORMbase):
     landmark_id: Mapped[int] = orm.mapped_column(
         BigInteger, ForeignKey("landmark.id"), nullable=False
     )
-    location: Mapped[WKBElement | None] = orm.mapped_column(
+    location: Mapped[WKBElement | str | None] = orm.mapped_column(
         Geometry(geometry_type="POINT", srid=4326)
     )
     accuracy: Mapped[float | None] = orm.mapped_column(Float)
@@ -2999,7 +2999,7 @@ class LocationInTrace(ORMbase):
         nullable=False,
         index=True,
     )
-    location: Mapped[WKBElement] = orm.mapped_column(
+    location: Mapped[WKBElement | str] = orm.mapped_column(
         Geometry(geometry_type="POINT", srid=4326), nullable=False
     )
     location_type: Mapped[LocationType] = orm.mapped_column(
