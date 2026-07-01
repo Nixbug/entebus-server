@@ -499,10 +499,8 @@ def resize_image(file_bytes: bytes, width: int = None, height: int = None) -> by
     return buffer.getvalue()
 
 
-def load_geometry(value: WKBElement | str) -> BaseGeometry:
-    if isinstance(value, WKBElement):
-        return wkb.loads(bytes(value.data))
-    return wkb.loads(value, hex=True)
+def load_geometry(value: WKBElement) -> BaseGeometry:
+    return wkb.loads(bytes(value.data))
 
 
 def get_area(geom: BaseGeometry) -> float:
