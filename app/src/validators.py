@@ -6,7 +6,7 @@ making it easier for developers to integrate them into their projects.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, List, Type, TypeVar, Union
+from typing import Any, List, Sequence, Type, TypeVar, Union
 from dns.enum import IntEnum
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import InstrumentedAttribute
@@ -200,11 +200,14 @@ def authenticate_vendor(
     return user_credentials(vendor, credentials)
 
 
+T = TypeVar("T", ExecutiveToken, OperatorToken, VendorToken)
+
+
 def validate_and_revoke_refresh_token(
     session: Session,
-    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
+    model_cls: Type[T],
     form_param: Any,
-) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
+) -> T:
     """
     Validates a refresh token and revokes it.
 
@@ -245,15 +248,15 @@ def validate_and_revoke_refresh_token(
 
 def verify_token(
     session: Session,
-    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
+    model_cls: Type[T],
     access_token: str,
-) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
+) -> T:
     """
     Generic token validation function for user.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[Union[ExecutiveToken, OperatorToken, VendorToken]]): The ORM model class.
+        model_cls (Type[T]): The ORM model class.
         access_token (str): The access token string to validate.
 
     Returns:
@@ -279,7 +282,7 @@ def verify_token(
 
 
 def verify_permission(
-    role_list: list[ExecutiveRole | VendorRole | OperatorRole],
+    role_list: Sequence[ExecutiveRole | VendorRole | OperatorRole],
     permission_path: str,
     raise_exception: bool = True,
 ) -> bool:
@@ -287,7 +290,7 @@ def verify_permission(
     Validate if a user has a specific permission based on their roles.
 
     Args:
-        role_list (list[ExecutiveRole | VendorRole | OperatorRole]): List of roles.
+        role_list (Sequence[ExecutiveRole | VendorRole | OperatorRole]): List of roles.
         permission_path (str): Permission path.
         raise_exception (bool): Whether to raise `NoPermission` if permission is not found, defaults to True.
 

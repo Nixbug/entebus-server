@@ -9,11 +9,11 @@ import pyproj
 from enum import Enum
 from io import BytesIO
 from PIL import Image
-from typing import Any, List, Dict, Type, TypeVar, Union
+from typing import Any, Dict, Sequence, Type, TypeVar, Union
 from fastapi import Query, Request
 from pydantic import BaseModel
 from shapely import wkb
-from sqlalchemy import Column, asc, desc
+from sqlalchemy import ColumnElement, asc, desc
 from sqlalchemy.orm.session import Session
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform
@@ -60,13 +60,13 @@ def get_request_info(request: Request) -> schemas.RequestInfo:
 
 
 def fuse_exception_responses(
-    exceptions: List[exceptions.APIException],
+    exceptions: Sequence[exceptions.APIException],
 ) -> Dict[int | str, Dict[str, Any]]:
     """
     Generate OpenAPI response documentation by fusing multiple APIException instances.
 
     Args:
-        exceptions (List[exceptions.APIException]): List of instantiated exceptions.
+        exceptions (Sequence[exceptions.APIException]): Sequence of instantiated exceptions.
 
     Returns:
         Dict[int | str, Dict[str, Any]]: A dictionary of OpenAPI response specs grouped by status code.
@@ -114,7 +114,7 @@ def enum_str(enum_class: Type[Enum]) -> str:
 def cleanup_old_tokens(
     session: Session,
     model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
-    filter_condition: Column,
+    filter_condition: ColumnElement[bool],
     max_tokens: int,
 ) -> None:
     """
