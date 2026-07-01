@@ -51,7 +51,7 @@ class ErrorResponse(BaseModel):
     detail: str
 
 
-NullableField = Annotated[object, "nullable"]
+# To allow explicit nulls in PatchForm models, annotate fields with Annotated[..., "nullable"].
 
 
 class PatchForm(BaseModel):
