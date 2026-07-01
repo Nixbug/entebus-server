@@ -284,8 +284,10 @@ def update_bus_stop(
     if session.is_modified(bus_stop):
         session.commit()
         session.refresh(bus_stop)
-    bus_stop_data = bus_stop_to_dict(bus_stop)
-    log_event(token, request_info, bus_stop_data)
+        bus_stop_data = bus_stop_to_dict(bus_stop)
+        log_event(token, request_info, bus_stop_data)
+    else:
+        bus_stop_data = bus_stop_to_dict(bus_stop)
     return bus_stop_data
 
 
