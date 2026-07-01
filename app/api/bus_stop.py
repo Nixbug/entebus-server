@@ -88,7 +88,7 @@ class BusStopSchema(BaseModel):
 class CreateForm(BaseModel):
     """Form data for creating a new bus stop."""
 
-    name: str = Field(min_length=1, max_length=128, pattern=NAME_PATTERN)
+    name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN)
     landmark_id: int = Field()
     location: str = Field(
         description=(
@@ -102,7 +102,7 @@ class UpdateForm(BaseModel):
     """Form data for updating a bus stop."""
 
     name: str | None = Field(
-        min_length=1, max_length=128, pattern=NAME_PATTERN, default=None
+        min_length=1, max_length=32, pattern=NAME_PATTERN, default=None
     )
     location: str | None = Field(
         default=None,
