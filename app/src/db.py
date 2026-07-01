@@ -1006,7 +1006,9 @@ class Landmark(ORMbase):
     id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
     name: Mapped[str] = orm.mapped_column(TEXT, nullable=False, index=True)
     version: Mapped[int] = orm.mapped_column(Integer, nullable=False, default=1)
-    alias_names: Mapped[list[str]] = orm.mapped_column(ARRAY(TEXT), default=list)
+    alias_names: Mapped[list[str]] = orm.mapped_column(
+        ARRAY(TEXT), nullable=False, default=list
+    )
     boundary: Mapped[WKBElement] = orm.mapped_column(
         Geometry(geometry_type="POLYGON", srid=4326), nullable=False
     )
@@ -1172,7 +1174,7 @@ class Company(ORMbase):
         Geometry(geometry_type="POINT", srid=4326), nullable=False
     )
     settings: Mapped[dict[str, Any]] = orm.mapped_column(
-        JSONB, default=dict
+        JSONB, nullable=False, default=dict
     )  # For future expansion
     # Metadata
     updated_on: Mapped[datetime | None] = orm.mapped_column(
@@ -1423,7 +1425,9 @@ class Business(ORMbase):
     location: Mapped[WKBElement] = orm.mapped_column(
         Geometry(geometry_type="POINT", srid=4326), nullable=False
     )
-    settings: Mapped[dict[str, Any]] = orm.mapped_column(JSONB, default=dict)
+    settings: Mapped[dict[str, Any]] = orm.mapped_column(
+        JSONB, nullable=False, default=dict
+    )
     # Metadata
     updated_on: Mapped[datetime | None] = orm.mapped_column(
         DateTime(timezone=True), onupdate=func.now()
