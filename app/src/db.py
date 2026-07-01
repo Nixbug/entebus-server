@@ -2546,7 +2546,7 @@ class FareInService(ORMbase):
     __table_args__ = (UniqueConstraint("fare_id", "version"),)
 
     id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
-    fare_id: Mapped[int] = orm.mapped_column(Integer, nullable=False, index=True)
+    fare_id: Mapped[int] = orm.mapped_column(BigInteger, nullable=False, index=True)
     version: Mapped[int] = orm.mapped_column(Integer, nullable=False)
     name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
     attributes: Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False)
@@ -2607,7 +2607,7 @@ class LandmarkInService(ORMbase):
         nullable=False,
         index=True,
     )
-    landmark_id: Mapped[int] = orm.mapped_column(Integer, nullable=False, index=True)
+    landmark_id: Mapped[int] = orm.mapped_column(BigInteger, nullable=False, index=True)
     distance_from_start: Mapped[int] = orm.mapped_column(Integer, nullable=False)
     arrival_at: Mapped[datetime] = orm.mapped_column(
         DateTime(timezone=True), nullable=False
@@ -2671,7 +2671,7 @@ class VehicleInService(ORMbase):
     __table_args__ = (UniqueConstraint("vehicle_id", "version"),)
 
     id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
-    vehicle_id: Mapped[int] = orm.mapped_column(Integer, nullable=False, index=True)
+    vehicle_id: Mapped[int] = orm.mapped_column(BigInteger, nullable=False, index=True)
     version: Mapped[int] = orm.mapped_column(Integer, nullable=False)
     registration_number: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
     name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
