@@ -38,6 +38,7 @@ from app.src.filters import (
 )
 from app.src.permissions.executive import PermissionPath
 from app.src import exceptions, schemas
+from app.src.schemas import PatchForm
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_BUS_STOP
 from app.src.openobserve import log_event
@@ -98,7 +99,7 @@ class CreateForm(BaseModel):
     )
 
 
-class UpdateForm(BaseModel):
+class UpdateForm(PatchForm):
     """Form data for updating a bus stop."""
 
     name: str | None = Field(
