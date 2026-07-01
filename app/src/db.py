@@ -293,7 +293,7 @@ class ExecutiveRole(ORMbase):
         DateTime(timezone=True), onupdate=func.now()
     )
     created_on: Mapped[datetime] = orm.mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=func.now(), nullable=False
     )
 
 
@@ -652,7 +652,7 @@ class OperatorRole(ORMbase):
         DateTime(timezone=True), onupdate=func.now()
     )
     created_on: Mapped[datetime] = orm.mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=func.now(), nullable=False
     )
 
 
@@ -877,7 +877,7 @@ class VendorRole(ORMbase):
         DateTime(timezone=True), onupdate=func.now()
     )
     created_on: Mapped[datetime] = orm.mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=func.now(), nullable=False
     )
 
 
@@ -1006,7 +1006,7 @@ class Landmark(ORMbase):
     id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
     name: Mapped[str] = orm.mapped_column(TEXT, nullable=False, index=True)
     version: Mapped[int] = orm.mapped_column(Integer, nullable=False, default=1)
-    alias_names: Mapped[list[str]] = orm.mapped_column(ARRAY(TEXT))
+    alias_names: Mapped[list[str]] = orm.mapped_column(ARRAY(TEXT), default=list)
     boundary: Mapped[WKBElement | str] = orm.mapped_column(
         Geometry(geometry_type="POLYGON", srid=4326), nullable=False
     )
@@ -1093,7 +1093,7 @@ class BusStop(ORMbase):
         DateTime(timezone=True), onupdate=func.now()
     )
     created_on: Mapped[datetime] = orm.mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=func.now(), nullable=False
     )
 
     __table_args__ = (
