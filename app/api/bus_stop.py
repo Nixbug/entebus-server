@@ -221,21 +221,21 @@ def create_bus_stop(
     Returns:
         dict: Created bus stop data with location in WKT format.
     """
+    bus_stop_count = (
+        session.query(BusStop)
+        .filter(BusStop.landmark_id == form_param.landmark_id)
+        .count()
+    )
+    if bus_stop_count >= MAX_BUS_STOPS_PER_LANDMARK:
+        raise exceptions.LimitExceeded(BusStop)
+
+    # Validate location (WKT, SRID, and landmark boundary)
+    location_geom = validate_location(
+        session, form_param.location, form_param.landmark_id
+    )
+    location = wkt.dumps(location_geom)
+
     with session.begin():
-        bus_stop_count = (
-            session.query(BusStop)
-            .filter(BusStop.landmark_id == form_param.landmark_id)
-            .count()
-        )
-        if bus_stop_count >= MAX_BUS_STOPS_PER_LANDMARK:
-            raise exceptions.LimitExceeded(BusStop)
-
-        # Validate location (WKT, SRID, and landmark boundary)
-        location_geom = validate_location(
-            session, form_param.location, form_param.landmark_id
-        )
-        location = wkt.dumps(location_geom)
-
         bus_stop = BusStop(
             name=form_param.name,
             landmark_id=form_param.landmark_id,
@@ -269,9 +269,9 @@ def update_bus_stop(
     Returns:
         dict: Updated bus stop data with location in WKT format.
     """
-    with session.begin():
-        bus_stop = validate_id(session, BusStop, id, BusStop.id)
+    bus_stop = validate_id(session, BusStop, id, BusStop.id)
 
+    with session.begin():
         update_data = form_param.model_dump(exclude_unset=True)
         if "location" in update_data:
             old_location_geom = wkb.loads(bytes(bus_stop.location.data))
