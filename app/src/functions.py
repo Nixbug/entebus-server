@@ -13,7 +13,8 @@ from typing import Any, Dict, Sequence, Type, TypeVar, Union
 from fastapi import Query, Request
 from pydantic import BaseModel
 from shapely import wkb
-from sqlalchemy import ColumnElement, asc, desc
+from sqlalchemy import asc, desc
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.orm.session import Session
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform
