@@ -18,7 +18,6 @@ from sqlalchemy.orm.session import Session
 from shapely.geometry import Point
 from shapely import wkt
 from sqlalchemy import String, func, or_
-from geoalchemy2.shape import from_shape
 
 from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
 from app.src.db import (
@@ -61,6 +60,7 @@ from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
     load_geometry,
+    to_WKB,
     update_if_changed,
 )
 
@@ -232,12 +232,10 @@ def create_bus_stop(
     location_geom = validate_location(
         session, form_param.location, form_param.landmark_id
     )
-    location = wkt.dumps(location_geom)
-
     bus_stop = BusStop(
         name=form_param.name,
         landmark_id=form_param.landmark_id,
-        location=location,
+        location=to_WKB(location_geom),
     )
     session.add(bus_stop)
     session.commit()
@@ -277,7 +275,7 @@ def update_bus_stop(
             session, update_data["location"], bus_stop.landmark_id
         )
         if not new_location_geom.equals(old_location_geom):
-            bus_stop.location = from_shape(new_location_geom, srid=4326)
+            bus_stop.location = to_WKB(new_location_geom)
         update_data.pop("location")
 
     update_if_changed(bus_stop, update_data)
