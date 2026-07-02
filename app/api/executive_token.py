@@ -237,7 +237,7 @@ def revoke_executive_token(
     form_param: LogoutForm,
     token: ExecutiveToken,
     request_info: schemas.RequestInfo,
-):
+) -> None:
     """
     Revoke an executive token in the database.
 
@@ -273,7 +273,7 @@ def delete_executive_token(
     token: ExecutiveToken,
     request_info: schemas.RequestInfo,
     has_permission: bool,
-):
+) -> None:
     """
     Delete an executive token from the database.
 
