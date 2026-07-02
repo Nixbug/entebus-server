@@ -225,11 +225,11 @@ def refresh_executive_token(
     session.add(executive_token)
     session.commit()
     session.refresh(executive_token)
-    refreshed_token_data, refreshed_token_log_data = executive_token_to_dict(
+    executive_token_data, executive_token_log_data = executive_token_to_dict(
         executive_token
     )
-    log_event(token, request_info, refreshed_token_log_data)
-    return refreshed_token_data
+    log_event(token, request_info, executive_token_log_data)
+    return executive_token_data
 
 
 def revoke_executive_token(
@@ -263,8 +263,8 @@ def revoke_executive_token(
     executive_token.is_revoked = True
     session.commit()
     session.refresh(executive_token)
-    _, refreshed_token_log_data = executive_token_to_dict(executive_token)
-    log_event(token, request_info, refreshed_token_log_data)
+    _, executive_token_log_data = executive_token_to_dict(executive_token)
+    log_event(token, request_info, executive_token_log_data)
 
 
 def delete_executive_token(
