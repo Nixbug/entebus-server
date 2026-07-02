@@ -6,7 +6,7 @@ making it easier for developers to integrate them into their projects.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, List, Type, TypeVar, Union
+from typing import Any, List, Sequence, Type, Union
 from dns.enum import IntEnum
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import InstrumentedAttribute
@@ -32,7 +32,6 @@ from app.src.db import (
     Executive,
     ExecutiveRole,
     ExecutiveToken,
-    ORMbase,
     Operator,
     OperatorToken,
     Vendor,
@@ -53,6 +52,7 @@ from app.src.constants import (
     TMZ_PRIMARY,
 )
 from app.src.dynamic_fare.v1 import DynamicFare
+from app.src.types import GeometryT, ORMbaseT, TokenT
 
 
 def user_credentials(
@@ -202,9 +202,9 @@ def authenticate_vendor(
 
 def validate_and_revoke_refresh_token(
     session: Session,
-    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
+    model_cls: Type[TokenT],
     form_param: Any,
-) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
+) -> TokenT:
     """
     Validates a refresh token and revokes it.
 
@@ -215,11 +215,11 @@ def validate_and_revoke_refresh_token(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[Union[ExecutiveToken, OperatorToken, VendorToken]]): The ORM model class.
+        model_cls (Type[TokenT]): The ORM model class for the token (ExecutiveToken, OperatorToken, VendorToken).
         form_param (Any): Form parameters containing refresh_token and grant_type.
 
     Returns:
-        token: The valid token object from the database.
+        TokenT: The valid token object from the database.
 
     Raises:
         InvalidGrantType: If the grant_type is not REFRESH_TOKEN.
@@ -245,19 +245,19 @@ def validate_and_revoke_refresh_token(
 
 def verify_token(
     session: Session,
-    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
+    model_cls: Type[TokenT],
     access_token: str,
-) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
+) -> TokenT:
     """
     Generic token validation function for user.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[Union[ExecutiveToken, OperatorToken, VendorToken]]): The ORM model class.
+        model_cls (Type[TokenT]): The ORM model class.
         access_token (str): The access token string to validate.
 
     Returns:
-        The valid token model instance.
+        TokenT: The valid token model instance.
 
     Raises:
         InvalidToken: If token is invalid, revoked, or expired.
@@ -279,7 +279,7 @@ def verify_token(
 
 
 def verify_permission(
-    role_list: list[ExecutiveRole | VendorRole | OperatorRole],
+    role_list: Sequence[ExecutiveRole | VendorRole | OperatorRole],
     permission_path: str,
     raise_exception: bool = True,
 ) -> bool:
@@ -287,7 +287,7 @@ def verify_permission(
     Validate if a user has a specific permission based on their roles.
 
     Args:
-        role_list (list[ExecutiveRole | VendorRole | OperatorRole]): List of roles.
+        role_list (Sequence[ExecutiveRole | VendorRole | OperatorRole]): List of roles.
         permission_path (str): Permission path.
         raise_exception (bool): Whether to raise `NoPermission` if permission is not found, defaults to True.
 
@@ -416,19 +416,16 @@ def validate_rrule_string(rrule_string: str) -> bool:
     return True
 
 
-GeomT = TypeVar("GeomT", bound=BaseGeometry)
-
-
-def validate_wkt_string(wkt_string: str, expected_type: Type[GeomT]) -> GeomT:
+def validate_wkt_string(wkt_string: str, expected_type: Type[GeometryT]) -> GeometryT:
     """
     Validate and parse a WKT string into a Shapely geometry of the expected type.
 
     Args:
         wkt_string (str): Well-Known Text (WKT) geometry string.
-        expected_type (Type[GeomT]): Expected Shapely geometry class.
+        expected_type (Type[GeometryT]): Expected Shapely geometry class.
 
     Returns:
-        GeomT: Parsed Shapely geometry instance.
+        GeometryT: Parsed Shapely geometry instance.
 
     Raises:
         InvalidWKTStringOrType: If WKT parsing fails or type does not match `expected_type`.
@@ -498,28 +495,25 @@ def is_valid_transition(
     return new_state in transitions[old_state]
 
 
-T = TypeVar("T", bound=ORMbase)
-
-
 def validate_id(
     session: Session,
-    model_cls: Type[T],
+    model_cls: Type[ORMbaseT],
     unique_id: int,
     column: Union[InstrumentedAttribute, str],
     extra_filter: ClauseElement[bool] | None = None,
-) -> T:
+) -> ORMbaseT:
     """
     Generic function to validate an ID based on a given model class.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[T]): The ORM model class.
+        model_cls (Type[ORMbaseT]): The ORM model class.
         unique_id (int): The ID of the record to fetch.
         column (InstrumentedAttribute | str): ORM column or field name for error messages.
         extra_filter (ClauseElement[bool] | None): Additional filters to apply, defaults to None.
 
     Returns:
-        T: The instance of the model class matching the given ID.
+        ORMbaseT: The instance of the model class matching the given ID.
 
     Raises:
         UnknownValue: If no instance with the provided ID exists.
