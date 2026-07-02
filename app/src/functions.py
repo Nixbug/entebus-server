@@ -111,9 +111,12 @@ def enum_str(enum_class: Type[Enum]) -> str:
     return ", ".join(f"{x.name}: {x.value}" for x in enum_class)
 
 
+T = TypeVar("T", ExecutiveToken, OperatorToken, VendorToken)
+
+
 def cleanup_old_tokens(
     session: Session,
-    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
+    model_cls: Type[T],
     filter_condition: ColumnElement[bool],
     max_tokens: int,
 ) -> None:
@@ -126,8 +129,8 @@ def cleanup_old_tokens(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The ORM model class.
-        filter_condition (Column): SQLAlchemy filter condition.
+        model_cls (Type[T]): The ORM model class for the token (ExecutiveToken, OperatorToken, VendorToken).
+        filter_condition (ColumnElement[bool]): SQLAlchemy filter condition.
         max_tokens (int): The maximum number of tokens allowed.
 
     Returns:

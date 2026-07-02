@@ -218,11 +218,11 @@ def validate_and_revoke_refresh_token(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[Union[ExecutiveToken, OperatorToken, VendorToken]]): The ORM model class.
+        model_cls (Type[T]): The ORM model class for the token (ExecutiveToken, OperatorToken, VendorToken).
         form_param (Any): Form parameters containing refresh_token and grant_type.
 
     Returns:
-        token: The valid token object from the database.
+        T: The valid token object from the database.
 
     Raises:
         InvalidGrantType: If the grant_type is not REFRESH_TOKEN.
