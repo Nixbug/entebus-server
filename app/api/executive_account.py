@@ -1,24 +1,26 @@
 """
-Executive Account API Router for EnteBus.
+Executive Account API router.
 
-Provides endpoints for managing executive accounts, including creation,
-update, deletion, and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing executive accounts:
+    - POST (executive)
+    - PATCH (executive)
+    - DELETE (executive)
+    - GET (executive)
 """
 
 from datetime import datetime
 from enum import StrEnum
-from typing import List
-from fastapi import APIRouter, Query, Response, status, Depends
+from typing import Annotated, cast
+from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
-from pydantic_extra_types.phone_numbers import PhoneNumber
 from pydantic import BaseModel, EmailStr, Field
+from pydantic_extra_types.phone_numbers import PhoneNumber
 from sqlalchemy import String, or_
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive
 from app.src.buckets import EXECUTIVE_IMAGES
-from app.src.db import Executive, ExecutiveImage, ExecutiveToken, SessionLocal
+from app.src.db import Executive, ExecutiveImage, ExecutiveToken, get_db_session
 from app.src.enums import AccountStatus, GenderType, OrderIn
 from app.src.filters import (
     AccountDataFilter,
@@ -29,7 +31,7 @@ from app.src.filters import (
 )
 from app.src.minio import delete_file
 from app.src.permissions.executive import PermissionPath
-from app.src import exceptions
+from app.src import exceptions, schemas
 from app.src.regex import PASSWORD_PATTERN, USERNAME_PATTERN
 from app.src.urls import URL_EXECUTIVE_ACCOUNT
 from app.src.openobserve import log_event
@@ -98,19 +100,23 @@ class CreateForm(BaseModel):
 class UpdateForm(BaseModel):
     """Form data for updating an executive account."""
 
-    password: str = Field(
+    password: str | None = Field(
         default=None, min_length=8, max_length=32, pattern=PASSWORD_PATTERN
     )
-    gender: GenderType = Field(description=enum_str(GenderType), default=None)
-    full_name: str | None = Field(min_length=1, max_length=32, default=None)
-    designation: str | None = Field(min_length=1, max_length=32, default=None)
-    phone_number: PhoneNumber | None = Field(
+    gender: GenderType | None = Field(description=enum_str(GenderType), default=None)
+    full_name: Annotated[str | None, "nullable"] = Field(
+        min_length=1, max_length=32, default=None
+    )
+    designation: Annotated[str | None, "nullable"] = Field(
+        min_length=1, max_length=32, default=None
+    )
+    phone_number: Annotated[PhoneNumber | None, "nullable"] = Field(
         max_length=32, default=None, description="Phone number in RFC 3966 format"
     )
-    email_id: EmailStr | None = Field(
+    email_id: Annotated[EmailStr | None, "nullable"] = Field(
         max_length=256, default=None, description="Email in RFC 5322 format"
     )
-    status: AccountStatus = Field(description=enum_str(AccountStatus), default=None)
+    status: AccountStatus | None = Field(description=enum_str(AccountStatus), default=None)
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +141,7 @@ class QueryParams(
 
     search: str | None = Field(Query(default=None))
     designation: str | None = Field(Query(default=None))
-    status_list: List[AccountStatus] | None = Field(
+    status_list: list[AccountStatus] | None = Field(
         Query(default=None, description=enum_str(AccountStatus))
     )
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
@@ -147,13 +153,20 @@ class QueryParams(
 # ---------------------------------------------------------------------------
 ## Core Functions
 # ---------------------------------------------------------------------------
-def create_executive(session: Session, form_param: CreateForm) -> dict:
+def create_executive(
+    session: Session,
+    form_param: CreateForm,
+    token: ExecutiveToken,
+    request_info: schemas.RequestInfo,
+) -> dict:
     """
-    Creates a new executive account with the provided form data.
+    Create a new executive account in the database.
 
     Args:
         session (Session): Active SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a new executive account.
+        token (ExecutiveToken): Authenticated executive token.
+        request_info (schemas.RequestInfo): Request information for logging.
 
     Returns:
         dict: Created executive account data.
@@ -170,24 +183,31 @@ def create_executive(session: Session, form_param: CreateForm) -> dict:
     session.add(executive)
     session.commit()
     session.refresh(executive)
-    return jsonable_encoder(executive, exclude={Executive.password.name})
+
+    executive_data = executive_to_dict(executive)
+    log_event(token, request_info, executive_data)
+    return executive_data
 
 
 def update_executive(
-    session: Session, id: int, form_param: UpdateForm
-) -> tuple[bool, dict]:
+    session: Session,
+    id: int,
+    form_param: UpdateForm,
+    token: ExecutiveToken,
+    request_info: schemas.RequestInfo,
+) -> dict:
     """
-    Updates an Executive account with the provided form data.
+    Update an existing executive account in the database.
 
     Args:
-        session (Session): SQLAlchemy database session.
+        session (Session): Active SQLAlchemy database session.
         id (int): ID of the executive account to update.
         form_param (UpdateForm): Form data containing fields to update.
+        token (ExecutiveToken): Authenticated executive token.
+        request_info (schemas.RequestInfo): Request information for logging.
 
     Returns:
-        Tuple[bool, dict]:
-            - bool: True if the executive account was modified and the changes were committed.
-            - dict: JSON-encoded representation of the updated executive account.
+        dict: Updated executive account data.
     """
     executive = validate_id(session, Executive, id, Executive.id)
 
@@ -202,23 +222,29 @@ def update_executive(
         update_data.pop("status")
 
     update_if_changed(executive, update_data)
-    updated = session.is_modified(executive)
-    if updated:
+    if session.is_modified(executive):
         session.commit()
         session.refresh(executive)
-    return updated, jsonable_encoder(executive, exclude={Executive.password.name})
+        executive_data = executive_to_dict(executive)
+        log_event(token, request_info, executive_data)
+    else:
+        executive_data = executive_to_dict(executive)
+    return executive_data
 
 
-def search_executives(session: Session, query_params: QueryParams) -> List[Executive]:
+def search_executives(session: Session, query_params: QueryParams) -> list[Executive]:
     """
-    Searches for executive accounts based on the provided query parameters.
+    Search for executive accounts based on provided query parameters.
+
+    This function supports multiple filtering, searching, ordering, and
+    pagination capabilities to retrieve executive accounts that match various criteria.
 
     Args:
-        session (Session): SQLAlchemy database session.
-        query_params (QueryParams): Query parameters for filtering and pagination.
+        session (Session): Active SQLAlchemy database session.
+        query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
-        List[Executive]: List of executive accounts matching the search criteria.
+        list[Executive]: List of executive accounts that match the search criteria.
     """
     query = session.query(Executive)
     if query_params.designation is not None:
@@ -261,35 +287,39 @@ def search_executives(session: Session, query_params: QueryParams) -> List[Execu
     return executives
 
 
-def delete_executive(session: Session, id: int) -> tuple[bool, dict]:
+def delete_executive(
+    session: Session,
+    id: int,
+    token: ExecutiveToken,
+    request_info: schemas.RequestInfo,
+):
     """
     Delete an executive account from the database.
 
     Args:
         session (Session): Active SQLAlchemy database session.
         id (int): ID of the executive account to delete.
-
-    Returns:
-        Tuple[bool, dict]:
-            - bool: True if the executive account was found and deleted, False otherwise.
-            - dict: JSON-encoded representation of the deleted executive account, or an empty dictionary if not found.
+        token (ExecutiveToken): Authenticated executive token.
+        request_info (schemas.RequestInfo): Request information for logging.
     """
     executive = session.query(Executive).filter(Executive.id == id).first()
-    if executive is not None:
-        executive_images = (
-            session.query(ExecutiveImage)
-            .filter(ExecutiveImage.executive_id == id)
-            .all()
-        )
-        executive_data = jsonable_encoder(executive, exclude={Executive.password.name})
-        session.delete(executive)
-        session.commit()
+    if executive is None:
+        return
 
-        # Delete executive images from object storage
-        for executive_image in executive_images:
-            delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
-        return True, executive_data
-    return False, {}
+    executive_images = (
+        session.query(ExecutiveImage)
+        .filter(ExecutiveImage.executive_id == id)
+        .all()
+    )
+    executive_data = executive_to_dict(executive)
+    session.delete(executive)
+    session.commit()
+
+    # Delete executive images from object storage.
+    for executive_image in executive_images:
+        delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
+
+    log_event(token, request_info, executive_data)
 
 
 # ---------------------------------------------------------------------------
@@ -365,20 +395,18 @@ async def create_executive_account_for_executive(
     form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-        token = authorize_executive(
-            session, access_token, [PermissionPath.CREATE_EXECUTIVE]
+        token = cast(
+            ExecutiveToken,
+            authorize_executive(
+                session, access_token, [PermissionPath.CREATE_EXECUTIVE]
+            ),
         )
-
-        executive_data = create_executive(session, form_param)
-        log_event(token, request_info, executive_data)
-        return executive_data
+        return create_executive(session, form_param, token, request_info)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.patch(
@@ -394,10 +422,10 @@ async def update_executive_account_for_executive(
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
+        token = cast(ExecutiveToken, verify_token(session, ExecutiveToken, access_token))
 
         is_self_update = id == token.executive_id
         if not is_self_update:
@@ -406,14 +434,9 @@ async def update_executive_account_for_executive(
         if is_self_update and form_param.status is not None:
             raise exceptions.NoPermission()
 
-        updated, executive_data = update_executive(session, id, form_param)
-        if updated:
-            log_event(token, request_info, executive_data)
-        return executive_data
+        return update_executive(session, id, form_param, token, request_info)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -428,24 +451,23 @@ async def delete_executive_account_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-        token = authorize_executive(
-            session, access_token, [PermissionPath.DELETE_EXECUTIVE]
+        token = cast(
+            ExecutiveToken,
+            authorize_executive(
+                session, access_token, [PermissionPath.DELETE_EXECUTIVE]
+            ),
         )
 
         if token.executive_id == id:
             raise exceptions.NoPermission()
 
-        deleted, executive_data = delete_executive(session, id)
-        if deleted:
-            log_event(token, request_info, executive_data)
+        delete_executive(session, id, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
@@ -459,13 +481,10 @@ async def delete_executive_account_for_executive(
 async def fetch_executive_accounts_for_executive(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
-        return search_executives(session, query_params)
+        return [executive_to_dict(executive) for executive in search_executives(session, query_params)]
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
