@@ -9,7 +9,7 @@ import pyproj
 from enum import Enum
 from io import BytesIO
 from PIL import Image
-from typing import Any, Dict, Sequence, Type, TypeVar, Union
+from typing import Any, Dict, Sequence, Type
 from fastapi import Query, Request
 from pydantic import BaseModel
 from shapely import wkb
@@ -34,6 +34,7 @@ from app.src.db import (
     VendorRoleMap,
     VendorToken,
 )
+from app.src.types import BaseModelT, TokenT
 
 
 def get_request_info(request: Request) -> schemas.RequestInfo:
@@ -112,12 +113,9 @@ def enum_str(enum_class: Type[Enum]) -> str:
     return ", ".join(f"{x.name}: {x.value}" for x in enum_class)
 
 
-T = TypeVar("T", ExecutiveToken, OperatorToken, VendorToken)
-
-
 def cleanup_old_tokens(
     session: Session,
-    model_cls: Type[T],
+    model_cls: Type[TokenT],
     filter_condition: ColumnElement[bool],
     max_tokens: int,
 ) -> None:
@@ -130,7 +128,7 @@ def cleanup_old_tokens(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[T]): The ORM model class for the token (ExecutiveToken, OperatorToken, VendorToken).
+        model_cls (Type[TokenT]): The ORM model class for the token (ExecutiveToken, OperatorToken, VendorToken).
         filter_condition (ColumnElement[bool]): SQLAlchemy filter condition.
         max_tokens (int): The maximum number of tokens allowed.
 
@@ -525,19 +523,16 @@ def get_area(geom: BaseGeometry) -> float:
     return projected_geom.area
 
 
-T = TypeVar("T", bound=BaseModel)
-
-
-def resolve_model_defaults(model_cls: Type[T], **overrides) -> T:
+def resolve_model_defaults(model_cls: Type[BaseModelT], **overrides) -> BaseModelT:
     """
     Build a model instance with all Query() defaults resolved to concrete values.
 
     Args:
-        model_cls (Type[T]): The Pydantic model class to build.
+        model_cls (Type[BaseModelT]): The Pydantic model class to build.
         **overrides: Field values to override the defaults.
 
     Returns:
-        T: An instance of model_cls with all Query() defaults resolved.
+        BaseModelT: An instance of model_cls with all Query() defaults resolved.
     """
     data = {}
     for field_name, field_info in model_cls.model_fields.items():
