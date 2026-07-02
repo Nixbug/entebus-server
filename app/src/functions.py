@@ -18,6 +18,7 @@ from sqlalchemy.orm.session import Session
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform
 from datetime import datetime
+from geoalchemy2.shape import from_shape
 
 from app.src import schemas, exceptions
 from app.src.constants import TMZ_PRIMARY
@@ -503,6 +504,19 @@ def load_geometry(value: WKBElement) -> BaseGeometry:
     return wkb.loads(bytes(value.data))
 
 
+def to_WKB(geometry: BaseGeometry) -> WKBElement:
+    """
+    Convert a Shapely geometry to a WKBElement with SRID 4326.
+
+    Args:
+        geometry (BaseGeometry): The Shapely geometry to convert.
+
+    Returns:
+        WKBElement: The corresponding WKBElement with SRID 4326.
+    """
+    return from_shape(geometry, srid=4326)
+
+
 def get_area(geom: BaseGeometry) -> float:
     """
     Calculate the area of a Shapely geometry in square meters.
@@ -573,7 +587,7 @@ def is_valid_transition(
 
 def normalize_timestamp(timestamp: datetime) -> datetime:
     """
-     Normalize a naive or timezone-aware timestamp to UTC.
+    Normalize a naive or timezone-aware timestamp to UTC.
 
     Args:
          timestamp (datetime): The input timestamp, which can be naive or timezone-aware.

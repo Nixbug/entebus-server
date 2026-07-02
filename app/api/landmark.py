@@ -70,6 +70,7 @@ from app.src.functions import (
     get_area,
     get_request_info,
     load_geometry,
+    to_WKB,
     update_if_changed,
     apply_type_filters,
 )
@@ -258,11 +259,9 @@ def create_landmark(
         dict: Created landmark data with boundary in WKT format.
     """
     boundary_geom = validate_boundary(session, form_param.boundary)
-    boundary = wkt.dumps(boundary_geom)
-
     landmark = Landmark(
         name=form_param.name,
-        boundary=boundary,
+        boundary=to_WKB(boundary_geom),
         type=form_param.type,
         alias_names=form_param.alias_names,
     )
@@ -317,7 +316,7 @@ def update_landmark(
                 bus_stop_geom = load_geometry(bus_stop.location)
                 if not bus_stop_geom.within(new_boundary_geom):
                     raise exceptions.BusStopOutsideLandmark()
-            landmark.boundary = from_shape(new_boundary_geom, srid=4326)
+            landmark.boundary = to_WKB(new_boundary_geom)
         update_data.pop("boundary")
 
     update_if_changed(landmark, update_data)
