@@ -291,7 +291,7 @@ def update_bus_stop(
 
 def delete_bus_stop(
     session: Session, id: int, token: ExecutiveToken, request_info: schemas.RequestInfo
-):
+) -> None:
     """
     Delete a bus stop from the database.
 

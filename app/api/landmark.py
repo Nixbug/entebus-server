@@ -333,7 +333,7 @@ def update_landmark(
 
 def delete_landmark(
     session: Session, id: int, token: ExecutiveToken, request_info: schemas.RequestInfo
-):
+) -> None:
     """
     Delete a landmark from the database.
 

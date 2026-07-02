@@ -146,6 +146,7 @@ def update_executive_role_map(
     Args:
         session (Session): SQLAlchemy database session.
         id (int): ID of the executive role mapping to update.
+        form_param (UpdateForm): Form data for updating the executive role mapping.
         token (ExecutiveToken): Authenticated executive token.
         request_info (schemas.RequestInfo): Request information for logging.
 
@@ -178,16 +179,15 @@ def delete_executive_role_map(
     id: int,
     token: ExecutiveToken,
     request_info: schemas.RequestInfo,
-):
+) -> None:
     """
     Deletes an executive role mapping from the database.
 
     Args:
         session (Session): Active SQLAlchemy database session.
         id (int): ID of the executive role mapping to delete.
-
-    Returns:
-        None
+        token (ExecutiveToken): Authenticated executive token.
+        request_info (schemas.RequestInfo): Request information for logging.
     """
     executive_role_map = (
         session.query(ExecutiveRoleMap).filter(ExecutiveRoleMap.id == id).first()

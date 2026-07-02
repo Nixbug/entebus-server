@@ -181,7 +181,7 @@ def delete_executive_role(
     id: int,
     token: ExecutiveToken,
     request_info: schemas.RequestInfo,
-):
+) -> None:
     """
     Delete an executive role from the database.
 
