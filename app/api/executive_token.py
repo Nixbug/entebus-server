@@ -258,7 +258,7 @@ def revoke_executive_token(
         .first()
     )
     if executive_token is None:
-        return False
+        return
 
     executive_token.is_revoked = True
     session.commit()
