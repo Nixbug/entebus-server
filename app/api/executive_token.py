@@ -282,7 +282,7 @@ def delete_executive_token(
         id (int): ID of the executive token to delete.
         token (ExecutiveToken): Authenticated executive token.
         request_info (schemas.RequestInfo): Request information for logging.
-        has_permission (bool): Whether the executive has permission to delete other executives' tokens.
+        has_permission (bool): Whether the executive has permission to delete other executives tokens.
     """
     executive_token = (
         session.query(ExecutiveToken)

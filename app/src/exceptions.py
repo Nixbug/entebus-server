@@ -359,6 +359,16 @@ class InvalidImageFile(APIException):
     detail = "Invalid image provided"
 
 
+class FileNotFound(APIException):
+    """
+    Raised when a file is missing from the storage.
+    """
+
+    status_code = status.HTTP_410_GONE
+    headers = {"X-Error": "FileNotFound"}
+    detail = "File not found"
+
+
 class InvalidWKTStringOrType(APIException):
     """
     Raised when an invalid WKT string or type is provided.

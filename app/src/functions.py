@@ -477,7 +477,9 @@ def update_if_changed(target_obj: Any, source_obj: dict) -> None:
             setattr(target_obj, field, new_value)
 
 
-def resize_image(file_bytes: bytes, width: int = None, height: int = None) -> bytes:
+def resize_image(
+    file_bytes: bytes, width: int | None = None, height: int | None = None
+) -> bytes:
     """
     Resize an image file to fit within the specified width and height while maintaining aspect ratio.
 
@@ -487,8 +489,8 @@ def resize_image(file_bytes: bytes, width: int = None, height: int = None) -> by
 
     Args:
         file_bytes (bytes): The bytes of the image file.
-        width (int): The width for the resized image, defaults to None.
-        height (int): The height for the resized image, defaults to None.
+        width (int | None): The width for the resized image, defaults to None.
+        height (int | None): The height for the resized image, defaults to None.
 
     Returns:
         bytes: The resized image file as bytes.
