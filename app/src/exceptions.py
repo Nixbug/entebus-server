@@ -228,9 +228,8 @@ class UnknownValue(APIException):
     headers = {"X-Error": "UnknownValue"}
 
     def __init__(self, column: Union[InstrumentedAttribute, str]):
-        if isinstance(column, str):
-            column = type("Column", (), {"name": column})()
-        detail = f"Unknown {column.name} is provided"
+        column_name = column if isinstance(column, str) else column.key
+        detail = f"Unknown {column_name} is provided"
         super().__init__(detail=detail)
 
 
@@ -243,9 +242,8 @@ class InvalidValue(APIException):
     headers = {"X-Error": "InvalidValue"}
 
     def __init__(self, column: Union[InstrumentedAttribute, str]):
-        if isinstance(column, str):
-            column = type("Column", (), {"name": column})()
-        detail = f"Invalid {column.name} is provided"
+        column_name = column if isinstance(column, str) else column.key
+        detail = f"Invalid {column_name} is provided"
         super().__init__(detail=detail)
 
 
