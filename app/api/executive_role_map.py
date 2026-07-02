@@ -1,14 +1,16 @@
 """
-Executive Role Map API Router for EnteBus.
+Executive Role Map API router.
 
-Provides endpoints for managing executive role mappings, including creation,
-update, deletion, and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing executive role maps:
+    - POST (executive)
+    - PATCH (executive)
+    - DELETE (executive)
+    - GET (executive)
 """
 
 from datetime import datetime
-from fastapi import APIRouter, Response, status, Depends, Query
 from enum import StrEnum
+from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
@@ -16,16 +18,17 @@ from sqlalchemy.orm.session import Session
 from app.api.bearer import oauth2_executive
 from app.src.db import (
     Executive,
+    ExecutiveRole,
     ExecutiveRoleMap,
     ExecutiveToken,
-    SessionLocal,
-    ExecutiveRole,
+    get_db_session,
 )
 from app.src.enums import OrderIn
 from app.src.filters import IDFilter, PaginationFilter, UpdatedOnFilter, CreatedOnFilter
 from app.src.urls import URL_EXECUTIVE_ROLE_MAP
 from app.src.permissions.executive import PermissionPath
-from app.src import exceptions
+from app.src import exceptions, schemas
+from app.src.schemas import PatchForm
 from app.src.openobserve import log_event
 from app.src.validators import validate_id, verify_token, authorize_executive
 from app.src.functions import (
@@ -64,10 +67,10 @@ class CreateForm(BaseModel):
     executive_id: int = Field()
 
 
-class UpdateForm(BaseModel):
+class UpdateForm(PatchForm):
     """Form data for updating an executive role mapping."""
 
-    role_id: int = Field(default=None)
+    role_id: int | None = Field(default=None)
 
 
 # ---------------------------------------------------------------------------
@@ -95,13 +98,20 @@ class QueryParams(UpdatedOnFilter, CreatedOnFilter, IDFilter, PaginationFilter):
 # ---------------------------------------------------------------------------
 ## Core Functions
 # ---------------------------------------------------------------------------
-def create_executive_role_map(session: Session, form_param: CreateForm) -> dict:
+def create_executive_role_map(
+    session: Session,
+    form_param: CreateForm,
+    token: ExecutiveToken,
+    request_info: schemas.RequestInfo,
+) -> dict:
     """
     Creates a new executive role mapping with the provided form data.
 
     Args:
         session (Session): Active SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a new executive role mapping.
+        token (ExecutiveToken): Authenticated executive token.
+        request_info (schemas.RequestInfo): Request information for logging.
 
     Returns:
         dict: Created executive role mapping data.
@@ -111,47 +121,84 @@ def create_executive_role_map(session: Session, form_param: CreateForm) -> dict:
     )
     validate_id(session, ExecutiveRole, form_param.role_id, ExecutiveRoleMap.role_id)
 
-    role_map = ExecutiveRoleMap(
+    executive_role_map = ExecutiveRoleMap(
         role_id=form_param.role_id, executive_id=form_param.executive_id
     )
-    session.add(role_map)
+    session.add(executive_role_map)
     session.commit()
-    session.refresh(role_map)
-    return jsonable_encoder(role_map)
+    session.refresh(executive_role_map)
+
+    executive_role_map_data = jsonable_encoder(executive_role_map)
+    log_event(token, request_info, executive_role_map_data)
+    return executive_role_map_data
 
 
 def update_executive_role_map(
-    session: Session, id: int, form_param: UpdateForm
-) -> tuple[bool, dict]:
+    session: Session,
+    id: int,
+    form_param: UpdateForm,
+    token: ExecutiveToken,
+    request_info: schemas.RequestInfo,
+) -> dict:
     """
     Updates an Executive role mapping with the provided form data.
 
     Args:
         session (Session): SQLAlchemy database session.
         id (int): ID of the executive role mapping to update.
-        form_param (UpdateForm): Form data containing fields to update.
+        form_param (UpdateForm): Form data for updating the executive role mapping.
+        token (ExecutiveToken): Authenticated executive token.
+        request_info (schemas.RequestInfo): Request information for logging.
 
     Returns:
-        Tuple[bool, dict]:
-            - bool: True if the executive role mapping was modified and the changes were committed.
-            - dict: JSON-encoded representation of the updated executive role mapping.
+        dict: Updated executive role mapping data.
     """
-    role_map = validate_id(session, ExecutiveRoleMap, id, ExecutiveRoleMap.id)
+    executive_role_map = validate_id(session, ExecutiveRoleMap, id, ExecutiveRoleMap.id)
 
     update_data = form_param.model_dump(exclude_unset=True)
     if "role_id" in update_data:
-        if role_map.role_id != form_param.role_id:
+        if executive_role_map.role_id != update_data["role_id"]:
             validate_id(
-                session, ExecutiveRole, form_param.role_id, ExecutiveRoleMap.role_id
+                session, ExecutiveRole, update_data["role_id"], ExecutiveRoleMap.role_id
             )
-            role_map.role_id = form_param.role_id
-            update_data.pop("role_id")
+            executive_role_map.role_id = update_data["role_id"]
+        update_data.pop("role_id")
 
-    updated = session.is_modified(role_map)
-    if updated:
+    if session.is_modified(executive_role_map):
         session.commit()
-        session.refresh(role_map)
-    return updated, jsonable_encoder(role_map)
+        session.refresh(executive_role_map)
+        executive_role_map_data = jsonable_encoder(executive_role_map)
+        log_event(token, request_info, executive_role_map_data)
+    else:
+        executive_role_map_data = jsonable_encoder(executive_role_map)
+    return executive_role_map_data
+
+
+def delete_executive_role_map(
+    session: Session,
+    id: int,
+    token: ExecutiveToken,
+    request_info: schemas.RequestInfo,
+) -> None:
+    """
+    Deletes an executive role mapping from the database.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        id (int): ID of the executive role mapping to delete.
+        token (ExecutiveToken): Authenticated executive token.
+        request_info (schemas.RequestInfo): Request information for logging.
+    """
+    executive_role_map = (
+        session.query(ExecutiveRoleMap).filter(ExecutiveRoleMap.id == id).first()
+    )
+    if executive_role_map is None:
+        return
+
+    executive_role_map_data = jsonable_encoder(executive_role_map)
+    session.delete(executive_role_map)
+    session.commit()
+    log_event(token, request_info, executive_role_map_data)
 
 
 def search_executive_role_maps(
@@ -188,30 +235,8 @@ def search_executive_role_maps(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    role_maps = query.all()
-    return role_maps
-
-
-def delete_executive_role_map(session: Session, id: int) -> tuple[bool, dict]:
-    """
-    Deletes an executive role mapping from the database.
-
-    Args:
-        session (Session): Active SQLAlchemy database session.
-        id (int): ID of the executive role mapping to delete.
-
-    Returns:
-        Tuple[bool, dict]:
-            - bool: True if the executive role mapping was found and deleted.
-            - dict: JSON-encoded representation of the deleted executive role mapping.
-    """
-    role_map = session.query(ExecutiveRoleMap).filter(ExecutiveRoleMap.id == id).first()
-    if role_map is not None:
-        role_map_data = jsonable_encoder(role_map)
-        session.delete(role_map)
-        session.commit()
-        return True, role_map_data
-    return False, {}
+    executive_role_maps = query.all()
+    return executive_role_maps
 
 
 # ---------------------------------------------------------------------------
@@ -287,20 +312,15 @@ async def create_executive_role_map_for_executive(
     form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session, access_token, [PermissionPath.UPDATE_EXECUTIVE_ROLE]
         )
-
-        role_map_data = create_executive_role_map(session, form_param)
-        log_event(token, request_info, role_map_data)
-        return role_map_data
+        return create_executive_role_map(session, form_param, token, request_info)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.patch(
@@ -317,21 +337,15 @@ async def update_executive_role_map_for_executive(
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session, access_token, [PermissionPath.UPDATE_EXECUTIVE_ROLE]
         )
-
-        updated, role_map_data = update_executive_role_map(session, id, form_param)
-        if updated:
-            log_event(token, request_info, role_map_data)
-        return role_map_data
+        return update_executive_role_map(session, id, form_param, token, request_info)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -346,21 +360,16 @@ async def delete_executive_role_map_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session, access_token, [PermissionPath.UPDATE_EXECUTIVE_ROLE]
         )
-
-        deleted, role_map_data = delete_executive_role_map(session, id)
-        if deleted:
-            log_event(token, request_info, role_map_data)
+        delete_executive_role_map(session, id, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
@@ -374,13 +383,10 @@ async def delete_executive_role_map_for_executive(
 async def fetch_executive_role_maps_for_executive(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
         return search_executive_role_maps(session, query_params)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()

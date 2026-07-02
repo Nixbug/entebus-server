@@ -9,15 +9,17 @@ import pyproj
 from enum import Enum
 from io import BytesIO
 from PIL import Image
-from typing import Any, Dict, Sequence, Type, TypeVar, Union
+from typing import Any, Dict, Sequence, Type
 from fastapi import Query, Request
 from pydantic import BaseModel
 from shapely import wkb
-from sqlalchemy import ColumnElement, asc, desc
+from sqlalchemy import asc, desc
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.orm.session import Session
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform
 from datetime import datetime
+from geoalchemy2.shape import from_shape
 
 from app.src import schemas, exceptions
 from app.src.constants import TMZ_PRIMARY
@@ -33,6 +35,7 @@ from app.src.db import (
     VendorRoleMap,
     VendorToken,
 )
+from app.src.types import BaseModelT, TokenT
 
 
 def get_request_info(request: Request) -> schemas.RequestInfo:
@@ -113,7 +116,7 @@ def enum_str(enum_class: Type[Enum]) -> str:
 
 def cleanup_old_tokens(
     session: Session,
-    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
+    model_cls: Type[TokenT],
     filter_condition: ColumnElement[bool],
     max_tokens: int,
 ) -> None:
@@ -126,8 +129,8 @@ def cleanup_old_tokens(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The ORM model class.
-        filter_condition (Column): SQLAlchemy filter condition.
+        model_cls (Type[TokenT]): The ORM model class for the token (ExecutiveToken, OperatorToken, VendorToken).
+        filter_condition (ColumnElement[bool]): SQLAlchemy filter condition.
         max_tokens (int): The maximum number of tokens allowed.
 
     Returns:
@@ -503,6 +506,19 @@ def load_geometry(value: WKBElement) -> BaseGeometry:
     return wkb.loads(bytes(value.data))
 
 
+def to_WKB(geometry: BaseGeometry) -> WKBElement:
+    """
+    Convert a Shapely geometry to a WKBElement with SRID 4326.
+
+    Args:
+        geometry (BaseGeometry): The Shapely geometry to convert.
+
+    Returns:
+        WKBElement: The corresponding WKBElement with SRID 4326.
+    """
+    return from_shape(geometry, srid=4326)
+
+
 def get_area(geom: BaseGeometry) -> float:
     """
     Calculate the area of a Shapely geometry in square meters.
@@ -521,19 +537,16 @@ def get_area(geom: BaseGeometry) -> float:
     return projected_geom.area
 
 
-T = TypeVar("T", bound=BaseModel)
-
-
-def resolve_model_defaults(model_cls: Type[T], **overrides) -> T:
+def resolve_model_defaults(model_cls: Type[BaseModelT], **overrides) -> BaseModelT:
     """
     Build a model instance with all Query() defaults resolved to concrete values.
 
     Args:
-        model_cls (Type[T]): The Pydantic model class to build.
+        model_cls (Type[BaseModelT]): The Pydantic model class to build.
         **overrides: Field values to override the defaults.
 
     Returns:
-        T: An instance of model_cls with all Query() defaults resolved.
+        BaseModelT: An instance of model_cls with all Query() defaults resolved.
     """
     data = {}
     for field_name, field_info in model_cls.model_fields.items():
@@ -573,7 +586,7 @@ def is_valid_transition(
 
 def normalize_timestamp(timestamp: datetime) -> datetime:
     """
-     Normalize a naive or timezone-aware timestamp to UTC.
+    Normalize a naive or timezone-aware timestamp to UTC.
 
     Args:
          timestamp (datetime): The input timestamp, which can be naive or timezone-aware.
