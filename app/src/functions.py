@@ -9,11 +9,12 @@ import pyproj
 from enum import Enum
 from io import BytesIO
 from PIL import Image
-from typing import Any, List, Dict, Type, TypeVar, Union
+from typing import Any, Dict, Sequence, Type
 from fastapi import Query, Request
 from pydantic import BaseModel
 from shapely import wkb
-from sqlalchemy import Column, asc, desc
+from sqlalchemy import asc, desc
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.orm.session import Session
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform
@@ -34,6 +35,7 @@ from app.src.db import (
     VendorRoleMap,
     VendorToken,
 )
+from app.src.types import BaseModelT, TokenT
 
 
 def get_request_info(request: Request) -> schemas.RequestInfo:
@@ -61,13 +63,13 @@ def get_request_info(request: Request) -> schemas.RequestInfo:
 
 
 def fuse_exception_responses(
-    exceptions: List[exceptions.APIException],
+    exceptions: Sequence[exceptions.APIException],
 ) -> Dict[int | str, Dict[str, Any]]:
     """
     Generate OpenAPI response documentation by fusing multiple APIException instances.
 
     Args:
-        exceptions (List[exceptions.APIException]): List of instantiated exceptions.
+        exceptions (Sequence[exceptions.APIException]): Sequence of instantiated exceptions.
 
     Returns:
         Dict[int | str, Dict[str, Any]]: A dictionary of OpenAPI response specs grouped by status code.
@@ -114,8 +116,8 @@ def enum_str(enum_class: Type[Enum]) -> str:
 
 def cleanup_old_tokens(
     session: Session,
-    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
-    filter_condition: Column,
+    model_cls: Type[TokenT],
+    filter_condition: ColumnElement[bool],
     max_tokens: int,
 ) -> None:
     """
@@ -127,8 +129,8 @@ def cleanup_old_tokens(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The ORM model class.
-        filter_condition (Column): SQLAlchemy filter condition.
+        model_cls (Type[TokenT]): The ORM model class for the token (ExecutiveToken, OperatorToken, VendorToken).
+        filter_condition (ColumnElement[bool]): SQLAlchemy filter condition.
         max_tokens (int): The maximum number of tokens allowed.
 
     Returns:
@@ -535,19 +537,16 @@ def get_area(geom: BaseGeometry) -> float:
     return projected_geom.area
 
 
-T = TypeVar("T", bound=BaseModel)
-
-
-def resolve_model_defaults(model_cls: Type[T], **overrides) -> T:
+def resolve_model_defaults(model_cls: Type[BaseModelT], **overrides) -> BaseModelT:
     """
     Build a model instance with all Query() defaults resolved to concrete values.
 
     Args:
-        model_cls (Type[T]): The Pydantic model class to build.
+        model_cls (Type[BaseModelT]): The Pydantic model class to build.
         **overrides: Field values to override the defaults.
 
     Returns:
-        T: An instance of model_cls with all Query() defaults resolved.
+        BaseModelT: An instance of model_cls with all Query() defaults resolved.
     """
     data = {}
     for field_name, field_info in model_cls.model_fields.items():
