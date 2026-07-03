@@ -200,9 +200,6 @@ def authenticate_vendor(
     return user_credentials(vendor, credentials)
 
 
-T = TypeVar("T", ExecutiveToken, OperatorToken, VendorToken)
-
-
 def validate_and_revoke_refresh_token(
     session: Session,
     model_cls: Type[TokenT],
