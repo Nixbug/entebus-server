@@ -9,7 +9,7 @@ input validation and structured output.
 from datetime import datetime
 from enum import StrEnum
 from typing import List
-from fastapi import APIRouter, Query, Response, status, Depends
+from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from shapely import wkb, wkt
@@ -24,9 +24,9 @@ from app.src.db import (
     Business,
     BusinessWallet,
     ExecutiveToken,
+    get_db_session,
     VendorImage,
     VendorToken,
-    SessionLocal,
     Wallet,
 )
 from app.src.filters import (
@@ -280,7 +280,10 @@ def create_business(session: Session, form_param: CreateForm) -> dict:
 
 
 def update_business(
-    session: Session, id: int, form_param: UpdateForm, business_filter=None
+    session: Session,
+    id: int,
+    form_param: UpdateForm,
+    business_filter=None,
 ) -> tuple[bool, dict]:
     """
     Updates a Business with the provided form data.
@@ -292,7 +295,7 @@ def update_business(
         business_filter (Optional): Additional filter for business validation.
 
     Returns:
-        Tuple[bool, dict]:
+        tuple[bool, dict]:
             - bool: True if the business was modified and the changes were committed.
             - dict: JSON-encoded representation of the updated business.
     """
@@ -332,7 +335,7 @@ def update_business(
     return updated, business_to_dict(business)
 
 
-def search_businesses(session: Session, query_params: QueryParams) -> List[Business]:
+def search_businesses(session: Session, query_params: QueryParams) -> list[Business]:
     """
     Search for businesses based on provided query parameters.
 
@@ -344,7 +347,7 @@ def search_businesses(session: Session, query_params: QueryParams) -> List[Busin
         query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
-        List[Business]: List of businesses that match the search criteria.
+        list[Business]: List of businesses that match the search criteria.
     """
     query = session.query(Business)
     validated_location = None
@@ -519,9 +522,9 @@ async def create_business_for_executive(
     form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
@@ -533,8 +536,6 @@ async def create_business_for_executive(
         return business_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.patch(
@@ -554,9 +555,9 @@ async def update_business_for_executive(
     form_param: UpdateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
@@ -573,24 +574,22 @@ async def update_business_for_executive(
         return business_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
     URL_BUSINESS,
     summary="Fetch business",
     tags=["Business"],
-    response_model=List[BusinessSchema],
+    response_model=list[BusinessSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_businesses_for_executive(
     query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
 
         return [
@@ -599,8 +598,6 @@ async def fetch_businesses_for_executive(
         ]
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -619,9 +616,9 @@ async def delete_business_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
@@ -634,8 +631,6 @@ async def delete_business_for_executive(
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -658,9 +653,9 @@ async def update_business_for_vendor(
     form_param: UpdateFormForVE,
     access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_vendor(
             session,
             access_token.credentials,
@@ -678,21 +673,21 @@ async def update_business_for_vendor(
         return business_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_vendor.get(
     URL_BUSINESS,
     summary="Fetch business",
     tags=["Business"],
-    response_model=List[BusinessSchema],
+    response_model=list[BusinessSchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
     description=(GET_DESCRIPTION.to_string()),
 )
-async def fetch_businesses_for_vendor(access_token=Depends(bearer_vendor)):
+async def fetch_businesses_for_vendor(
+    access_token=Depends(bearer_vendor),
+    session: Session = Depends(get_db_session),
+):
     try:
-        session = SessionLocal()
         token = verify_token(session, VendorToken, access_token.credentials)
 
         query_params = resolve_model_defaults(
@@ -704,8 +699,6 @@ async def fetch_businesses_for_vendor(access_token=Depends(bearer_vendor)):
         ]
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -715,7 +708,7 @@ async def fetch_businesses_for_vendor(access_token=Depends(bearer_vendor)):
     URL_BUSINESS,
     summary="Fetch business",
     tags=["Business"],
-    response_model=List[MaskedBusinessSchema],
+    response_model=list[MaskedBusinessSchema],
     responses=fuse_exception_responses(
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
@@ -728,19 +721,15 @@ async def fetch_businesses_for_vendor(access_token=Depends(bearer_vendor)):
 )
 async def fetch_businesses_for_public(
     query_params: QueryParamsForPU = Depends(),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-
         query_params = QueryParams(
             **query_params.model_dump(),
             status_list=[BusinessStatus.ACTIVE],
             address=None,
             description=None,
         )
-        businesses = search_businesses(session, query_params)
-        return businesses
+        return search_businesses(session, query_params)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()

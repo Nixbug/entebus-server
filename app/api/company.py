@@ -9,7 +9,7 @@ input validation and structured output.
 from datetime import datetime
 from enum import StrEnum
 from typing import List
-from fastapi import APIRouter, Query, Response, status, Depends
+from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from shapely import wkb, wkt
@@ -22,13 +22,14 @@ from app.api.bearer import oauth2_executive, bearer_operator
 from app.src.buckets import OPERATOR_IMAGES, VEHICLE_IMAGES
 from app.src.db import (
     Company,
+    CompanyWallet,
     ExecutiveToken,
+    OperatorImage,
     OperatorToken,
     SessionLocal,
     VehicleImage,
     Wallet,
-    CompanyWallet,
-    OperatorImage,
+    get_db_session,
 )
 from app.src.filters import (
     CreatedOnFilter,
@@ -280,7 +281,10 @@ def create_company(session: Session, form_param: CreateForm) -> dict:
 
 
 def update_company(
-    session: Session, id: int, form_param: UpdateForm, company_filter=None
+    session: Session,
+    id: int,
+    form_param: UpdateForm,
+    company_filter=None,
 ) -> tuple[bool, dict]:
     """
     Updates a Company with the provided form data.
@@ -292,7 +296,7 @@ def update_company(
         company_filter (Optional): Additional filter for company validation.
 
     Returns:
-        Tuple[bool, dict]:
+        tuple[bool, dict]:
             - bool: True if the company was modified and the changes were committed.
             - dict: JSON-encoded representation of the updated company.
     """
@@ -330,7 +334,7 @@ def update_company(
     return updated, company_to_dict(company)
 
 
-def search_companies(session: Session, query_params: QueryParams) -> List[Company]:
+def search_companies(session: Session, query_params: QueryParams) -> list[Company]:
     """
     Search for companies based on provided query parameters.
 
@@ -342,7 +346,7 @@ def search_companies(session: Session, query_params: QueryParams) -> List[Compan
         query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
-        List[Company]: List of companies that match the search criteria.
+        list[Company]: List of companies that match the search criteria.
     """
     query = session.query(Company)
     validated_location = None
@@ -522,9 +526,9 @@ async def create_company_for_executive(
     form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
@@ -536,8 +540,6 @@ async def create_company_for_executive(
         return company_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.patch(
@@ -557,9 +559,9 @@ async def update_company_for_executive(
     form_param: UpdateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
@@ -574,24 +576,22 @@ async def update_company_for_executive(
         return company_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
     URL_COMPANY,
     summary="Fetch company",
     tags=["Company"],
-    response_model=List[CompanySchema],
+    response_model=list[CompanySchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_companies_for_executive(
     query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
 
         return [
@@ -600,8 +600,6 @@ async def fetch_companies_for_executive(
         ]
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -620,9 +618,9 @@ async def delete_company_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
@@ -635,8 +633,6 @@ async def delete_company_for_executive(
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -659,9 +655,9 @@ async def update_company_for_operator(
     form_param: UpdateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
@@ -679,21 +675,21 @@ async def update_company_for_operator(
         return company_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.get(
     URL_COMPANY,
     summary="Fetch company",
     tags=["Company"],
-    response_model=List[CompanySchema],
+    response_model=list[CompanySchema],
     responses=fuse_exception_responses([exceptions.InvalidToken()]),
     description=(GET_DESCRIPTION.to_string()),
 )
-async def fetch_companies_for_operator(access_token=Depends(bearer_operator)):
+async def fetch_companies_for_operator(
+    access_token=Depends(bearer_operator),
+    session: Session = Depends(get_db_session),
+):
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
 
         query_params = resolve_model_defaults(
@@ -705,8 +701,6 @@ async def fetch_companies_for_operator(access_token=Depends(bearer_operator)):
         ]
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -716,7 +710,7 @@ async def fetch_companies_for_operator(access_token=Depends(bearer_operator)):
     URL_COMPANY,
     summary="Fetch company",
     tags=["Company"],
-    response_model=List[MaskedCompanySchema],
+    response_model=list[MaskedCompanySchema],
     responses=fuse_exception_responses(
         [exceptions.InvalidWKTStringOrType(), exceptions.InvalidSRID4326()]
     ),
@@ -729,10 +723,9 @@ async def fetch_companies_for_operator(access_token=Depends(bearer_operator)):
 )
 async def fetch_companies_for_public(
     query_params: QueryParamsForPU = Depends(),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-
         query_params = QueryParams(
             **query_params.model_dump(),
             status_list=[CompanyStatus.VERIFIED],
@@ -742,5 +735,3 @@ async def fetch_companies_for_public(
         return search_companies(session, query_params)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
