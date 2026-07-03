@@ -27,11 +27,9 @@ from app.src.db import (
     Company,
     CompanyWallet,
     ExecutiveToken,
-    OperatorImage,
     OperatorToken,
     VehicleImage,
     Wallet,
-    CompanyWallet,
     OperatorImage,
     get_db_session,
 )
