@@ -1,29 +1,30 @@
 """
-Executive Image API Router for EnteBus.
+Executive Image API router.
 
-Provides endpoints for managing executive images, including creation,
-deletion, and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing executive images:
+    - POST (executive)
+    - DELETE (executive)
+    - GET (executive)
+    - GET /{id} (executive)
 """
 
+from datetime import datetime
 from enum import StrEnum
-from typing import List
-from fastapi import APIRouter, Depends, Response, Query, status, Form, UploadFile, File
+from io import BytesIO
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from io import BytesIO
-from datetime import datetime
 from sqlalchemy.orm.session import Session
 
 from app.src.buckets import EXECUTIVE_IMAGES
-from app.src import exceptions
+from app.src import exceptions, schemas
 from app.src.enums import OrderIn
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, PictureFilter
 from app.src.urls import URL_EXECUTIVE_PICTURE
 from app.src.minio import delete_file, download_file, upload_file
 from app.api.bearer import oauth2_executive
-from app.src.db import Executive, ExecutiveToken, ExecutiveImage, SessionLocal
+from app.src.db import Executive, ExecutiveImage, ExecutiveToken, get_db_session
 from app.src.permissions.executive import PermissionPath
 from app.src.openobserve import log_event
 from app.src.description import Description
@@ -121,26 +122,42 @@ class ImageQueryParams(BaseModel):
 # ---------------------------------------------------------------------------
 ## Core Functions
 # ---------------------------------------------------------------------------
-async def create_executive_image(session: Session, form_param: CreateForm) -> dict:
+async def create_executive_image(
+    session: Session,
+    form_param: CreateForm,
+    token: ExecutiveToken,
+    request_info: schemas.RequestInfo,
+    executive_id: int,
+) -> dict:
     """
-    Creates a new ExecutiveImage with the provided form data.
+    Create a new executive image in the database.
 
     Args:
         session (Session): Active SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a new executive image.
+        token (ExecutiveToken): Authenticated executive token.
+        request_info (schemas.RequestInfo): Request information for logging.
+        executive_id (int): ID of the executive for whom the image is being created.
 
     Returns:
         dict: Created executive image data.
     """
-    validate_id(
-        session, Executive, form_param.executive_id, ExecutiveImage.executive_id
-    )
+    validate_id(session, Executive, executive_id, ExecutiveImage.executive_id)
+
     file_bytes = await form_param.file.read()
-    validate_image(file_bytes, form_param.file.filename)
+    filename = form_param.file.filename
+    if not filename:
+        raise exceptions.InvalidValue("filename")
+    validate_image(file_bytes, filename)
+
+    content_type = form_param.file.content_type
+    if not content_type:
+        raise exceptions.InvalidValue("content_type")
+
     executive_image = ExecutiveImage(
-        executive_id=form_param.executive_id,
-        file_name=form_param.file.filename,
-        file_type=form_param.file.content_type,
+        executive_id=executive_id,
+        file_name=filename,
+        file_type=content_type,
         file_size=len(file_bytes),
     )
     session.add(executive_image)
@@ -153,21 +170,49 @@ async def create_executive_image(session: Session, form_param: CreateForm) -> di
     )
     session.commit()
     session.refresh(executive_image)
-    return jsonable_encoder(executive_image)
+
+    executive_image_data = jsonable_encoder(executive_image)
+    log_event(token, request_info, executive_image_data)
+    return executive_image_data
+
+
+def delete_executive_image(
+    session: Session,
+    executive_image: ExecutiveImage,
+    token: ExecutiveToken,
+    request_info: schemas.RequestInfo,
+):
+    """
+    Delete an executive image from the database.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
+        executive_image (ExecutiveImage): Executive image instance to delete.
+        token (ExecutiveToken): Authenticated executive token.
+        request_info (schemas.RequestInfo): Request information for logging.
+    """
+    executive_image_data = jsonable_encoder(executive_image)
+    session.delete(executive_image)
+    session.commit()
+    delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
+    log_event(token, request_info, executive_image_data)
 
 
 def search_executive_images(
     session: Session, query_params: QueryParams
-) -> List[ExecutiveImage]:
+) -> list[ExecutiveImage]:
     """
-    Searches for executive images based on the provided query parameters.
+    Search for executive images based on provided query parameters.
+
+    This function supports multiple filtering, ordering, and pagination capabilities
+    to retrieve executive images that match various criteria.
 
     Args:
-        session (Session): SQLAlchemy database session.
-        query_params (QueryParams): Query parameters for filtering and pagination.
+        session (Session): Active SQLAlchemy database session.
+        query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
-        List[ExecutiveImage]: List of executive images matching the search criteria.
+        list[ExecutiveImage]: List of executive images that match the search criteria.
     """
     query = session.query(ExecutiveImage)
     if query_params.executive_id is not None:
@@ -192,65 +237,41 @@ def search_executive_images(
     return executive_images
 
 
-def search_executive_image(
+def fetch_executive_image(
     session: Session, id: int, query_params: ImageQueryParams
 ) -> StreamingResponse:
     """
-    Retrieves an executive image by its ID and optionally resizes it.
+    Fetch an executive image by its ID and optionally resize it.
 
     Args:
-        session (Session): SQLAlchemy database session.
-        id (int): ID of the executive image to retrieve.
+        session (Session): Active SQLAlchemy database session.
+        id (int): ID of the executive image to fetch.
         query_params (ImageQueryParams): Query parameters for resizing the image.
 
     Returns:
-        StreamingResponse: The executive image if found, else raises an exception.
+        StreamingResponse: The executive image stream in original or resized form.
     """
     executive_image = (
         session.query(ExecutiveImage).filter(ExecutiveImage.id == id).first()
     )
-    if executive_image is not None:
-        file_bytes = download_file(EXECUTIVE_IMAGES, str(executive_image.id))
-        resized_bytes = resize_image(
-            file_bytes,
-            width=query_params.width,
-            height=query_params.height,
-        )
+    if executive_image is None:
+        raise exceptions.UnknownValue(ExecutiveImage.id)
 
-        return StreamingResponse(
-            BytesIO(resized_bytes),
-            media_type=executive_image.file_type,
-            headers={
-                "Content-Disposition": f'inline; filename="{executive_image.file_name}"',
-                "Cache-Control": "public, max-age=31536000, immutable",
-            },
-        )
-    raise exceptions.UnknownValue(ExecutiveImage.id)
-
-
-def delete_executive_image(
-    session: Session, executive_image: ExecutiveImage | None
-) -> tuple[bool, dict]:
-    """
-    Deletes an executive image.
-
-    Args:
-        session (Session): SQLAlchemy database session.
-        executive_image (ExecutiveImage | None): The executive image to delete or None.
-
-    Returns:
-        Tuple[bool, dict]:
-            - bool: True if the executive image was found and deleted, False otherwise.
-            - dict: JSON-encoded representation of the deleted executive image.
-    """
-    if executive_image is not None:
-        executive_image_data = jsonable_encoder(executive_image)
-        session.delete(executive_image)
-        session.commit()
-
-        delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
-        return True, executive_image_data
-    return False, {}
+    file_bytes = download_file(EXECUTIVE_IMAGES, str(executive_image.id))
+    assert file_bytes is not None, "Downloaded file bytes should not be None"
+    resized_bytes = resize_image(
+        file_bytes,
+        width=query_params.width,
+        height=query_params.height,
+    )
+    return StreamingResponse(
+        BytesIO(resized_bytes),
+        media_type=executive_image.file_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{executive_image.file_name}"',
+            "Cache-Control": "public, max-age=31536000, immutable",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -261,6 +282,8 @@ POST_EXCEPTIONS = [
     exceptions.NoPermission(),
     exceptions.InvalidImageFile(),
     exceptions.UnknownValue(ExecutiveImage.executive_id),
+    exceptions.InvalidValue("filename"),
+    exceptions.InvalidValue("content_type"),
 ]
 
 DELETE_EXCEPTIONS = [
@@ -272,9 +295,10 @@ GET_EXCEPTIONS = [
     exceptions.InvalidToken(),
 ]
 
-DOWNLOAD_EXCEPTIONS = [
+FETCH_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.UnknownValue(ExecutiveImage.id),
+    exceptions.FileNotFound(),
 ]
 
 
@@ -311,6 +335,7 @@ DOWNLOAD_DESCRIPTION = Description().add_head(
 
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
+# ---------------------------------------------------------------------------
 @route_executive.post(
     URL_EXECUTIVE_PICTURE,
     summary="Create executive image",
@@ -324,25 +349,20 @@ async def upload_executive_image_for_executive(
     form_param: CreateForm = Depends(),
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
-
-        if form_param.executive_id is None:
-            form_param.executive_id = token.executive_id
-        is_self_update = form_param.executive_id == token.executive_id
-        if not is_self_update:
+        executive_id = form_param.executive_id or token.executive_id
+        if executive_id != token.executive_id:
             roles = get_executive_roles(session, token)
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
 
-        executive_image_data = await create_executive_image(session, form_param)
-        log_event(token, request_info, executive_image_data)
-        return executive_image_data
+        return await create_executive_image(
+            session, form_param, token, request_info, executive_id
+        )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -357,29 +377,24 @@ async def delete_executive_image_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
-
         executive_image = (
             session.query(ExecutiveImage).filter(ExecutiveImage.id == id).first()
         )
-        if (
-            executive_image is None
-            or executive_image.executive_id != token.executive_id
-        ):
+        if executive_image is None:
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+        if executive_image.executive_id != token.executive_id:
             roles = get_executive_roles(session, token)
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
 
-        deleted, executive_image_data = delete_executive_image(session, executive_image)
-        if deleted:
-            log_event(token, request_info, executive_image_data)
+        delete_executive_image(session, executive_image, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
@@ -393,36 +408,30 @@ async def delete_executive_image_for_executive(
 async def fetch_executive_images_for_executive(
     query_params: QueryParams = Depends(),
     access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
         return search_executive_images(session, query_params)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
     f"{URL_EXECUTIVE_PICTURE}/{{id}}",
     summary="Download executive image",
     tags=["Account Image"],
-    responses=fuse_exception_responses(DOWNLOAD_EXCEPTIONS),
+    responses=fuse_exception_responses(FETCH_EXCEPTIONS),
     description=(DOWNLOAD_DESCRIPTION.to_string()),
 )
 async def download_executive_image_for_executive(
     id: int,
     query_params: ImageQueryParams = Depends(),
     access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
-        return search_executive_image(session, id, query_params)
+        return fetch_executive_image(session, id, query_params)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
