@@ -10,7 +10,7 @@ Provides endpoints for managing executive accounts:
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, cast
+from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, EmailStr, Field
@@ -32,6 +32,7 @@ from app.src.filters import (
 from app.src.minio import delete_file
 from app.src.permissions.executive import PermissionPath
 from app.src import exceptions, schemas
+from app.src.schemas import PatchForm
 from app.src.regex import PASSWORD_PATTERN, USERNAME_PATTERN
 from app.src.urls import URL_EXECUTIVE_ACCOUNT
 from app.src.openobserve import log_event
@@ -97,7 +98,7 @@ class CreateForm(BaseModel):
     )
 
 
-class UpdateForm(BaseModel):
+class UpdateForm(PatchForm):
     """Form data for updating an executive account."""
 
     password: str | None = Field(
@@ -116,7 +117,9 @@ class UpdateForm(BaseModel):
     email_id: Annotated[EmailStr | None, "nullable"] = Field(
         max_length=256, default=None, description="Email in RFC 5322 format"
     )
-    status: AccountStatus | None = Field(description=enum_str(AccountStatus), default=None)
+    status: AccountStatus | None = Field(
+        description=enum_str(AccountStatus), default=None
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -148,6 +151,25 @@ class QueryParams(
     order_in: OrderIn = Field(
         Query(default=OrderIn.DESCENDING, description=enum_str(OrderIn))
     )
+
+
+# ---------------------------------------------------------------------------
+## Helper Functions
+# ---------------------------------------------------------------------------
+def executive_account_to_dict(executive: Executive) -> dict:
+    """
+    Convert an Executive account  to a dictionary representation.
+
+    Args:
+        executive (Executive): The Executive object to convert.
+
+    Returns:
+        dict: A dictionary representation of the Executive object without password.
+    """
+    executive_account_dict = jsonable_encoder(
+        executive, exclude={Executive.password.name}
+    )
+    return executive_account_dict
 
 
 # ---------------------------------------------------------------------------
@@ -184,9 +206,9 @@ def create_executive(
     session.commit()
     session.refresh(executive)
 
-    executive_data = executive_to_dict(executive)
-    log_event(token, request_info, executive_data)
-    return executive_data
+    executive_account_data = executive_account_to_dict(executive)
+    log_event(token, request_info, executive_account_data)
+    return executive_account_data
 
 
 def update_executive(
@@ -213,23 +235,24 @@ def update_executive(
 
     update_data = form_param.model_dump(exclude_unset=True)
     if "status" in update_data:
-        if form_param.status == AccountStatus.SUSPENDED:
-            session.query(ExecutiveToken).filter(
-                ExecutiveToken.executive_id == id,
-                ExecutiveToken.is_revoked.is_(False),
-            ).update({ExecutiveToken.is_revoked: True})
-        executive.status = form_param.status
+        if executive.status != update_data["status"]:
+            if update_data["status"] == AccountStatus.SUSPENDED:
+                session.query(ExecutiveToken).filter(
+                    ExecutiveToken.executive_id == id,
+                    ExecutiveToken.is_revoked.is_(False),
+                ).update({ExecutiveToken.is_revoked: True})
+            executive.status = update_data["status"]
         update_data.pop("status")
 
     update_if_changed(executive, update_data)
     if session.is_modified(executive):
         session.commit()
         session.refresh(executive)
-        executive_data = executive_to_dict(executive)
-        log_event(token, request_info, executive_data)
+        executive_account_data = executive_account_to_dict(executive)
+        log_event(token, request_info, executive_account_data)
     else:
-        executive_data = executive_to_dict(executive)
-    return executive_data
+        executive_account_data = executive_account_to_dict(executive)
+    return executive_account_data
 
 
 def search_executives(session: Session, query_params: QueryParams) -> list[Executive]:
@@ -307,11 +330,9 @@ def delete_executive(
         return
 
     executive_images = (
-        session.query(ExecutiveImage)
-        .filter(ExecutiveImage.executive_id == id)
-        .all()
+        session.query(ExecutiveImage).filter(ExecutiveImage.executive_id == id).all()
     )
-    executive_data = executive_to_dict(executive)
+    executive_account_data = executive_account_to_dict(executive)
     session.delete(executive)
     session.commit()
 
@@ -319,7 +340,7 @@ def delete_executive(
     for executive_image in executive_images:
         delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
 
-    log_event(token, request_info, executive_data)
+    log_event(token, request_info, executive_account_data)
 
 
 # ---------------------------------------------------------------------------
@@ -398,11 +419,8 @@ async def create_executive_account_for_executive(
     session: Session = Depends(get_db_session),
 ):
     try:
-        token = cast(
-            ExecutiveToken,
-            authorize_executive(
-                session, access_token, [PermissionPath.CREATE_EXECUTIVE]
-            ),
+        token = authorize_executive(
+            session, access_token, [PermissionPath.CREATE_EXECUTIVE]
         )
         return create_executive(session, form_param, token, request_info)
     except Exception as e:
@@ -425,7 +443,7 @@ async def update_executive_account_for_executive(
     session: Session = Depends(get_db_session),
 ):
     try:
-        token = cast(ExecutiveToken, verify_token(session, ExecutiveToken, access_token))
+        token = verify_token(session, ExecutiveToken, access_token)
 
         is_self_update = id == token.executive_id
         if not is_self_update:
@@ -454,13 +472,9 @@ async def delete_executive_account_for_executive(
     session: Session = Depends(get_db_session),
 ):
     try:
-        token = cast(
-            ExecutiveToken,
-            authorize_executive(
-                session, access_token, [PermissionPath.DELETE_EXECUTIVE]
-            ),
+        token = authorize_executive(
+            session, access_token, [PermissionPath.DELETE_EXECUTIVE]
         )
-
         if token.executive_id == id:
             raise exceptions.NoPermission()
 
@@ -485,6 +499,6 @@ async def fetch_executive_accounts_for_executive(
 ):
     try:
         verify_token(session, ExecutiveToken, access_token)
-        return [executive_to_dict(executive) for executive in search_executives(session, query_params)]
+        return search_executives(session, query_params)
     except Exception as e:
         exceptions.handle(e)
