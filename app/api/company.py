@@ -14,7 +14,7 @@ from typing import Annotated, Union
 from fastapi import APIRouter, Query, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from shapely import wkb, wkt
+from shapely import wkt
 from shapely.geometry import Point
 from sqlalchemy.orm.session import Session
 from sqlalchemy import func, String, or_
