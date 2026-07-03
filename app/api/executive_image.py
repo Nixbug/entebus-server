@@ -298,7 +298,6 @@ GET_EXCEPTIONS = [
 FETCH_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.UnknownValue(ExecutiveImage.id),
-    exceptions.FileNotFound(),
 ]
 
 
