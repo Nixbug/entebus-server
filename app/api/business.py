@@ -1,33 +1,36 @@
 """
-Business API Router for EnteBus.
+Business API router.
 
-Provides endpoints for managing businesses, including creation,
-update, deletion, and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoint for managing businesses:
+    - POST (executive)
+    - PATCH (executive, vendor)
+    - GET (executive, vendor, public)
+    - DELETE (executive)
 """
 
 from datetime import datetime
 from enum import StrEnum
-from typing import List
-from fastapi import APIRouter, Depends, Query, Response, status
+from typing import Annotated, Union
+from fastapi import APIRouter, Query, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from shapely import wkb, wkt
+from shapely import wkt
 from shapely.geometry import Point
 from sqlalchemy.orm.session import Session
 from sqlalchemy import func, String, or_
 from geoalchemy2 import Geography
 
 from app.api.bearer import oauth2_executive, bearer_vendor
+from app.src import schemas
 from app.src.buckets import VENDOR_IMAGES
 from app.src.db import (
     Business,
     BusinessWallet,
     ExecutiveToken,
-    get_db_session,
-    VendorImage,
     VendorToken,
     Wallet,
+    VendorImage,
+    get_db_session,
 )
 from app.src.filters import (
     CreatedOnFilter,
@@ -43,6 +46,7 @@ from app.src import exceptions
 from app.src.regex import NAME_PATTERN
 from app.src.enums import BusinessStatus, BusinessType, OrderIn
 from app.src.urls import URL_BUSINESS
+from app.src.schemas import PatchForm
 from app.src.openobserve import log_event
 from app.src.description import Description
 from app.src.validators import (
@@ -61,6 +65,8 @@ from app.src.functions import (
     enum_str,
     fuse_exception_responses,
     get_request_info,
+    load_geometry,
+    to_WKB,
     update_if_changed,
     resolve_model_defaults,
     apply_status_filters,
@@ -76,7 +82,7 @@ route_public = APIRouter()
 ## Output Schema
 # ---------------------------------------------------------------------------
 class MaskedBusinessSchema(BaseModel):
-    """Schema for business response for public users without revealing all details."""
+    """Schema for business response without revealing all details."""
 
     id: int
     name: str
@@ -117,12 +123,14 @@ class CreateForm(BaseModel):
     )
 
 
-class UpdateFormForVE(BaseModel):
+class UpdateFormForVE(PatchForm):
     """Form for updating a business by vendor."""
 
-    description: str | None = Field(default=None, min_length=1, max_length=1024)
-    address: str = Field(default=None, min_length=1, max_length=512)
-    location: str = Field(
+    description: Annotated[str | None, "nullable"] = Field(
+        default=None, min_length=1, max_length=1024
+    )
+    address: str | None = Field(default=None, min_length=1, max_length=512)
+    location: str | None = Field(
         default=None,
         description=(
             f"Accepts only SRID 4326 (WGS84), "
@@ -134,15 +142,13 @@ class UpdateFormForVE(BaseModel):
 class UpdateFormForEX(UpdateFormForVE):
     """Form for updating a business by executive."""
 
-    name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN, default=None)
-    status: BusinessStatus = Field(
-        description=enum_str(BusinessStatus),
-        default=None,
+    name: str | None = Field(
+        min_length=1, max_length=32, pattern=NAME_PATTERN, default=None
     )
-    type: BusinessType = Field(
-        description=enum_str(BusinessType),
-        default=None,
+    status: BusinessStatus | None = Field(
+        description=enum_str(BusinessStatus), default=None
     )
+    type: BusinessType | None = Field(description=enum_str(BusinessType), default=None)
 
 
 class UpdateForm(UpdateFormForEX):
@@ -177,7 +183,7 @@ class QueryParamsForPU(
             ),
         )
     )
-    type_list: List[BusinessType] | None = Field(
+    type_list: list[BusinessType] | None = Field(
         Query(default=None, description=enum_str(BusinessType))
     )
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
@@ -189,7 +195,7 @@ class QueryParamsForPU(
 class QueryParamsForEX(QueryParamsForPU):
     """Query parameters for executives."""
 
-    status_list: List[BusinessStatus] | None = Field(
+    status_list: list[BusinessStatus] | None = Field(
         Query(default=None, description=enum_str(BusinessStatus))
     )
     address: str | None = Field(Query(default=None))
@@ -215,6 +221,7 @@ def validate_location(location_wkt: str) -> Point:
     Returns:
         Point: Validated Shapely `Point` geometry.
     """
+    # Validate WKT and SRID
     location_geom = validate_wkt_string(location_wkt, Point)
     validate_srid_4326(location_geom)
     return location_geom
@@ -234,22 +241,27 @@ def business_to_dict(business: Business) -> dict:
         business,
         exclude={Business.location.name},
     )
-    business_data[Business.location.name] = (
-        wkb.loads(bytes(business.location.data))
-    ).wkt
+    business_data[Business.location.name] = (load_geometry(business.location)).wkt
     return business_data
 
 
 # ---------------------------------------------------------------------------
 ## Core Functions
 # ---------------------------------------------------------------------------
-def create_business(session: Session, form_param: CreateForm) -> dict:
+def create_business(
+    session: Session,
+    form_param: CreateForm,
+    token: ExecutiveToken,
+    request_info: schemas.RequestInfo,
+) -> dict:
     """
     Creates a new Business with the provided form data.
 
     Args:
         session (Session): Active SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a new business.
+        token (ExecutiveToken): Authenticated executive token.
+        request_info (schemas.RequestInfo): Request information for logging.
 
     Returns:
         dict: Created business data with location in WKT format.
@@ -267,24 +279,31 @@ def create_business(session: Session, form_param: CreateForm) -> dict:
         location=location,
     )
     session.add(business)
+
     # Create Wallet
     wallet = Wallet(name=form_param.name, balance=0)
     session.add(wallet)
     session.flush()
+
     # Link Business to Wallet
     business_wallet = BusinessWallet(business_id=business.id, wallet_id=wallet.id)
     session.add(business_wallet)
     session.commit()
     session.refresh(business)
-    return business_to_dict(business)
+
+    business_data = business_to_dict(business)
+    log_event(token, request_info, business_data)
+    return business_data
 
 
 def update_business(
     session: Session,
     id: int,
     form_param: UpdateForm,
+    token: Union[ExecutiveToken, VendorToken],
+    request_info: schemas.RequestInfo,
     business_filter=None,
-) -> tuple[bool, dict]:
+) -> dict:
     """
     Updates a Business with the provided form data.
 
@@ -292,12 +311,12 @@ def update_business(
         session (Session): SQLAlchemy database session.
         id (int): ID of the business to update.
         form_param (UpdateForm): Form data containing fields to update.
+        token (Union[ExecutiveToken, VendorToken]): Authenticated executive or vendor token.
+        request_info (schemas.RequestInfo): Request information for logging.
         business_filter (Optional): Additional filter for business validation.
 
     Returns:
-        tuple[bool, dict]:
-            - bool: True if the business was modified and the changes were committed.
-            - dict: JSON-encoded representation of the updated business.
+        dict: JSON-encoded representation of the updated business.
     """
     business = validate_id(
         session, Business, id, Business.id, extra_filter=business_filter
@@ -306,33 +325,42 @@ def update_business(
     update_data = form_param.model_dump(exclude_unset=True)
     wallet = None
     if "location" in update_data:
-        old_location_geom = wkb.loads(bytes(business.location.data))
-        new_location_geom = validate_location(form_param.location)
-        if new_location_geom.wkt != old_location_geom.wkt:
-            business.location = wkt.dumps(new_location_geom)
+        old_location_geom = load_geometry(business.location)
+        new_location_geom = validate_location(update_data["location"])
+        if not new_location_geom.equals(old_location_geom):
+            business.location = to_WKB(new_location_geom)
         update_data.pop("location")
     if "name" in update_data:
-        if form_param.name != business.name:
-            business.name = form_param.name
+        if update_data["name"] != business.name:
+            business.name = update_data["name"]
             business_wallet = (
                 session.query(BusinessWallet)
                 .filter(BusinessWallet.business_id == business.id)
                 .first()
             )
+            assert (
+                business_wallet is not None
+            ), "BusinessWallet should exist for the business"
             wallet = (
                 session.query(Wallet)
                 .filter(Wallet.id == business_wallet.wallet_id)
                 .first()
             )
-            wallet.name = form_param.name
+            assert wallet is not None, "Wallet should exist for the business"
+            wallet.name = update_data["name"]
         update_data.pop("name")
 
     update_if_changed(business, update_data)
-    updated = session.is_modified(business) or (wallet and session.is_modified(wallet))
-    if updated:
+    if session.is_modified(business) or (
+        wallet is not None and session.is_modified(wallet)
+    ):
         session.commit()
         session.refresh(business)
-    return updated, business_to_dict(business)
+        business_data = business_to_dict(business)
+        log_event(token, request_info, business_data)
+    else:
+        business_data = business_to_dict(business)
+    return business_data
 
 
 def search_businesses(session: Session, query_params: QueryParams) -> list[Business]:
@@ -404,33 +432,34 @@ def search_businesses(session: Session, query_params: QueryParams) -> list[Busin
     return businesses
 
 
-def delete_business(session: Session, id: int) -> tuple[bool, dict]:
+def delete_business(
+    session: Session, id: int, token: ExecutiveToken, request_info: schemas.RequestInfo
+) -> None:
     """
     Delete a business from the database.
 
     Args:
         session (Session): Active SQLAlchemy database session.
         id (int): ID of the business to delete.
-
-    Returns:
-        Tuple[bool, dict]:
-            - bool: True if the business was found and deleted, False otherwise.
-            - dict: JSON-encoded representation of the deleted business, or an empty dictionary if not found.
+        token (ExecutiveToken): Authenticated executive token.
+        request_info (schemas.RequestInfo): Request information for logging.
     """
     business = session.query(Business).filter(Business.id == id).first()
-    if business is not None:
-        vendor_images = (
-            session.query(VendorImage).filter(VendorImage.business_id == id).all()
-        )
-        business_data = business_to_dict(business)
-        session.delete(business)
-        session.commit()
+    if business is None:
+        return
 
-        # Delete vendor images from object storage
-        for vendor_image in vendor_images:
-            delete_file(VENDOR_IMAGES, str(vendor_image.id))
-        return True, business_data
-    return False, {}
+    vendor_images = (
+        session.query(VendorImage).filter(VendorImage.business_id == id).all()
+    )
+    business_data = business_to_dict(business)
+    session.delete(business)
+    session.commit()
+
+    # Delete vendor images from object storage
+    for vendor_image in vendor_images:
+        delete_file(VENDOR_IMAGES, str(vendor_image.id))
+
+    log_event(token, request_info, business_data)
 
 
 # ---------------------------------------------------------------------------
@@ -530,10 +559,7 @@ async def create_business_for_executive(
             access_token,
             [ExecutivePermissionPath.CREATE_BUSINESS],
         )
-
-        business_data = create_business(session, form_param)
-        log_event(token, request_info, business_data)
-        return business_data
+        return create_business(session, form_param, token, request_info)
     except Exception as e:
         exceptions.handle(e)
 
@@ -563,15 +589,13 @@ async def update_business_for_executive(
             access_token,
             [ExecutivePermissionPath.UPDATE_BUSINESS],
         )
-
-        updated, business_data = update_business(
+        return update_business(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            token,
+            request_info,
         )
-        if updated:
-            log_event(token, request_info, business_data)
-        return business_data
     except Exception as e:
         exceptions.handle(e)
 
@@ -591,10 +615,11 @@ async def fetch_businesses_for_executive(
 ):
     try:
         verify_token(session, ExecutiveToken, access_token)
-
         return [
             business_to_dict(business)
-            for business in search_businesses(session, query_params)
+            for business in search_businesses(
+                session, QueryParams(**query_params.model_dump())
+            )
         ]
     except Exception as e:
         exceptions.handle(e)
@@ -624,10 +649,7 @@ async def delete_business_for_executive(
             access_token,
             [ExecutivePermissionPath.DELETE_BUSINESS],
         )
-
-        deleted, business_data = delete_business(session, id)
-        if deleted:
-            log_event(token, request_info, business_data)
+        delete_business(session, id, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
@@ -661,16 +683,14 @@ async def update_business_for_vendor(
             access_token.credentials,
             [VendorPermissionPath.UPDATE_BUSINESS],
         )
-
-        updated, business_data = update_business(
+        return update_business(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            token,
+            request_info,
             business_filter=(Business.id == token.business_id),
         )
-        if updated:
-            log_event(token, request_info, business_data)
-        return business_data
     except Exception as e:
         exceptions.handle(e)
 
@@ -689,7 +709,6 @@ async def fetch_businesses_for_vendor(
 ):
     try:
         token = verify_token(session, VendorToken, access_token.credentials)
-
         query_params = resolve_model_defaults(
             QueryParams, id=token.business_id, offset=0, limit=1
         )
