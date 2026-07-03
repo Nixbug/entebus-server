@@ -258,9 +258,7 @@ def fetch_executive_image(
         raise exceptions.UnknownValue(ExecutiveImage.id)
 
     file_bytes = download_file(EXECUTIVE_IMAGES, str(executive_image.id))
-    if file_bytes is None:
-        raise exceptions.FileNotFound()
-
+    assert file_bytes is not None, "Downloaded file bytes should not be None"
     resized_bytes = resize_image(
         file_bytes,
         width=query_params.width,
