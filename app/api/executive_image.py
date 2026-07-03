@@ -15,7 +15,6 @@ from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile,
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from requests import session
 from sqlalchemy.orm.session import Session
 
 from app.src.buckets import EXECUTIVE_IMAGES
