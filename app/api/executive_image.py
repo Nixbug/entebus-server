@@ -285,6 +285,7 @@ POST_EXCEPTIONS = [
     exceptions.InvalidImageFile(),
     exceptions.UnknownValue(ExecutiveImage.executive_id),
     exceptions.InvalidValue("filename"),
+    exceptions.InvalidValue("content_type"),
 ]
 
 DELETE_EXCEPTIONS = [
