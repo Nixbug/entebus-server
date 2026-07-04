@@ -1,7 +1,7 @@
 """
 Business API router.
 
-Provides endpoint for managing businesses:
+Provides endpoints for managing businesses:
     - POST (executive)
     - PATCH (executive, vendor)
     - GET (executive, vendor, public)
