@@ -1,7 +1,7 @@
 """
 Company API router.
 
-Provides endpoint for managing companies:
+Provides endpoints for managing companies:
     - POST (executive)
     - PATCH (executive, operator)
     - GET (executive, operator, public)
