@@ -20,6 +20,8 @@ from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform
 from datetime import datetime
 from geoalchemy2.shape import from_shape
+from sqlalchemy.sql.elements import ClauseElement
+from app.src.types import ORMbaseT
 
 from app.src import schemas, exceptions
 from app.src.constants import TMZ_PRIMARY
@@ -601,3 +603,27 @@ def normalize_timestamp(timestamp: datetime) -> datetime:
     else:
         timestamp = timestamp.astimezone(TMZ_PRIMARY)
     return timestamp
+
+
+def get_by_id(
+    session: Session,
+    model_cls: Type[ORMbaseT],
+    unique_id: int,
+    extra_filter: ClauseElement[bool] | None = None,
+) -> ORMbaseT | None:
+    """
+    Generic function to fetch a record by ID, without raising if not found.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        model_cls (Type[ORMbaseT]): The ORM model class.
+        unique_id (int): The ID of the record to fetch.
+        extra_filter (ClauseElement[bool] | None): Additional filters to apply, defaults to None.
+
+    Returns:
+        ORMbaseT | None: The instance of the model class matching the given ID, or None if not found.
+    """
+    query = session.query(model_cls).filter(model_cls.id == unique_id)
+    if extra_filter is not None:
+        query = query.filter(extra_filter)
+    return query.first()
