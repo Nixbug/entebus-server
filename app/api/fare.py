@@ -1,9 +1,11 @@
 """
 Fare API Router for EnteBus.
 
-Provides endpoints for managing fares, including creation,
-update, deletion, and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing fares:
+    - POST (executive, operator)
+    - PATCH (executive, operator)
+    - DELETE (executive, operator)
+    - GET (executive, operator, vendor)
 """
 
 from datetime import datetime
