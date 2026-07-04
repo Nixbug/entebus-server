@@ -268,15 +268,13 @@ def create_business(
     """
     # Validate location (WKT and SRID)
     location_geom = validate_location(form_param.location)
-    location = wkt.dumps(location_geom)
-
     business = Business(
         name=form_param.name,
         status=form_param.status,
         type=form_param.type,
         description=form_param.description,
         address=form_param.address,
-        location=location,
+        location=to_WKB(location_geom),
     )
     session.add(business)
 
