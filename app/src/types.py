@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import TypeVar
 from pydantic import BaseModel
 from shapely.geometry.base import BaseGeometry
@@ -11,3 +12,4 @@ TokenT = TypeVar("TokenT", ExecutiveToken, OperatorToken, VendorToken)
 BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
 ORMbaseT = TypeVar("ORMbaseT", bound=ORMbase)
 GeometryT = TypeVar("GeometryT", bound=BaseGeometry)
+EnumT = TypeVar("EnumT", bound=Enum)
