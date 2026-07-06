@@ -6,8 +6,8 @@ making it easier for developers to integrate them into their projects.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, List, Sequence, Type, Union
-from dns.enum import IntEnum
+from enum import IntEnum
+from typing import Any, List, Mapping, Sequence, Type, Union
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.orm.session import Session
@@ -53,6 +53,7 @@ from app.src.constants import (
 )
 from app.src.dynamic_fare.v1 import DynamicFare
 from app.src.types import GeometryT, ORMbaseT, TokenT
+from app.src.types import EnumT
 
 
 def user_credentials(
@@ -473,13 +474,13 @@ def validate_AABB(polygon: Polygon) -> bool:
 
 
 def is_valid_transition(
-    transitions: dict[Any, list[Any]], old_state: Any, new_state: Any
+    transitions: Mapping[EnumT, Sequence[EnumT]], old_state: Any, new_state: Any
 ) -> bool:
     """
     Check if a state transition is valid.
 
     Args:
-        transitions (dict[Any, list[Any]]): A mapping of valid state transitions.
+        transitions (Mapping[EnumT, Sequence[EnumT]]): A mapping of valid state transitions.
         old_state (Any): The current state before the transition.
         new_state (Any): The desired state after the transition.
 
@@ -637,7 +638,7 @@ def validate_fare_function(function: str, attributes: dict) -> DynamicFare:
 
 
 def validate_state_transition(
-    transitions: dict[IntEnum, list[IntEnum]],
+    transitions: Mapping[EnumT, Sequence[EnumT]],
     old_state: IntEnum,
     new_state: IntEnum,
     column: InstrumentedAttribute,
@@ -646,7 +647,7 @@ def validate_state_transition(
     Validate whether a state transition is allowed.
 
     Args:
-        transitions (dict[IntEnum, list[IntEnum]]): A mapping of valid state transitions.
+        transitions (Mapping[EnumT, Sequence[EnumT]]): A mapping of valid state transitions.
         old_state (IntEnum): The current state before the transition.
         new_state (IntEnum): The desired state after the transition.
         column (InstrumentedAttribute): The ORM column associated with the state, used for exception messages.
