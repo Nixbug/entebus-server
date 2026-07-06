@@ -21,6 +21,7 @@ from shapely import Polygon, wkt, errors
 from dateutil.rrule import rrulestr
 
 from app.src.functions import (
+    get_by_id,
     get_by_path,
     get_executive_roles,
     get_operator_roles,
@@ -519,11 +520,7 @@ def validate_id(
     Raises:
         UnknownValue: If no instance with the provided ID exists.
     """
-    query = session.query(model_cls).filter(model_cls.id == unique_id)
-    if extra_filter is not None:
-        query = query.filter(extra_filter)
-    result = query.first()
-
+    result = get_by_id(session, model_cls, unique_id, extra_filter)
     if result is None:
         raise exceptions.UnknownValue(column)
     return result
