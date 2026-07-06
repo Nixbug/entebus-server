@@ -15,6 +15,7 @@ from app.src.enums import (
 
 from app.src import buckets, minio
 from app.src.db import (
+    BusinessWallet,
     CompanyWallet,
     ORMbase,
     Executive,
@@ -226,6 +227,16 @@ def initialize():
         location="POINT(76.69065175172149 8.761272913919761)",
     )
     session.add(business)
+    session.flush()
+
+    # Create business wallet
+    wallet = Wallet(balance=0.0, name=business.name)
+    session.add(wallet)
+    session.flush()
+
+    # Map the business to its wallet
+    business_wallet_map = BusinessWallet(business_id=business.id, wallet_id=wallet.id)
+    session.add(business_wallet_map)
     session.flush()
 
     # Create default vendors admin and guest for the business
