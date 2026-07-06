@@ -536,8 +536,6 @@ async def update_fare_for_executive(
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -714,8 +712,6 @@ async def delete_fare_for_operator(
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.get(
