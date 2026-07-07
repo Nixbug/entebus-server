@@ -31,7 +31,7 @@ from app.src.enums import (
     OrderIn,
     VehicleStatus,
 )
-from app.src.constants import MAX_VEHICLES_PER_COMPANY, TMZ_PRIMARY
+from app.src.constants import MAX_VEHICLES_PER_COMPANY
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src import exceptions, schemas
@@ -60,7 +60,6 @@ from app.src.functions import (
     apply_status_filters,
     apply_name_filters,
     resolve_model_defaults,
-    normalize_timestamp,
 )
 from app.src.filters import (
     IDFilter,
