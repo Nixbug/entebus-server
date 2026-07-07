@@ -560,7 +560,13 @@ async def delete_vehicle_image_for_operator(
             access_token.credentials,
             [OperatorPermissionPath.UPDATE_COMPANY_VEHICLE],
         )
-        delete_vehicle_image(session, id, token, request_info)
+        delete_vehicle_image(
+            session,
+            id,
+            token,
+            request_info,
+            vehicle_filter=(VehicleImage.company_id == token.company_id),
+        )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
