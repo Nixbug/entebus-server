@@ -310,8 +310,10 @@ def update_vehicle(
     vehicle = validate_id(session, Vehicle, id, Vehicle.id, extra_filter=vehicle_filter)
 
     update_data = form_param.model_dump(exclude_unset=True)
-    if "manufactured_on" in update_data and is_in_future(
-        update_data["manufactured_on"]
+    if (
+        "manufactured_on" in update_data
+        and update_data["manufactured_on"] is not None
+        and is_in_future(update_data["manufactured_on"])
     ):
         raise exceptions.InvalidValue(Vehicle.manufactured_on)
     # This check is only applicable for operators, as executives can set any status.
