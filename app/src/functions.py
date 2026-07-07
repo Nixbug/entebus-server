@@ -627,3 +627,31 @@ def get_by_id(
     if extra_filter is not None:
         query = query.filter(extra_filter)
     return query.first()
+
+
+def is_in_future(timestamp: datetime) -> bool:
+    """
+    Check if a given timestamp is in the future.
+
+    Args:
+        timestamp (datetime): The timestamp to check.
+
+    Returns:
+        bool: True if the timestamp is in the future, False otherwise.
+    """
+    normalized_timestamp = normalize_timestamp(timestamp)
+    return normalized_timestamp > datetime.now(tz=TMZ_PRIMARY)
+
+
+def is_in_past(timestamp: datetime) -> bool:
+    """
+    Check if a given timestamp is in the past.
+
+    Args:
+        timestamp (datetime): The timestamp to check.
+
+    Returns:
+        bool: True if the timestamp is in the past, False otherwise.
+    """
+    normalized_timestamp = normalize_timestamp(timestamp)
+    return normalized_timestamp < datetime.now(tz=TMZ_PRIMARY)

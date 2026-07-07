@@ -1,12 +1,14 @@
 """
 Vehicle API Router for EnteBus.
 
-Provides endpoints for managing vehicles, including creation,
-update, deletion, and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing vehicles:
+    - POST (executive, operator)
+    - PATCH (executive, operator)
+    - DELETE (executive, operator)
+    - GET (executive, operator, vendor, public)
 """
 
-from typing import Optional, List, Tuple
+from typing import Annotated, Union
 from enum import StrEnum
 from datetime import datetime
 from fastapi import APIRouter, status, Depends, Response, Query
@@ -20,9 +22,9 @@ from app.src.db import (
     Company,
     ExecutiveToken,
     OperatorToken,
-    SessionLocal,
     Vehicle,
     VendorToken,
+    get_db_session,
 )
 from app.src.enums import (
     AppID,
@@ -32,13 +34,13 @@ from app.src.enums import (
 from app.src.constants import MAX_VEHICLES_PER_COMPANY, TMZ_PRIMARY
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
-from app.src import exceptions
+from app.src import exceptions, schemas
+from app.src.schemas import PatchForm
 from app.src.regex import VEHICLE_NUMBER_PATTERN, NAME_PATTERN
 from app.src.urls import URL_VEHICLE
 from app.src.openobserve import log_event
 from app.src.description import Description
 from app.src.validators import (
-    verify_permission,
     verify_token,
     validate_id,
     validate_state_transition,
@@ -48,8 +50,9 @@ from app.src.validators import (
 from app.src.functions import (
     enum_str,
     fuse_exception_responses,
-    get_operator_roles,
     get_request_info,
+    get_by_id,
+    is_in_future,
     update_if_changed,
     apply_id_filters,
     apply_created_on_filters,
@@ -131,17 +134,21 @@ class CreateForm(CreateFormForEX):
     pass
 
 
-class UpdateForm(BaseModel):
+class UpdateForm(PatchForm):
     """Form data for updating a vehicle."""
 
-    name: str = Field(default=None, min_length=1, max_length=32, pattern=NAME_PATTERN)
-    capacity: int = Field(ge=1, le=120, default=None)
-    manufactured_on: datetime | None = Field(default=None)
-    insurance_upto: datetime | None = Field(default=None)
-    pollution_upto: datetime | None = Field(default=None)
-    fitness_upto: datetime | None = Field(default=None)
-    road_tax_upto: datetime | None = Field(default=None)
-    status: VehicleStatus = Field(description=enum_str(VehicleStatus), default=None)
+    name: str | None = Field(
+        default=None, min_length=1, max_length=32, pattern=NAME_PATTERN
+    )
+    capacity: int | None = Field(ge=1, le=120, default=None)
+    manufactured_on: Annotated[datetime | None, "nullable"] = Field(default=None)
+    insurance_upto: Annotated[datetime | None, "nullable"] = Field(default=None)
+    pollution_upto: Annotated[datetime | None, "nullable"] = Field(default=None)
+    fitness_upto: Annotated[datetime | None, "nullable"] = Field(default=None)
+    road_tax_upto: Annotated[datetime | None, "nullable"] = Field(default=None)
+    status: VehicleStatus | None = Field(
+        description=enum_str(VehicleStatus), default=None
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +190,7 @@ class QueryParamsForOP(QueryParamsForPU):
     fitness_upto_le: datetime | None = Field(Query(default=None))
     road_tax_upto_ge: datetime | None = Field(Query(default=None))
     road_tax_upto_le: datetime | None = Field(Query(default=None))
-    status_list: List[VehicleStatus] | None = Field(
+    status_list: list[VehicleStatus] | None = Field(
         Query(default=None, description=enum_str(VehicleStatus))
     )
 
@@ -224,37 +231,22 @@ def construct_vehicle_reference_lock(vehicle_id: int) -> str:
 
 
 # ---------------------------------------------------------------------------
-## Functions
+## Core Functions
 # ---------------------------------------------------------------------------
-def validate_manufactured_on(
-    form_param: CreateFormForOP | CreateFormForEX | UpdateForm,
-):
-    """
-    Validate that the manufactured_on date is not in the future.
-
-    Args:
-        form_param (CreateFormForOP | CreateFormForEX | UpdateForm): The form data containing the manufactured_on field.
-
-    Raises:
-        exceptions.InvalidValue: If the manufactured_on date is in the future.
-    """
-    manufactured_on = form_param.manufactured_on
-    if manufactured_on is None:
-        return None
-
-    manufactured_on = normalize_timestamp(manufactured_on)
-    if manufactured_on > datetime.now(tz=TMZ_PRIMARY):
-        raise exceptions.InvalidValue(Vehicle.manufactured_on)
-    return manufactured_on
-
-
-def create_vehicle(session: Session, form_param: CreateForm) -> dict:
+def create_vehicle(
+    session: Session,
+    form_param: CreateForm,
+    token: Union[ExecutiveToken, OperatorToken],
+    request_info: schemas.RequestInfo,
+) -> dict:
     """
     Creates a new vehicle record in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a vehicle.
+        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        request_info: Request information for logging.
 
     Returns:
         dict: The created vehicle data.
@@ -267,7 +259,10 @@ def create_vehicle(session: Session, form_param: CreateForm) -> dict:
     if vehicle_count >= MAX_VEHICLES_PER_COMPANY:
         raise exceptions.LimitExceeded(Vehicle)
 
-    validate_manufactured_on(form_param)
+    if form_param.manufactured_on is not None and is_in_future(
+        form_param.manufactured_on
+    ):
+        raise exceptions.InvalidValue(Vehicle.manufactured_on)
     vehicle = Vehicle(
         company_id=form_param.company_id,
         registration_number=form_param.registration_number,
@@ -283,7 +278,9 @@ def create_vehicle(session: Session, form_param: CreateForm) -> dict:
     session.add(vehicle)
     session.commit()
     session.refresh(vehicle)
+
     vehicle_data = jsonable_encoder(vehicle)
+    log_event(token, request_info, vehicle_data)
     return vehicle_data
 
 
@@ -291,9 +288,11 @@ def update_vehicle(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    extra_filter_for_vehicle=None,
-    app_id: AppID = None,
-) -> Tuple[bool, dict]:
+    token: Union[ExecutiveToken, OperatorToken],
+    request_info: schemas.RequestInfo,
+    vehicle_filter=None,
+    app_id: AppID | None = None,
+) -> dict:
     """
     Updates an existing vehicle record in the database.
 
@@ -301,59 +300,77 @@ def update_vehicle(
         session (Session): SQLAlchemy database session.
         id (int): ID of the vehicle to update.
         form_param (UpdateForm): Form data for updating the vehicle.
-        extra_filter_for_vehicle (optional): Additional filter to apply when validating the vehicle ID.
+        vehicle_filter (optional): Additional filter to apply when validating the vehicle ID.
         app_id (AppID, optional): Identifier of the application making the request. Used to determine allowed status transitions.
+        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        request_info: Request information for logging.
 
     Returns:
-        Tuple[bool, dict]: A tuple containing a boolean indicating if updates were made and the updated vehicle data.
+        dict: JSON-encoded representation of the updated vehicle.
     """
-    vehicle = validate_id(
-        session, Vehicle, id, Vehicle.id, extra_filter=extra_filter_for_vehicle
-    )
-    validate_manufactured_on(form_param)
-    update_data = form_param.model_dump(exclude_unset=True)
+    vehicle = validate_id(session, Vehicle, id, Vehicle.id, extra_filter=vehicle_filter)
 
+    update_data = form_param.model_dump(exclude_unset=True)
+    if "manufactured_on" in update_data and is_in_future(
+        update_data["manufactured_on"]
+    ):
+        raise exceptions.InvalidValue(Vehicle.manufactured_on)
+    # This check is only applicable for operators, as executives can set any status.
     if app_id == AppID.OPERATOR and "status" in update_data:
-        allowed_vehicle_status_transitions = {
-            VehicleStatus.ACTIVE: [VehicleStatus.MAINTENANCE],
-            VehicleStatus.MAINTENANCE: [VehicleStatus.ACTIVE],
-        }
-        validate_state_transition(
-            allowed_vehicle_status_transitions,
-            vehicle.status,
-            update_data.get("status"),
-            Vehicle.status,
-        )
+        if update_data["status"] != vehicle.status:
+            allowed_vehicle_status_transitions = {
+                VehicleStatus.ACTIVE: [VehicleStatus.MAINTENANCE],
+                VehicleStatus.MAINTENANCE: [VehicleStatus.ACTIVE],
+            }
+            validate_state_transition(
+                allowed_vehicle_status_transitions,
+                vehicle.status,
+                update_data["status"],
+                Vehicle.status,
+            )
+            vehicle.status = update_data["status"]
+        update_data.pop("status")
 
     update_if_changed(vehicle, update_data)
-    have_updates = session.is_modified(vehicle)
-    if have_updates:
+    if session.is_modified(vehicle):
         vehicle.version += 1
         session.commit()
         session.refresh(vehicle)
+        vehicle_data = jsonable_encoder(vehicle)
+        log_event(token, request_info, vehicle_data)
+    else:
+        vehicle_data = jsonable_encoder(vehicle)
+    return vehicle_data
 
-    vehicle_data = jsonable_encoder(vehicle)
-    return have_updates, vehicle_data
 
-
-def delete_vehicle(session: Session, vehicle: Vehicle) -> dict:
+def delete_vehicle(
+    session: Session,
+    id: int,
+    token: Union[ExecutiveToken, OperatorToken],
+    request_info: schemas.RequestInfo,
+    vehicle_filter=None,
+) -> None:
     """
     Deletes a vehicle from the database.
 
     Args:
         session (Session): SQLAlchemy database session.
-        vehicle (Vehicle): Vehicle to delete.
-
-    Returns:
-        dict: JSON-encoded representation of the deleted vehicle.
+        id (int): ID of the vehicle to delete.
+        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        request_info: Request information for logging.
+        vehicle_filter (optional): Additional filter to apply when fetching the vehicle.
     """
+    vehicle = get_by_id(session, Vehicle, id, extra_filter=vehicle_filter)
+    if vehicle is None:
+        return
+
     vehicle_data = jsonable_encoder(vehicle)
     session.delete(vehicle)
     session.commit()
-    return vehicle_data
+    log_event(token, request_info, vehicle_data)
 
 
-def search_vehicle(session: Session, query_params: QueryParams) -> List[Vehicle]:
+def search_vehicles(session: Session, query_params: QueryParams) -> list[Vehicle]:
     """
     Search for Vehicles based on provided query parameters.
 
@@ -365,7 +382,7 @@ def search_vehicle(session: Session, query_params: QueryParams) -> List[Vehicle]
         query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
-        List[Vehicle]: List of Vehicles that match the search criteria.
+        list[Vehicle]: List of Vehicles that match the search criteria.
     """
     query = session.query(Vehicle)
     if query_params.company_id is not None:
@@ -514,24 +531,23 @@ async def create_vehicle_for_executive(
     form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
             [ExecutivePermissionPath.CREATE_COMPANY_VEHICLE],
         )
-
         validate_id(session, Company, form_param.company_id, Vehicle.company_id)
-        vehicle_data = create_vehicle(session, CreateForm(**form_param.model_dump()))
-
-        log_event(token, request_info, vehicle_data)
-        return vehicle_data
+        return create_vehicle(
+            session,
+            CreateForm(**form_param.model_dump()),
+            token,
+            request_info,
+        )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.patch(
@@ -551,26 +567,23 @@ async def update_vehicle_for_executive(
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
             [ExecutivePermissionPath.UPDATE_COMPANY_VEHICLE],
         )
-
-        have_updates, vehicle_data = update_vehicle(
-            session, id, UpdateForm(**form_param.model_dump(exclude_unset=True))
+        return update_vehicle(
+            session,
+            id,
+            UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            token,
+            request_info,
         )
-
-        if have_updates:
-            log_event(token, request_info, vehicle_data)
-        return vehicle_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -591,49 +604,41 @@ async def delete_vehicle_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
             [ExecutivePermissionPath.DELETE_COMPANY_VEHICLE],
         )
-
-        vehicle = session.query(Vehicle).filter(Vehicle.id == id).first()
-        if vehicle is not None:
-            vehicle_data = delete_vehicle(session, vehicle)
-            log_event(token, request_info, vehicle_data)
+        delete_vehicle(session, id, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
     URL_VEHICLE,
     summary="Fetch vehicle",
     tags=["Vehicle"],
-    response_model=List[VehicleSchema],
+    response_model=list[VehicleSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_vehicles_for_executive(
-    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+    query_params: QueryParamsForEX = Depends(),
+    access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
-        return search_vehicle(
+        return search_vehicles(
             session,
             QueryParams(**query_params.model_dump()),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -656,29 +661,26 @@ async def create_vehicle_for_operator(
     form_param: CreateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
             [OperatorPermissionPath.CREATE_COMPANY_VEHICLE],
         )
-
-        vehicle_data = create_vehicle(
+        return create_vehicle(
             session,
             CreateForm(
                 **form_param.model_dump(),
                 company_id=token.company_id,
                 status=VehicleStatus.CREATED,
             ),
+            token,
+            request_info,
         )
-        log_event(token, request_info, vehicle_data)
-        return vehicle_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.patch(
@@ -704,27 +706,25 @@ async def update_vehicle_for_operator(
     form_param: UpdateForm,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_VEHICLE)
-
-        have_updates, vehicle_data = update_vehicle(
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.UPDATE_COMPANY_VEHICLE],
+        )
+        return update_vehicle(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            extra_filter_for_vehicle=(Vehicle.company_id == token.company_id),
+            token,
+            request_info,
+            vehicle_filter=(Vehicle.company_id == token.company_id),
             app_id=request_info.app_id,
         )
-        if have_updates:
-            log_event(token, request_info, vehicle_data)
-        return vehicle_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.delete(
@@ -745,53 +745,47 @@ async def delete_vehicle_for_operator(
     id: int,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
             [OperatorPermissionPath.DELETE_COMPANY_VEHICLE],
         )
-
-        vehicle = (
-            session.query(Vehicle)
-            .filter(Vehicle.id == id, Vehicle.company_id == token.company_id)
-            .first()
+        delete_vehicle(
+            session,
+            id,
+            token,
+            request_info,
+            vehicle_filter=(Vehicle.company_id == token.company_id),
         )
-        if vehicle is not None:
-            vehicle_data = delete_vehicle(session, vehicle)
-            log_event(token, request_info, vehicle_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.get(
     URL_VEHICLE,
     summary="Fetch vehicle",
     tags=["Vehicle"],
-    response_model=List[VehicleSchema],
+    response_model=list[VehicleSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_vehicles_for_operator(
-    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+    query_params: QueryParamsForOP = Depends(),
+    access_token=Depends(bearer_operator),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
-
-        return search_vehicle(
+        return search_vehicles(
             session,
             QueryParams(**query_params.model_dump(), company_id=token.company_id),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -801,25 +795,23 @@ async def fetch_vehicles_for_operator(
     URL_VEHICLE,
     summary="Fetch vehicle",
     tags=["Vehicle"],
-    response_model=List[VehicleSchema],
+    response_model=list[VehicleSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_vehicles_for_vendor(
-    query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
+    query_params: QueryParamsForVE = Depends(),
+    access_token=Depends(bearer_vendor),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, VendorToken, access_token.credentials)
-
-        return search_vehicle(
+        return search_vehicles(
             session,
             QueryParams(**query_params.model_dump()),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -829,7 +821,7 @@ async def fetch_vehicles_for_vendor(
     URL_VEHICLE,
     summary="Fetch vehicle",
     tags=["Vehicle"],
-    response_model=List[MaskedVehicleSchema],
+    response_model=list[MaskedVehicleSchema],
     description=(
         GET_DESCRIPTION.copy()
         .add_line("Only masked data is returned.")
@@ -837,15 +829,14 @@ async def fetch_vehicles_for_vendor(
         .to_string()
     ),
 )
-async def fetch_vehicles_for_public(query_params: QueryParamsForPU = Depends()):
+async def fetch_vehicles_for_public(
+    query_params: QueryParamsForPU = Depends(),
+    session: Session = Depends(get_db_session),
+):
     try:
-        session = SessionLocal()
-
         query_params = resolve_model_defaults(
             QueryParams, **query_params.model_dump(), status_list=[VehicleStatus.ACTIVE]
         )
-        return search_vehicle(session, query_params)
+        return search_vehicles(session, query_params)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
