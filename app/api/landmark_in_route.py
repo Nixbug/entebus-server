@@ -1,15 +1,17 @@
 """
-Landmark in Route API Router for EnteBus.
+Landmark in Route API Router.
 
-Provides endpoints for managing landmarks in routes, including creation,
-update, deletion and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing landmarks in routes:
+    - POST (executive, operator)
+    - PATCH (executive, operator)
+    - DELETE (executive, operator)
+    - GET (executive, operator, vendor, public)
 """
 
 from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, status, Query, Response
-from typing import List, Tuple
+from typing import Union
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm.session import Session
 from pydantic import BaseModel, Field
@@ -21,7 +23,7 @@ from app.src.db import (
     ExecutiveToken,
     OperatorToken,
     VendorToken,
-    SessionLocal,
+    get_db_session,
 )
 from app.src.enums import OrderIn
 from app.src.urls import URL_LANDMARK_IN_ROUTE
@@ -35,6 +37,7 @@ from app.src.validators import (
 from app.src.functions import (
     enum_str,
     fuse_exception_responses,
+    get_by_id,
     get_request_info,
     update_if_changed,
     apply_id_filters,
@@ -51,7 +54,7 @@ from app.src.filters import (
 )
 from app.src.openobserve import log_event
 from app.src.description import Description
-from app.src import exceptions
+from app.src import exceptions, schemas
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.constants import MAX_LANDMARKS_PER_ROUTE
@@ -95,9 +98,9 @@ class CreateForm(BaseModel):
 class UpdateForm(BaseModel):
     """Form data for updating an landmark in route."""
 
-    distance_from_start: int = Field(default=None, gt=-1)
-    arrival_delta: int = Field(default=None, gt=-1)
-    departure_delta: int = Field(default=None, gt=-1)
+    distance_from_start: int | None = Field(default=None, gt=-1)
+    arrival_delta: int | None = Field(default=None, gt=-1)
+    departure_delta: int | None = Field(default=None, gt=-1)
 
 
 # ---------------------------------------------------------------------------
@@ -171,10 +174,14 @@ def construct_route_transition_lock(route_id: int) -> str:
 
 
 # ---------------------------------------------------------------------------
-## Functions
+## Core Functions
 # ---------------------------------------------------------------------------
 def create_landmark_in_route(
-    session: Session, form_param: CreateForm, extra_filter_for_route=None
+    session: Session,
+    form_param: CreateForm,
+    token: Union[ExecutiveToken, OperatorToken],
+    request_info: schemas.RequestInfo,
+    route_filter=None,
 ) -> dict:
     """
     Creates a new landmark in route record in the database.
@@ -182,7 +189,9 @@ def create_landmark_in_route(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a landmark in route.
-        extra_filter_for_route (optional): Additional filter to apply when validating the route ID.
+        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
+        route_filter (Optional): Additional filter to apply when validating the route ID.
 
     Returns:
         dict: The created landmark in route data.
@@ -194,7 +203,7 @@ def create_landmark_in_route(
             Route,
             form_param.route_id,
             LandmarkInRoute.route_id,
-            extra_filter=extra_filter_for_route,
+            extra_filter=route_filter,
         )
         route_lock = acquire_lock(construct_route_transition_lock(route.id))
         session.refresh(route)
@@ -231,10 +240,11 @@ def create_landmark_in_route(
             route.status = RouteStatus.VALID
         else:
             route.status = RouteStatus.INVALID
-
         session.commit()
         session.refresh(landmark_in_route)
+
         landmark_in_route_data = jsonable_encoder(landmark_in_route)
+        log_event(token, request_info, landmark_in_route_data)
         return landmark_in_route_data
     finally:
         release_lock(route_lock)
@@ -244,8 +254,10 @@ def update_landmark_in_route(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    extra_filter_for_landmark_in_route=None,
-) -> Tuple[bool, dict]:
+    token: Union[ExecutiveToken, OperatorToken],
+    request_info: schemas.RequestInfo,
+    landmark_in_route_filter=None,
+) -> dict:
     """
     Updates an existing landmark in route record in the database.
 
@@ -253,10 +265,12 @@ def update_landmark_in_route(
         session (Session): SQLAlchemy database session.
         id (int): ID of the landmark in route to update.
         form_param (UpdateForm): Form data for updating the landmark in route.
-        extra_filter_for_landmark_in_route (optional): Additional filter to apply when validating the landmark in route ID.
+        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
+        landmark_in_route_filter (Optional): Additional filter to apply when validating the landmark in route ID.
 
     Returns:
-        Tuple[bool, dict]: A tuple containing a boolean indicating if updates were made and the updated landmark in route data.
+        dict: JSON-encoded representation of the updated landmark in route.
     """
     route_lock = None
     try:
@@ -265,7 +279,7 @@ def update_landmark_in_route(
             LandmarkInRoute,
             id,
             LandmarkInRoute.id,
-            extra_filter=extra_filter_for_landmark_in_route,
+            extra_filter=landmark_in_route_filter,
         )
 
         route_lock = acquire_lock(
@@ -273,33 +287,24 @@ def update_landmark_in_route(
         )
         session.refresh(landmark_in_route)
 
-        arrival_delta = (
-            form_param.arrival_delta
-            if form_param.arrival_delta is not None
-            else landmark_in_route.arrival_delta
-        )
-        departure_delta = (
-            form_param.departure_delta
-            if form_param.departure_delta is not None
-            else landmark_in_route.departure_delta
-        )
-
-        if (
-            arrival_delta is not None
-            and departure_delta is not None
-            and arrival_delta > departure_delta
-        ):
+        # Validate arrival and departure deltas
+        update_data = form_param.model_dump(exclude_unset=True)
+        if "arrival_delta" in update_data:
+            arrival_delta = update_data["arrival_delta"]
+        else:
+            arrival_delta = landmark_in_route.arrival_delta
+        if "departure_delta" in update_data:
+            departure_delta = update_data["departure_delta"]
+        else:
+            departure_delta = landmark_in_route.departure_delta
+        if arrival_delta > departure_delta:
             raise exceptions.InvalidValue(LandmarkInRoute.arrival_delta)
 
-        route = validate_id(
-            session, Route, landmark_in_route.route_id, LandmarkInRoute.route_id
-        )
-
-        update_data = form_param.model_dump(exclude_unset=True)
         update_if_changed(landmark_in_route, update_data)
-
-        have_updates = session.is_modified(landmark_in_route)
-        if have_updates:
+        if session.is_modified(landmark_in_route):
+            route = validate_id(
+                session, Route, landmark_in_route.route_id, LandmarkInRoute.route_id
+            )
             is_valid = validate_route(route.id, session)
             if is_valid:
                 route.status = RouteStatus.VALID
@@ -308,28 +313,43 @@ def update_landmark_in_route(
 
             session.commit()
             session.refresh(landmark_in_route)
-
-        landmark_in_route_data = jsonable_encoder(landmark_in_route)
-        return have_updates, landmark_in_route_data
+            landmark_in_route_data = jsonable_encoder(landmark_in_route)
+            log_event(token, request_info, landmark_in_route_data)
+        else:
+            landmark_in_route_data = jsonable_encoder(landmark_in_route)
+        return landmark_in_route_data
     finally:
         release_lock(route_lock)
 
 
 def delete_landmark_in_route(
-    session: Session, landmark_in_route: LandmarkInRoute
-) -> dict:
+    session: Session,
+    id: int,
+    token: Union[ExecutiveToken, OperatorToken],
+    request_info: schemas.RequestInfo,
+    landmark_in_route_filter=None,
+) -> None:
     """
     Deletes a landmark in route record from the database.
 
     Args:
         session (Session): SQLAlchemy database session.
-        landmark_in_route (LandmarkInRoute): The landmark in route record to be deleted.
-
-    Returns:
-        dict: The deleted landmark in route data.
+        id (int): ID of the landmark in route to delete.
+        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
+        landmark_in_route_filter (Optional): Additional filter while fetching landmark in route.
     """
     route_lock = None
     try:
+        landmark_in_route = get_by_id(
+            session,
+            LandmarkInRoute,
+            id,
+            extra_filter=landmark_in_route_filter,
+        )
+        if landmark_in_route is None:
+            return
+
         route = validate_id(
             session, Route, landmark_in_route.route_id, LandmarkInRoute.route_id
         )
@@ -339,6 +359,7 @@ def delete_landmark_in_route(
         landmark_in_route_data = jsonable_encoder(landmark_in_route)
         session.delete(landmark_in_route)
         session.flush()
+
         is_valid = validate_route(route.id, session)
         if is_valid:
             route.status = RouteStatus.VALID
@@ -346,14 +367,14 @@ def delete_landmark_in_route(
             route.status = RouteStatus.INVALID
 
         session.commit()
-        return landmark_in_route_data
+        log_event(token, request_info, landmark_in_route_data)
     finally:
         release_lock(route_lock)
 
 
-def search_landmark_in_route(
+def search_landmarks_in_route(
     session: Session, query_params: QueryParams
-) -> List[LandmarkInRoute]:
+) -> list[LandmarkInRoute]:
     """
     Search for Landmark In Route based on provided query parameters.
 
@@ -365,7 +386,7 @@ def search_landmark_in_route(
         query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
-        List[LandmarkInRoute]: List of Landmark In Route that match the search criteria.
+        list[LandmarkInRoute]: List of Landmark In Route that match the search criteria.
     """
     query = session.query(LandmarkInRoute)
     if query_params.company_id is not None:
@@ -508,9 +529,9 @@ async def create_landmark_in_route_for_executive(
     form_param: CreateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
@@ -519,14 +540,14 @@ async def create_landmark_in_route_for_executive(
                 ExecutivePermissionPath.UPDATE_COMPANY_ROUTE,
             ],
         )
-
-        landmark_in_route_data = create_landmark_in_route(session, form_param)
-        log_event(token, request_info, landmark_in_route_data)
-        return landmark_in_route_data
+        return create_landmark_in_route(
+            session,
+            form_param,
+            token,
+            request_info,
+        )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.patch(
@@ -548,9 +569,9 @@ async def update_landmark_in_route_for_executive(
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
@@ -559,19 +580,15 @@ async def update_landmark_in_route_for_executive(
                 ExecutivePermissionPath.UPDATE_COMPANY_ROUTE,
             ],
         )
-
-        have_updates, landmark_in_route_data = update_landmark_in_route(
+        return update_landmark_in_route(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            token,
+            request_info,
         )
-        if have_updates:
-            log_event(token, request_info, landmark_in_route_data)
-        return landmark_in_route_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -592,9 +609,9 @@ async def delete_landmark_in_route_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
@@ -603,45 +620,33 @@ async def delete_landmark_in_route_for_executive(
                 ExecutivePermissionPath.UPDATE_COMPANY_ROUTE,
             ],
         )
-
-        landmark_in_route = (
-            session.query(LandmarkInRoute).filter(LandmarkInRoute.id == id).first()
-        )
-        if landmark_in_route is not None:
-            landmark_in_route_data = delete_landmark_in_route(
-                session, landmark_in_route
-            )
-            log_event(token, request_info, landmark_in_route_data)
+        delete_landmark_in_route(session, id, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
     URL_LANDMARK_IN_ROUTE,
     summary="Fetch landmark in route",
     tags=["Landmark In Route"],
-    response_model=List[LandmarkInRouteSchema],
+    response_model=list[LandmarkInRouteSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_landmarks_in_route_for_executive(
-    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+    query_params: QueryParamsForEX = Depends(),
+    access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
-        return search_landmark_in_route(
+        return search_landmarks_in_route(
             session,
             QueryParams(**query_params.model_dump()),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -666,9 +671,9 @@ async def create_landmark_in_route_for_operator(
     form_param: CreateForm,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
@@ -677,18 +682,15 @@ async def create_landmark_in_route_for_operator(
                 OperatorPermissionPath.UPDATE_COMPANY_ROUTE,
             ],
         )
-
-        landmark_in_route_data = create_landmark_in_route(
+        return create_landmark_in_route(
             session,
             form_param,
-            extra_filter_for_route=(Route.company_id == token.company_id),
+            token,
+            request_info,
+            route_filter=(Route.company_id == token.company_id),
         )
-        log_event(token, request_info, landmark_in_route_data)
-        return landmark_in_route_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.patch(
@@ -710,9 +712,9 @@ async def update_landmark_in_route_for_operator(
     form_param: UpdateForm,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
@@ -721,22 +723,16 @@ async def update_landmark_in_route_for_operator(
                 OperatorPermissionPath.UPDATE_COMPANY_ROUTE,
             ],
         )
-
-        have_updates, landmark_in_route_data = update_landmark_in_route(
+        return update_landmark_in_route(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            extra_filter_for_landmark_in_route=(
-                LandmarkInRoute.company_id == token.company_id
-            ),
+            token,
+            request_info,
+            landmark_in_route_filter=(LandmarkInRoute.company_id == token.company_id),
         )
-        if have_updates:
-            log_event(token, request_info, landmark_in_route_data)
-        return landmark_in_route_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.delete(
@@ -757,9 +753,9 @@ async def delete_landmark_in_route_for_operator(
     id: int,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
@@ -768,49 +764,39 @@ async def delete_landmark_in_route_for_operator(
                 OperatorPermissionPath.UPDATE_COMPANY_ROUTE,
             ],
         )
-
-        landmark_in_route = (
-            session.query(LandmarkInRoute)
-            .filter(
-                LandmarkInRoute.id == id, LandmarkInRoute.company_id == token.company_id
-            )
-            .first()
+        delete_landmark_in_route(
+            session,
+            id,
+            token,
+            request_info,
+            landmark_in_route_filter=(LandmarkInRoute.company_id == token.company_id),
         )
-        if landmark_in_route is not None:
-            landmark_in_route_data = delete_landmark_in_route(
-                session, landmark_in_route
-            )
-            log_event(token, request_info, landmark_in_route_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.get(
     URL_LANDMARK_IN_ROUTE,
     summary="Fetch landmark in route",
     tags=["Landmark In Route"],
-    response_model=List[LandmarkInRouteSchema],
+    response_model=list[LandmarkInRouteSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_landmarks_in_route_for_operator(
-    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+    query_params: QueryParamsForOP = Depends(),
+    access_token=Depends(bearer_operator),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
-
-        return search_landmark_in_route(
+        return search_landmarks_in_route(
             session,
             QueryParams(**query_params.model_dump(), company_id=token.company_id),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -820,25 +806,23 @@ async def fetch_landmarks_in_route_for_operator(
     URL_LANDMARK_IN_ROUTE,
     summary="Fetch landmark in route",
     tags=["Landmark In Route"],
-    response_model=List[LandmarkInRouteSchema],
+    response_model=list[LandmarkInRouteSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_landmarks_in_route_for_vendor(
-    query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
+    query_params: QueryParamsForVE = Depends(),
+    access_token=Depends(bearer_vendor),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, VendorToken, access_token.credentials)
-
-        return search_landmark_in_route(
+        return search_landmarks_in_route(
             session,
             QueryParams(**query_params.model_dump()),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -848,16 +832,15 @@ async def fetch_landmarks_in_route_for_vendor(
     URL_LANDMARK_IN_ROUTE,
     summary="Fetch landmark in route",
     tags=["Landmark In Route"],
-    response_model=List[LandmarkInRouteSchema],
+    response_model=list[LandmarkInRouteSchema],
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_landmarks_in_route_for_public(
     query_params: QueryParamsForPU = Depends(),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-
-        return search_landmark_in_route(
+        return search_landmarks_in_route(
             session,
             QueryParams(
                 **query_params.model_dump(),
@@ -866,5 +849,3 @@ async def fetch_landmarks_in_route_for_public(
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()

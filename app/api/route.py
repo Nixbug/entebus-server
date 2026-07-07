@@ -1,14 +1,16 @@
 """
-Route API Router for EnteBus.
+Route API Router.
 
-Provides endpoints for managing routes, including creation,
-update, deletion and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing routes:
+    - POST (executive, operator)
+    - PATCH (executive, operator)
+    - DELETE (executive, operator)
+    - GET (executive, operator, vendor, public)
 """
 
 from datetime import datetime, time
 from enum import StrEnum
-from typing import List, Tuple
+from typing import Union
 from fastapi import APIRouter, status, Depends, Query, Response
 from sqlalchemy.orm.session import Session
 from sqlalchemy import or_, String
@@ -19,12 +21,12 @@ from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
 from app.src.db import (
     Route,
     ExecutiveToken,
-    SessionLocal,
     OperatorToken,
     Company,
     VendorToken,
+    get_db_session,
 )
-from app.src import exceptions
+from app.src import exceptions, schemas
 from app.src.openobserve import log_event
 from app.src.description import Description
 from app.src.regex import NAME_PATTERN
@@ -37,6 +39,7 @@ from app.src.validators import (
 )
 from app.src.functions import (
     enum_str,
+    get_by_id,
     get_request_info,
     fuse_exception_responses,
     update_if_changed,
@@ -104,8 +107,13 @@ class CreateForm(CreateFormForEX):
 class UpdateForm(BaseModel):
     """Form data for updating a route."""
 
-    name: str = Field(min_length=1, max_length=4096, pattern=NAME_PATTERN, default=None)
-    start_time: time = Field(default=None)
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=4096,
+        pattern=NAME_PATTERN,
+    )
+    start_time: time | None = Field(default=None)
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +144,7 @@ class QueryParamsForPU(
 class QueryParamsForOP(QueryParamsForPU):
     """Query parameters for operators."""
 
-    status_list: List[RouteStatus] | None = Field(
+    status_list: list[RouteStatus] | None = Field(
         Query(default=None, description=enum_str(RouteStatus))
     )
 
@@ -160,15 +168,22 @@ class QueryParams(QueryParamsForEX):
 
 
 # ---------------------------------------------------------------------------
-## Functions
+## Core Functions
 # ---------------------------------------------------------------------------
-def create_route(session: Session, form_param: CreateForm) -> dict:
+def create_route(
+    session: Session,
+    form_param: CreateForm,
+    token: Union[ExecutiveToken, OperatorToken],
+    request_info: schemas.RequestInfo,
+) -> dict:
     """
     Creates a new route record in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a route.
+        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
 
     Returns:
         dict: The created route data.
@@ -176,7 +191,6 @@ def create_route(session: Session, form_param: CreateForm) -> dict:
     route_count = (
         session.query(Route).filter(Route.company_id == form_param.company_id).count()
     )
-
     if route_count >= MAX_ROUTES_PER_COMPANY:
         raise exceptions.LimitExceeded(Route)
 
@@ -188,13 +202,20 @@ def create_route(session: Session, form_param: CreateForm) -> dict:
     session.add(route)
     session.commit()
     session.refresh(route)
+
     route_data = jsonable_encoder(route)
+    log_event(token, request_info, route_data)
     return route_data
 
 
 def update_route(
-    session: Session, id: int, form_param: UpdateForm, extra_filter_for_route=None
-) -> Tuple[bool, dict]:
+    session: Session,
+    id: int,
+    form_param: UpdateForm,
+    token: Union[ExecutiveToken, OperatorToken],
+    request_info: schemas.RequestInfo,
+    route_filter=None,
+) -> dict:
     """
     Updates an existing route record in the database.
 
@@ -202,43 +223,56 @@ def update_route(
         session (Session): SQLAlchemy database session.
         id (int): ID of the route to update.
         form_param (UpdateForm): Form data for updating the route.
-        extra_filter_for_route (optional): Additional filter to apply when validating the route ID.
+        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
+        route_filter (Optional): Additional filter to apply when fetching the route.
 
     Returns:
-        Tuple[bool, dict]: A tuple containing a boolean indicating whether any updates were made and the updated route data.
+        dict: JSON-encoded representation of the updated route.
     """
-    route = validate_id(
-        session, Route, id, Route.id, extra_filter=extra_filter_for_route
-    )
+    route = validate_id(session, Route, id, Route.id, extra_filter=route_filter)
+
     update_data = form_param.model_dump(exclude_unset=True)
     update_if_changed(route, update_data)
-    have_updates = session.is_modified(route)
-    if have_updates:
+
+    if session.is_modified(route):
         session.commit()
         session.refresh(route)
+        route_data = jsonable_encoder(route)
+        log_event(token, request_info, route_data)
+    else:
+        route_data = jsonable_encoder(route)
+    return route_data
 
-    route_data = jsonable_encoder(route)
-    return have_updates, route_data
 
-
-def delete_route(session: Session, route: Route) -> dict:
+def delete_route(
+    session: Session,
+    id: int,
+    token: Union[ExecutiveToken, OperatorToken],
+    request_info: schemas.RequestInfo,
+    route_filter=None,
+) -> None:
     """
     Deletes a route from the database.
 
     Args:
         session (Session): SQLAlchemy database session.
-        route (Route): Route to delete.
-
-    Returns:
-        dict: JSON-encoded representation of the deleted route.
+        id (int): ID of the route to delete.
+        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
+        route_filter (Optional): Additional filter to apply when fetching the route.
     """
+    route = get_by_id(session, Route, id, extra_filter=route_filter)
+    if route is None:
+        return
+
     route_data = jsonable_encoder(route)
     session.delete(route)
     session.commit()
-    return route_data
+    log_event(token, request_info, route_data)
 
 
-def search_route(session: Session, query_params: QueryParams) -> List[Route]:
+def search_routes(session: Session, query_params: QueryParams) -> list[Route]:
     """
     Search for Routes based on provided query parameters.
 
@@ -250,7 +284,7 @@ def search_route(session: Session, query_params: QueryParams) -> List[Route]:
         query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
-        List[Route]: List of Routes that match the search criteria.
+        list[Route]: List of Routes that match the search criteria.
     """
     query = session.query(Route)
     if query_params.company_id is not None:
@@ -317,7 +351,7 @@ GET_EXCEPTIONS = [
 
 
 # ---------------------------------------------------------------------------
-## Common descriptions
+## Common description
 # ---------------------------------------------------------------------------
 POST_DESCRIPTION = (
     Description()
@@ -367,24 +401,23 @@ async def create_route_for_executive(
     form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
             [ExecutivePermissionPath.CREATE_COMPANY_ROUTE],
         )
-
         validate_id(session, Company, form_param.company_id, Route.company_id)
-        route_data = create_route(session, CreateForm(**form_param.model_dump()))
-
-        log_event(token, request_info, route_data)
-        return route_data
+        return create_route(
+            session,
+            CreateForm(**form_param.model_dump()),
+            token,
+            request_info,
+        )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.patch(
@@ -404,26 +437,23 @@ async def update_route_for_executive(
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
             [ExecutivePermissionPath.UPDATE_COMPANY_ROUTE],
         )
-
-        have_updates, route_data = update_route(
-            session, id, UpdateForm(**form_param.model_dump(exclude_unset=True))
+        return update_route(
+            session,
+            id,
+            UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            token,
+            request_info,
         )
-
-        if have_updates:
-            log_event(token, request_info, route_data)
-        return route_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -444,49 +474,41 @@ async def delete_route_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
             [ExecutivePermissionPath.DELETE_COMPANY_ROUTE],
         )
-
-        route = session.query(Route).filter(Route.id == id).first()
-        if route is not None:
-            route_data = delete_route(session, route)
-            log_event(token, request_info, route_data)
+        delete_route(session, id, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
     URL_ROUTE,
     summary="Fetch route",
     tags=["Route"],
-    response_model=List[RouteSchema],
+    response_model=list[RouteSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_routes_for_executive(
-    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+    query_params: QueryParamsForEX = Depends(),
+    access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
-        return search_route(
+        return search_routes(
             session,
             QueryParams(**query_params.model_dump()),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -514,24 +536,22 @@ async def create_route_for_operator(
     form_param: CreateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
             [OperatorPermissionPath.CREATE_COMPANY_ROUTE],
         )
-
-        route_data = create_route(
-            session, CreateForm(**form_param.model_dump(), company_id=token.company_id)
+        return create_route(
+            session,
+            CreateForm(**form_param.model_dump(), company_id=token.company_id),
+            token,
+            request_info,
         )
-        log_event(token, request_info, route_data)
-        return route_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.patch(
@@ -551,28 +571,24 @@ async def update_route_for_operator(
     form_param: UpdateForm,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
             [OperatorPermissionPath.UPDATE_COMPANY_ROUTE],
         )
-
-        have_updates, route_data = update_route(
+        return update_route(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            extra_filter_for_route=(Route.company_id == token.company_id),
+            token,
+            request_info,
+            route_filter=(Route.company_id == token.company_id),
         )
-        if have_updates:
-            log_event(token, request_info, route_data)
-        return route_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.delete(
@@ -593,53 +609,47 @@ async def delete_route_for_operator(
     id: int,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
             [OperatorPermissionPath.DELETE_COMPANY_ROUTE],
         )
-
-        route = (
-            session.query(Route)
-            .filter(Route.id == id, Route.company_id == token.company_id)
-            .first()
+        delete_route(
+            session,
+            id,
+            token,
+            request_info,
+            route_filter=(Route.company_id == token.company_id),
         )
-        if route is not None:
-            route_data = delete_route(session, route)
-            log_event(token, request_info, route_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.get(
     URL_ROUTE,
     summary="Fetch route",
     tags=["Route"],
-    response_model=List[RouteSchema],
+    response_model=list[RouteSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_routes_for_operator(
-    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+    query_params: QueryParamsForOP = Depends(),
+    access_token=Depends(bearer_operator),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
-
-        return search_route(
+        return search_routes(
             session,
             QueryParams(**query_params.model_dump(), company_id=token.company_id),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -649,25 +659,23 @@ async def fetch_routes_for_operator(
     URL_ROUTE,
     summary="Fetch route",
     tags=["Route"],
-    response_model=List[RouteSchema],
+    response_model=list[RouteSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_routes_for_vendor(
-    query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
+    query_params: QueryParamsForVE = Depends(),
+    access_token=Depends(bearer_vendor),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, VendorToken, access_token.credentials)
-
-        return search_route(
+        return search_routes(
             session,
             QueryParams(**query_params.model_dump()),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -677,18 +685,19 @@ async def fetch_routes_for_vendor(
     URL_ROUTE,
     summary="Fetch route",
     tags=["Route"],
-    response_model=List[RouteSchema],
+    response_model=list[RouteSchema],
     description=(
         GET_DESCRIPTION.copy()
         .add_line("By default only valid routes are returned.")
         .to_string()
     ),
 )
-async def fetch_routes_for_public(query_params: QueryParamsForPU = Depends()):
+async def fetch_routes_for_public(
+    query_params: QueryParamsForPU = Depends(),
+    session: Session = Depends(get_db_session),
+):
     try:
-        session = SessionLocal()
-
-        return search_route(
+        return search_routes(
             session,
             QueryParams(
                 **query_params.model_dump(),
@@ -698,5 +707,3 @@ async def fetch_routes_for_public(query_params: QueryParamsForPU = Depends()):
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()

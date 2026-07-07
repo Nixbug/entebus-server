@@ -1,5 +1,5 @@
 """
-Fare API Router for EnteBus.
+Fare API Router.
 
 Provides endpoints for managing fares:
     - POST (executive, operator)
