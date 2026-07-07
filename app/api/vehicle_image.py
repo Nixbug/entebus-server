@@ -525,7 +525,7 @@ async def upload_vehicle_image_for_operator(
             access_token.credentials,
             [OperatorPermissionPath.UPDATE_COMPANY_VEHICLE],
         )
-        return create_vehicle_image(
+        return await create_vehicle_image(
             session,
             CreateForm(**form_param.model_dump()),
             token,
