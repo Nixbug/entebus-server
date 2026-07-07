@@ -248,8 +248,7 @@ def delete_vehicle_image(
     """
     vehicle_image = get_by_id(session, VehicleImage, id, extra_filter=vehicle_filter)
     if vehicle_image is None:
-        raise exceptions.UnknownValue(VehicleImage.id)
-
+        return
     vehicle_image_data = jsonable_encoder(vehicle_image)
     session.delete(vehicle_image)
     session.commit()
