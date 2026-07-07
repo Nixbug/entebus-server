@@ -302,6 +302,7 @@ def fetch_vehicle_image(
     session: Session,
     id: int,
     query_params: ImageQueryParams,
+    vehicle_filter=None,
 ) -> StreamingResponse:
     """
     Fetch a vehicle image by its ID and optionally resize it.
@@ -310,11 +311,12 @@ def fetch_vehicle_image(
         session (Session): SQLAlchemy database session.
         id (int): ID of the vehicle image to fetch.
         query_params (ImageQueryParams): Query parameters for resizing the image.
+        vehicle_filter (optional): Additional filter to apply when validating the vehicle.
 
     Returns:
         StreamingResponse: The vehicle image stream in original or resized form.
     """
-    vehicle_image = session.query(VehicleImage).filter(VehicleImage.id == id).first()
+    vehicle_image = get_by_id(session, VehicleImage, id, extra_filter=vehicle_filter)
     if vehicle_image is None:
         raise exceptions.UnknownValue(VehicleImage.id)
 
@@ -601,8 +603,13 @@ async def download_vehicle_image_for_operator(
     session: Session = Depends(get_db_session),
 ):
     try:
-        verify_token(session, OperatorToken, access_token.credentials)
-        return fetch_vehicle_image(session, id, query_params)
+        token = verify_token(session, OperatorToken, access_token.credentials)
+        return fetch_vehicle_image(
+            session,
+            id,
+            query_params,
+            vehicle_filter=(Vehicle.company_id == token.company_id),
+        )
     except Exception as e:
         exceptions.handle(e)
 

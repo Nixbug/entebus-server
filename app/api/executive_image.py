@@ -46,6 +46,7 @@ from app.src.functions import (
     apply_picture_filters,
     enum_str,
     fuse_exception_responses,
+    get_by_id,
     get_request_info,
     get_executive_roles,
     resize_image,
@@ -251,9 +252,7 @@ def fetch_executive_image(
     Returns:
         StreamingResponse: The executive image stream in original or resized form.
     """
-    executive_image = (
-        session.query(ExecutiveImage).filter(ExecutiveImage.id == id).first()
-    )
+    executive_image = get_by_id(session, ExecutiveImage, id)
     if executive_image is None:
         raise exceptions.UnknownValue(ExecutiveImage.id)
 
