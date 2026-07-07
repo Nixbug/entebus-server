@@ -614,7 +614,7 @@ async def download_vehicle_image_for_operator(
             session,
             id,
             query_params,
-            vehicle_filter=(Vehicle.company_id == token.company_id),
+            vehicle_filter=(VehicleImage.company_id == token.company_id),
         )
     except Exception as e:
         exceptions.handle(e)
