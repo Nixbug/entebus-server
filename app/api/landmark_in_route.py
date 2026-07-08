@@ -238,6 +238,7 @@ def create_landmark_in_route(
         is_valid = validate_route(route.id, session)
         if is_valid:
             route.status = RouteStatus.VALID
+            route.version += 1
         else:
             route.status = RouteStatus.INVALID
         session.commit()
@@ -308,6 +309,7 @@ def update_landmark_in_route(
             is_valid = validate_route(route.id, session)
             if is_valid:
                 route.status = RouteStatus.VALID
+                route.version += 1
             else:
                 route.status = RouteStatus.INVALID
 
@@ -363,6 +365,7 @@ def delete_landmark_in_route(
         is_valid = validate_route(route.id, session)
         if is_valid:
             route.status = RouteStatus.VALID
+            route.version += 1
         else:
             route.status = RouteStatus.INVALID
 
