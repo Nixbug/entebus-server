@@ -2340,6 +2340,9 @@ class Service(ORMbase):
             Foreign key referencing `route.id`.
             Identifies the route that this service operates on.
 
+        route_version (Integer, nullable):
+            Version of the route at the time of service creation.
+
         registration_number (TEXT, not null):
             Registration number of the vehicle assigned to this service.
 
@@ -2409,6 +2412,7 @@ class Service(ORMbase):
     route_id: Mapped[int | None] = orm.mapped_column(
         BigInteger, ForeignKey("route.id", ondelete="SET NULL"), index=True
     )
+    route_version: Mapped[int | None] = orm.mapped_column(Integer)
     registration_number: Mapped[str] = orm.mapped_column(
         TEXT, nullable=False, index=True
     )
