@@ -234,7 +234,7 @@ def delete_vehicle_image(
     id: int,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    vehicle_filter=None,
+    vehicle_image_filter=None,
 ):
     """
     Deletes a vehicle image from the database.
@@ -244,9 +244,11 @@ def delete_vehicle_image(
         id (int): ID of the vehicle image to delete.
         token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
-        vehicle_filter (optional): Additional filter to apply when validating the vehicle.
+        vehicle_image_filter (optional): Additional filter to apply when validating the vehicle image.
     """
-    vehicle_image = get_by_id(session, VehicleImage, id, extra_filter=vehicle_filter)
+    vehicle_image = get_by_id(
+        session, VehicleImage, id, extra_filter=vehicle_image_filter
+    )
     if vehicle_image is None:
         return
 
@@ -302,7 +304,7 @@ def fetch_vehicle_image(
     session: Session,
     id: int,
     query_params: ImageQueryParams,
-    vehicle_filter=None,
+    vehicle_image_filter=None,
 ) -> StreamingResponse:
     """
     Fetch a vehicle image by its ID and optionally resize it.
@@ -311,12 +313,14 @@ def fetch_vehicle_image(
         session (Session): SQLAlchemy database session.
         id (int): ID of the vehicle image to fetch.
         query_params (ImageQueryParams): Query parameters for resizing the image.
-        vehicle_filter (optional): Additional filter to apply when validating the vehicle.
+        vehicle_image_filter (optional): Additional filter to apply when validating the vehicle.
 
     Returns:
         StreamingResponse: The vehicle image stream in original or resized form.
     """
-    vehicle_image = get_by_id(session, VehicleImage, id, extra_filter=vehicle_filter)
+    vehicle_image = get_by_id(
+        session, VehicleImage, id, extra_filter=vehicle_image_filter
+    )
     if vehicle_image is None:
         raise exceptions.UnknownValue(VehicleImage.id)
 
@@ -565,7 +569,7 @@ async def delete_vehicle_image_for_operator(
             id,
             token,
             request_info,
-            vehicle_filter=(VehicleImage.company_id == token.company_id),
+            vehicle_image_filter=(VehicleImage.company_id == token.company_id),
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
@@ -614,7 +618,7 @@ async def download_vehicle_image_for_operator(
             session,
             id,
             query_params,
-            vehicle_filter=(VehicleImage.company_id == token.company_id),
+            vehicle_image_filter=(VehicleImage.company_id == token.company_id),
         )
     except Exception as e:
         exceptions.handle(e)
