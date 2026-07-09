@@ -1198,6 +1198,8 @@ def delete_service(
         service_lock = acquire_lock(construct_service_transition_lock(service.id))
         session.refresh(service)
         service_data = jsonable_encoder(service, exclude={"private_key", "public_key"})
+        session.delete(service)
+        session.flush()
 
         delete_landmarks_in_service(session, service)
         fare_in_service = fetch_fare_in_service(session, service)
@@ -1215,7 +1217,6 @@ def delete_service(
         )
         delete_vehicle_in_service(session, vehicle_in_service)
 
-        session.delete(service)
         session.commit()
         log_event(token, request_info, service_data)
     finally:
