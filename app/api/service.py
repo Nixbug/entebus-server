@@ -1110,18 +1110,21 @@ def search_service(session: Session, query_params: QueryParams) -> list[Service]
     return services
 
 
-def fetch_service_details(session: Session, id: int) -> dict[str, Any]:
+def fetch_service_details(
+    session: Session, id: int, service_filter=None
+) -> dict[str, Any]:
     """
     Returns details of a service along with related entities like landmarks, fare, and vehicle in service.
 
     Args:
         session (Session): SQLAlchemy session.
         id (int): ID of the service to lookup.
+        service_filter: Optional filter to apply when fetching the service.
 
     Returns dict[str, Any]:
         - Dict[str, Any]: JSON-encoded representation of the service details.
     """
-    service = get_by_id(session, Service, id)
+    service = get_by_id(session, Service, id, extra_filter=service_filter)
     if service is None:
         raise exceptions.UnknownValue(Service.id)
 
@@ -1577,8 +1580,10 @@ async def fetch_service_details_for_operator(
     session: Session = Depends(get_db_session),
 ):
     try:
-        verify_token(session, OperatorToken, access_token.credentials)
-        return fetch_service_details(session, id)
+        token = verify_token(session, OperatorToken, access_token.credentials)
+        return fetch_service_details(
+            session, id, service_filter=(Service.company_id == token.company_id)
+        )
     except Exception as e:
         exceptions.handle(e)
 
