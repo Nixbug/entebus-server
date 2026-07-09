@@ -782,10 +782,10 @@ def update_service(
     """
     service_lock = None
     service_creation_lock = None
-    old_fare_lock = None
-    new_fare_lock = None
-    old_vehicle_lock = None
-    new_vehicle_lock = None
+    fare_lock_1 = None
+    fare_lock_2 = None
+    vehicle_lock_1 = None
+    vehicle_lock_2 = None
     try:
         service = validate_id(
             session, Service, id, Service.id, extra_filter=service_filter
@@ -819,14 +819,20 @@ def update_service(
                 if vehicle.status != VehicleStatus.ACTIVE:
                     raise exceptions.InactiveResource(Vehicle)
 
-                old_vehicle_lock = acquire_lock(
-                    construct_vehicle_reference_lock(
-                        vehicle_in_service.vehicle_id, vehicle_in_service.version
-                    )
+                # Acquire locks for old and new vehicle snapshots ensuring consistent
+                # lock acquisition order to prevent deadlocks
+                old_vehicle_lock_key = construct_vehicle_reference_lock(
+                    vehicle_in_service.vehicle_id, vehicle_in_service.version
                 )
-                new_vehicle_lock = acquire_lock(
-                    construct_vehicle_reference_lock(vehicle.id, vehicle.version)
+                new_vehicle_lock_key = construct_vehicle_reference_lock(
+                    vehicle.id, vehicle.version
                 )
+                first_lock_key, second_lock_key = sorted(
+                    (old_vehicle_lock_key, new_vehicle_lock_key)
+                )
+                vehicle_lock_1 = acquire_lock(first_lock_key)
+                vehicle_lock_2 = acquire_lock(second_lock_key)
+
                 old_vehicle_in_service = vehicle_in_service
                 new_vehicle_in_service = create_vehicle_in_service(session, vehicle)
                 delete_vehicle_in_service(session, old_vehicle_in_service)
@@ -853,14 +859,18 @@ def update_service(
                 if service.status != ServiceStatus.CREATED:
                     raise exceptions.DataInUse(Service)
 
-                old_fare_lock = acquire_lock(
-                    construct_fare_reference_lock(
-                        fare_in_service.fare_id, fare_in_service.version
-                    )
+                # Acquire locks for old and new fare snapshots ensuring consistent
+                # lock acquisition order to prevent deadlocks
+                old_fare_lock_key = construct_fare_reference_lock(
+                    fare_in_service.fare_id, fare_in_service.version
                 )
-                new_fare_lock = acquire_lock(
-                    construct_fare_reference_lock(fare.id, fare.version)
+                new_fare_lock_key = construct_fare_reference_lock(fare.id, fare.version)
+                first_lock_key, second_lock_key = sorted(
+                    (old_fare_lock_key, new_fare_lock_key)
                 )
+                fare_lock_1 = acquire_lock(first_lock_key)
+                fare_lock_2 = acquire_lock(second_lock_key)
+
                 old_fare_in_service = fare_in_service
                 new_fare_in_service = create_fare_in_service(session, fare)
                 delete_fare_in_service(session, old_fare_in_service)
@@ -994,10 +1004,10 @@ def update_service(
             service_data = jsonable_encoder(service, exclude={"private_key"})
         return service_data
     finally:
-        release_lock(new_vehicle_lock)
-        release_lock(old_vehicle_lock)
-        release_lock(new_fare_lock)
-        release_lock(old_fare_lock)
+        release_lock(vehicle_lock_1)
+        release_lock(vehicle_lock_2)
+        release_lock(fare_lock_1)
+        release_lock(fare_lock_2)
         release_lock(service_creation_lock)
         release_lock(service_lock)
 
