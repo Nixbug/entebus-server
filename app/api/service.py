@@ -1567,9 +1567,7 @@ async def fetch_services_for_operator(
         [*GET_DETAIL_EXCEPTIONS, exceptions.InvalidToken()]
     ),
     description=GET_DETAIL_DESCRIPTION.copy()
-    .add_line(
-        "If `marked_as_cached` query parameter is set to true, and the service status is currently CREATED, the status will be updated to CACHED."
-    )
+    .add_line("PATCH the status to CACHED state if you intend to use this service.")
     .to_string(),
 )
 async def fetch_service_details_for_operator(
