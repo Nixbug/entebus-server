@@ -955,16 +955,25 @@ def update_service(
                     duties = (
                         session.query(Duty).filter(Duty.service_id == service.id).all()
                     )
+
+                    collections_by_duty_id: dict[int, Decimal] = {
+                        duty_id: total
+                        for duty_id, total in session.query(
+                            PaperTicket.duty_id, func.sum(PaperTicket.amount)
+                        )
+                        .filter(PaperTicket.duty_id.in_([duty.id for duty in duties]))
+                        .group_by(PaperTicket.duty_id)
+                        .all()
+                    }
+
+                    service_collection = Decimal(0)
                     for duty in duties:
                         if duty.status == DutyStatus.STARTED:
                             duty.finished_on = utc_now
                             duty.status = DutyStatus.ENDED
-                        collection = (
-                            session.query(func.sum(PaperTicket.amount))
-                            .filter(PaperTicket.duty_id == duty.id)
-                            .scalar()
-                        )
-                        duty.collection = collection
+                        duty.collection = collections_by_duty_id.get(duty.id)
+                        service_collection += duty.collection or Decimal(0)
+                    service.collection = service_collection
                 service.status = update_data["status"]
                 session.flush()
             update_data.pop("status")
