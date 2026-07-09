@@ -515,7 +515,6 @@ def delete_fare_in_service(session: Session, fare_in_service: FareInService) -> 
     fare_in_service.reference_count -= 1
     if fare_in_service.reference_count == 0:
         session.delete(fare_in_service)
-    session.flush()
 
 
 def create_vehicle_in_service(session: Session, vehicle: Vehicle) -> VehicleInService:
