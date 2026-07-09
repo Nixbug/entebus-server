@@ -683,7 +683,7 @@ def create_service(
         )
 
         # Acquire fare and vehicle locks to protect snapshot reference counts
-        fare_lock = acquire_lock(construct_fare_reference_lock(fare.id))
+        fare_lock = acquire_lock(construct_fare_reference_lock(fare.id, fare.version))
         fare_in_service = create_fare_in_service(session, fare)
         vehicle_lock = acquire_lock(
             construct_vehicle_reference_lock(vehicle.id, vehicle.version)
@@ -854,9 +854,13 @@ def update_service(
                     raise exceptions.DataInUse(Service)
 
                 old_fare_lock = acquire_lock(
-                    construct_fare_reference_lock(fare_in_service.fare_id)
+                    construct_fare_reference_lock(
+                        fare_in_service.fare_id, fare_in_service.version
+                    )
                 )
-                new_fare_lock = acquire_lock(construct_fare_reference_lock(fare.id))
+                new_fare_lock = acquire_lock(
+                    construct_fare_reference_lock(fare.id, fare.version)
+                )
                 old_fare_in_service = fare_in_service
                 new_fare_in_service = create_fare_in_service(session, fare)
                 delete_fare_in_service(session, old_fare_in_service)
@@ -1187,7 +1191,11 @@ def delete_service(
 
         delete_landmarks_in_service(session, service)
         fare_in_service = fetch_fare_in_service(session, service)
-        fare_lock = acquire_lock(construct_fare_reference_lock(fare_in_service.fare_id))
+        fare_lock = acquire_lock(
+            construct_fare_reference_lock(
+                fare_in_service.fare_id, fare_in_service.version
+            )
+        )
         delete_fare_in_service(session, fare_in_service)
         vehicle_in_service = fetch_vehicle_in_service(session, service)
         vehicle_lock = acquire_lock(

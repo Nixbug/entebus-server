@@ -225,6 +225,10 @@ def construct_vehicle_reference_lock(vehicle_id: int, version: int) -> str:
 
     Args:
         vehicle_id (int): Vehicle ID.
+        version (int): Version of the vehicle.
+
+    Returns:
+        str: Redis lock key in the format "lk_vehicle_:<vehicle_id>:<version>".
     """
     return f"lk_vehicle_:{vehicle_id}:{version}"
 
