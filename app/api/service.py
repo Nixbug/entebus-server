@@ -590,7 +590,6 @@ def delete_vehicle_in_service(
     vehicle_in_service.reference_count -= 1
     if vehicle_in_service.reference_count == 0:
         session.delete(vehicle_in_service)
-    session.flush()
 
 
 # ---------------------------------------------------------------------------
