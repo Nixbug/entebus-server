@@ -238,9 +238,9 @@ def create_landmark_in_route(
         is_valid = validate_route(route.id, session)
         if is_valid:
             route.status = RouteStatus.VALID
-            route.version += 1
         else:
             route.status = RouteStatus.INVALID
+        route.version += 1
         session.commit()
         session.refresh(landmark_in_route)
 
@@ -309,10 +309,10 @@ def update_landmark_in_route(
             is_valid = validate_route(route.id, session)
             if is_valid:
                 route.status = RouteStatus.VALID
-                route.version += 1
             else:
                 route.status = RouteStatus.INVALID
 
+            route.version += 1
             session.commit()
             session.refresh(landmark_in_route)
             landmark_in_route_data = jsonable_encoder(landmark_in_route)
@@ -365,10 +365,10 @@ def delete_landmark_in_route(
         is_valid = validate_route(route.id, session)
         if is_valid:
             route.status = RouteStatus.VALID
-            route.version += 1
         else:
             route.status = RouteStatus.INVALID
 
+        route.version += 1
         session.commit()
         log_event(token, request_info, landmark_in_route_data)
     finally:
