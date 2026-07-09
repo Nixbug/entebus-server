@@ -825,14 +825,15 @@ def update_service(
                 new_vehicle_lock = acquire_lock(
                     construct_vehicle_reference_lock(vehicle.id)
                 )
-                delete_vehicle_in_service(session, vehicle_in_service)
-                vehicle_in_service = create_vehicle_in_service(session, vehicle)
+                old_vehicle_in_service = vehicle_in_service
+                new_vehicle_in_service = create_vehicle_in_service(session, vehicle)
+                delete_vehicle_in_service(session, old_vehicle_in_service)
 
                 if vehicle_changed:
                     service.registration_number = vehicle.registration_number
                     service.vehicle_id = vehicle.id
                     revalidate_service_timing = True
-                service.vehicle_in_service_id = vehicle_in_service.id
+                service.vehicle_in_service_id = new_vehicle_in_service.id
                 session.flush()
             update_data.pop("vehicle_id")
         if "fare_id" in update_data:
@@ -854,12 +855,13 @@ def update_service(
                     construct_fare_reference_lock(fare_in_service.fare_id)
                 )
                 new_fare_lock = acquire_lock(construct_fare_reference_lock(fare.id))
-                delete_fare_in_service(session, fare_in_service)
-                fare_in_service = create_fare_in_service(session, fare)
+                old_fare_in_service = fare_in_service
+                new_fare_in_service = create_fare_in_service(session, fare)
+                delete_fare_in_service(session, old_fare_in_service)
 
                 if fare_changed:
                     service.fare_id = fare.id
-                service.fare_in_service_id = fare_in_service.id
+                service.fare_in_service_id = new_fare_in_service.id
                 session.flush()
             update_data.pop("fare_id")
         if "route_id" in update_data:
