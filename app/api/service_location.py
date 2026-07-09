@@ -1,9 +1,9 @@
 """
-Service Location API Router for EnteBus.
+Service Location API Router.
 
-Provides endpoints for managing service locations, including creation,
-update, and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing service locations:
+    - PATCH (executive)
+    - GET (executive, operator, vendor, public)
 """
 
 from datetime import datetime
@@ -14,16 +14,15 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from shapely.geometry import Point
-from shapely import wkt, wkb
+from shapely import wkt
 from fastapi.encoders import jsonable_encoder
-from typing import List, Tuple
 
 from app.src.db import (
     ExecutiveToken,
     OperatorToken,
-    SessionLocal,
     ServiceLocation,
     VendorToken,
+    get_db_session,
 )
 from app.src.description import Description
 from app.src.enums import OrderIn
@@ -44,10 +43,10 @@ from app.src.functions import (
     apply_updated_on_filters,
     enum_str,
     fuse_exception_responses,
-    get_request_info,
+    load_geometry,
+    to_WKB,
     update_if_changed,
 )
-from app.src.openobserve import log_event
 from app.src import exceptions
 
 route_executive = APIRouter()
@@ -94,12 +93,7 @@ class OrderBy(StrEnum):
     LOCATION = "location"
 
 
-class QueryParamsForPU(
-    UpdatedOnFilter,
-    CreatedOnFilter,
-    IDFilter,
-    PaginationFilter,
-):
+class QueryParamsForPU(UpdatedOnFilter, CreatedOnFilter, IDFilter, PaginationFilter):
     """Query parameters for public users."""
 
     service_id: int | None = Field(Query(default=None))
@@ -145,14 +139,58 @@ class QueryParams(QueryParamsForEX):
 
 
 # ---------------------------------------------------------------------------
-## Functions
+## Helper Functions
+# ---------------------------------------------------------------------------
+def validate_location(location_wkt: str) -> Point:
+    """
+    Validate a WKT string as a Point geometry with SRID 4326.
+
+    Args:
+        location_wkt (str): Location in WKT format (Point geometry).
+
+    Returns:
+        Point: Validated Shapely `Point` geometry.
+    """
+    # Validate WKT and SRID
+    location_geom = validate_wkt_string(location_wkt, Point)
+    validate_srid_4326(location_geom)
+    return location_geom
+
+
+def service_location_to_dict(service_location: ServiceLocation) -> dict:
+    """
+    Convert a ServiceLocation SQLAlchemy model instance to a dictionary with WKT location in WKT format.
+
+    Args:
+        service_location (ServiceLocation): ServiceLocation model instance.
+
+    Returns:
+        dict: Dictionary representation of the service location with location in WKT format.
+    """
+    service_location_data = jsonable_encoder(
+        service_location,
+        exclude={ServiceLocation.location.name},
+    )
+    location_geom = (
+        load_geometry(service_location.location)
+        if service_location.location is not None
+        else None
+    )
+    service_location_data[ServiceLocation.location.name] = (
+        location_geom.wkt if location_geom is not None else None
+    )
+    return service_location_data
+
+
+# ---------------------------------------------------------------------------
+## Core Functions
 # ---------------------------------------------------------------------------
 def update_service_location(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    extra_filter_for_service_location=None,
-) -> Tuple[bool, dict]:
+    service_location_filter=None,
+) -> dict:
     """
     Updates an existing service location record in the database.
 
@@ -160,50 +198,41 @@ def update_service_location(
         session (Session): SQLAlchemy database session.
         id (int): ID of the service location to update.
         form_param (UpdateForm): Form data for updating the service location.
-        extra_filter_for_service_location (optional): Additional filter to apply when validating the service location ID.
+        service_location_filter (optional): Additional filter to apply when validating the service location ID.
 
     Returns:
-        Tuple[bool, dict]: A tuple containing a boolean indicating whether any updates were made and the updated service location data.
+        dict: The updated service location data.
     """
     service_location = validate_id(
         session,
         ServiceLocation,
         id,
         ServiceLocation.id,
-        extra_filter=extra_filter_for_service_location,
+        extra_filter=service_location_filter,
     )
+
     update_data = form_param.model_dump(exclude_unset=True)
-    if form_param.location is not None:
-        geometry = validate_wkt_string(
-            form_param.location,
-            Point,
-        )
-        validate_srid_4326(geometry)
-        service_location.location = wkt.dumps(geometry)
+    if "location" in update_data:
+        new_location_geom = validate_location(update_data["location"])
+        if service_location.location is not None:
+            old_location_geom = load_geometry(service_location.location)
+            if not new_location_geom.equals(old_location_geom):
+                service_location.location = to_WKB(new_location_geom)
+        else:
+            service_location.location = to_WKB(new_location_geom)
         update_data.pop("location")
 
     update_if_changed(service_location, update_data)
-    have_updates = session.is_modified(service_location)
-    if have_updates:
+    if session.is_modified(service_location):
         session.commit()
         session.refresh(service_location)
-
-    service_location_data = jsonable_encoder(
-        service_location,
-        exclude={ServiceLocation.location.name},
-    )
-    if service_location.location is not None:
-        service_location_data[ServiceLocation.location.name] = (
-            wkb.loads(bytes(service_location.location.data))
-        ).wkt
-    else:
-        service_location_data[ServiceLocation.location.name] = None
-    return have_updates, service_location_data
+    service_location_data = service_location_to_dict(service_location)
+    return service_location_data
 
 
-def search_service_location(
+def search_service_locations(
     session: Session, query_params: QueryParams
-) -> List[ServiceLocation]:
+) -> list[ServiceLocation]:
     """
     Search for service locations based on provided query parameters.
 
@@ -261,16 +290,7 @@ def search_service_location(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    query = query.with_entities(
-        ServiceLocation,
-        func.ST_AsText(ServiceLocation.location).label("location_wkt"),
-    )
-    results = query.all()
-    service_locations = []
-    for service_location_obj, location_wkt in results:
-        service_location_obj.location = location_wkt
-        service_locations.append(service_location_obj)
-
+    service_locations = query.all()
     return service_locations
 
 
@@ -292,7 +312,7 @@ GET_EXCEPTIONS = [
 
 
 # ---------------------------------------------------------------------------
-## Common descriptions
+## Common description
 # ---------------------------------------------------------------------------
 PATCH_DESCRIPTION = (
     Description()
@@ -316,25 +336,26 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of service locations.")
     URL_SERVICE_TRACE,
     summary="Fetch service location",
     tags=["Service Location"],
-    response_model=List[ServiceLocationSchema],
+    response_model=list[ServiceLocationSchema],
     responses=fuse_exception_responses([*GET_EXCEPTIONS, exceptions.InvalidToken()]),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_service_locations_for_executive(
-    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+    query_params: QueryParamsForEX = Depends(),
+    access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
-        return search_service_location(
-            session,
-            QueryParams(**query_params.model_dump()),
-        )
+        return [
+            service_location_to_dict(service_location)
+            for service_location in search_service_locations(
+                session,
+                QueryParams(**query_params.model_dump()),
+            )
+        ]
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -352,58 +373,48 @@ async def update_service_location_for_operator(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(bearer_operator),
-    request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
             [OperatorPermissionPath.CREATE_COMPANY_SERVICE_TICKET],
         )
-
-        have_updates, service_location_data = update_service_location(
+        return update_service_location(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            extra_filter_for_service_location=(
-                ServiceLocation.company_id == token.company_id
-            ),
+            service_location_filter=(ServiceLocation.company_id == token.company_id),
         )
-
-        if have_updates:
-            log_event(token, request_info, service_location_data)
-        return service_location_data
-
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.get(
     URL_SERVICE_TRACE,
     summary="Fetch service location",
     tags=["Service Location"],
-    response_model=List[ServiceLocationSchema],
+    response_model=list[ServiceLocationSchema],
     responses=fuse_exception_responses([*GET_EXCEPTIONS, exceptions.InvalidToken()]),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_service_locations_for_operator(
-    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+    query_params: QueryParamsForOP = Depends(),
+    access_token=Depends(bearer_operator),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
-
-        return search_service_location(
-            session,
-            QueryParams(**query_params.model_dump(), company_id=token.company_id),
-        )
+        return [
+            service_location_to_dict(service_location)
+            for service_location in search_service_locations(
+                session,
+                QueryParams(**query_params.model_dump(), company_id=token.company_id),
+            )
+        ]
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -413,25 +424,26 @@ async def fetch_service_locations_for_operator(
     URL_SERVICE_TRACE,
     summary="Fetch service location",
     tags=["Service Location"],
-    response_model=List[ServiceLocationSchema],
+    response_model=list[ServiceLocationSchema],
     responses=fuse_exception_responses([*GET_EXCEPTIONS, exceptions.InvalidToken()]),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_service_locations_for_vendor(
-    query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
+    query_params: QueryParamsForVE = Depends(),
+    access_token=Depends(bearer_vendor),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, VendorToken, access_token.credentials)
-
-        return search_service_location(
-            session,
-            QueryParams(**query_params.model_dump()),
-        )
+        return [
+            service_location_to_dict(service_location)
+            for service_location in search_service_locations(
+                session,
+                QueryParams(**query_params.model_dump()),
+            )
+        ]
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -441,23 +453,20 @@ async def fetch_service_locations_for_vendor(
     URL_SERVICE_TRACE,
     summary="Fetch service location",
     tags=["Service Location"],
-    response_model=List[ServiceLocationSchema],
+    response_model=list[ServiceLocationSchema],
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_service_locations_for_public(
     query_params: QueryParamsForPU = Depends(),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-
-        return search_service_location(
-            session,
-            QueryParams(
-                **query_params.model_dump(),
-                company_id=None,
-            ),
-        )
+        return [
+            service_location_to_dict(service_location)
+            for service_location in search_service_locations(
+                session,
+                QueryParams(**query_params.model_dump(), company_id=None),
+            )
+        ]
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
