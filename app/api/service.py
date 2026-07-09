@@ -1192,11 +1192,11 @@ def delete_service(
         service = get_by_id(session, Service, id, extra_filter=service_filter)
         if service is None:
             return
-        if service.status != ServiceStatus.CREATED:
-            raise exceptions.DataInUse(Service)
 
         service_lock = acquire_lock(construct_service_transition_lock(service.id))
         session.refresh(service)
+        if service.status != ServiceStatus.CREATED:
+            raise exceptions.DataInUse(Service)
         service_data = jsonable_encoder(service, exclude={"private_key", "public_key"})
         session.delete(service)
         session.flush()
