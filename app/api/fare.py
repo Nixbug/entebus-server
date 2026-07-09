@@ -192,8 +192,6 @@ def construct_fare_reference_lock(fare_id: int, version: int) -> str:
 
     Args:
         fare_id (int): Fare ID.
-    Args:
-        fare_id (int): Fare ID.
         version (int): Version of the fare.
 
     Returns:
