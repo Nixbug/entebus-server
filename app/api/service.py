@@ -685,7 +685,9 @@ def create_service(
         # Acquire fare and vehicle locks to protect snapshot reference counts
         fare_lock = acquire_lock(construct_fare_reference_lock(fare.id))
         fare_in_service = create_fare_in_service(session, fare)
-        vehicle_lock = acquire_lock(construct_vehicle_reference_lock(vehicle.id))
+        vehicle_lock = acquire_lock(
+            construct_vehicle_reference_lock(vehicle.id, vehicle.version)
+        )
         vehicle_in_service = create_vehicle_in_service(session, vehicle)
 
         # Generate keys
@@ -818,10 +820,12 @@ def update_service(
                     raise exceptions.InactiveResource(Vehicle)
 
                 old_vehicle_lock = acquire_lock(
-                    construct_vehicle_reference_lock(vehicle_in_service.vehicle_id)
+                    construct_vehicle_reference_lock(
+                        vehicle_in_service.vehicle_id, vehicle_in_service.version
+                    )
                 )
                 new_vehicle_lock = acquire_lock(
-                    construct_vehicle_reference_lock(vehicle.id)
+                    construct_vehicle_reference_lock(vehicle.id, vehicle.version)
                 )
                 old_vehicle_in_service = vehicle_in_service
                 new_vehicle_in_service = create_vehicle_in_service(session, vehicle)
@@ -1187,7 +1191,9 @@ def delete_service(
         delete_fare_in_service(session, fare_in_service)
         vehicle_in_service = fetch_vehicle_in_service(session, service)
         vehicle_lock = acquire_lock(
-            construct_vehicle_reference_lock(vehicle_in_service.vehicle_id)
+            construct_vehicle_reference_lock(
+                vehicle_in_service.vehicle_id, vehicle_in_service.version
+            )
         )
         delete_vehicle_in_service(session, vehicle_in_service)
 
