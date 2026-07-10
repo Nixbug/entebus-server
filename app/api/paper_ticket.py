@@ -1,7 +1,7 @@
 """
 Paper Ticket API Router.
 
-Provides endpoints for managing landmarks:
+Provides endpoints for managing paper tickets:
     - POST (operator)
     - GET (executive, operator)
 """
