@@ -2,7 +2,7 @@
 Service Location API Router.
 
 Provides endpoints for managing service locations:
-    - PATCH (executive)
+    - PATCH (operator)
     - GET (executive, operator, vendor, public)
 """
 
