@@ -212,7 +212,7 @@ def update_service_location(
     )
 
     update_data = form_param.model_dump(exclude_unset=True)
-    if "location" in update_data:
+    if "location" in update_data and update_data["location"] is not None:
         new_location_geom = validate_location(update_data["location"])
         if service_location.location is not None:
             old_location_geom = load_geometry(service_location.location)
@@ -222,7 +222,11 @@ def update_service_location(
             service_location.location = to_WKB(new_location_geom)
         update_data.pop("location")
 
-    update_if_changed(service_location, update_data)
+        if "accuracy" in update_data and update_data["accuracy"] is not None:
+            if update_data["accuracy"] != service_location.accuracy:
+                service_location.accuracy = update_data["accuracy"]
+            update_data.pop("accuracy")
+
     if session.is_modified(service_location):
         session.commit()
         session.refresh(service_location)
