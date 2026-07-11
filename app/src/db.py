@@ -2986,10 +2986,10 @@ class LocationInTrace(ORMbase):
             Foreign key referencing `company.id`.
             Indicates the company associated with this trace record.
             Cascades on delete — if the company is removed, related trace records are deleted.
-    
+
         captured_at (DateTime, not null):
             Timestamp indicating when the location was captured.
-        
+
         location (Geometry(geometry_type="POINT", srid=4326), not null):
             Geospatial point representing the recorded location.
 
