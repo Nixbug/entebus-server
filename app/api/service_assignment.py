@@ -18,6 +18,7 @@ from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
 from app.src import exceptions, schemas
+from app.src.schemas import PatchForm
 from app.src.db import (
     ExecutiveToken,
     Operator,
@@ -89,7 +90,7 @@ class CreateForm(CreateFormForEX):
     pass
 
 
-class UpdateForm(BaseModel):
+class UpdateForm(PatchForm):
     """Form data for updating a service assignment."""
 
     operator_id: int | None = Field(default=None)
