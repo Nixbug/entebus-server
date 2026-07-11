@@ -2088,16 +2088,20 @@ class Route(ORMbase):
     specific landmarks or stops, if any, are managed outside this model.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, unique, not null):
             Primary identifier for the route.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id` to whom this route belongs.
             Cascades on delete — if the company is removed, related routes are deleted.
 
         name (TEXT, not null):
             Name of the route.
             Maximum 4096 characters long.
+
+        version (Integer, not null, default=1):
+            Version number incremented on updates
+            Useful for tracking changes and synchronizing route updates.
 
         start_time (Time, not null):
             The time of day when the route operation starts.
@@ -2125,6 +2129,7 @@ class Route(ORMbase):
         index=True,
     )
     name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    version: Mapped[int] = orm.mapped_column(Integer, nullable=False, default=1)
     start_time: Mapped[dt_time] = orm.mapped_column(Time(timezone=True), nullable=False)
     status: Mapped[RouteStatus] = orm.mapped_column(
         Integer, nullable=False, default=RouteStatus.INVALID
@@ -2335,6 +2340,9 @@ class Service(ORMbase):
             Foreign key referencing `route.id`.
             Identifies the route that this service operates on.
 
+        route_version (Integer, nullable):
+            Version of the route at the time of service creation.
+
         registration_number (TEXT, not null):
             Registration number of the vehicle assigned to this service.
 
@@ -2404,6 +2412,7 @@ class Service(ORMbase):
     route_id: Mapped[int | None] = orm.mapped_column(
         BigInteger, ForeignKey("route.id", ondelete="SET NULL"), index=True
     )
+    route_version: Mapped[int | None] = orm.mapped_column(Integer)
     registration_number: Mapped[str] = orm.mapped_column(
         TEXT, nullable=False, index=True
     )

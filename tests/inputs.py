@@ -226,6 +226,7 @@ def generate_service_payload(
     # choose a start offset in minutes (5–1439) to avoid `starting_at` == now
     minutes_offset = int(np.random.randint(5, 1440))
     payload = {
+        "name": f"Service {np.random.randint(1000, 9999)}",
         "starting_at": (
             datetime.now(timezone.utc) + timedelta(minutes=minutes_offset)
         ).isoformat(),

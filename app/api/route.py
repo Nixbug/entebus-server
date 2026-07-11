@@ -76,6 +76,7 @@ class RouteSchema(BaseModel):
     id: int
     company_id: int
     name: str
+    version: int
     start_time: time
     status: int
     updated_on: datetime | None
@@ -236,6 +237,7 @@ def update_route(
     update_if_changed(route, update_data)
 
     if session.is_modified(route):
+        route.version += 1
         session.commit()
         session.refresh(route)
         route_data = jsonable_encoder(route)
