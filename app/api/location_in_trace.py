@@ -8,7 +8,6 @@ Provides endpoints for managing locations in traces:
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Union
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from geoalchemy2 import Geography
@@ -25,7 +24,7 @@ from app.src.db import (
     Trace,
     get_db_session,
 )
-from app.src import exceptions, schemas
+from app.src import exceptions
 from app.src.constants import MAX_LOCATIONS_PER_BATCH, MAX_LOCATIONS_PER_TRACE
 from app.src.description import Description
 from app.src.enums import LocationType, OrderIn
@@ -35,11 +34,9 @@ from app.src.functions import (
     apply_id_filters,
     enum_str,
     fuse_exception_responses,
-    get_request_info,
     load_geometry,
     to_WKB,
 )
-from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.urls import URL_LOCATION_TRACE
