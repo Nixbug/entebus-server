@@ -1,24 +1,34 @@
 """
-Trace API Router for EnteBus.
+Trace API Router.
 
-Provides endpoints for managing traces, including creation,
-update, deletion and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing traces:
+    - POST (executive, operator)
+    - PATCH (executive, operator)
+    - DELETE (executive, operator)
+    - GET (executive, operator)
 """
 
 from datetime import datetime
 from enum import StrEnum
-from sqlalchemy import or_, String
+from typing import Union
+
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from typing import List, Tuple
-from sqlalchemy.orm import Session
+from sqlalchemy import String, or_
+from sqlalchemy.orm.session import Session
 
-from app.src.db import Company, ExecutiveToken, OperatorToken, Trace, SessionLocal
-from app.src.description import Description
+from app.api.bearer import bearer_operator, oauth2_executive
+from app.src.db import (
+    Company,
+    ExecutiveToken,
+    OperatorToken,
+    Trace,
+    get_db_session,
+)
+from app.src import exceptions, schemas
 from app.src.constants import MAX_TRACES_PER_COMPANY
-from app.src import exceptions
+from app.src.description import Description
 from app.src.enums import OrderIn
 from app.src.filters import (
     CreatedOnFilter,
@@ -29,16 +39,20 @@ from app.src.filters import (
 )
 from app.src.functions import (
     apply_created_on_filters,
+    apply_id_filters,
     apply_name_filters,
     apply_updated_on_filters,
-    apply_id_filters,
     enum_str,
     fuse_exception_responses,
+    get_by_id,
     get_request_info,
     update_if_changed,
 )
 from app.src.openobserve import log_event
+from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
+from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.regex import NAME_PATTERN
+from app.src.schemas import PatchForm
 from app.src.urls import URL_ROUTE_TRACE
 from app.src.validators import (
     authorize_executive,
@@ -46,9 +60,6 @@ from app.src.validators import (
     validate_id,
     verify_token,
 )
-from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
-from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
-from app.api.bearer import oauth2_executive, bearer_operator
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -73,7 +84,7 @@ class TraceSchema(BaseModel):
 class CreateFormForOP(BaseModel):
     """Form data for creating a new trace for an operator."""
 
-    name: str = Field(min_length=1, max_length=4096, pattern=NAME_PATTERN)
+    name: str = Field(min_length=1, max_length=128, pattern=NAME_PATTERN)
 
 
 class CreateFormForEX(CreateFormForOP):
@@ -88,17 +99,19 @@ class CreateForm(CreateFormForEX):
     pass
 
 
-class UpdateForm(BaseModel):
+class UpdateForm(PatchForm):
     """Form data for updating a trace."""
 
-    name: str = Field(min_length=1, max_length=4096, pattern=NAME_PATTERN, default=None)
+    name: str | None = Field(
+        default=None, min_length=1, max_length=128, pattern=NAME_PATTERN
+    )
 
 
 # ---------------------------------------------------------------------------
 ## Query Parameters
 # ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
-    """Enum for ordering route results."""
+    """Enum for ordering trace results."""
 
     ID = "id"
     CREATED_ON = "created_on"
@@ -130,15 +143,22 @@ class QueryParams(QueryParamsForEX):
 
 
 # ---------------------------------------------------------------------------
-## Functions
+## Core Functions
 # ---------------------------------------------------------------------------
-def create_trace(session: Session, form_param: CreateForm) -> dict:
+def create_trace(
+    session: Session,
+    form_param: CreateForm,
+    token: Union[ExecutiveToken, OperatorToken],
+    request_info: schemas.RequestInfo,
+) -> dict:
     """
     Creates a new trace record in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a trace.
+        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
 
     Returns:
         dict: The created trace data.
@@ -156,13 +176,20 @@ def create_trace(session: Session, form_param: CreateForm) -> dict:
     session.add(trace)
     session.commit()
     session.refresh(trace)
+
     trace_data = jsonable_encoder(trace)
+    log_event(token, request_info, trace_data)
     return trace_data
 
 
 def update_trace(
-    session: Session, id: int, form_param: UpdateForm, extra_filter_for_trace=None
-) -> Tuple[bool, dict]:
+    session: Session,
+    id: int,
+    form_param: UpdateForm,
+    token: Union[ExecutiveToken, OperatorToken],
+    request_info: schemas.RequestInfo,
+    trace_filter=None,
+) -> dict:
     """
     Updates an existing trace record in the database.
 
@@ -170,45 +197,58 @@ def update_trace(
         session (Session): SQLAlchemy database session.
         id (int): ID of the trace to update.
         form_param (UpdateForm): Form data for updating the trace.
-        extra_filter_for_trace (optional): Additional filter to apply when validating the trace ID.
+        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
+        trace_filter (Optional): Additional filter to apply when fetching the trace.
 
     Returns:
-        Tuple[bool, dict]: A tuple containing a boolean indicating whether any updates were made and the updated trace data.
+        dict: JSON-encoded representation of the updated trace.
     """
-    trace = validate_id(
-        session, Trace, id, Trace.id, extra_filter=extra_filter_for_trace
-    )
+    trace = validate_id(session, Trace, id, Trace.id, extra_filter=trace_filter)
+
     update_data = form_param.model_dump(exclude_unset=True)
     update_if_changed(trace, update_data)
-    have_updates = session.is_modified(trace)
-    if have_updates:
+
+    if session.is_modified(trace):
         session.commit()
         session.refresh(trace)
+        trace_data = jsonable_encoder(trace)
+        log_event(token, request_info, trace_data)
+    else:
+        trace_data = jsonable_encoder(trace)
+    return trace_data
 
-    trace_data = jsonable_encoder(trace)
-    return have_updates, trace_data
 
-
-def delete_trace(session: Session, trace: Trace) -> dict:
+def delete_trace(
+    session: Session,
+    id: int,
+    token: Union[ExecutiveToken, OperatorToken],
+    request_info: schemas.RequestInfo,
+    trace_filter=None,
+) -> None:
     """
     Deletes a trace from the database.
 
     Args:
         session (Session): SQLAlchemy database session.
-        trace (Trace): Trace to delete.
-
-    Returns:
-        dict: JSON-encoded representation of the deleted trace.
+        id (int): ID of the trace to delete.
+        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
+        trace_filter (Optional): Additional filter to apply when fetching the trace.
     """
+    trace = get_by_id(session, Trace, id, extra_filter=trace_filter)
+    if trace is None:
+        return
+
     trace_data = jsonable_encoder(trace)
     session.delete(trace)
     session.commit()
-    return trace_data
+    log_event(token, request_info, trace_data)
 
 
-def search_trace(session: Session, query_params: QueryParams) -> List[Trace]:
+def search_traces(session: Session, query_params: QueryParams) -> list[Trace]:
     """
-    Search for Traces based on provided query parameters.
+    Search for traces based on provided query parameters.
 
     This function supports multiple filtering, searching, ordering, and
     pagination capabilities to retrieve traces that match various criteria.
@@ -218,7 +258,7 @@ def search_trace(session: Session, query_params: QueryParams) -> List[Trace]:
         query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
-        List[Trace]: List of Traces that match the search criteria.
+        list[Trace]: List of traces that match the search criteria.
     """
     query = session.query(Trace)
     if query_params.company_id is not None:
@@ -280,13 +320,13 @@ GET_EXCEPTIONS = [
 
 
 # ---------------------------------------------------------------------------
-## Common descriptions
+## Common description
 # ---------------------------------------------------------------------------
 POST_DESCRIPTION = (
     Description()
     .add_head("Creates a new trace.")
     .add_line("Duplicate trace names are not allowed.")
-    .add_line(f"Maximum traces per company is limited to {MAX_TRACES_PER_COMPANY}.")
+    .add_line(f"Maximum `{MAX_TRACES_PER_COMPANY}` traces allowed per company.")
 )
 
 PATCH_DESCRIPTION = (
@@ -329,24 +369,23 @@ async def create_trace_for_executive(
     form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
             [ExecutivePermissionPath.CREATE_COMPANY_TRACE],
         )
-
         validate_id(session, Company, form_param.company_id, Trace.company_id)
-        trace_data = create_trace(session, CreateForm(**form_param.model_dump()))
-
-        log_event(token, request_info, trace_data)
-        return trace_data
+        return create_trace(
+            session,
+            CreateForm(**form_param.model_dump()),
+            token,
+            request_info,
+        )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.patch(
@@ -366,26 +405,23 @@ async def update_trace_for_executive(
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
             [ExecutivePermissionPath.UPDATE_COMPANY_TRACE],
         )
-
-        have_updates, trace_data = update_trace(
-            session, id, UpdateForm(**form_param.model_dump(exclude_unset=True))
+        return update_trace(
+            session,
+            id,
+            UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            token,
+            request_info,
         )
-
-        if have_updates:
-            log_event(token, request_info, trace_data)
-        return trace_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -406,49 +442,41 @@ async def delete_trace_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
             [ExecutivePermissionPath.DELETE_COMPANY_TRACE],
         )
-
-        trace = session.query(Trace).filter(Trace.id == id).first()
-        if trace is not None:
-            trace_data = delete_trace(session, trace)
-            log_event(token, request_info, trace_data)
+        delete_trace(session, id, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
     URL_ROUTE_TRACE,
     summary="Fetch trace",
     tags=["Trace"],
-    response_model=List[TraceSchema],
+    response_model=list[TraceSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_traces_for_executive(
-    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+    query_params: QueryParamsForEX = Depends(),
+    access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
-        return search_trace(
+        return search_traces(
             session,
             QueryParams(**query_params.model_dump()),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -460,7 +488,7 @@ async def fetch_traces_for_executive(
     tags=["Trace"],
     response_model=TraceSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses([*POST_EXCEPTIONS]),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
         POST_DESCRIPTION.copy()
         .add_line("Logged-in operator must have `company.trace.create` permission.")
@@ -471,24 +499,22 @@ async def create_trace_for_operator(
     form_param: CreateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
             [OperatorPermissionPath.CREATE_COMPANY_TRACE],
         )
-
-        trace_data = create_trace(
-            session, CreateForm(**form_param.model_dump(), company_id=token.company_id)
+        return create_trace(
+            session,
+            CreateForm(**form_param.model_dump(), company_id=token.company_id),
+            token,
+            request_info,
         )
-        log_event(token, request_info, trace_data)
-        return trace_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.patch(
@@ -508,28 +534,24 @@ async def update_trace_for_operator(
     form_param: UpdateForm,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
             [OperatorPermissionPath.UPDATE_COMPANY_TRACE],
         )
-
-        have_updates, trace_data = update_trace(
+        return update_trace(
             session,
             id,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            extra_filter_for_trace=(Trace.company_id == token.company_id),
+            token,
+            request_info,
+            trace_filter=(Trace.company_id == token.company_id),
         )
-        if have_updates:
-            log_event(token, request_info, trace_data)
-        return trace_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.delete(
@@ -550,50 +572,44 @@ async def delete_trace_for_operator(
     id: int,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
             [OperatorPermissionPath.DELETE_COMPANY_TRACE],
         )
-
-        trace = (
-            session.query(Trace)
-            .filter(Trace.id == id, Trace.company_id == token.company_id)
-            .first()
+        delete_trace(
+            session,
+            id,
+            token,
+            request_info,
+            trace_filter=(Trace.company_id == token.company_id),
         )
-        if trace is not None:
-            trace_data = delete_trace(session, trace)
-            log_event(token, request_info, trace_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.get(
     URL_ROUTE_TRACE,
     summary="Fetch trace",
     tags=["Trace"],
-    response_model=List[TraceSchema],
+    response_model=list[TraceSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_traces_for_operator(
-    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+    query_params: QueryParamsForOP = Depends(),
+    access_token=Depends(bearer_operator),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
-
-        return search_trace(
+        return search_traces(
             session,
             QueryParams(**query_params.model_dump(), company_id=token.company_id),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
