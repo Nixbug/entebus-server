@@ -802,6 +802,7 @@ def update_service(
 
         update_data = form_param.model_dump(exclude_unset=True)
         revalidate_service_timing = False
+        have_updates = False
         if "vehicle_id" in update_data:
             vehicle = validate_id(
                 session,
@@ -843,6 +844,7 @@ def update_service(
                     revalidate_service_timing = True
                 service.vehicle_in_service_id = new_vehicle_in_service.id
                 session.flush()
+                have_updates = True
             update_data.pop("vehicle_id")
         if "fare_id" in update_data:
             fare = validate_id(
@@ -879,6 +881,7 @@ def update_service(
                     service.fare_id = fare.id
                 service.fare_in_service_id = new_fare_in_service.id
                 session.flush()
+                have_updates = True
             update_data.pop("fare_id")
         if "route_id" in update_data:
             route = validate_id(
@@ -911,6 +914,7 @@ def update_service(
                 service.route_version = route.version
                 revalidate_service_timing = True
                 session.flush()
+                have_updates = True
             update_data.pop("route_id")
         if "starting_at" in update_data:
             if update_data["starting_at"] != service.starting_at:
@@ -935,6 +939,7 @@ def update_service(
                 service.ending_at = service.ending_at + time_difference
                 revalidate_service_timing = True
                 session.flush()
+                have_updates = True
             update_data.pop("starting_at")
 
         if revalidate_service_timing:
@@ -992,10 +997,11 @@ def update_service(
                     service.collection = service_collection
                 service.status = update_data["status"]
                 session.flush()
+                have_updates = True
             update_data.pop("status")
 
         update_if_changed(service, update_data)
-        if revalidate_service_timing or session.is_modified(service):
+        if have_updates or session.is_modified(service):
             session.commit()
             session.refresh(service)
             service_data = jsonable_encoder(service, exclude={"private_key"})
