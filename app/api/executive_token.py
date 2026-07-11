@@ -21,6 +21,7 @@ from sqlalchemy.orm.session import Session
 from app.api.bearer import oauth2_executive
 from app.src.db import Executive, ExecutiveToken, get_db_session
 from app.src import exceptions, schemas
+from app.src.schemas import PatchForm
 from app.src.description import Description
 from app.src.enums import PlatformType, GrantType, OrderIn
 from app.src.filters import (
@@ -92,7 +93,7 @@ class CreateForm(BaseModel):
     client_details: str | None = Field(Form(max_length=1024, default=None))
 
 
-class UpdateForm(BaseModel):
+class UpdateForm(PatchForm):
     """Form data for refreshing an executive token."""
 
     refresh_token: str = Field(Form())

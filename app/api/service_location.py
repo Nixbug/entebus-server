@@ -26,6 +26,7 @@ from app.src.db import (
 )
 from app.src.description import Description
 from app.src.enums import OrderIn
+from app.src.schemas import PatchForm
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, UpdatedOnFilter
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.urls import URL_SERVICE_TRACE
@@ -45,7 +46,6 @@ from app.src.functions import (
     fuse_exception_responses,
     load_geometry,
     to_WKB,
-    update_if_changed,
 )
 from app.src import exceptions
 
@@ -74,7 +74,7 @@ class ServiceLocationSchema(BaseModel):
 # ---------------------------------------------------------------------------
 ## Input Forms
 # ---------------------------------------------------------------------------
-class UpdateForm(BaseModel):
+class UpdateForm(PatchForm):
     """Form data for updating an existing service location."""
 
     location: str | None = Field(default=None)

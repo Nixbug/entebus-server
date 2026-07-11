@@ -27,6 +27,7 @@ from app.src.db import (
     get_db_session,
 )
 from app.src import exceptions, schemas
+from app.src.schemas import PatchForm
 from app.src.openobserve import log_event
 from app.src.description import Description
 from app.src.regex import NAME_PATTERN
@@ -105,7 +106,7 @@ class CreateForm(CreateFormForEX):
     pass
 
 
-class UpdateForm(BaseModel):
+class UpdateForm(PatchForm):
     """Form data for updating a route."""
 
     name: str | None = Field(
