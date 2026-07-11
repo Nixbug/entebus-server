@@ -11,7 +11,6 @@ Provides endpoints for managing traces:
 from datetime import datetime
 from enum import StrEnum
 from typing import Union
-
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
