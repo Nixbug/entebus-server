@@ -2938,7 +2938,7 @@ class Trace(ORMbase):
 
         name (TEXT, not null):
             Name of the trace.
-            Maximum 4096 characters long.
+            Maximum 128 characters long.
             Unique together with `company_id` to prevent duplicate trace names within the same company.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
