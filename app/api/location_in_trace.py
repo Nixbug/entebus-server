@@ -191,8 +191,6 @@ def create_location_in_trace(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating locations in trace.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
-        request_info (schemas.RequestInfo): Request information for logging.
         trace_filter (Optional): Additional filter to apply when validating the trace ID.
     """
     trace = validate_id(
