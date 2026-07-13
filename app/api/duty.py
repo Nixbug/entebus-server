@@ -49,6 +49,7 @@ from app.src.functions import (
 )
 from app.src.redis import acquire_lock, release_lock
 from app.src import exceptions, schemas
+from app.src.schemas import PatchForm
 from app.src.enums import OrderIn
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, UpdatedOnFilter
 from app.api.service import construct_service_transition_lock
@@ -78,7 +79,7 @@ class DutySchema(BaseModel):
 # ---------------------------------------------------------------------------
 ## Input Forms
 # ---------------------------------------------------------------------------
-class UpdateForm(BaseModel):
+class UpdateForm(PatchForm):
     """Form data for updating a duty."""
 
     status: DutyStatus | None = Field(description=enum_str(DutyStatus), default=None)

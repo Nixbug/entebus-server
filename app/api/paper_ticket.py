@@ -1,14 +1,14 @@
 """
-Paper Ticket API Router for EnteBus.
+Paper Ticket API Router.
 
-Provides endpoints for managing paper tickets, including creation and retrieval.
-Uses Pydantic schemas for input validation and structured output.
+Provides endpoints for managing paper tickets:
+    - POST (operator)
+    - GET (executive, operator)
 """
 
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Dict, List
 from fastapi import APIRouter, Depends, status, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -16,7 +16,6 @@ from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
 from app.src.db import (
-    SessionLocal,
     OperatorToken,
     ExecutiveToken,
     PaperTicket,
@@ -26,6 +25,7 @@ from app.src.db import (
     LandmarkInService,
     Operator,
     ServiceLocation,
+    get_db_session,
 )
 from app.src.enums import DutyStatus, ServiceStatus, OrderIn
 from app.src.urls import URL_PAPER_TICKET
@@ -61,7 +61,7 @@ class MinimalPaperTicketDetailSchema(BaseModel):
     """Schema for the paper ticket batch response."""
 
     sequence_id: int
-    warnings: List[PaperTicketWarning] = Field(default_factory=list)
+    warnings: list[PaperTicketWarning] = Field(default_factory=list)
     uploaded_by: int | None = None
 
 
@@ -75,22 +75,25 @@ class MinimalPaperTicketSchema(BaseModel):
 
 
 class PaperTicketDetailSchema(MinimalPaperTicketDetailSchema):
-    """schema for paper ticket detail response."""
+    """Schema for paper ticket detail response."""
 
-    ticket_types: List[TicketTypeSchema]
+    ticket_types: list[TicketTypeSchema]
     pickup_point: int
     dropping_point: int
     extras: dict = Field(default_factory=dict)
     created_on: datetime
 
 
-class PaperTicketSchema(MinimalPaperTicketSchema):
-    """schema for paper ticket response."""
+class PaperTicketSchema(BaseModel):
+    """Schema for paper ticket response."""
 
+    id: int
     service_id: int
+    duty_id: int
     company_id: int
     amount: TwoDecimalPlaces
     ticket: PaperTicketDetailSchema
+    created_on: datetime
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +105,7 @@ class PaperTicketForm(BaseModel):
     operator_id: int = Field()
     sequence_id: int = Field()
     created_on: datetime = Field()
-    ticket_types: List[TicketTypeSchema] = Field()
+    ticket_types: list[TicketTypeSchema] = Field()
     amount: TwoDecimalPlaces = Field()
     pickup_point: int = Field()
     dropping_point: int = Field()
@@ -110,11 +113,10 @@ class PaperTicketForm(BaseModel):
 
 
 class CreateForm(BaseModel):
-    """
-    Form data for creating a new paper ticket."""
+    """Form data for creating a new paper ticket."""
 
     service_id: int = Field()
-    tickets: List[PaperTicketForm] = Field(min_length=1, max_length=50)
+    tickets: list[PaperTicketForm] = Field(min_length=1, max_length=50)
 
 
 # ---------------------------------------------------------------------------
@@ -151,13 +153,13 @@ class QueryParams(QueryParamsForEX):
 
 
 # ---------------------------------------------------------------------------
-## Functions
+## Core Functions
 # ---------------------------------------------------------------------------
 def create_paper_ticket(
     session: Session, token: OperatorToken, form_param: CreateForm
-) -> List[dict]:
+) -> list[dict]:
     """
-    create a new paper ticket in the database.
+    Create a new paper ticket in the database.
 
     Args:
         session (Session): Database session for performing queries and transactions.
@@ -170,7 +172,7 @@ def create_paper_ticket(
         exceptions.UnknownTicketType: If any ticket type ID in the input does not match the ticket types defined in the service fare configuration.
 
     Returns:
-        List[dict]: List of created paper ticket records as JSON-serializable dicts. Each ticket payload may include `uploaded_by` and `warnings`.
+        list[dict]: List of created paper ticket records as JSON-serializable dicts. Each ticket payload may include `uploaded_by` and `warnings`.
     """
     service_lock = None
     try:
@@ -205,21 +207,30 @@ def create_paper_ticket(
             .filter(FareInService.id == service.fare_in_service_id)
             .first()
         )
+        assert fare_in_service is not None, "FareInService should exist for the service"
         fare_function = v1.DynamicFare(fare_in_service.function)
         fare_ticket_types = fare_in_service.attributes["ticket_types"]
         fare_ticket_types_map = {ft["id"]: ft for ft in fare_ticket_types}
 
         # Validate each ticket in the batch and collect warnings without aborting the process
         # Maps ticket.sequence_id to list of warnings for that ticket
-        duty_cache: Dict[int, Duty] = {}  # Cache to store operator_id to Duty mapping
-        paper_tickets: List[PaperTicket] = []
+        duty_cache: dict[int | None, Duty] = (
+            {}
+        )  # Cache to store operator_id to Duty mapping
+        paper_tickets: list[PaperTicket] = []
 
         service_location = (
             session.query(ServiceLocation)
             .filter(ServiceLocation.service_id == form_param.service_id)
             .first()
         )
+        assert (
+            service_location is not None
+        ), "ServiceLocation should exist for the service"
         current_landmark = landmarks_in_service_map.get(service_location.landmark_id)
+        assert (
+            current_landmark is not None
+        ), "Current landmark in service should exist for the service location"
 
         for ticket in form_param.tickets:
             pickup_point = landmarks_in_service_map.get(ticket.pickup_point)
@@ -280,6 +291,7 @@ def create_paper_ticket(
                 operator_id = operator.id
             else:
                 operator_id = None  # Orphaned duty for missing operator
+
             # Check cache for existing duty for the operator
             duty = None
             if operator_id not in duty_cache:
@@ -308,7 +320,7 @@ def create_paper_ticket(
                     # Reactivate ended duty
                     duty.status = DutyStatus.STARTED
                     duty.finished_on = None
-                    duty.collection = 0
+                    duty.collection = Decimal(0)
                     session.flush()
 
                 duty_cache[operator_id] = duty
@@ -354,7 +366,7 @@ def create_paper_ticket(
 
 def search_paper_tickets(
     session: Session, query_params: QueryParams
-) -> List[PaperTicket]:
+) -> list[PaperTicket]:
     """
     Search for paper tickets provided on query parameters.
 
@@ -367,7 +379,7 @@ def search_paper_tickets(
 
 
     Returns:
-        List[PaperTicket]: List of paper tickets that match the search criteria.
+        list[PaperTicket]: List of paper tickets that match the search criteria.
     """
     query = session.query(PaperTicket)
     if query_params.company_id is not None:
@@ -460,25 +472,23 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of paper tickets.")
     URL_PAPER_TICKET,
     summary="Fetch paper ticket",
     tags=["Paper Ticket"],
-    response_model=List[PaperTicketSchema],
+    response_model=list[PaperTicketSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_paper_tickets_for_executive(
-    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+    query_params: QueryParamsForEX = Depends(),
+    access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
         return search_paper_tickets(
             session,
             QueryParams(**query_params.model_dump()),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -488,7 +498,7 @@ async def fetch_paper_tickets_for_executive(
     URL_PAPER_TICKET,
     summary="Create paper ticket",
     tags=["Paper Ticket"],
-    response_model=List[PaperTicketSchema],
+    response_model=list[PaperTicketSchema],
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(POST_DESCRIPTION.to_string()),
@@ -496,43 +506,37 @@ async def fetch_paper_tickets_for_executive(
 async def create_paper_ticket_for_operator(
     form_param: CreateForm,
     access_token=Depends(bearer_operator),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
             [OperatorPermissionPath.CREATE_COMPANY_SERVICE_TICKET],
         )
-
-        paper_ticket_data = create_paper_ticket(session, token, form_param)
-        return paper_ticket_data
+        return create_paper_ticket(session, token, form_param)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.get(
     URL_PAPER_TICKET,
     summary="Fetch paper ticket",
     tags=["Paper Ticket"],
-    response_model=List[PaperTicketSchema],
+    response_model=list[PaperTicketSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_paper_tickets_for_operator(
-    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+    query_params: QueryParamsForOP = Depends(),
+    access_token=Depends(bearer_operator),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
-
         return search_paper_tickets(
             session,
             QueryParams(**query_params.model_dump(), company_id=token.company_id),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()

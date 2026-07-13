@@ -58,6 +58,7 @@ from app.src.description import Description
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src import exceptions, schemas
+from app.src.schemas import PatchForm
 from app.src.filters import PaginationFilter, CreatedOnFilter, UpdatedOnFilter, IDFilter
 
 route_executive = APIRouter()
@@ -123,7 +124,7 @@ class CreateForm(CreateFormForEX):
     pass
 
 
-class UpdateForm(BaseModel):
+class UpdateForm(PatchForm):
     """Form data for updating a fare."""
 
     name: str | None = Field(

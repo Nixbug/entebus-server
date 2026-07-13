@@ -55,6 +55,7 @@ from app.src.filters import (
 from app.src.openobserve import log_event
 from app.src.description import Description
 from app.src import exceptions, schemas
+from app.src.schemas import PatchForm
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.constants import MAX_LANDMARKS_PER_ROUTE
@@ -95,7 +96,7 @@ class CreateForm(BaseModel):
     departure_delta: int = Field(gt=-1)
 
 
-class UpdateForm(BaseModel):
+class UpdateForm(PatchForm):
     """Form data for updating an landmark in route."""
 
     distance_from_start: int | None = Field(default=None, gt=-1)
