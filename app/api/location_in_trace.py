@@ -312,7 +312,7 @@ POST_DESCRIPTION = (
     .add_line("The coordinates must be in longitude/latitude format.")
     .add_line("Use WGS84 compatible coordinates within SRID 4326 bounds.")
     .add_line("Supports batch uploads.")
-    .add_line("A maximum of 50 locations can be uploaded in a single batch upload.")
+    .add_line(f"A maximum of `{MAX_LOCATIONS_PER_BATCH}` locations can be uploaded in a single batch upload.")
     .add_line(
         f"A maximum of `{MAX_LOCATIONS_PER_TRACE}` locations can be associated with a single trace."
     )
