@@ -31,8 +31,10 @@ from app.src.db import (
     VehicleImage,
     Wallet,
     OperatorImage,
+    OperatorRole,
     get_db_session,
 )
+from app.src.permissions.operator import PermissionSchema as PermissionSchemaOP
 from app.src.filters import (
     CreatedOnFilter,
     IDFilter,
@@ -278,6 +280,17 @@ def create_company(
         location=to_WKB(location_geom),
     )
     session.add(company)
+
+    # Create default operator roles for the company (Admin and Guest)
+    admin_permissions = PermissionSchemaOP.all_granted().model_dump()
+    guest_permissions = PermissionSchemaOP.all_denied().model_dump()
+    admin_role = OperatorRole(
+        company_id=company.id, name="Admin", permissions=admin_permissions
+    )
+    guest_role = OperatorRole(
+        company_id=company.id, name="Guest", permissions=guest_permissions
+    )
+    session.add_all([admin_role, guest_role])
 
     # Create Wallet
     wallet = Wallet(name=form_param.name, balance=0)
