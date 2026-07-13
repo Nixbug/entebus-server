@@ -34,6 +34,7 @@ from app.src.validators import validate_id, verify_token, authorize_executive
 from app.src.functions import (
     enum_str,
     fuse_exception_responses,
+    get_by_id,
     get_request_info,
     apply_id_filters,
     apply_created_on_filters,
@@ -189,9 +190,7 @@ def delete_executive_role_map(
         token (ExecutiveToken): Authenticated executive token.
         request_info (schemas.RequestInfo): Request information for logging.
     """
-    executive_role_map = (
-        session.query(ExecutiveRoleMap).filter(ExecutiveRoleMap.id == id).first()
-    )
+    executive_role_map = get_by_id(session, ExecutiveRoleMap, id)
     if executive_role_map is None:
         return
 
