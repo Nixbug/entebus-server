@@ -281,6 +281,11 @@ def create_company(
     )
     session.add(company)
 
+    # Create Wallet
+    wallet = Wallet(name=form_param.name, balance=0)
+    session.add(wallet)
+    session.flush()
+
     # Create default operator roles for the company (Admin and Guest)
     admin_permissions = PermissionSchemaOP.all_granted().model_dump()
     guest_permissions = PermissionSchemaOP.all_denied().model_dump()
@@ -291,11 +296,6 @@ def create_company(
         company_id=company.id, name="Guest", permissions=guest_permissions
     )
     session.add_all([admin_role, guest_role])
-
-    # Create Wallet
-    wallet = Wallet(name=form_param.name, balance=0)
-    session.add(wallet)
-    session.flush()
 
     # Link Company to Wallet
     company_wallet = CompanyWallet(company_id=company.id, wallet_id=wallet.id)

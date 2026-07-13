@@ -280,6 +280,11 @@ def create_business(
     )
     session.add(business)
 
+    # Create Wallet
+    wallet = Wallet(name=form_param.name, balance=0)
+    session.add(wallet)
+    session.flush()
+
     # Create default vendor roles for the business (Admin and Guest)
     admin_permissions = PermissionSchemaVN.all_granted().model_dump()
     guest_permissions = PermissionSchemaVN.all_denied().model_dump()
@@ -290,11 +295,6 @@ def create_business(
         business_id=business.id, name="Guest", permissions=guest_permissions
     )
     session.add_all([admin_role, guest_role])
-
-    # Create Wallet
-    wallet = Wallet(name=form_param.name, balance=0)
-    session.add(wallet)
-    session.flush()
 
     # Link Business to Wallet
     business_wallet = BusinessWallet(business_id=business.id, wallet_id=wallet.id)
