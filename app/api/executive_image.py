@@ -379,12 +379,9 @@ async def delete_executive_image_for_executive(
 ):
     try:
         token = verify_token(session, ExecutiveToken, access_token)
-        executive_image = (
-            session.query(ExecutiveImage).filter(ExecutiveImage.id == id).first()
-        )
+        executive_image = get_by_id(session, ExecutiveImage, id)
         if executive_image is None:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
-
         if executive_image.executive_id != token.executive_id:
             roles = get_executive_roles(session, token)
             verify_permission(roles, PermissionPath.UPDATE_EXECUTIVE)
