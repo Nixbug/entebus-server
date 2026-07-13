@@ -2938,7 +2938,7 @@ class Trace(ORMbase):
 
         name (TEXT, not null):
             Name of the trace.
-            Maximum 4096 characters long.
+            Maximum 128 characters long.
             Unique together with `company_id` to prevent duplicate trace names within the same company.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
@@ -2987,6 +2987,9 @@ class LocationInTrace(ORMbase):
             Indicates the company associated with this trace record.
             Cascades on delete — if the company is removed, related trace records are deleted.
 
+        captured_at (DateTime, not null):
+            Timestamp indicating when the location was captured.
+
         location (Geometry(geometry_type="POINT", srid=4326), not null):
             Geospatial point representing the recorded location.
 
@@ -3011,6 +3014,9 @@ class LocationInTrace(ORMbase):
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
+    )
+    captured_at: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False
     )
     location: Mapped[WKBElement] = orm.mapped_column(
         Geometry(geometry_type="POINT", srid=4326), nullable=False
