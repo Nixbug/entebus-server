@@ -30,8 +30,10 @@ from app.src.db import (
     VendorToken,
     Wallet,
     VendorImage,
+    VendorRole,
     get_db_session,
 )
+from app.src.permissions.vendor import PermissionSchema as PermissionSchemaVN
 from app.src.filters import (
     CreatedOnFilter,
     IDFilter,
@@ -282,6 +284,17 @@ def create_business(
     wallet = Wallet(name=form_param.name, balance=0)
     session.add(wallet)
     session.flush()
+
+    # Create default vendor roles for the business (Admin and Guest)
+    admin_permissions = PermissionSchemaVN.all_granted().model_dump()
+    guest_permissions = PermissionSchemaVN.all_denied().model_dump()
+    admin_role = VendorRole(
+        business_id=business.id, name="Admin", permissions=admin_permissions
+    )
+    guest_role = VendorRole(
+        business_id=business.id, name="Guest", permissions=guest_permissions
+    )
+    session.add_all([admin_role, guest_role])
 
     # Link Business to Wallet
     business_wallet = BusinessWallet(business_id=business.id, wallet_id=wallet.id)
