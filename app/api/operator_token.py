@@ -676,7 +676,6 @@ async def delete_operator_token_for_operator(
         if operator_token is not None and not operator_token.is_revoked:
             if not has_permission and operator_token.operator_id != token.operator_id:
                 raise exceptions.NoPermission()
-
             delete_operator_token(
                 session,
                 operator_token,
