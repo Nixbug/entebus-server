@@ -327,8 +327,6 @@ def search_operator_tokens(
     Args:
         session (Session): Active SQLAlchemy database session.
         query_params (QueryParams): Query parameters containing search criteria.
-        token (OperatorToken | None): Authenticated operator token for scoped access.
-        has_permission (bool): Whether the requester can view an operator's tokens.
 
     Returns:
         list[OperatorToken]: List of operator tokens that match the search criteria.
