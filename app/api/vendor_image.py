@@ -1,69 +1,63 @@
 """
-Vendor Image API Router for EnteBus.
+Vendor Image API router.
 
-Provides endpoints for managing vendor images, including creation,
-deletion, and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing vendor images:
+    - POST (executive, vendor)
+    - DELETE (executive, vendor)
+    - GET (executive, vendor)
+    - GET /{id} (executive, vendor)
 """
 
 from datetime import datetime
-from fastapi import APIRouter, Form, File, UploadFile, Response, status, Depends, Query
+from enum import StrEnum
+from io import BytesIO
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
-from io import BytesIO
-from typing import List
-from enum import StrEnum
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
 
+from app.api.bearer import bearer_vendor, oauth2_executive
+from app.src import exceptions, schemas
+from app.src.buckets import VENDOR_IMAGES
+from app.src.constants import (
+    MAX_IMAGE_FILE_SIZE,
+    MAX_IMAGE_RESOLUTION,
+    MIN_IMAGE_FILE_SIZE,
+    MIN_IMAGE_RESOLUTION,
+)
 from app.src.db import (
-    Business,
-    VendorImage,
-    VendorToken,
-    SessionLocal,
     ExecutiveToken,
     Vendor,
+    VendorImage,
+    VendorToken,
+    get_db_session,
 )
-from app.api.bearer import oauth2_executive, bearer_vendor
-from app.src.permissions.vendor import PermissionPath as VendorPermissionPath
-from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
-from app.src import exceptions
-from app.src.urls import URL_VENDOR_PICTURE
-from app.src.minio import delete_file, upload_file, download_file
-from app.src.openobserve import log_event
 from app.src.description import Description
-from app.src.validators import (
-    authorize_executive,
-    authorize_vendor,
-    verify_permission,
-    verify_token,
-    validate_id,
-    validate_image,
-)
+from app.src.enums import OrderIn
+from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, PictureFilter
 from app.src.functions import (
-    fuse_exception_responses,
-    get_request_info,
-    get_executive_roles,
-    get_vendor_roles,
     apply_created_on_filters,
     apply_id_filters,
     apply_picture_filters,
     enum_str,
+    fuse_exception_responses,
+    get_by_id,
+    get_request_info,
+    get_vendor_roles,
     resize_image,
 )
-from app.src.constants import (
-    MAX_IMAGE_RESOLUTION,
-    MAX_IMAGE_FILE_SIZE,
-    MIN_IMAGE_RESOLUTION,
-    MIN_IMAGE_FILE_SIZE,
-)
-from app.src.buckets import VENDOR_IMAGES
-from app.src.enums import OrderIn
-from app.src.filters import (
-    CreatedOnFilter,
-    IDFilter,
-    PaginationFilter,
-    PictureFilter,
+from app.src.minio import delete_file, download_file, upload_file
+from app.src.openobserve import log_event
+from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
+from app.src.permissions.vendor import PermissionPath as VendorPermissionPath
+from app.src.urls import URL_VENDOR_PICTURE
+from app.src.validators import (
+    authorize_executive,
+    validate_id,
+    validate_image,
+    verify_permission,
+    verify_token,
 )
 
 route_executive = APIRouter()
@@ -166,38 +160,53 @@ class ImageQueryParams(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-## Functions
+## Core Functions
 # ---------------------------------------------------------------------------
-def create_image(
+async def create_vendor_image(
     session: Session,
     form_param: CreateForm,
-    file_bytes: bytes,
-    extra_filter_for_vendor=None,
+    token: ExecutiveToken | VendorToken,
+    request_info: schemas.RequestInfo,
+    vendor_id: int,
+    vendor_filter=None,
 ) -> dict:
     """
-    Creates a new vendor image record in the database.
+    Create a new vendor image in the database.
 
     Args:
-        session (Session): SQLAlchemy database session.
-        form_param (CreateForm): Form data for creating a vendor image.
-        file_bytes (bytes): The image file bytes.
-        extra_filter_for_vendor (optional): Additional filter for validating vendor's business.
+        session (Session): Active SQLAlchemy database session.
+        form_param (CreateForm): Form data for creating a new vendor image.
+        token (ExecutiveToken | VendorToken): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
+        vendor_id (int): ID of the vendor for whom the image is being created.
+        vendor_filter: Additional filter for validating vendor ownership.
 
     Returns:
-        dict: The created vendor image data.
+        dict: Created vendor image data.
     """
     vendor = validate_id(
         session,
         Vendor,
-        form_param.vendor_id,
+        vendor_id,
         VendorImage.vendor_id,
-        extra_filter=extra_filter_for_vendor,
+        extra_filter=vendor_filter,
     )
+
+    file_bytes = await form_param.file.read()
+    filename = form_param.file.filename
+    if not filename:
+        raise exceptions.InvalidValue("filename")
+    validate_image(file_bytes, filename)
+
+    content_type = form_param.file.content_type
+    if not content_type:
+        raise exceptions.InvalidValue("content_type")
+
     vendor_image = VendorImage(
         business_id=vendor.business_id,
         vendor_id=vendor.id,
-        file_name=form_param.file.filename,
-        file_type=form_param.file.content_type,
+        file_name=filename,
+        file_type=content_type,
         file_size=len(file_bytes),
     )
     session.add(vendor_image)
@@ -210,44 +219,49 @@ def create_image(
     )
     session.commit()
     session.refresh(vendor_image)
+
     vendor_image_data = jsonable_encoder(vendor_image)
+    log_event(token, request_info, vendor_image_data)
     return vendor_image_data
 
 
-def delete_image(
+def delete_vendor_image(
     session: Session,
     vendor_image: VendorImage,
-) -> dict:
+    token: ExecutiveToken | VendorToken,
+    request_info: schemas.RequestInfo,
+):
     """
-    Deletes a vendor image and its associated file from storage.
+    Delete a vendor image from the database.
 
     Args:
-        session (Session): SQLAlchemy database session.
-        vendor_image (VendorImage): Vendor image to delete.
-
-    Returns:
-        dict: deleted vendor image data for logging purposes.
+        session (Session): Active SQLAlchemy database session.
+        vendor_image (VendorImage): Vendor image instance to delete.
+        token (ExecutiveToken | VendorToken): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
     """
     vendor_image_data = jsonable_encoder(vendor_image)
     session.delete(vendor_image)
     session.commit()
     delete_file(VENDOR_IMAGES, str(vendor_image.id))
-    return vendor_image_data
+    log_event(token, request_info, vendor_image_data)
 
 
-def search_image(session: Session, query_params: QueryParams) -> list[VendorImage]:
+def search_vendor_images(
+    session: Session, query_params: QueryParams
+) -> list[VendorImage]:
     """
     Search for vendor images based on provided query parameters.
 
-    This function supports multiple filtering, searching, ordering, and
-    pagination capabilities to retrieve vendor images that match various criteria.
+    This function supports multiple filtering, ordering, and pagination capabilities
+    to retrieve vendor images that match various criteria.
 
     Args:
-        session (Session): SQLAlchemy database session.
+        session (Session): Active SQLAlchemy database session.
         query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
-        List[VendorImage]: List of VendorImage instances that match the search criteria.
+        list[VendorImage]: List of vendor images that match the search criteria.
     """
     query = session.query(VendorImage)
     if query_params.business_id is not None:
@@ -274,43 +288,40 @@ def search_image(session: Session, query_params: QueryParams) -> list[VendorImag
     return vendor_images
 
 
-def download_image(
-    vendor_image: VendorImage, query_params: ImageQueryParams
+def fetch_vendor_image(
+    session: Session, id: int, query_params: ImageQueryParams, image_filter=None
 ) -> StreamingResponse:
     """
-    Download a vendor image by its ID.
-
-    This function retrieves the vendor image metadata from the database and
-    then fetches the corresponding image file from the MinIO bucket.
+    Fetch a vendor image by its ID and optionally resize it.
 
     Args:
-        vendor_image (VendorImage): The VendorImage instance to download.
-        query_params (ImageQueryParams): Query parameters for image resizing.
+        session (Session): Active SQLAlchemy database session.
+        id (int): ID of the vendor image to fetch.
+        query_params (ImageQueryParams): Query parameters for resizing the image.
+        image_filter: Additional filter for restricting image access.
 
     Returns:
-        StreamingResponse: A StreamingResponse containing the downloaded image.
-
-    Raises:
-        exceptions.UnknownValue: If no vendor image with the specified ID is found.
+        StreamingResponse: The vendor image stream in original or resized form.
     """
-    if vendor_image is not None:
-        file_bytes = download_file(VENDOR_IMAGES, str(vendor_image.id))
-        if query_params.width is not None or query_params.height is not None:
-            file_bytes = resize_image(
-                file_bytes,
-                width=query_params.width,
-                height=query_params.height,
-            )
+    vendor_image = get_by_id(session, VendorImage, id, extra_filter=image_filter)
+    if vendor_image is None:
+        raise exceptions.UnknownValue(VendorImage.id)
 
-        return StreamingResponse(
-            BytesIO(file_bytes),
-            media_type=vendor_image.file_type,
-            headers={
-                "Content-Disposition": f'inline; filename="{vendor_image.file_name}"',
-                "Cache-Control": "public, max-age=31536000, immutable",
-            },
-        )
-    raise exceptions.UnknownValue(VendorImage.id)
+    file_bytes = download_file(VENDOR_IMAGES, str(vendor_image.id))
+    assert file_bytes is not None, "Downloaded file bytes should not be None"
+    resized_bytes = resize_image(
+        file_bytes,
+        width=query_params.width,
+        height=query_params.height,
+    )
+    return StreamingResponse(
+        BytesIO(resized_bytes),
+        media_type=vendor_image.file_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{vendor_image.file_name}"',
+            "Cache-Control": "public, max-age=31536000, immutable",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -321,6 +332,8 @@ POST_EXCEPTIONS = [
     exceptions.NoPermission(),
     exceptions.InvalidImageFile(),
     exceptions.UnknownValue(VendorImage.vendor_id),
+    exceptions.InvalidValue("filename"),
+    exceptions.InvalidValue("content_type"),
 ]
 
 DELETE_EXCEPTIONS = [
@@ -358,6 +371,7 @@ DOWNLOAD_DESCRIPTION = Description().add_head(
 
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
+# ---------------------------------------------------------------------------
 @route_executive.post(
     URL_VENDOR_PICTURE,
     summary="Create vendor image",
@@ -375,25 +389,23 @@ async def upload_vendor_image_for_executive(
     form_param: CreateFormForEX = Depends(),
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
-            session, access_token, [ExecutivePermissionPath.UPDATE_BUSINESS_VENDOR]
+            session,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_BUSINESS_VENDOR],
         )
-
-        file_bytes = await form_param.file.read()
-        validate_image(file_bytes, form_param.file.filename)
-
-        vendor_image_data = create_image(
-            session, CreateForm(**form_param.model_dump()), file_bytes
+        return await create_vendor_image(
+            session,
+            CreateForm(**form_param.model_dump()),
+            token,
+            request_info,
+            form_param.vendor_id,
         )
-        log_event(token, request_info, vendor_image_data)
-        return vendor_image_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -412,47 +424,43 @@ async def delete_vendor_image_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
-            session, access_token, [ExecutivePermissionPath.UPDATE_BUSINESS_VENDOR]
+            session,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_BUSINESS_VENDOR],
         )
-
-        vendor_image = session.query(VendorImage).filter(VendorImage.id == id).first()
+        vendor_image = get_by_id(session, VendorImage, id)
         if vendor_image is not None:
-            vendor_image_data = delete_image(session, vendor_image)
-            log_event(token, request_info, vendor_image_data)
+            delete_vendor_image(session, vendor_image, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
     URL_VENDOR_PICTURE,
-    summary="Fetch vendor images",
+    summary="Fetch vendor image",
     tags=["Vendor Account Image"],
-    response_model=List[VendorImageSchema],
+    response_model=list[VendorImageSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_vendor_images_for_executive(
-    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+    query_params: QueryParamsForEX = Depends(),
+    access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
-        return search_image(
+        return search_vendor_images(
             session,
             QueryParams(**query_params.model_dump()),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
@@ -466,17 +474,13 @@ async def download_vendor_image_for_executive(
     id: int,
     query_params: ImageQueryParams = Depends(),
     access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
-        vendor_image = session.query(VendorImage).filter(VendorImage.id == id).first()
-        return download_image(vendor_image, query_params)
+        return fetch_vendor_image(session, id, query_params)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -502,33 +506,25 @@ async def upload_vendor_image_for_vendor(
     form_param: CreateFormForVE = Depends(),
     access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, VendorToken, access_token.credentials)
-
-        if form_param.vendor_id is None:
-            form_param.vendor_id = token.vendor_id
-        is_self_update = form_param.vendor_id == token.vendor_id
-        if not is_self_update:
+        vendor_id = form_param.vendor_id or token.vendor_id
+        if vendor_id != token.vendor_id:
             roles = get_vendor_roles(session, token)
             verify_permission(roles, VendorPermissionPath.UPDATE_BUSINESS_VENDOR)
 
-        file_bytes = await form_param.file.read()
-        validate_image(file_bytes, form_param.file.filename)
-
-        vendor_image_data = create_image(
+        return await create_vendor_image(
             session,
-            CreateForm(**form_param.model_dump()),
-            file_bytes,
-            extra_filter_for_vendor=(Vendor.business_id == token.business_id),
+            CreateForm(**form_param.model_dump(), vendor_id=vendor_id),
+            token,
+            request_info,
+            vendor_id,
+            vendor_filter=(Vendor.business_id == token.business_id),
         )
-        log_event(token, request_info, vendor_image_data)
-        return vendor_image_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_vendor.delete(
@@ -550,35 +546,33 @@ async def delete_vendor_image_for_vendor(
     id: int,
     access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, VendorToken, access_token.credentials)
-
-        vendor_image = (
-            session.query(VendorImage)
-            .filter(VendorImage.id == id, VendorImage.business_id == token.business_id)
-            .first()
+        vendor_image = get_by_id(
+            session,
+            VendorImage,
+            id,
+            extra_filter=(VendorImage.business_id == token.business_id),
         )
-        if vendor_image is None or vendor_image.vendor_id != token.vendor_id:
-            roles = get_vendor_roles(session, token)
-            verify_permission(roles, VendorPermissionPath.UPDATE_BUSINESS_VENDOR)
         if vendor_image is None:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
-        vendor_image_data = delete_image(session, vendor_image)
-        log_event(token, request_info, vendor_image_data)
+        if vendor_image.vendor_id != token.vendor_id:
+            roles = get_vendor_roles(session, token)
+            verify_permission(roles, VendorPermissionPath.UPDATE_BUSINESS_VENDOR)
+
+        delete_vendor_image(session, vendor_image, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_vendor.get(
     URL_VENDOR_PICTURE,
     summary="Fetch vendor image",
     tags=["Account Image"],
-    response_model=List[VendorImageSchema],
+    response_model=list[VendorImageSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(
         GET_DESCRIPTION.copy()
@@ -589,20 +583,18 @@ async def delete_vendor_image_for_vendor(
     ),
 )
 async def fetch_vendor_images_for_vendor(
-    query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
+    query_params: QueryParamsForVE = Depends(),
+    access_token=Depends(bearer_vendor),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, VendorToken, access_token.credentials)
-
-        return search_image(
+        return search_vendor_images(
             session,
             QueryParams(**query_params.model_dump(), business_id=token.business_id),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_vendor.get(
@@ -616,18 +608,15 @@ async def download_vendor_image_for_vendor(
     id: int,
     query_params: ImageQueryParams = Depends(),
     access_token=Depends(bearer_vendor),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, VendorToken, access_token.credentials)
-
-        vendor_image = (
-            session.query(VendorImage)
-            .filter(VendorImage.id == id, VendorImage.business_id == token.business_id)
-            .first()
+        return fetch_vendor_image(
+            session,
+            id,
+            query_params,
+            image_filter=(VendorImage.business_id == token.business_id),
         )
-        return download_image(vendor_image, query_params)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
