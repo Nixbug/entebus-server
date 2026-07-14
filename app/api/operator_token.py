@@ -336,6 +336,8 @@ def search_operator_tokens(
     query = session.query(OperatorToken).filter(OperatorToken.is_revoked.is_(False))
     if query_params.company_id is not None:
         query = query.filter(OperatorToken.company_id == query_params.company_id)
+    if query_params.operator_id is not None:
+        query = query.filter(OperatorToken.operator_id == query_params.operator_id)
 
     # Generalized filters
     query = apply_id_filters(query, OperatorToken, query_params)

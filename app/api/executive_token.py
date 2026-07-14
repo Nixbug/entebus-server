@@ -311,6 +311,8 @@ def search_executive_tokens(
         list[ExecutiveToken]: List of executive tokens that match the search criteria.
     """
     query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked.is_(False))
+    if query_params.executive_id is not None:
+        query = query.filter(ExecutiveToken.executive_id == query_params.executive_id)
 
     # Generalized filters
     query = apply_id_filters(query, ExecutiveToken, query_params)
