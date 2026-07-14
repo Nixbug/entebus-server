@@ -36,6 +36,8 @@ from app.api import (
     vehicle_image,
     vendor_account,
     vendor_image,
+    vendor_role,
+    vendor_role_map,
     vendor_token,
     landmark_in_route,
     service_location,
@@ -74,6 +76,8 @@ app_executive.include_router(business.route_executive)
 app_executive.include_router(vendor_token.route_executive)
 app_executive.include_router(operator_account.route_executive)
 app_executive.include_router(vendor_account.route_executive)
+app_executive.include_router(vendor_role.route_executive)
+app_executive.include_router(vendor_role_map.route_executive)
 app_executive.include_router(operator_role.route_executive)
 app_executive.include_router(operator_role_map.route_executive)
 app_executive.include_router(operator_image.route_executive)
@@ -99,6 +103,8 @@ app_executive.include_router(job.route_executive)
 # ------------------------------------------------------
 app_vendor.include_router(vendor_token.route_vendor)
 app_vendor.include_router(vendor_account.route_vendor)
+app_vendor.include_router(vendor_role.route_vendor)
+app_vendor.include_router(vendor_role_map.route_vendor)
 app_vendor.include_router(vendor_image.route_vendor)
 app_vendor.include_router(business.route_vendor)
 app_vendor.include_router(landmark.route_vendor)

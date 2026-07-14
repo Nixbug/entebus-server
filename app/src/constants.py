@@ -137,6 +137,7 @@ MIN_IMAGE_FILE_SIZE = 1 * 1024  # Minimum allowed file size in bytes (1 KB)
 # ---------------------------------------------------------------------------
 MAX_ROUTES_PER_COMPANY = 100  # Maximum routes per company
 MAX_OPERATORS_PER_COMPANY = 100  # Maximum operators per company
+MAX_VENDORS_PER_COMPANY = 100  # Maximum vendors per company
 MAX_LOCAL_FARES_PER_COMPANY = 50  # Maximum LOCAL fares per company
 MAX_VEHICLES_PER_COMPANY = 100  # Maximum vehicles per company
 MAX_TRACES_PER_COMPANY = 100  # Maximum traces per company
@@ -145,7 +146,8 @@ MAX_LOCATIONS_PER_BATCH = 100  # Maximum locations per batch upload
 
 
 # ---------------------------------------------------------------------------
-# Role constraints (executive/operator)
+# Role constraints (executive/operator/vendor)
 # ---------------------------------------------------------------------------
 MAX_EXECUTIVE_ROLE = 20
 MAX_OPERATOR_ROLE = 20
+MAX_VENDOR_ROLE = 20
