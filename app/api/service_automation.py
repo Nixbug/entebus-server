@@ -1,18 +1,20 @@
 """
-Service Automation API Router for EnteBus.
+Service Automation API Router.
 
-Provides endpoints for managing service automations, including creation,
-update, deletion and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing service automations:
+    - POST (executive, operator)
+    - PATCH (executive, operator)
+    - DELETE (executive, operator)
+    - GET (executive, operator)
 """
 
 from datetime import datetime, time
 from enum import StrEnum
-from typing import List, Tuple
+from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from sqlalchemy import or_
+from sqlalchemy import String, or_
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
@@ -24,11 +26,11 @@ from app.src.db import (
     OperatorToken,
     Route,
     ServiceAutomation,
-    SessionLocal,
     Vehicle,
+    get_db_session,
 )
 from app.src.description import Description
-from app.src.enums import FareScope, OrderIn, TicketingMode
+from app.src.enums import AppID, FareScope, OrderIn, TicketingMode
 from app.src.filters import (
     CreatedOnFilter,
     IDFilter,
@@ -43,6 +45,7 @@ from app.src.functions import (
     apply_updated_on_filters,
     enum_str,
     fuse_exception_responses,
+    get_by_id,
     get_request_info,
     update_if_changed,
 )
@@ -50,6 +53,7 @@ from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.regex import NAME_PATTERN
+from app.src.schemas import PatchForm
 from app.src.urls import URL_SERVICE_AUTOMATION
 from app.src.validators import (
     authorize_executive,
@@ -88,14 +92,14 @@ class ServiceAutomationSchema(BaseModel):
 class CreateFormForOP(BaseModel):
     """Form data for creating a new service automation for an operator."""
 
-    job_id: int | None = Field(default=None)
+    job_id: int = Field()
     name: str = Field(min_length=1, max_length=128, pattern=NAME_PATTERN)
     description: str | None = Field(default=None, max_length=1024)
     route_id: int = Field()
     fare_id: int = Field()
     vehicle_id: int = Field()
     ticket_mode: TicketingMode = Field(
-        description=enum_str(TicketingMode), default=TicketingMode.HYBRID
+        default=TicketingMode.HYBRID, description=enum_str(TicketingMode)
     )
     starting_at: time = Field()
 
@@ -112,19 +116,22 @@ class CreateForm(CreateFormForEX):
     pass
 
 
-class UpdateForm(BaseModel):
+class UpdateForm(PatchForm):
     """Form data for updating a service automation."""
 
-    job_id: int | None = Field(default=None)
-    name: str = Field(default=None, min_length=1, max_length=128, pattern=NAME_PATTERN)
-    description: str | None = Field(default=None, max_length=1024)
-    route_id: int = Field(default=None)
-    fare_id: int = Field(default=None)
-    vehicle_id: int = Field(default=None)
-    ticket_mode: TicketingMode = Field(
+    name: str | None = Field(
+        default=None, min_length=1, max_length=128, pattern=NAME_PATTERN
+    )
+    description: Annotated[str | None, "nullable"] = Field(
+        default=None, max_length=1024
+    )
+    route_id: int | None = Field(default=None)
+    fare_id: int | None = Field(default=None)
+    vehicle_id: int | None = Field(default=None)
+    ticket_mode: TicketingMode | None = Field(
         default=None, description=enum_str(TicketingMode)
     )
-    starting_at: time = Field(default=None)
+    starting_at: time | None = Field(default=None)
 
 
 # ---------------------------------------------------------------------------
@@ -174,15 +181,17 @@ class QueryParams(QueryParamsForEX):
 
 
 # ---------------------------------------------------------------------------
-## Functions
+## Core Functions
 # ---------------------------------------------------------------------------
 def create_service_automation(
     session: Session,
     form_param: CreateForm,
-    extra_filter_for_job=None,
-    extra_filter_for_route=None,
-    extra_filter_for_fare=None,
-    extra_filter_for_vehicle=None,
+    token: ExecutiveToken | OperatorToken,
+    request_info,
+    job_filter=None,
+    route_filter=None,
+    fare_filter=None,
+    vehicle_filter=None,
 ) -> dict:
     """
     Creates a new service automation record in the database.
@@ -190,43 +199,43 @@ def create_service_automation(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a service automation.
-        extra_filter_for_job: Optional filter for validating the job.
-        extra_filter_for_route: Optional filter for validating the route.
-        extra_filter_for_fare: Optional filter for validating the fare.
-        extra_filter_for_vehicle: Optional filter for validating the vehicle.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
+        request_info: Request information for logging.
+        job_filter: Additional filter for validating the job.
+        route_filter: Additional filter for validating the route.
+        fare_filter: Additional filter for validating the fare.
+        vehicle_filter: Additional filter for validating the vehicle.
 
     Returns:
         dict: The created service automation data.
     """
-    job = None
-    if form_param.job_id is not None:
-        job = validate_id(
-            session,
-            Job,
-            form_param.job_id,
-            ServiceAutomation.job_id,
-            extra_filter=extra_filter_for_job,
-        )
-    vehicle = validate_id(
+    validate_id(
         session,
-        Vehicle,
-        form_param.vehicle_id,
-        ServiceAutomation.vehicle_id,
-        extra_filter=extra_filter_for_vehicle,
+        Job,
+        form_param.job_id,
+        ServiceAutomation.job_id,
+        extra_filter=job_filter,
     )
-    route = validate_id(
+    validate_id(
         session,
         Route,
         form_param.route_id,
         ServiceAutomation.route_id,
-        extra_filter=extra_filter_for_route,
+        extra_filter=route_filter,
     )
-    fare = validate_id(
+    validate_id(
         session,
         Fare,
         form_param.fare_id,
         ServiceAutomation.fare_id,
-        extra_filter=extra_filter_for_fare,
+        extra_filter=fare_filter,
+    )
+    validate_id(
+        session,
+        Vehicle,
+        form_param.vehicle_id,
+        ServiceAutomation.vehicle_id,
+        extra_filter=vehicle_filter,
     )
 
     service_automation = ServiceAutomation(
@@ -241,10 +250,11 @@ def create_service_automation(
         starting_at=form_param.starting_at,
     )
     session.add(service_automation)
-
     session.commit()
     session.refresh(service_automation)
+
     service_automation_data = jsonable_encoder(service_automation)
+    log_event(token, request_info, service_automation_data)
     return service_automation_data
 
 
@@ -252,111 +262,129 @@ def update_service_automation(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    extra_filter_for_service_automation=None,
-    extra_filter_for_job=None,
-    extra_filter_for_route=None,
-    extra_filter_for_fare=None,
-    extra_filter_for_vehicle=None,
-) -> Tuple[bool, dict]:
+    token: ExecutiveToken | OperatorToken,
+    request_info,
+    service_automation_filter=None,
+    route_filter=None,
+    fare_filter=None,
+    vehicle_filter=None,
+) -> dict:
     """
-    Updates an existing service automation record in the database.
+    Updates an existing service automation record.
 
     Args:
         session (Session): SQLAlchemy database session.
         id (int): ID of the service automation to update.
         form_param (UpdateForm): Form data for updating the service automation.
-        extra_filter_for_service_automation: Optional filter for validating the service automation.
-        extra_filter_for_job: Optional filter for validating the job.
-        extra_filter_for_route: Optional filter for validating the route.
-        extra_filter_for_fare: Optional filter for validating the fare.
-        extra_filter_for_vehicle: Optional filter for validating the vehicle.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
+        request_info: Request information for logging.
+        service_automation_filter: Additional filter for service automation validation.
+        route_filter: Additional filter for validating the route.
+        fare_filter: Additional filter for validating the fare.
+        vehicle_filter: Additional filter for validating the vehicle.
 
     Returns:
-        Tuple[bool, dict]: A tuple containing a boolean indicating whether any updates were made and the updated service automation data.
+        dict: JSON-encoded representation of the updated service automation.
     """
     service_automation = validate_id(
         session,
         ServiceAutomation,
         id,
         ServiceAutomation.id,
-        extra_filter=extra_filter_for_service_automation,
+        extra_filter=service_automation_filter,
     )
 
+    if request_info.app_id == AppID.EXECUTIVE:
+        route_filter = Route.company_id == service_automation.company_id
+        vehicle_filter = Vehicle.company_id == service_automation.company_id
+        fare_filter = (Fare.company_id == service_automation.company_id) | (
+            Fare.scope == FareScope.GLOBAL
+        )
+
     update_data = form_param.model_dump(exclude_unset=True)
-    if "job_id" in update_data and update_data["job_id"] is not None:
-        validate_id(
-            session,
-            Job,
-            form_param.job_id,
-            ServiceAutomation.job_id,
-            extra_filter=extra_filter_for_job,
-        )
     if "route_id" in update_data:
-        validate_id(
-            session,
-            Route,
-            form_param.route_id,
-            ServiceAutomation.route_id,
-            extra_filter=extra_filter_for_route,
-        )
+        if update_data["route_id"] != service_automation.route_id:
+            validate_id(
+                session,
+                Route,
+                update_data["route_id"],
+                ServiceAutomation.route_id,
+                extra_filter=route_filter,
+            )
     if "fare_id" in update_data:
-        validate_id(
-            session,
-            Fare,
-            form_param.fare_id,
-            ServiceAutomation.fare_id,
-            extra_filter=extra_filter_for_fare,
-        )
+        if update_data["fare_id"] != service_automation.fare_id:
+            validate_id(
+                session,
+                Fare,
+                update_data["fare_id"],
+                ServiceAutomation.fare_id,
+                extra_filter=fare_filter,
+            )
     if "vehicle_id" in update_data:
-        validate_id(
-            session,
-            Vehicle,
-            form_param.vehicle_id,
-            ServiceAutomation.vehicle_id,
-            extra_filter=extra_filter_for_vehicle,
-        )
+        if update_data["vehicle_id"] != service_automation.vehicle_id:
+            validate_id(
+                session,
+                Vehicle,
+                update_data["vehicle_id"],
+                ServiceAutomation.vehicle_id,
+                extra_filter=vehicle_filter,
+            )
 
     update_if_changed(service_automation, update_data)
-    have_updates = session.is_modified(service_automation)
-    if have_updates:
+    if session.is_modified(service_automation):
         session.commit()
         session.refresh(service_automation)
-
-    service_automation_data = jsonable_encoder(service_automation)
-    return have_updates, service_automation_data
+        service_automation_data = jsonable_encoder(service_automation)
+        log_event(token, request_info, service_automation_data)
+    else:
+        service_automation_data = jsonable_encoder(service_automation)
+    return service_automation_data
 
 
 def delete_service_automation(
-    session: Session, service_automation: ServiceAutomation
-) -> dict:
+    session: Session,
+    id: int,
+    token: ExecutiveToken | OperatorToken,
+    request_info,
+    service_automation_filter=None,
+) -> None:
     """
     Deletes a service automation from the database.
 
     Args:
         session (Session): SQLAlchemy database session.
-        service_automation (ServiceAutomation): Service automation to delete.
-
-    Returns:
-        dict: JSON-encoded representation of the deleted service automation.
+        id (int): ID of the service automation to delete.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
+        request_info: Request information for logging.
+        service_automation_filter: Additional filter for service automation validation.
     """
+    service_automation = get_by_id(
+        session,
+        ServiceAutomation,
+        id,
+        extra_filter=service_automation_filter,
+    )
+    if service_automation is None:
+        return
+
     service_automation_data = jsonable_encoder(service_automation)
     session.delete(service_automation)
     session.commit()
-    return service_automation_data
+    log_event(token, request_info, service_automation_data)
 
 
-def search_service_automation(
+def search_service_automations(
     session: Session, query_params: QueryParams
-) -> List[ServiceAutomation]:
+) -> list[ServiceAutomation]:
     """
     Searches for service automations based on the provided query parameters.
 
     Args:
         session (Session): SQLAlchemy database session.
-        query_params (QueryParams): Query parameters for filtering and sorting service automations.
+        query_params (QueryParams): Query parameters for filtering and sorting results.
 
     Returns:
-        List[ServiceAutomation]: A list of service automations matching the search criteria.
+        list[ServiceAutomation]: A list of matching service automations.
     """
     query = session.query(ServiceAutomation)
     if query_params.company_id is not None:
@@ -389,18 +417,19 @@ def search_service_automation(
         search = f"%{query_params.search}%"
         query = query.filter(
             or_(
+                ServiceAutomation.id.cast(String).ilike(search),
                 ServiceAutomation.name.ilike(search),
                 ServiceAutomation.description.ilike(search),
             )
         )
 
-    # General filters
+    # Generalized filters
     query = apply_id_filters(query, ServiceAutomation, query_params)
     query = apply_name_filters(query, ServiceAutomation, query_params)
     query = apply_created_on_filters(query, ServiceAutomation, query_params)
     query = apply_updated_on_filters(query, ServiceAutomation, query_params)
 
-    # Ordering and Pagination
+    # Ordering and pagination
     ordering_attr = getattr(ServiceAutomation, query_params.order_by.value)
     ordering_func = (
         ordering_attr.asc
@@ -447,7 +476,7 @@ GET_EXCEPTIONS = [
 
 
 # ---------------------------------------------------------------------------
-## Common descriptions
+## Common description
 # ---------------------------------------------------------------------------
 POST_DESCRIPTION = (
     Description()
@@ -484,7 +513,7 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of service automations.
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
         POST_DESCRIPTION.copy()
-        .add_line("Logged in executive must have `company.service.create` permission.")
+        .add_line("Logged-in executive must have `company.service.create` permission.")
         .add_line(
             "`company_id` is required and used to validate job, route, fare, and vehicle ownership."
         )
@@ -495,30 +524,27 @@ async def create_service_automation_for_executive(
     form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
             [ExecutivePermissionPath.CREATE_COMPANY_SERVICE],
         )
-
-        service_automation_data = create_service_automation(
+        return create_service_automation(
             session,
             CreateForm(**form_param.model_dump()),
-            extra_filter_for_job=(Job.company_id == form_param.company_id),
-            extra_filter_for_route=(Route.company_id == form_param.company_id),
-            extra_filter_for_fare=(Fare.company_id == form_param.company_id)
+            token,
+            request_info,
+            job_filter=(Job.company_id == form_param.company_id),
+            route_filter=(Route.company_id == form_param.company_id),
+            fare_filter=(Fare.company_id == form_param.company_id)
             | (Fare.scope == FareScope.GLOBAL),
-            extra_filter_for_vehicle=(Vehicle.company_id == form_param.company_id),
+            vehicle_filter=(Vehicle.company_id == form_param.company_id),
         )
-        log_event(token, request_info, service_automation_data)
-        return service_automation_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.patch(
@@ -529,7 +555,7 @@ async def create_service_automation_for_executive(
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
         PATCH_DESCRIPTION.copy()
-        .add_line("Logged in executive must have `company.service.update` permission.")
+        .add_line("Logged-in executive must have `company.service.update` permission.")
         .to_string()
     ),
 )
@@ -538,43 +564,17 @@ async def update_service_automation_for_executive(
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
             [ExecutivePermissionPath.UPDATE_COMPANY_SERVICE],
         )
-
-        service_automation = validate_id(
-            session,
-            ServiceAutomation,
-            id,
-            ServiceAutomation.id,
-        )
-        have_updates, service_automation_data = update_service_automation(
-            session,
-            id,
-            UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            extra_filter_for_service_automation=(
-                ServiceAutomation.company_id == service_automation.company_id
-            ),
-            extra_filter_for_job=(Job.company_id == service_automation.company_id),
-            extra_filter_for_route=(Route.company_id == service_automation.company_id),
-            extra_filter_for_fare=(Fare.company_id == service_automation.company_id)
-            | (Fare.scope == FareScope.GLOBAL),
-            extra_filter_for_vehicle=(
-                Vehicle.company_id == service_automation.company_id
-            ),
-        )
-        if have_updates:
-            log_event(token, request_info, service_automation_data)
-        return service_automation_data
+        return update_service_automation(session, id, form_param, token, request_info)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -585,7 +585,7 @@ async def update_service_automation_for_executive(
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
         DELETE_DESCRIPTION.copy()
-        .add_line("Logged in executive must have `company.service.delete` permission.")
+        .add_line("Logged-in executive must have `company.service.delete` permission.")
         .to_string()
     ),
 )
@@ -593,53 +593,41 @@ async def delete_service_automation_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
             [ExecutivePermissionPath.DELETE_COMPANY_SERVICE],
         )
-
-        service_automation = (
-            session.query(ServiceAutomation).filter(ServiceAutomation.id == id).first()
-        )
-        if service_automation is not None:
-            service_automation_data = delete_service_automation(
-                session, service_automation
-            )
-            log_event(token, request_info, service_automation_data)
+        delete_service_automation(session, id, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
     URL_SERVICE_AUTOMATION,
     summary="Fetch service automation",
     tags=["Service Automation"],
-    response_model=List[ServiceAutomationSchema],
+    response_model=list[ServiceAutomationSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_service_automations_for_executive(
-    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+    query_params: QueryParamsForEX = Depends(),
+    access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
-        return search_service_automation(
+        return search_service_automations(
             session,
             QueryParams(**query_params.model_dump()),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -654,7 +642,7 @@ async def fetch_service_automations_for_executive(
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
         POST_DESCRIPTION.copy()
-        .add_line("Logged in operator must have `company.service.create` permission.")
+        .add_line("Logged-in operator must have `company.service.create` permission.")
         .to_string()
     ),
 )
@@ -662,30 +650,27 @@ async def create_service_automation_for_operator(
     form_param: CreateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
             [OperatorPermissionPath.CREATE_COMPANY_SERVICE],
         )
-
-        service_automation_data = create_service_automation(
+        return create_service_automation(
             session,
             CreateForm(**form_param.model_dump(), company_id=token.company_id),
-            extra_filter_for_job=(Job.company_id == token.company_id),
-            extra_filter_for_route=(Route.company_id == token.company_id),
-            extra_filter_for_fare=(Fare.company_id == token.company_id)
+            token,
+            request_info,
+            job_filter=(Job.company_id == token.company_id),
+            route_filter=(Route.company_id == token.company_id),
+            fare_filter=(Fare.company_id == token.company_id)
             | (Fare.scope == FareScope.GLOBAL),
-            extra_filter_for_vehicle=(Vehicle.company_id == token.company_id),
+            vehicle_filter=(Vehicle.company_id == token.company_id),
         )
-        log_event(token, request_info, service_automation_data)
-        return service_automation_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.patch(
@@ -696,7 +681,7 @@ async def create_service_automation_for_operator(
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
         PATCH_DESCRIPTION.copy()
-        .add_line("Logged in operator must have `company.service.update` permission.")
+        .add_line("Logged-in operator must have `company.service.update` permission.")
         .to_string()
     ),
 )
@@ -705,35 +690,30 @@ async def update_service_automation_for_operator(
     form_param: UpdateForm,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
             [OperatorPermissionPath.UPDATE_COMPANY_SERVICE],
         )
-
-        have_updates, service_automation_data = update_service_automation(
+        return update_service_automation(
             session,
             id,
-            UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            extra_filter_for_service_automation=(
+            form_param,
+            token,
+            request_info,
+            service_automation_filter=(
                 ServiceAutomation.company_id == token.company_id
             ),
-            extra_filter_for_job=(Job.company_id == token.company_id),
-            extra_filter_for_route=(Route.company_id == token.company_id),
-            extra_filter_for_fare=(Fare.company_id == token.company_id)
+            route_filter=(Route.company_id == token.company_id),
+            fare_filter=(Fare.company_id == token.company_id)
             | (Fare.scope == FareScope.GLOBAL),
-            extra_filter_for_vehicle=(Vehicle.company_id == token.company_id),
+            vehicle_filter=(Vehicle.company_id == token.company_id),
         )
-        if have_updates:
-            log_event(token, request_info, service_automation_data)
-        return service_automation_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.delete(
@@ -744,7 +724,7 @@ async def update_service_automation_for_operator(
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
         DELETE_DESCRIPTION.copy()
-        .add_line("Logged in operator must have `company.service.delete` permission.")
+        .add_line("Logged-in operator must have `company.service.delete` permission.")
         .to_string()
     ),
 )
@@ -752,55 +732,46 @@ async def delete_service_automation_for_operator(
     id: int,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
             [OperatorPermissionPath.DELETE_COMPANY_SERVICE],
         )
-
-        service_automation = (
-            session.query(ServiceAutomation)
-            .filter(
-                ServiceAutomation.id == id,
-                ServiceAutomation.company_id == token.company_id,
-            )
-            .first()
+        delete_service_automation(
+            session,
+            id,
+            token,
+            request_info,
+            service_automation_filter=(
+                ServiceAutomation.company_id == token.company_id
+            ),
         )
-        if service_automation is not None:
-            service_automation_data = delete_service_automation(
-                session, service_automation
-            )
-            log_event(token, request_info, service_automation_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.get(
     URL_SERVICE_AUTOMATION,
     summary="Fetch service automation",
     tags=["Service Automation"],
-    response_model=List[ServiceAutomationSchema],
+    response_model=list[ServiceAutomationSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_service_automations_for_operator(
-    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+    query_params: QueryParamsForOP = Depends(),
+    access_token=Depends(bearer_operator),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
-
-        return search_service_automation(
+        return search_service_automations(
             session,
             QueryParams(**query_params.model_dump(), company_id=token.company_id),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
