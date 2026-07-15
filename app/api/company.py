@@ -67,6 +67,7 @@ from app.src.functions import (
     apply_id_filters,
     enum_str,
     fuse_exception_responses,
+    get_by_id,
     get_request_info,
     load_geometry,
     to_WKB,
@@ -385,7 +386,7 @@ def delete_company(
         token (ExecutiveToken): Authenticated executive token.
         request_info (schemas.RequestInfo): Request information for logging.
     """
-    company = session.query(Company).filter(Company.id == id).first()
+    company = get_by_id(session, Company, id)
     if company is None:
         return
 

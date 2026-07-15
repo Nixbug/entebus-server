@@ -58,6 +58,7 @@ from app.src.functions import (
     apply_updated_on_filters,
     enum_str,
     fuse_exception_responses,
+    get_by_id,
     get_request_info,
     load_geometry,
     to_WKB,
@@ -301,7 +302,7 @@ def delete_bus_stop(
         token (ExecutiveToken): Authenticated executive token.
         request_info (schemas.RequestInfo): Request information for logging.
     """
-    bus_stop = session.query(BusStop).filter(BusStop.id == id).first()
+    bus_stop = get_by_id(session, BusStop, id)
     if bus_stop is None:
         return
 
