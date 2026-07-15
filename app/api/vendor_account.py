@@ -432,6 +432,7 @@ def delete_vendor(
 POST_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
+    exceptions.LimitExceeded(Vendor),
 ]
 
 PATCH_EXCEPTIONS = [
