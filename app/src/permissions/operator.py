@@ -84,6 +84,12 @@ class DutyPermission(PermissionBase):
     update: bool = Field(description="Allow updating duties")
 
 
+class ServiceStatusPermission(PermissionBase):
+    """Service status related permissions."""
+
+    update: bool = Field(description="Allow updating service status")
+
+
 class CreatePermission(PermissionBase):
     """Single action create permission."""
 
@@ -101,6 +107,7 @@ class ServicePermissions(CRUDPermission):
     """Service related permissions."""
 
     duty: DutyPermission
+    status: ServiceStatusPermission
     assignment: CRUDPermission
     ticket: CreatePermission
     statement: CreatePermission

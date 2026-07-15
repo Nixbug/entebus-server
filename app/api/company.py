@@ -286,16 +286,22 @@ def create_company(
     session.add(wallet)
     session.flush()
 
-    # Create default operator roles for the company (Admin and Guest)
+    # Create default operator roles for the company (Admin ,Guest and Conductor)
     admin_permissions = PermissionSchemaOP.all_granted().model_dump()
     guest_permissions = PermissionSchemaOP.all_denied().model_dump()
+    conductor_permissions = PermissionSchemaOP.all_denied().model_dump()
+    conductor_permissions["company"]["service"]["ticket"]["create"] = True
+    conductor_permissions["company"]["service"]["status"]["update"] = True
     admin_role = OperatorRole(
         company_id=company.id, name="Admin", permissions=admin_permissions
     )
     guest_role = OperatorRole(
         company_id=company.id, name="Guest", permissions=guest_permissions
     )
-    session.add_all([admin_role, guest_role])
+    conductor_role = OperatorRole(
+        company_id=company.id, name="Conductor", permissions=conductor_permissions
+    )
+    session.add_all([admin_role, guest_role, conductor_role])
 
     # Link Company to Wallet
     company_wallet = CompanyWallet(company_id=company.id, wallet_id=wallet.id)
