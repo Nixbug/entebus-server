@@ -51,6 +51,7 @@ from app.src.functions import (
     cleanup_old_tokens,
     enum_str,
     fuse_exception_responses,
+    get_by_id,
     get_request_info,
     get_executive_roles,
 )
@@ -270,32 +271,19 @@ def revoke_executive_token(
 
 def delete_executive_token(
     session: Session,
-    id: int,
+    executive_token: ExecutiveToken,
     token: ExecutiveToken,
     request_info: schemas.RequestInfo,
-    has_permission: bool,
 ) -> None:
     """
     Delete an executive token from the database.
 
     Args:
         session (Session): Active SQLAlchemy database session.
-        id (int): ID of the executive token to delete.
+        executive_token (ExecutiveToken): Executive token to delete.
         token (ExecutiveToken): Authenticated executive token.
         request_info (schemas.RequestInfo): Request information for logging.
-        has_permission (bool): Whether the executive has permission to delete other executives' tokens.
     """
-    executive_token = (
-        session.query(ExecutiveToken)
-        .filter(ExecutiveToken.id == id)
-        .filter(ExecutiveToken.is_revoked.is_(False))
-        .first()
-    )
-    if executive_token is None:
-        return
-    if not has_permission and executive_token.executive_id != token.executive_id:
-        raise exceptions.NoPermission()
-
     executive_token.is_revoked = True
     session.commit()
     session.refresh(executive_token)
@@ -306,8 +294,6 @@ def delete_executive_token(
 def search_executive_tokens(
     session: Session,
     query_params: QueryParams,
-    token: ExecutiveToken,
-    has_permission: bool,
 ) -> list[ExecutiveToken]:
     """
     Search for executive tokens based on provided query parameters.
@@ -325,13 +311,7 @@ def search_executive_tokens(
         list[ExecutiveToken]: List of executive tokens that match the search criteria.
     """
     query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked.is_(False))
-    if not has_permission:
-        # Raise NoPermission if the executive_id in query_params is not None and does not match the logged-in executive's ID
-        if query_params.executive_id not in (None, token.executive_id):
-            raise exceptions.NoPermission()
-        # Restrict to only the logged-in executive's tokens
-        query = query.filter(ExecutiveToken.executive_id == token.executive_id)
-    elif query_params.executive_id is not None:
+    if query_params.executive_id is not None:
         query = query.filter(ExecutiveToken.executive_id == query_params.executive_id)
 
     # Generalized filters
@@ -554,7 +534,15 @@ async def delete_executive_token_for_executive(
             False,
         )
 
-        delete_executive_token(session, id, token, request_info, has_permission)
+        executive_token = get_by_id(session, ExecutiveToken, id)
+        if executive_token is not None and not executive_token.is_revoked:
+            if (
+                not has_permission
+                and executive_token.executive_id != token.executive_id
+            ):
+                raise exceptions.NoPermission()
+
+            delete_executive_token(session, executive_token, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
@@ -581,7 +569,13 @@ async def fetch_executive_tokens_for_executive(
             PermissionPath.FETCH_EXECUTIVE_TOKEN,
             False,
         )
-
-        return search_executive_tokens(session, query_params, token, has_permission)
+        if not has_permission:
+            if (
+                query_params.executive_id is not None
+                and query_params.executive_id != token.executive_id
+            ):
+                raise exceptions.NoPermission()
+            query_params.executive_id = token.executive_id
+        return search_executive_tokens(session, query_params)
     except Exception as e:
         exceptions.handle(e)

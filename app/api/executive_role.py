@@ -40,6 +40,7 @@ from app.src.functions import (
     apply_name_filters,
     enum_str,
     fuse_exception_responses,
+    get_by_id,
     get_request_info,
     update_if_changed,
 )
@@ -191,7 +192,7 @@ def delete_executive_role(
         token (ExecutiveToken): Authenticated executive token.
         request_info (schemas.RequestInfo): Request information for logging.
     """
-    executive_role = session.query(ExecutiveRole).filter(ExecutiveRole.id == id).first()
+    executive_role = get_by_id(session, ExecutiveRole, id)
     if executive_role is None:
         return
 

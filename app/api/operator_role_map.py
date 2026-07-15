@@ -1,50 +1,53 @@
 """
-Operator Role Map API Router for EnteBus.
+Operator Role Map API router.
 
-Provides endpoints for managing operator role mappings, including creation,
-update, deletion, and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing operator role maps:
+    - POST (executive, operator)
+    - PATCH (executive, operator)
+    - DELETE (executive, operator)
+    - GET (executive, operator)
 """
 
 from datetime import datetime
-from fastapi import APIRouter, Response, status, Depends, Query
 from enum import StrEnum
-from typing import List, Tuple
+from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
 
-from app.api.bearer import oauth2_executive, bearer_operator
+from app.api.bearer import bearer_operator, oauth2_executive
+from app.src import exceptions, schemas
 from app.src.db import (
     ExecutiveToken,
     Operator,
     OperatorRole,
     OperatorRoleMap,
     OperatorToken,
-    SessionLocal,
+    get_db_session,
 )
-from app.src.urls import URL_OPERATOR_ROLE_MAP
-from app.src.enums import OrderIn
+from app.src.description import Description
+from app.src.enums import AppID, OrderIn
+from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, UpdatedOnFilter
+from app.src.functions import (
+    apply_created_on_filters,
+    apply_id_filters,
+    apply_updated_on_filters,
+    enum_str,
+    fuse_exception_responses,
+    get_by_id,
+    get_request_info,
+)
+from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
-from app.src import exceptions
-from app.src.openobserve import log_event
+from app.src.schemas import PatchForm
+from app.src.urls import URL_OPERATOR_ROLE_MAP
 from app.src.validators import (
     authorize_executive,
     authorize_operator,
-    verify_token,
     validate_id,
+    verify_token,
 )
-from app.src.functions import (
-    fuse_exception_responses,
-    get_request_info,
-    apply_id_filters,
-    apply_created_on_filters,
-    apply_updated_on_filters,
-    enum_str,
-)
-from app.src.filters import IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFilter
-from app.src.description import Description
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -86,10 +89,10 @@ class CreateForm(CreateFormForEX):
     pass
 
 
-class UpdateForm(BaseModel):
+class UpdateForm(PatchForm):
     """Form data for updating an operator role mapping."""
 
-    role_id: int = Field(default=None)
+    role_id: int | None = Field(default=None)
 
 
 # ---------------------------------------------------------------------------
@@ -127,119 +130,162 @@ class QueryParams(QueryParamsForEX):
 
 
 # ---------------------------------------------------------------------------
-## Functions
+## Core Functions
 # ---------------------------------------------------------------------------
-def create_role_map(
+def create_operator_role_map(
     session: Session,
     form_param: CreateForm,
-    extra_filter_for_operator=None,
-    extra_filter_for_role=None,
+    token: ExecutiveToken | OperatorToken,
+    request_info: schemas.RequestInfo,
+    operator_filter=None,
+    role_filter=None,
 ) -> dict:
     """
-    Creates a new OperatorRoleMap with the given role_id and operator_id.
+    Creates a new operator role mapping with the provided form data.
 
     Args:
-        session (Session): SQLAlchemy database session.
-        form_param (CreateForm): The form data for creating a new operator role mapping.
-        extra_filter_for_operator: Optional filter for validating the operator.
-        extra_filter_for_role: Optional filter for validating the role.
+        session (Session): Active SQLAlchemy database session.
+        form_param (CreateForm): Form data for creating a new operator role mapping.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
+        operator_filter: Additional filter for validating operator ownership.
+        role_filter: Additional filter for validating role ownership.
 
     Returns:
-        dict : The created operator role mapping data.
-
-    Raises:
-        exceptions.UnknownValue: If the specified role_id or operator_id does not exist
-            or does not satisfy the respective filter condition.
+        dict: Created operator role mapping data.
     """
     operator = validate_id(
         session,
         Operator,
         form_param.operator_id,
         OperatorRoleMap.operator_id,
-        extra_filter=extra_filter_for_operator,
+        extra_filter=operator_filter,
     )
-    role = validate_id(
+    operator_role = validate_id(
         session,
         OperatorRole,
         form_param.role_id,
         OperatorRoleMap.role_id,
-        extra_filter=extra_filter_for_role,
+        extra_filter=role_filter,
     )
 
-    role_map = OperatorRoleMap(
-        role_id=role.id, operator_id=operator.id, company_id=form_param.company_id
+    operator_role_map = OperatorRoleMap(
+        company_id=form_param.company_id,
+        role_id=operator_role.id,
+        operator_id=operator.id,
     )
-    session.add(role_map)
+    session.add(operator_role_map)
     session.commit()
-    session.refresh(role_map)
-    role_map_data = jsonable_encoder(role_map)
-    return role_map_data
+    session.refresh(operator_role_map)
+
+    operator_role_map_data = jsonable_encoder(operator_role_map)
+    log_event(token, request_info, operator_role_map_data)
+    return operator_role_map_data
 
 
-def update_role_map(
+def update_operator_role_map(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    extra_filter_for_role_map=None,
-    extra_filter_for_role=None,
-) -> Tuple[bool, dict]:
+    token: ExecutiveToken | OperatorToken,
+    request_info: schemas.RequestInfo,
+    role_map_filter=None,
+    role_filter=None,
+) -> dict:
     """
-    Updates an operator role map with the provided form data.
+    Updates an operator role mapping with the provided form data.
 
     Args:
-        session (Session): SQLAlchemy database session.
-        id (int): The ID of the OperatorRoleMap to update.
-        form_param (UpdateForm): The form data for updating the operator role map.
-        extra_filter_for_role_map: Optional filter for validating the role mapping.
-        extra_filter_for_role: Optional filter for validating the new role.
+        session (Session): Active SQLAlchemy database session.
+        id (int): ID of the operator role mapping to update.
+        form_param (UpdateForm): Form data containing fields to update.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
+        role_map_filter: Additional filter for validating role map ownership.
+        role_filter: Additional filter for validating role ownership.
 
     Returns:
-        Tuple[bool, dict]: A tuple containing a boolean indicating if updates were made and the updated operator role mapping data.
-
-     Raises:
-        exceptions.UnknownValue: If the specified role_id does not exist or does not satisfy the role_filter condition.
+        dict: Updated operator role mapping data.
     """
-    role_map = validate_id(
+    operator_role_map = validate_id(
         session,
         OperatorRoleMap,
         id,
         OperatorRoleMap.id,
-        extra_filter=extra_filter_for_role_map,
+        extra_filter=role_map_filter,
     )
 
-    if form_param.role_id is not None and role_map.role_id != form_param.role_id:
-        operator_role = validate_id(
-            session,
-            OperatorRole,
-            form_param.role_id,
-            OperatorRoleMap.role_id,
-            extra_filter=extra_filter_for_role,
-        )
-        role_map.role_id = operator_role.id
+    if request_info.app_id == AppID.EXECUTIVE:
+        role_filter = OperatorRole.company_id == operator_role_map.company_id
 
-    have_updates = session.is_modified(role_map)
-    if have_updates:
+    update_data = form_param.model_dump(exclude_unset=True)
+    if "role_id" in update_data:
+        if operator_role_map.role_id != update_data["role_id"]:
+            operator_role = validate_id(
+                session,
+                OperatorRole,
+                update_data["role_id"],
+                OperatorRoleMap.role_id,
+                extra_filter=role_filter,
+            )
+            operator_role_map.role_id = operator_role.id
+        update_data.pop("role_id")
+
+    if session.is_modified(operator_role_map):
         session.commit()
-        session.refresh(role_map)
-    role_map_data = jsonable_encoder(role_map)
-    return have_updates, role_map_data
+        session.refresh(operator_role_map)
+        operator_role_map_data = jsonable_encoder(operator_role_map)
+        log_event(token, request_info, operator_role_map_data)
+    else:
+        operator_role_map_data = jsonable_encoder(operator_role_map)
+    return operator_role_map_data
 
 
-def search_role_map(
-    session: Session, query_params: QueryParams
-) -> list[OperatorRoleMap]:
+def delete_operator_role_map(
+    session: Session,
+    id: int,
+    token: ExecutiveToken | OperatorToken,
+    request_info: schemas.RequestInfo,
+    role_map_filter=None,
+) -> None:
     """
-    Search for operator role mappings based on provided query parameters.
-
-    This function supports multiple filtering, searching, ordering, and
-    pagination capabilities to retrieve operator role mappings that match various criteria.
+    Deletes an operator role mapping from the database.
 
     Args:
-        session (Session): SQLAlchemy database session.
+        session (Session): Active SQLAlchemy database session.
+        id (int): ID of the operator role mapping to delete.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
+        role_map_filter: Additional filter for role map ownership.
+    """
+    operator_role_map = get_by_id(
+        session, OperatorRoleMap, id, extra_filter=role_map_filter
+    )
+    if operator_role_map is None:
+        return
+
+    operator_role_map_data = jsonable_encoder(operator_role_map)
+    session.delete(operator_role_map)
+    session.commit()
+    log_event(token, request_info, operator_role_map_data)
+
+
+def search_operator_role_maps(
+    session: Session,
+    query_params: QueryParams,
+) -> list[OperatorRoleMap]:
+    """
+    Searches for operator role mappings based on the provided query parameters.
+
+    This function supports multiple filtering, ordering, and pagination capabilities
+    to retrieve operator role mappings that match various criteria.
+
+    Args:
+        session (Session): Active SQLAlchemy database session.
         query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
-        List[OperatorRoleMap]: List of OperatorRoleMap instances that match the search criteria.
+        list[OperatorRoleMap]: List of operator role mappings that match the search criteria.
     """
     query = session.query(OperatorRoleMap)
     if query_params.company_id is not None:
@@ -264,25 +310,8 @@ def search_role_map(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    role_maps = query.all()
-    return role_maps
-
-
-def delete_role_map(session: Session, role_map: OperatorRoleMap) -> dict:
-    """
-    Deletes an OperatorRoleMap from the database.
-
-    Args:
-        session (Session): SQLAlchemy database session.
-        role_map (OperatorRoleMap): OperatorRoleMap to delete.
-
-    Returns:
-        dict: JSON-encoded representation of the deleted role mapping.
-    """
-    role_map_data = jsonable_encoder(role_map)
-    session.delete(role_map)
-    session.commit()
-    return role_map_data
+    operator_role_maps = query.all()
+    return operator_role_maps
 
 
 # ---------------------------------------------------------------------------
@@ -364,27 +393,24 @@ async def create_operator_role_map_for_executive(
     form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
             [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
-
-        role_map_data = create_role_map(
+        return create_operator_role_map(
             session,
             CreateForm(**form_param.model_dump()),
-            extra_filter_for_operator=(Operator.company_id == form_param.company_id),
-            extra_filter_for_role=(OperatorRole.company_id == form_param.company_id),
+            token,
+            request_info,
+            operator_filter=(Operator.company_id == form_param.company_id),
+            role_filter=(OperatorRole.company_id == form_param.company_id),
         )
-        log_event(token, request_info, role_map_data)
-        return role_map_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.patch(
@@ -407,37 +433,23 @@ async def update_operator_role_map_for_executive(
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
             [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
-
-        role_map = validate_id(
-            session,
-            OperatorRoleMap,
-            id,
-            OperatorRoleMap.id,
-        )
-        have_updates, role_map_data = update_role_map(
+        return update_operator_role_map(
             session,
             id,
             form_param,
-            extra_filter_for_role_map=(
-                OperatorRoleMap.company_id == role_map.company_id
-            ),
-            extra_filter_for_role=(OperatorRole.company_id == role_map.company_id),
+            token,
+            request_info,
         )
-        if have_updates:
-            log_event(token, request_info, role_map_data)
-        return role_map_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -458,51 +470,41 @@ async def delete_operator_role_map_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_executive(
             session,
             access_token,
             [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
-
-        role_map = (
-            session.query(OperatorRoleMap).filter(OperatorRoleMap.id == id).first()
-        )
-        if role_map is not None:
-            role_map_data = delete_role_map(session, role_map)
-            log_event(token, request_info, role_map_data)
+        delete_operator_role_map(session, id, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
     URL_OPERATOR_ROLE_MAP,
     summary="Fetch operator role map",
     tags=["Operator Role Map"],
-    response_model=List[OperatorRoleMapSchema],
+    response_model=list[OperatorRoleMapSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_operator_role_maps_for_executive(
-    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+    query_params: QueryParamsForEX = Depends(),
+    access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
-        return search_role_map(
+        return search_operator_role_maps(
             session,
             QueryParams(**query_params.model_dump()),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -527,27 +529,24 @@ async def create_operator_role_map_for_operator(
     form_param: CreateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
             [OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
-
-        role_map_data = create_role_map(
+        return create_operator_role_map(
             session,
             CreateForm(**form_param.model_dump(), company_id=token.company_id),
-            extra_filter_for_operator=(Operator.company_id == token.company_id),
-            extra_filter_for_role=(OperatorRole.company_id == token.company_id),
+            token,
+            request_info,
+            operator_filter=(Operator.company_id == token.company_id),
+            role_filter=(OperatorRole.company_id == token.company_id),
         )
-        log_event(token, request_info, role_map_data)
-        return role_map_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.patch(
@@ -570,29 +569,25 @@ async def update_operator_role_map_for_operator(
     form_param: UpdateForm,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
             [OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
-
-        have_updates, role_map_data = update_role_map(
+        return update_operator_role_map(
             session,
             id,
             form_param,
-            extra_filter_for_role_map=(OperatorRoleMap.company_id == token.company_id),
-            extra_filter_for_role=(OperatorRole.company_id == token.company_id),
+            token,
+            request_info,
+            role_map_filter=(OperatorRoleMap.company_id == token.company_id),
+            role_filter=(OperatorRole.company_id == token.company_id),
         )
-        if have_updates:
-            log_event(token, request_info, role_map_data)
-        return role_map_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.delete(
@@ -613,52 +608,44 @@ async def delete_operator_role_map_for_operator(
     id: int,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = authorize_operator(
             session,
             access_token.credentials,
             [OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
         )
-
-        role_map = (
-            session.query(OperatorRoleMap)
-            .filter(
-                OperatorRoleMap.id == id, OperatorRoleMap.company_id == token.company_id
-            )
-            .first()
+        delete_operator_role_map(
+            session,
+            id,
+            token,
+            request_info,
+            role_map_filter=(OperatorRoleMap.company_id == token.company_id),
         )
-        if role_map is not None:
-            role_map_data = delete_role_map(session, role_map)
-            log_event(token, request_info, role_map_data)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.get(
     URL_OPERATOR_ROLE_MAP,
     summary="Fetch operator role map",
     tags=["Role Map"],
-    response_model=List[OperatorRoleMapSchema],
+    response_model=list[OperatorRoleMapSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
 async def fetch_operator_role_maps_for_operator(
-    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+    query_params: QueryParamsForOP = Depends(),
+    access_token=Depends(bearer_operator),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
-
-        return search_role_map(
+        return search_operator_role_maps(
             session,
             QueryParams(**query_params.model_dump(), company_id=token.company_id),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()

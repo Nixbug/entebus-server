@@ -50,6 +50,7 @@ from app.src.functions import (
     apply_updated_on_filters,
     enum_str,
     fuse_exception_responses,
+    get_by_id,
     get_request_info,
     update_if_changed,
     get_executive_roles,
@@ -134,11 +135,7 @@ class OrderBy(StrEnum):
 
 
 class QueryParams(
-    AccountDataFilter,
-    UpdatedOnFilter,
-    CreatedOnFilter,
-    IDFilter,
-    PaginationFilter,
+    AccountDataFilter, UpdatedOnFilter, CreatedOnFilter, IDFilter, PaginationFilter
 ):
     """Query parameters for fetching executive accounts."""
 
@@ -325,7 +322,7 @@ def delete_executive(
         token (ExecutiveToken): Authenticated executive token.
         request_info (schemas.RequestInfo): Request information for logging.
     """
-    executive = session.query(Executive).filter(Executive.id == id).first()
+    executive = get_by_id(session, Executive, id)
     if executive is None:
         return
 
