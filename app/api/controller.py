@@ -31,6 +31,7 @@ from app.api import (
     service,
     service_automation,
     service_assignment,
+    service_assignment_automation,
     trace,
     vehicle,
     vehicle_image,
@@ -90,6 +91,7 @@ app_executive.include_router(fare.route_executive)
 app_executive.include_router(duty.route_executive)
 app_executive.include_router(service_automation.route_executive)
 app_executive.include_router(service_assignment.route_executive)
+app_executive.include_router(service_assignment_automation.route_executive)
 app_executive.include_router(service_location.route_executive)
 app_executive.include_router(service.route_executive)
 app_executive.include_router(paper_ticket.route_executive)
@@ -136,6 +138,7 @@ app_operator.include_router(fare.route_operator)
 app_operator.include_router(duty.route_operator)
 app_operator.include_router(service_automation.route_operator)
 app_operator.include_router(service_assignment.route_operator)
+app_operator.include_router(service_assignment_automation.route_operator)
 app_operator.include_router(service_location.route_operator)
 app_operator.include_router(service.route_operator)
 app_operator.include_router(paper_ticket.route_operator)

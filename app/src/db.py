@@ -3214,3 +3214,67 @@ class ServiceAutomation(ORMbase):
     created_on: Mapped[datetime] = orm.mapped_column(
         DateTime(timezone=True), nullable=False, default=func.now()
     )
+
+
+class ServiceAssignmentAutomation(ORMbase):
+    """
+    Represents an assignment automation between a service automation and an operator.
+
+    This table stores the set of operators that should be assigned automatically
+    whenever a service is created from a specific `service_automation` template.
+
+    Columns:
+        id (Integer, unique, not null):
+            Primary identifier for the assignment automation record.
+
+        company_id (Integer, not null):
+            Foreign key referencing `company.id`.
+            Indicates the company associated with this assignment automation.
+            Cascades on delete - if the company is removed, related records are deleted.
+
+        service_automation_id (Integer, not null):
+            Foreign key referencing `service_automation.id`.
+            Identifies the service automation template.
+            Cascades on delete - if the template is removed, related records are deleted.
+
+        operator_id (Integer, not null):
+            Foreign key referencing `operator.id`.
+            Identifies the operator to auto-assign when automation runs.
+            Cascades on delete - if the operator is removed, related records are deleted.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the record was created.
+    """
+
+    __tablename__ = "service_assignment_automation"
+    __table_args__ = (UniqueConstraint("service_automation_id", "operator_id"),)
+
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    service_automation_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
+        ForeignKey("service_automation.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    operator_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
+        ForeignKey("operator.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Metadata
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
