@@ -68,6 +68,7 @@ from app.src.functions import (
     enum_str,
     fuse_exception_responses,
     get_area,
+    get_by_id,
     get_request_info,
     load_geometry,
     to_WKB,
@@ -343,7 +344,7 @@ def delete_landmark(
         token (ExecutiveToken): Authenticated executive token.
         request_info (schemas.RequestInfo): Request information for logging.
     """
-    landmark = session.query(Landmark).filter(Landmark.id == id).first()
+    landmark = get_by_id(session, Landmark, id)
     if landmark is None:
         return
 
