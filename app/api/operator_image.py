@@ -167,7 +167,6 @@ async def create_operator_image(
     form_param: CreateForm,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    operator_id: int,
     operator_filter=None,
 ) -> dict:
     """
@@ -178,7 +177,6 @@ async def create_operator_image(
         form_param (CreateForm): Form data for creating a new operator image.
         token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
-        operator_id (int): ID of the operator for whom the image is being created.
         operator_filter: Additional filter for validating operator ownership.
 
     Returns:
@@ -187,7 +185,7 @@ async def create_operator_image(
     operator = validate_id(
         session,
         Operator,
-        operator_id,
+        form_param.operator_id,
         OperatorImage.operator_id,
         extra_filter=operator_filter,
     )
@@ -523,7 +521,6 @@ async def upload_operator_image_for_operator(
             ),
             token,
             request_info,
-            operator_id,
             operator_filter=(Operator.company_id == token.company_id),
         )
     except Exception as e:

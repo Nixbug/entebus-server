@@ -167,7 +167,6 @@ async def create_vendor_image(
     form_param: CreateForm,
     token: ExecutiveToken | VendorToken,
     request_info: schemas.RequestInfo,
-    vendor_id: int,
     vendor_filter=None,
 ) -> dict:
     """
@@ -178,7 +177,6 @@ async def create_vendor_image(
         form_param (CreateForm): Form data for creating a new vendor image.
         token (ExecutiveToken | VendorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
-        vendor_id (int): ID of the vendor for whom the image is being created.
         vendor_filter: Additional filter for validating vendor ownership.
 
     Returns:
@@ -187,7 +185,7 @@ async def create_vendor_image(
     vendor = validate_id(
         session,
         Vendor,
-        vendor_id,
+        form_param.vendor_id,
         VendorImage.vendor_id,
         extra_filter=vendor_filter,
     )
@@ -522,7 +520,6 @@ async def upload_vendor_image_for_vendor(
             ),
             token,
             request_info,
-            vendor_id,
             vendor_filter=(Vendor.business_id == token.business_id),
         )
     except Exception as e:
