@@ -10,7 +10,8 @@ from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, Query
 from geoalchemy2 import Geography
-from sqlalchemy import ColumnElement, func
+from sqlalchemy import func
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from shapely.geometry import Point
