@@ -17,7 +17,8 @@ from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel, Field
 from datetime import timedelta
 from fastapi import status, Depends
-from sqlalchemy import ColumnElement, String, and_, func, or_
+from sqlalchemy import String, and_, func, or_
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import aliased
 
