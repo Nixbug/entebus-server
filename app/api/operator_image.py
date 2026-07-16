@@ -396,11 +396,7 @@ async def upload_operator_image_for_executive(
             [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR],
         )
         return await create_operator_image(
-            session,
-            CreateForm(**form_param.model_dump()),
-            token,
-            request_info,
-            form_param.operator_id,
+            session, CreateForm(**form_param.model_dump()), token, request_info
         )
     except Exception as e:
         exceptions.handle(e)

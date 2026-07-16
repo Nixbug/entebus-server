@@ -396,11 +396,7 @@ async def upload_vendor_image_for_executive(
             [ExecutivePermissionPath.UPDATE_BUSINESS_VENDOR],
         )
         return await create_vendor_image(
-            session,
-            CreateForm(**form_param.model_dump()),
-            token,
-            request_info,
-            form_param.vendor_id,
+            session, CreateForm(**form_param.model_dump()), token, request_info
         )
     except Exception as e:
         exceptions.handle(e)
