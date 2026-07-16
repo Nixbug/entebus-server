@@ -12,7 +12,7 @@ from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, status, Query, Response
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import ColumnElement
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 from pydantic import BaseModel, Field
 from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
