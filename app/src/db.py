@@ -13,7 +13,7 @@ Schema conventions:
 All ORM models should inherit from `ORMbase`.
 """
 
-from datetime import datetime, timedelta, timezone, time as dt_time
+from datetime import datetime, timedelta, time as dt_time
 from decimal import Decimal
 from typing import Any, Generator
 from geoalchemy2 import Geometry

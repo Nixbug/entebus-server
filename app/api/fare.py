@@ -10,7 +10,7 @@ Provides endpoints for managing fares:
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Union
+from typing import Any
 from fastapi import APIRouter, status, Depends, Response, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -208,7 +208,7 @@ def construct_fare_reference_lock(fare_id: int, version: int) -> str:
 def create_fare(
     session: Session,
     form_param: CreateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
 ) -> dict:
     """
@@ -217,7 +217,7 @@ def create_fare(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a fare.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
 
     Returns:
@@ -257,7 +257,7 @@ def update_fare(
     session: Session,
     fare: Fare,
     form_param: UpdateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
 ) -> dict:
     """
@@ -267,7 +267,7 @@ def update_fare(
         session (Session): Active SQLAlchemy database session.
         fare (Fare): The fare instance to update.
         form_param (UpdateForm): Form data for updating the fare.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
 
     Returns:
@@ -300,7 +300,7 @@ def update_fare(
 def delete_fare(
     session: Session,
     fare: Fare,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
 ) -> None:
     """
@@ -309,7 +309,7 @@ def delete_fare(
     Args:
         session (Session): Active SQLAlchemy database session.
         fare (Fare): The fare instance to delete.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
     """
     fare_data = jsonable_encoder(fare)

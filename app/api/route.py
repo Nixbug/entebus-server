@@ -10,7 +10,6 @@ Provides endpoints for managing routes:
 
 from datetime import datetime, time
 from enum import StrEnum
-from typing import Union
 from fastapi import APIRouter, status, Depends, Query, Response
 from sqlalchemy.orm.session import Session
 from sqlalchemy import or_, String
@@ -175,7 +174,7 @@ class QueryParams(QueryParamsForEX):
 def create_route(
     session: Session,
     form_param: CreateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
 ) -> dict:
     """
@@ -184,7 +183,7 @@ def create_route(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a route.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
 
     Returns:
@@ -214,7 +213,7 @@ def update_route(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
     route_filter=None,
 ) -> dict:
@@ -225,7 +224,7 @@ def update_route(
         session (Session): SQLAlchemy database session.
         id (int): ID of the route to update.
         form_param (UpdateForm): Form data for updating the route.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         route_filter (Optional): Additional filter to apply when fetching the route.
 
@@ -251,7 +250,7 @@ def update_route(
 def delete_route(
     session: Session,
     id: int,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
     route_filter=None,
 ) -> None:
@@ -261,7 +260,7 @@ def delete_route(
     Args:
         session (Session): SQLAlchemy database session.
         id (int): ID of the route to delete.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         route_filter (Optional): Additional filter to apply when fetching the route.
     """

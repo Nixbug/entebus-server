@@ -8,7 +8,7 @@ Provides endpoints for managing vehicles:
     - GET (executive, operator, vendor, public)
 """
 
-from typing import Annotated, Union
+from typing import Annotated
 from enum import StrEnum
 from datetime import datetime
 from fastapi import APIRouter, status, Depends, Response, Query
@@ -239,7 +239,7 @@ def construct_vehicle_reference_lock(vehicle_id: int, version: int) -> str:
 def create_vehicle(
     session: Session,
     form_param: CreateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
 ) -> dict:
     """
@@ -248,7 +248,7 @@ def create_vehicle(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a vehicle.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info: Request information for logging.
 
     Returns:
@@ -291,7 +291,7 @@ def update_vehicle(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
     vehicle_filter=None,
     app_id: AppID | None = None,
@@ -305,7 +305,7 @@ def update_vehicle(
         form_param (UpdateForm): Form data for updating the vehicle.
         vehicle_filter (optional): Additional filter to apply when validating the vehicle ID.
         app_id (AppID, optional): Identifier of the application making the request. Used to determine allowed status transitions.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info: Request information for logging.
 
     Returns:
@@ -351,7 +351,7 @@ def update_vehicle(
 def delete_vehicle(
     session: Session,
     id: int,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
     vehicle_filter=None,
 ) -> None:
@@ -361,7 +361,7 @@ def delete_vehicle(
     Args:
         session (Session): SQLAlchemy database session.
         id (int): ID of the vehicle to delete.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info: Request information for logging.
         vehicle_filter (optional): Additional filter to apply when fetching the vehicle.
     """

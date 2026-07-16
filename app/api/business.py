@@ -10,7 +10,7 @@ Provides endpoints for managing businesses:
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Union
+from typing import Annotated
 from fastapi import APIRouter, Query, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -312,7 +312,7 @@ def update_business(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    token: Union[ExecutiveToken, VendorToken],
+    token: ExecutiveToken | VendorToken,
     request_info: schemas.RequestInfo,
     business_filter=None,
 ) -> dict:
@@ -323,7 +323,7 @@ def update_business(
         session (Session): SQLAlchemy database session.
         id (int): ID of the business to update.
         form_param (UpdateForm): Form data containing fields to update.
-        token (Union[ExecutiveToken, VendorToken]): Authenticated executive or vendor token.
+        token (ExecutiveToken | VendorToken): Authenticated executive or vendor token.
         request_info (schemas.RequestInfo): Request information for logging.
         business_filter (Optional): Additional filter for business validation.
 

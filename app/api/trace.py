@@ -10,7 +10,6 @@ Provides endpoints for managing traces:
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Union
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -147,7 +146,7 @@ class QueryParams(QueryParamsForEX):
 def create_trace(
     session: Session,
     form_param: CreateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
 ) -> dict:
     """
@@ -156,7 +155,7 @@ def create_trace(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a trace.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
 
     Returns:
@@ -185,7 +184,7 @@ def update_trace(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
     trace_filter=None,
 ) -> dict:
@@ -196,7 +195,7 @@ def update_trace(
         session (Session): SQLAlchemy database session.
         id (int): ID of the trace to update.
         form_param (UpdateForm): Form data for updating the trace.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         trace_filter (Optional): Additional filter to apply when fetching the trace.
 
@@ -221,7 +220,7 @@ def update_trace(
 def delete_trace(
     session: Session,
     id: int,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
     trace_filter=None,
 ) -> None:
@@ -231,7 +230,7 @@ def delete_trace(
     Args:
         session (Session): SQLAlchemy database session.
         id (int): ID of the trace to delete.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         trace_filter (Optional): Additional filter to apply when fetching the trace.
     """

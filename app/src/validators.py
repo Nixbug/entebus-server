@@ -5,9 +5,9 @@ It includes reusable utilities to handle common operations,
 making it easier for developers to integrate them into their projects.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from enum import IntEnum
-from typing import Any, List, Mapping, Sequence, Type, Union
+from typing import Any, List, Mapping, Sequence, Type
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.orm.session import Session
@@ -58,9 +58,9 @@ from app.src.types import EnumT
 
 
 def user_credentials(
-    user: Union[Executive, Operator, Vendor],
+    user: Executive | Operator | Vendor,
     credentials: OAuth2PasswordRequestForm,
-) -> Union[Executive, Operator, Vendor]:
+) -> Executive | Operator | Vendor:
     """
     Generic user authentication function for Executive, Operator, and Vendor.
 
@@ -69,11 +69,11 @@ def user_credentials(
     the account is active.
 
     Args:
-        user (Union[Executive, Operator, Vendor]): The already fetched user instance.
+        user (Executive | Operator | Vendor): The already fetched user instance.
         credentials (OAuth2PasswordRequestForm): Credentials containing password, and grant_type.
 
     Returns:
-        Union[Executive, Operator, Vendor]: The authenticated user instance.
+        Executive | Operator | Vendor: The authenticated user instance.
 
     Raises:
         InvalidGrantType: If the grant_type is not PASSWORD.
@@ -501,7 +501,7 @@ def validate_id(
     session: Session,
     model_cls: Type[ORMbaseT],
     unique_id: int,
-    column: Union[InstrumentedAttribute, str],
+    column: InstrumentedAttribute | str,
     extra_filter: ClauseElement[bool] | None = None,
 ) -> ORMbaseT:
     """

@@ -10,7 +10,7 @@ Provides endpoints for managing companies:
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Union
+from typing import Annotated
 from fastapi import APIRouter, Query, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -313,7 +313,7 @@ def update_company(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
     company_filter=None,
 ) -> dict:
@@ -324,7 +324,7 @@ def update_company(
         session (Session): SQLAlchemy database session.
         id (int): ID of the company to update.
         form_param (UpdateForm): Form data containing fields to update.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated executive or operator token.
+        token (ExecutiveToken | OperatorToken): Authenticated executive or operator token.
         request_info (schemas.RequestInfo): Request information for logging.
         company_filter (Optional): Additional filter for company validation.
 

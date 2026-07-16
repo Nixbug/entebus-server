@@ -8,11 +8,11 @@ Provides endpoints for managing services:
     - DELETE (executive, operator)
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from fastapi.encoders import jsonable_encoder
-from typing import Annotated, Any, Union
+from typing import Annotated, Any
 from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel, Field
 from datetime import timedelta
@@ -597,7 +597,7 @@ def delete_vehicle_in_service(
 def create_service(
     session: Session,
     form_param: CreateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
     route_filter=None,
     vehicle_filter=None,
@@ -614,7 +614,7 @@ def create_service(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a service.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         route_filter: Additional filter for route validation.
         vehicle_filter: Additional filter for vehicle validation.
@@ -742,7 +742,7 @@ def update_service(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
     service_filter=None,
     route_filter=None,
@@ -770,7 +770,7 @@ def update_service(
         session (Session): SQLAlchemy database session.
         id (int): ID of the service to update.
         form_param (UpdateForm): Form data for updating the service.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         service_filter: Additional filter for service validation.
         route_filter: Additional filter for route validation.
@@ -1166,7 +1166,7 @@ def fetch_service_details(
 def delete_service(
     session: Session,
     id: int,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
     service_filter=None,
 ) -> None:
@@ -1188,7 +1188,7 @@ def delete_service(
     Args:
         session (Session): SQLAlchemy database session.
         id (int): ID of the service to delete.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
     """
     service_lock = None

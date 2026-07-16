@@ -10,7 +10,6 @@ Provides endpoints for managing service assignment automations:
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Union
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -137,7 +136,7 @@ class QueryParams(QueryParamsForEX):
 def create_service_assignment_automation(
     session: Session,
     form_param: CreateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
     service_automation_filter=None,
     operator_filter=None,
@@ -148,7 +147,7 @@ def create_service_assignment_automation(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a service assignment automation.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         service_automation_filter: Optional filter for validating the service automation.
         operator_filter: Optional filter for validating the operator.
@@ -189,7 +188,7 @@ def update_service_assignment_automation(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
     service_assignment_automation_filter=None,
     operator_filter=None,
@@ -201,7 +200,7 @@ def update_service_assignment_automation(
         session (Session): SQLAlchemy database session.
         id (int): The ID of the ServiceAssignmentAutomation to update.
         form_param (UpdateForm): The form data for updating the assignment automation.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         service_assignment_automation_filter: Optional filter for validating the assignment automation.
         operator_filter: Optional filter for validating the new operator.
@@ -252,7 +251,7 @@ def update_service_assignment_automation(
 def delete_service_assignment_automation(
     session: Session,
     id: int,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
     service_assignment_automation_filter=None,
 ) -> None:
@@ -262,7 +261,7 @@ def delete_service_assignment_automation(
     Args:
         session (Session): SQLAlchemy database session.
         id (int): The ID of the ServiceAssignmentAutomation to delete.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         service_assignment_automation_filter: Optional filter for validating the assignment automation.
     """

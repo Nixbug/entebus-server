@@ -2,7 +2,7 @@
 This module generates input data or payloads for tests.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from io import BytesIO
 from PIL import Image
 import numpy as np

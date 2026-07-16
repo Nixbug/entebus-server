@@ -6,10 +6,9 @@ Provides endpoints for managing duties:
     - GET (operator, executive)
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Union
 from fastapi import APIRouter, Depends, Query, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -130,7 +129,7 @@ def update_duty(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
     duty_filter=None,
 ) -> dict:
@@ -145,7 +144,7 @@ def update_duty(
         session (Session): SQLAlchemy database session.
         id (int): ID of the duty to update.
         form_param (UpdateForm): Form data containing new status.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         duty_filter (Optional): Additional filter for duty validation.
 
