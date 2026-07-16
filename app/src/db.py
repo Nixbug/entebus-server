@@ -13,7 +13,7 @@ Schema conventions:
 All ORM models should inherit from `ORMbase`.
 """
 
-from datetime import datetime, timedelta, timezone, time as dt_time
+from datetime import datetime, timedelta, time as dt_time
 from decimal import Decimal
 from typing import Any, Generator
 from geoalchemy2 import Geometry
@@ -53,6 +53,7 @@ from app.src.constants import (
     PSQL_DB_USERNAME,
     MAX_REFRESH_TOKEN_VALIDITY,
     MAX_ACCESS_TOKEN_VALIDITY,
+    TMZ_PRIMARY,
 )
 from app.src.enums import (
     AccountStatus,
@@ -429,7 +430,7 @@ class ExecutiveToken(ORMbase):
     refresh_before: Mapped[datetime] = orm.mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc)
+        default=lambda: datetime.now(TMZ_PRIMARY)
         + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY),
     )
     is_revoked: Mapped[bool] = orm.mapped_column(Boolean, nullable=False, default=False)
@@ -582,7 +583,7 @@ class OperatorToken(ORMbase):
     refresh_before: Mapped[datetime] = orm.mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc)
+        default=lambda: datetime.now(TMZ_PRIMARY)
         + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY),
     )
     is_revoked: Mapped[bool] = orm.mapped_column(Boolean, nullable=False, default=False)
@@ -807,7 +808,7 @@ class VendorToken(ORMbase):
     refresh_before: Mapped[datetime] = orm.mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc)
+        default=lambda: datetime.now(TMZ_PRIMARY)
         + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY),
     )
     is_revoked: Mapped[bool] = orm.mapped_column(Boolean, nullable=False, default=False)

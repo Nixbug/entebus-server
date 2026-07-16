@@ -10,10 +10,10 @@ Provides endpoints for managing service assignment automations:
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Union
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
@@ -28,7 +28,7 @@ from app.src.db import (
     ServiceAutomation,
     get_db_session,
 )
-from app.src.enums import AppID, OrderIn
+from app.src.enums import OrderIn
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, UpdatedOnFilter
 from app.src.functions import (
     apply_created_on_filters,
@@ -137,10 +137,10 @@ class QueryParams(QueryParamsForEX):
 def create_service_assignment_automation(
     session: Session,
     form_param: CreateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    service_automation_filter=None,
-    operator_filter=None,
+    service_automation_filter: ColumnElement[bool] | None = None,
+    operator_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Creates a new service assignment automation record in the database.
@@ -148,7 +148,7 @@ def create_service_assignment_automation(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a service assignment automation.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         service_automation_filter: Optional filter for validating the service automation.
         operator_filter: Optional filter for validating the operator.
@@ -189,10 +189,10 @@ def update_service_assignment_automation(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    service_assignment_automation_filter=None,
-    operator_filter=None,
+    service_assignment_automation_filter: ColumnElement[bool] | None = None,
+    operator_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates a service assignment automation with the provided form data.
@@ -201,7 +201,7 @@ def update_service_assignment_automation(
         session (Session): SQLAlchemy database session.
         id (int): The ID of the ServiceAssignmentAutomation to update.
         form_param (UpdateForm): The form data for updating the assignment automation.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         service_assignment_automation_filter: Optional filter for validating the assignment automation.
         operator_filter: Optional filter for validating the new operator.
@@ -217,7 +217,7 @@ def update_service_assignment_automation(
         extra_filter=service_assignment_automation_filter,
     )
 
-    if request_info.app_id == AppID.EXECUTIVE:
+    if isinstance(token, ExecutiveToken):
         operator_filter = (
             Operator.company_id == service_assignment_automation.company_id
         )
@@ -252,9 +252,9 @@ def update_service_assignment_automation(
 def delete_service_assignment_automation(
     session: Session,
     id: int,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    service_assignment_automation_filter=None,
+    service_assignment_automation_filter: ColumnElement[bool] | None = None,
 ) -> None:
     """
     Deletes a service assignment automation from the database.
@@ -262,7 +262,7 @@ def delete_service_assignment_automation(
     Args:
         session (Session): SQLAlchemy database session.
         id (int): The ID of the ServiceAssignmentAutomation to delete.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         service_assignment_automation_filter: Optional filter for validating the assignment automation.
     """

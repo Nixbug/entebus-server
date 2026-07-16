@@ -6,17 +6,18 @@ Provides endpoints for managing duties:
     - GET (operator, executive)
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Union
 from fastapi import APIRouter, Depends, Query, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
 from sqlalchemy import func
+from sqlalchemy.sql import ColumnElement
 
 from app.api.bearer import bearer_operator, oauth2_executive
+from app.src.constants import TMZ_PRIMARY
 from app.src.db import (
     OperatorToken,
     Duty,
@@ -129,9 +130,9 @@ def update_duty(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    duty_filter=None,
+    duty_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates a duty record based on the requested status transition.
@@ -144,7 +145,7 @@ def update_duty(
         session (Session): SQLAlchemy database session.
         id (int): ID of the duty to update.
         form_param (UpdateForm): Form data containing new status.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         duty_filter (Optional): Additional filter for duty validation.
 
@@ -180,7 +181,7 @@ def update_duty(
                         .filter(PaperTicket.duty_id == duty.id)
                         .scalar()
                     )
-                    utc_now = datetime.now(timezone.utc)
+                    utc_now = datetime.now(TMZ_PRIMARY)
                     duty.finished_on = utc_now
                 elif update_data["status"] == DutyStatus.STARTED:
                     duty.finished_on = None

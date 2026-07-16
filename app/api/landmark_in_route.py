@@ -11,8 +11,8 @@ Provides endpoints for managing landmarks in routes:
 from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, status, Query, Response
-from typing import Union
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 from pydantic import BaseModel, Field
 from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
@@ -180,9 +180,9 @@ def construct_route_transition_lock(route_id: int) -> str:
 def create_landmark_in_route(
     session: Session,
     form_param: CreateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    route_filter=None,
+    route_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Creates a new landmark in route record in the database.
@@ -190,7 +190,7 @@ def create_landmark_in_route(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a landmark in route.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         route_filter (Optional): Additional filter to apply when validating the route ID.
 
@@ -256,9 +256,9 @@ def update_landmark_in_route(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    landmark_in_route_filter=None,
+    landmark_in_route_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates an existing landmark in route record in the database.
@@ -267,7 +267,7 @@ def update_landmark_in_route(
         session (Session): SQLAlchemy database session.
         id (int): ID of the landmark in route to update.
         form_param (UpdateForm): Form data for updating the landmark in route.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         landmark_in_route_filter (Optional): Additional filter to apply when validating the landmark in route ID.
 
@@ -328,9 +328,9 @@ def update_landmark_in_route(
 def delete_landmark_in_route(
     session: Session,
     id: int,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    landmark_in_route_filter=None,
+    landmark_in_route_filter: ColumnElement[bool] | None = None,
 ) -> None:
     """
     Deletes a landmark in route record from the database.
@@ -338,7 +338,7 @@ def delete_landmark_in_route(
     Args:
         session (Session): SQLAlchemy database session.
         id (int): ID of the landmark in route to delete.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         landmark_in_route_filter (Optional): Additional filter while fetching landmark in route.
     """

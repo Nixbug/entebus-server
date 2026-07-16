@@ -16,6 +16,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, EmailStr, Field
 from pydantic_extra_types.phone_numbers import PhoneNumber
 from sqlalchemy import String, or_
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
@@ -289,7 +290,7 @@ def update_operator(
     form_param: UpdateForm,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    operator_filter=None,
+    operator_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Update an existing operator account in the database.
@@ -398,7 +399,7 @@ def delete_operator(
     id: int,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    operator_filter=None,
+    operator_filter: ColumnElement[bool] | None = None,
 ):
     """
     Delete an operator account from the database.

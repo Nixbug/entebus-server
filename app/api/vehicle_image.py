@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile,
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive, bearer_operator
@@ -173,7 +174,7 @@ async def create_vehicle_image(
     form_param: CreateForm,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    vehicle_filter=None,
+    vehicle_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Creates a new vehicle image record in the database.
@@ -234,7 +235,7 @@ def delete_vehicle_image(
     id: int,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    vehicle_image_filter=None,
+    vehicle_image_filter: ColumnElement[bool] | None = None,
 ):
     """
     Deletes a vehicle image from the database.
@@ -304,7 +305,7 @@ def fetch_vehicle_image(
     session: Session,
     id: int,
     query_params: ImageQueryParams,
-    vehicle_image_filter=None,
+    vehicle_image_filter: ColumnElement[bool] | None = None,
 ) -> StreamingResponse:
     """
     Fetch a vehicle image by its ID and optionally resize it.

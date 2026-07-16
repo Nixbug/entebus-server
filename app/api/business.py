@@ -10,7 +10,7 @@ Provides endpoints for managing businesses:
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Union
+from typing import Annotated
 from fastapi import APIRouter, Query, Response, status, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -18,6 +18,7 @@ from shapely import wkt
 from shapely.geometry import Point
 from sqlalchemy.orm.session import Session
 from sqlalchemy import func, String, or_
+from sqlalchemy.sql import ColumnElement
 from geoalchemy2 import Geography
 
 from app.api.bearer import oauth2_executive, bearer_vendor
@@ -312,9 +313,9 @@ def update_business(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    token: Union[ExecutiveToken, VendorToken],
+    token: ExecutiveToken | VendorToken,
     request_info: schemas.RequestInfo,
-    business_filter=None,
+    business_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates a Business with the provided form data.
@@ -323,7 +324,7 @@ def update_business(
         session (Session): SQLAlchemy database session.
         id (int): ID of the business to update.
         form_param (UpdateForm): Form data containing fields to update.
-        token (Union[ExecutiveToken, VendorToken]): Authenticated executive or vendor token.
+        token (ExecutiveToken | VendorToken): Authenticated executive or vendor token.
         request_info (schemas.RequestInfo): Request information for logging.
         business_filter (Optional): Additional filter for business validation.
 

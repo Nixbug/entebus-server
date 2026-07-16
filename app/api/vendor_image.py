@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile,
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_vendor, oauth2_executive
@@ -167,7 +168,7 @@ async def create_vendor_image(
     form_param: CreateForm,
     token: ExecutiveToken | VendorToken,
     request_info: schemas.RequestInfo,
-    vendor_filter=None,
+    vendor_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Create a new vendor image in the database.
@@ -287,7 +288,10 @@ def search_vendor_images(
 
 
 def fetch_vendor_image(
-    session: Session, id: int, query_params: ImageQueryParams, image_filter=None
+    session: Session,
+    id: int,
+    query_params: ImageQueryParams,
+    image_filter: ColumnElement[bool] | None = None,
 ) -> StreamingResponse:
     """
     Fetch a vendor image by its ID and optionally resize it.

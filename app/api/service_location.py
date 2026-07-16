@@ -11,6 +11,7 @@ from enum import StrEnum
 from fastapi import APIRouter, Depends, Query
 from geoalchemy2 import Geography
 from sqlalchemy import func
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from shapely.geometry import Point
@@ -189,7 +190,7 @@ def update_service_location(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    service_location_filter=None,
+    service_location_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates an existing service location record in the database.

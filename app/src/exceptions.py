@@ -11,7 +11,7 @@ It ensures consistent error responses across the API.
 
 from traceback import format_exception
 from logging import getLogger
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 from fastapi import status, HTTPException
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
@@ -227,7 +227,7 @@ class UnknownValue(APIException):
     status_code = status.HTTP_404_NOT_FOUND
     headers = {"X-Error": "UnknownValue"}
 
-    def __init__(self, column: Union[InstrumentedAttribute, str]):
+    def __init__(self, column: InstrumentedAttribute | str):
         column_name = column if isinstance(column, str) else column.key
         detail = f"Unknown {column_name} is provided"
         super().__init__(detail=detail)
@@ -241,7 +241,7 @@ class InvalidValue(APIException):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     headers = {"X-Error": "InvalidValue"}
 
-    def __init__(self, column: Union[InstrumentedAttribute, str]):
+    def __init__(self, column: InstrumentedAttribute | str):
         column_name = column if isinstance(column, str) else column.key
         detail = f"Invalid {column_name} is provided"
         super().__init__(detail=detail)

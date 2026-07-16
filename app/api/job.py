@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy import String, or_
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
@@ -244,7 +245,7 @@ def update_job(
     form_param: UpdateForm,
     token: ExecutiveToken | OperatorToken,
     request_info,
-    job_filter=None,
+    job_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates an existing job record.
@@ -307,7 +308,7 @@ def delete_job(
     id: int,
     token: ExecutiveToken | OperatorToken,
     request_info,
-    job_filter=None,
+    job_filter: ColumnElement[bool] | None = None,
 ) -> None:
     """
     Deletes a job from the database.

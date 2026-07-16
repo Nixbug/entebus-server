@@ -5,13 +5,13 @@ It includes reusable utilities to handle common operations,
 making it easier for developers to integrate them into their projects.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from enum import IntEnum
-from typing import Any, List, Mapping, Sequence, Type, Union
+from typing import Any, List, Mapping, Sequence, Type
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.orm.session import Session
-from sqlalchemy.sql.elements import ClauseElement
 import math
 import mimetypes
 from io import BytesIO
@@ -58,9 +58,9 @@ from app.src.types import EnumT
 
 
 def user_credentials(
-    user: Union[Executive, Operator, Vendor],
+    user: Executive | Operator | Vendor,
     credentials: OAuth2PasswordRequestForm,
-) -> Union[Executive, Operator, Vendor]:
+) -> Executive | Operator | Vendor:
     """
     Generic user authentication function for Executive, Operator, and Vendor.
 
@@ -69,11 +69,11 @@ def user_credentials(
     the account is active.
 
     Args:
-        user (Union[Executive, Operator, Vendor]): The already fetched user instance.
+        user (Executive | Operator | Vendor): The already fetched user instance.
         credentials (OAuth2PasswordRequestForm): Credentials containing password, and grant_type.
 
     Returns:
-        Union[Executive, Operator, Vendor]: The authenticated user instance.
+        Executive | Operator | Vendor: The authenticated user instance.
 
     Raises:
         InvalidGrantType: If the grant_type is not PASSWORD.
@@ -237,7 +237,7 @@ def validate_and_revoke_refresh_token(
     if token is None or token.is_revoked:
         raise exceptions.InvalidToken()
     # TODO: Optionally suspend account if revoked token reuse detected
-    if token.refresh_before < datetime.now(timezone.utc):
+    if token.refresh_before < datetime.now(TMZ_PRIMARY):
         raise exceptions.InvalidToken()
     # Revoke the current token
     token.is_revoked = True
@@ -265,7 +265,7 @@ def verify_token(
         InvalidToken: If token is invalid, revoked, or expired.
     """
     # Get token ensuring it's not revoked
-    current_time = datetime.now(timezone.utc)
+    current_time = datetime.now(TMZ_PRIMARY)
     token = (
         session.query(model_cls)
         .filter(model_cls.access_token == access_token)
@@ -501,8 +501,8 @@ def validate_id(
     session: Session,
     model_cls: Type[ORMbaseT],
     unique_id: int,
-    column: Union[InstrumentedAttribute, str],
-    extra_filter: ClauseElement[bool] | None = None,
+    column: InstrumentedAttribute | str,
+    extra_filter: ColumnElement[bool] | None = None,
 ) -> ORMbaseT:
     """
     Generic function to validate an ID based on a given model class.

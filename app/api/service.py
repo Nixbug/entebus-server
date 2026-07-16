@@ -8,16 +8,17 @@ Provides endpoints for managing services:
     - DELETE (executive, operator)
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from fastapi.encoders import jsonable_encoder
-from typing import Annotated, Any, Union
+from typing import Annotated, Any
 from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel, Field
 from datetime import timedelta
 from fastapi import status, Depends
 from sqlalchemy import String, and_, func, or_
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import aliased
 
@@ -71,7 +72,6 @@ from app.src.permissions.operator import PermissionPath as OperatorPermissionPat
 from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.enums import (
-    AppID,
     DutyStatus,
     OrderIn,
     VehicleStatus,
@@ -597,11 +597,11 @@ def delete_vehicle_in_service(
 def create_service(
     session: Session,
     form_param: CreateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    route_filter=None,
-    vehicle_filter=None,
-    fare_filter=None,
+    route_filter: ColumnElement[bool] | None = None,
+    vehicle_filter: ColumnElement[bool] | None = None,
+    fare_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Creates a new service record in the database.
@@ -614,7 +614,7 @@ def create_service(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a service.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         route_filter: Additional filter for route validation.
         vehicle_filter: Additional filter for vehicle validation.
@@ -742,12 +742,12 @@ def update_service(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    service_filter=None,
-    route_filter=None,
-    vehicle_filter=None,
-    fare_filter=None,
+    service_filter: ColumnElement[bool] | None = None,
+    route_filter: ColumnElement[bool] | None = None,
+    vehicle_filter: ColumnElement[bool] | None = None,
+    fare_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates an existing service record.
@@ -770,7 +770,7 @@ def update_service(
         session (Session): SQLAlchemy database session.
         id (int): ID of the service to update.
         form_param (UpdateForm): Form data for updating the service.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         service_filter: Additional filter for service validation.
         route_filter: Additional filter for route validation.
@@ -793,7 +793,7 @@ def update_service(
         service_lock = acquire_lock(construct_service_transition_lock(service.id))
         session.refresh(service)
 
-        if request_info.app_id == AppID.EXECUTIVE:
+        if isinstance(token, ExecutiveToken):
             route_filter = Route.company_id == service.company_id
             vehicle_filter = Vehicle.company_id == service.company_id
             fare_filter = (Fare.company_id == service.company_id) | (
@@ -972,7 +972,7 @@ def update_service(
                 if update_data["status"] == ServiceStatus.STARTED:
                     service.collection = Decimal(0)
                 elif update_data["status"] == ServiceStatus.ENDED:
-                    utc_now = datetime.now(timezone.utc)
+                    utc_now = datetime.now(TMZ_PRIMARY)
                     duties = (
                         session.query(Duty).filter(Duty.service_id == service.id).all()
                     )
@@ -1133,7 +1133,7 @@ def search_service(session: Session, query_params: QueryParams) -> list[Service]
 
 
 def fetch_service_details(
-    session: Session, id: int, service_filter=None
+    session: Session, id: int, service_filter: ColumnElement[bool] | None = None
 ) -> dict[str, Any]:
     """
     Returns details of a service along with related entities like landmarks, fare, and vehicle in service.
@@ -1166,9 +1166,9 @@ def fetch_service_details(
 def delete_service(
     session: Session,
     id: int,
-    token: Union[ExecutiveToken, OperatorToken],
+    token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    service_filter=None,
+    service_filter: ColumnElement[bool] | None = None,
 ) -> None:
     """
     Deletes a service from the database and decrements/cleans up related snapshot reference counts.
@@ -1188,7 +1188,7 @@ def delete_service(
     Args:
         session (Session): SQLAlchemy database session.
         id (int): ID of the service to delete.
-        token (Union[ExecutiveToken, OperatorToken]): Authenticated token.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
     """
     service_lock = None

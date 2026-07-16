@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy import String, or_
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
@@ -31,7 +32,7 @@ from app.src.db import (
     get_db_session,
 )
 from app.src.description import Description
-from app.src.enums import AppID, FareScope, OrderIn, TicketingMode
+from app.src.enums import FareScope, OrderIn, TicketingMode
 from app.src.filters import (
     CreatedOnFilter,
     IDFilter,
@@ -189,10 +190,10 @@ def create_service_automation(
     form_param: CreateForm,
     token: ExecutiveToken | OperatorToken,
     request_info,
-    job_filter=None,
-    route_filter=None,
-    fare_filter=None,
-    vehicle_filter=None,
+    job_filter: ColumnElement[bool] | None = None,
+    route_filter: ColumnElement[bool] | None = None,
+    fare_filter: ColumnElement[bool] | None = None,
+    vehicle_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Creates a new service automation record in the database.
@@ -265,10 +266,10 @@ def update_service_automation(
     form_param: UpdateForm,
     token: ExecutiveToken | OperatorToken,
     request_info,
-    service_automation_filter=None,
-    route_filter=None,
-    fare_filter=None,
-    vehicle_filter=None,
+    service_automation_filter: ColumnElement[bool] | None = None,
+    route_filter: ColumnElement[bool] | None = None,
+    fare_filter: ColumnElement[bool] | None = None,
+    vehicle_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates an existing service automation record.
@@ -295,7 +296,7 @@ def update_service_automation(
         extra_filter=service_automation_filter,
     )
 
-    if request_info.app_id == AppID.EXECUTIVE:
+    if isinstance(token, ExecutiveToken):
         route_filter = Route.company_id == service_automation.company_id
         vehicle_filter = Vehicle.company_id == service_automation.company_id
         fare_filter = (Fare.company_id == service_automation.company_id) | (
@@ -347,7 +348,7 @@ def delete_service_automation(
     id: int,
     token: ExecutiveToken | OperatorToken,
     request_info,
-    service_automation_filter=None,
+    service_automation_filter: ColumnElement[bool] | None = None,
 ) -> None:
     """
     Deletes a service automation from the database.
