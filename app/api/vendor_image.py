@@ -517,7 +517,9 @@ async def upload_vendor_image_for_vendor(
 
         return await create_vendor_image(
             session,
-            CreateForm(**form_param.model_dump(), vendor_id=vendor_id),
+            CreateForm(
+                **form_param.model_dump(exclude={"vendor_id"}), vendor_id=vendor_id
+            ),
             token,
             request_info,
             vendor_id,

@@ -517,7 +517,10 @@ async def upload_operator_image_for_operator(
 
         return await create_operator_image(
             session,
-            CreateForm(**form_param.model_dump(), operator_id=operator_id),
+            CreateForm(
+                **form_param.model_dump(exclude={"operator_id"}),
+                operator_id=operator_id,
+            ),
             token,
             request_info,
             operator_id,
