@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from enum import IntEnum
 from typing import Any, List, Mapping, Sequence, Type
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import ColumnElement
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.orm.session import Session
 import math
