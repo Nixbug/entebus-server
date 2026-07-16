@@ -17,7 +17,8 @@ from pydantic import BaseModel, Field
 from shapely import wkt
 from shapely.geometry import Point
 from sqlalchemy.orm.session import Session
-from sqlalchemy import ColumnElement, func, String, or_
+from sqlalchemy import func, String, or_
+from sqlalchemy.sql import ColumnElement
 from geoalchemy2 import Geography
 
 from app.api.bearer import oauth2_executive, bearer_vendor
