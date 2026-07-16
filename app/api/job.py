@@ -263,25 +263,35 @@ def update_job(
     job = validate_id(session, Job, id, Job.id, extra_filter=job_filter)
 
     update_data = form_param.model_dump(exclude_unset=True)
+    re_calculate_next_trigger = False
     if "recurrence_rule" in update_data:
         if update_data["recurrence_rule"] != job.recurrence_rule:
             validate_rrule_string(update_data["recurrence_rule"])
             job.recurrence_rule = update_data["recurrence_rule"]
+            re_calculate_next_trigger = True
         update_data.pop("recurrence_rule", None)
+    if "trigger_at" in update_data:
+        if update_data["trigger_at"] != job.trigger_at:
+            job.trigger_at = update_data["trigger_at"]
+            re_calculate_next_trigger = True
+        update_data.pop("trigger_at", None)
+    if "trigger_from" in update_data:
+        if update_data["trigger_from"] != job.trigger_from:
+            job.trigger_from = update_data["trigger_from"]
+            re_calculate_next_trigger = True
+        update_data.pop("trigger_from", None)
+    if "trigger_till" in update_data:
+        if update_data["trigger_till"] != job.trigger_till:
+            job.trigger_till = update_data["trigger_till"]
+            re_calculate_next_trigger = True
+        update_data.pop("trigger_till", None)
 
     update_if_changed(job, update_data)
     if session.is_modified(job):
         if job.triggering_mode != TriggeringMode.AUTO:
             job.next_trigger_on = None
-        else:
-            have_critical_change = (
-                form_param.recurrence_rule is not None
-                or form_param.trigger_at is not None
-                or form_param.trigger_from is not None
-                or form_param.trigger_till is not None
-            )
-            if have_critical_change:
-                job.next_trigger_on = calculate_next_trigger_on(job)
+        elif re_calculate_next_trigger:
+            job.next_trigger_on = calculate_next_trigger_on(job)
 
         session.commit()
         session.refresh(job)
