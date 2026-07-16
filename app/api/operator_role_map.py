@@ -13,7 +13,7 @@ from enum import StrEnum
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from sqlalchemy import ColumnElement
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
