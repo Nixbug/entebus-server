@@ -12,6 +12,7 @@ from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, status, Query, Response
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy import ColumnElement
 from sqlalchemy.orm.session import Session
 from pydantic import BaseModel, Field
 from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
@@ -181,7 +182,7 @@ def create_landmark_in_route(
     form_param: CreateForm,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    route_filter=None,
+    route_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Creates a new landmark in route record in the database.
@@ -257,7 +258,7 @@ def update_landmark_in_route(
     form_param: UpdateForm,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    landmark_in_route_filter=None,
+    landmark_in_route_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates an existing landmark in route record in the database.
@@ -329,7 +330,7 @@ def delete_landmark_in_route(
     id: int,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    landmark_in_route_filter=None,
+    landmark_in_route_filter: ColumnElement[bool] | None = None,
 ) -> None:
     """
     Deletes a landmark in route record from the database.

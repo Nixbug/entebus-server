@@ -13,7 +13,7 @@ from enum import StrEnum
 from datetime import datetime
 from fastapi import APIRouter, status, Depends, Response, Query
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import String, or_
+from sqlalchemy import ColumnElement, String, or_
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
 
@@ -293,7 +293,7 @@ def update_vehicle(
     form_param: UpdateForm,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    vehicle_filter=None,
+    vehicle_filter: ColumnElement[bool] | None = None,
     app_id: AppID | None = None,
 ) -> dict:
     """
@@ -353,7 +353,7 @@ def delete_vehicle(
     id: int,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    vehicle_filter=None,
+    vehicle_filter: ColumnElement[bool] | None = None,
 ) -> None:
     """
     Deletes a vehicle from the database.

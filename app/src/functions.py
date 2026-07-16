@@ -20,7 +20,6 @@ from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform
 from datetime import datetime
 from geoalchemy2.shape import from_shape
-from sqlalchemy.sql.elements import ClauseElement
 from app.src.types import ORMbaseT
 
 from app.src import schemas, exceptions
@@ -609,7 +608,7 @@ def get_by_id(
     session: Session,
     model_cls: Type[ORMbaseT],
     unique_id: int,
-    extra_filter: ClauseElement[bool] | None = None,
+    extra_filter: ColumnElement[bool] | None = None,
 ) -> ORMbaseT | None:
     """
     Generic function to fetch a record by ID, without raising if not found.
@@ -618,7 +617,7 @@ def get_by_id(
         session (Session): Active SQLAlchemy session.
         model_cls (Type[ORMbaseT]): The ORM model class.
         unique_id (int): The ID of the record to fetch.
-        extra_filter (ClauseElement[bool] | None): Additional filters to apply, defaults to None.
+        extra_filter (ColumnElement[bool] | None): Additional filters to apply, defaults to None.
 
     Returns:
         ORMbaseT | None: The instance of the model class matching the given ID, or None if not found.

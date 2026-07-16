@@ -13,7 +13,7 @@ from fastapi.encoders import jsonable_encoder
 from geoalchemy2 import Geography
 from pydantic import BaseModel, Field
 from shapely import Point, wkt
-from sqlalchemy import func
+from sqlalchemy import ColumnElement, func
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
@@ -184,7 +184,7 @@ def location_in_trace_to_dict(location_in_trace: LocationInTrace) -> dict:
 def create_location_in_trace(
     session: Session,
     form_param: CreateForm,
-    trace_filter=None,
+    trace_filter: ColumnElement[bool] | None = None,
 ) -> None:
     """
     Creates new location in trace records in the database.

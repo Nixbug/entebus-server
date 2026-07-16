@@ -14,7 +14,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from sqlalchemy import String, or_
+from sqlalchemy import ColumnElement, String, or_
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
@@ -189,10 +189,10 @@ def create_service_automation(
     form_param: CreateForm,
     token: ExecutiveToken | OperatorToken,
     request_info,
-    job_filter=None,
-    route_filter=None,
-    fare_filter=None,
-    vehicle_filter=None,
+    job_filter: ColumnElement[bool] | None = None,
+    route_filter: ColumnElement[bool] | None = None,
+    fare_filter: ColumnElement[bool] | None = None,
+    vehicle_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Creates a new service automation record in the database.
@@ -265,10 +265,10 @@ def update_service_automation(
     form_param: UpdateForm,
     token: ExecutiveToken | OperatorToken,
     request_info,
-    service_automation_filter=None,
-    route_filter=None,
-    fare_filter=None,
-    vehicle_filter=None,
+    service_automation_filter: ColumnElement[bool] | None = None,
+    route_filter: ColumnElement[bool] | None = None,
+    fare_filter: ColumnElement[bool] | None = None,
+    vehicle_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates an existing service automation record.
@@ -347,7 +347,7 @@ def delete_service_automation(
     id: int,
     token: ExecutiveToken | OperatorToken,
     request_info,
-    service_automation_filter=None,
+    service_automation_filter: ColumnElement[bool] | None = None,
 ) -> None:
     """
     Deletes a service automation from the database.

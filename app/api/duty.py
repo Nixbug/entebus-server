@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Query, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
-from sqlalchemy import func
+from sqlalchemy import ColumnElement, func
 
 from app.api.bearer import bearer_operator, oauth2_executive
 from app.src.constants import TMZ_PRIMARY
@@ -131,7 +131,7 @@ def update_duty(
     form_param: UpdateForm,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    duty_filter=None,
+    duty_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates a duty record based on the requested status transition.

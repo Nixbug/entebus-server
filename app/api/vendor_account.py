@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, EmailStr, Field
 from pydantic_extra_types.phone_numbers import PhoneNumber
-from sqlalchemy import String, or_
+from sqlalchemy import ColumnElement, String, or_
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_vendor, oauth2_executive
@@ -289,7 +289,7 @@ def update_vendor(
     form_param: UpdateForm,
     token: ExecutiveToken | VendorToken,
     request_info: schemas.RequestInfo,
-    vendor_filter=None,
+    vendor_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Update an existing vendor account in the database.
@@ -396,7 +396,7 @@ def delete_vendor(
     id: int,
     token: ExecutiveToken | VendorToken,
     request_info: schemas.RequestInfo,
-    vendor_filter=None,
+    vendor_filter: ColumnElement[bool] | None = None,
 ):
     """
     Delete a vendor account from the database.

@@ -12,7 +12,7 @@ from datetime import datetime, time
 from enum import StrEnum
 from fastapi import APIRouter, status, Depends, Query, Response
 from sqlalchemy.orm.session import Session
-from sqlalchemy import or_, String
+from sqlalchemy import ColumnElement, or_, String
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 
@@ -215,7 +215,7 @@ def update_route(
     form_param: UpdateForm,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    route_filter=None,
+    route_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates an existing route record in the database.
@@ -252,7 +252,7 @@ def delete_route(
     id: int,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    route_filter=None,
+    route_filter: ColumnElement[bool] | None = None,
 ) -> None:
     """
     Deletes a route from the database.

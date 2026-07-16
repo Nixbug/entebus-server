@@ -13,6 +13,7 @@ from enum import StrEnum
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from sqlalchemy import ColumnElement
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
@@ -138,8 +139,8 @@ def create_service_assignment_automation(
     form_param: CreateForm,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    service_automation_filter=None,
-    operator_filter=None,
+    service_automation_filter: ColumnElement[bool] | None = None,
+    operator_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Creates a new service assignment automation record in the database.
@@ -190,8 +191,8 @@ def update_service_assignment_automation(
     form_param: UpdateForm,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    service_assignment_automation_filter=None,
-    operator_filter=None,
+    service_assignment_automation_filter: ColumnElement[bool] | None = None,
+    operator_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates a service assignment automation with the provided form data.
@@ -253,7 +254,7 @@ def delete_service_assignment_automation(
     id: int,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    service_assignment_automation_filter=None,
+    service_assignment_automation_filter: ColumnElement[bool] | None = None,
 ) -> None:
     """
     Deletes a service assignment automation from the database.

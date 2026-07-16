@@ -17,7 +17,7 @@ from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel, Field
 from datetime import timedelta
 from fastapi import status, Depends
-from sqlalchemy import String, and_, func, or_
+from sqlalchemy import ColumnElement, String, and_, func, or_
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import aliased
 
@@ -599,9 +599,9 @@ def create_service(
     form_param: CreateForm,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    route_filter=None,
-    vehicle_filter=None,
-    fare_filter=None,
+    route_filter: ColumnElement[bool] | None = None,
+    vehicle_filter: ColumnElement[bool] | None = None,
+    fare_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Creates a new service record in the database.
@@ -744,10 +744,10 @@ def update_service(
     form_param: UpdateForm,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    service_filter=None,
-    route_filter=None,
-    vehicle_filter=None,
-    fare_filter=None,
+    service_filter: ColumnElement[bool] | None = None,
+    route_filter: ColumnElement[bool] | None = None,
+    vehicle_filter: ColumnElement[bool] | None = None,
+    fare_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates an existing service record.
@@ -1133,7 +1133,7 @@ def search_service(session: Session, query_params: QueryParams) -> list[Service]
 
 
 def fetch_service_details(
-    session: Session, id: int, service_filter=None
+    session: Session, id: int, service_filter: ColumnElement[bool] | None = None
 ) -> dict[str, Any]:
     """
     Returns details of a service along with related entities like landmarks, fare, and vehicle in service.
@@ -1168,7 +1168,7 @@ def delete_service(
     id: int,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    service_filter=None,
+    service_filter: ColumnElement[bool] | None = None,
 ) -> None:
     """
     Deletes a service from the database and decrements/cleans up related snapshot reference counts.

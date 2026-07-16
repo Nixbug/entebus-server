@@ -9,9 +9,9 @@ from datetime import datetime, timedelta
 from enum import IntEnum
 from typing import Any, List, Mapping, Sequence, Type
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import ColumnElement
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.orm.session import Session
-from sqlalchemy.sql.elements import ClauseElement
 import math
 import mimetypes
 from io import BytesIO
@@ -502,7 +502,7 @@ def validate_id(
     model_cls: Type[ORMbaseT],
     unique_id: int,
     column: InstrumentedAttribute | str,
-    extra_filter: ClauseElement[bool] | None = None,
+    extra_filter: ColumnElement[bool] | None = None,
 ) -> ORMbaseT:
     """
     Generic function to validate an ID based on a given model class.

@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 from shapely import wkt
 from shapely.geometry import Point
 from sqlalchemy.orm.session import Session
-from sqlalchemy import func, String, or_
+from sqlalchemy import ColumnElement, func, String, or_
 from geoalchemy2 import Geography
 
 from app.api.bearer import oauth2_executive, bearer_vendor
@@ -314,7 +314,7 @@ def update_business(
     form_param: UpdateForm,
     token: ExecutiveToken | VendorToken,
     request_info: schemas.RequestInfo,
-    business_filter=None,
+    business_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates a Business with the provided form data.

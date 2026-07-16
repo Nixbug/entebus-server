@@ -13,7 +13,7 @@ from enum import StrEnum
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from sqlalchemy import String, or_
+from sqlalchemy import ColumnElement, String, or_
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_vendor, oauth2_executive
@@ -197,7 +197,7 @@ def update_vendor_role(
     form_param: UpdateForm,
     token: ExecutiveToken | VendorToken,
     request_info: schemas.RequestInfo,
-    role_filter=None,
+    role_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates a vendor role with the provided form data.
@@ -238,7 +238,7 @@ def delete_vendor_role(
     id: int,
     token: ExecutiveToken | VendorToken,
     request_info: schemas.RequestInfo,
-    role_filter=None,
+    role_filter: ColumnElement[bool] | None = None,
 ) -> None:
     """
     Deletes a vendor role from the database.

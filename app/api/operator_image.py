@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile,
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import ColumnElement
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
@@ -167,7 +168,7 @@ async def create_operator_image(
     form_param: CreateForm,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    operator_filter=None,
+    operator_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Create a new operator image in the database.
@@ -287,7 +288,10 @@ def search_operator_images(
 
 
 def fetch_operator_image(
-    session: Session, id: int, query_params: ImageQueryParams, image_filter=None
+    session: Session,
+    id: int,
+    query_params: ImageQueryParams,
+    image_filter: ColumnElement[bool] | None = None,
 ) -> StreamingResponse:
     """
     Fetch an operator image by its ID and optionally resize it.

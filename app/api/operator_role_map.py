@@ -13,6 +13,7 @@ from enum import StrEnum
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from sqlalchemy import ColumnElement
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
@@ -137,8 +138,8 @@ def create_operator_role_map(
     form_param: CreateForm,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    operator_filter=None,
-    role_filter=None,
+    operator_filter: ColumnElement[bool] | None = None,
+    role_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Creates a new operator role mapping with the provided form data.
@@ -189,8 +190,8 @@ def update_operator_role_map(
     form_param: UpdateForm,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    role_map_filter=None,
-    role_filter=None,
+    role_map_filter: ColumnElement[bool] | None = None,
+    role_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Updates an operator role mapping with the provided form data.
@@ -246,7 +247,7 @@ def delete_operator_role_map(
     id: int,
     token: ExecutiveToken | OperatorToken,
     request_info: schemas.RequestInfo,
-    role_map_filter=None,
+    role_map_filter: ColumnElement[bool] | None = None,
 ) -> None:
     """
     Deletes an operator role mapping from the database.
