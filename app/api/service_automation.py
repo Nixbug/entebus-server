@@ -20,6 +20,7 @@ from sqlalchemy.orm.session import Session
 from app.api.bearer import bearer_operator, oauth2_executive
 from app.src import exceptions
 from app.src.db import (
+    Company,
     ExecutiveToken,
     Fare,
     Job,
@@ -531,6 +532,9 @@ async def create_service_automation_for_executive(
             session,
             access_token,
             [ExecutivePermissionPath.CREATE_COMPANY_SERVICE],
+        )
+        validate_id(
+            session, Company, form_param.company_id, ServiceAutomation.company_id
         )
         return create_service_automation(
             session,
