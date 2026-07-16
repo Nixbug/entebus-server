@@ -15,7 +15,8 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, EmailStr, Field
 from pydantic_extra_types.phone_numbers import PhoneNumber
-from sqlalchemy import ColumnElement, String, or_
+from sqlalchemy import String, or_
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_vendor, oauth2_executive
