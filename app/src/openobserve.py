@@ -62,7 +62,8 @@ def _post_log_event(event_data: dict) -> Response | None:
                 }
 
     Returns:
-        requests.Response: The HTTP response object returned by the OpenObserve API.
+        Response | None: The HTTP response from OpenObserve if successful,
+            or None if an error occurred during the request.
     """
     try:
         response = requests.post(
