@@ -185,7 +185,7 @@ async def create_vendor_image(
     vendor = validate_id(
         session,
         Vendor,
-        vendor_id,
+        form_param.vendor_id,
         VendorImage.vendor_id,
         extra_filter=vendor_filter,
     )
