@@ -13,7 +13,8 @@ from fastapi import APIRouter, Depends, Query, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
-from sqlalchemy import ColumnElement, func
+from sqlalchemy import func
+from sqlalchemy.sql import ColumnElement
 
 from app.api.bearer import bearer_operator, oauth2_executive
 from app.src.constants import TMZ_PRIMARY
