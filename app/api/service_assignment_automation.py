@@ -337,7 +337,6 @@ def search_service_assignment_automations(
 POST_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
-    exceptions.UnknownValue(ServiceAssignmentAutomation.company_id),
     exceptions.UnknownValue(ServiceAssignmentAutomation.service_automation_id),
     exceptions.UnknownValue(ServiceAssignmentAutomation.operator_id),
 ]
