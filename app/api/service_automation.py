@@ -511,7 +511,9 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of service automations.
     tags=["Service Automation"],
     response_model=ServiceAutomationSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(POST_EXCEPTIONS),
+    responses=fuse_exception_responses(
+        [*POST_EXCEPTIONS, exceptions.UnknownValue(ServiceAutomation.company_id)]
+    ),
     description=(
         POST_DESCRIPTION.copy()
         .add_line("Logged-in executive must have `company.service.create` permission.")

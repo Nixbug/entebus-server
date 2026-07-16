@@ -20,6 +20,7 @@ from app.api.bearer import bearer_operator, oauth2_executive
 from app.src import exceptions, schemas
 from app.src.schemas import PatchForm
 from app.src.db import (
+    Company,
     ExecutiveToken,
     Operator,
     OperatorToken,
@@ -398,7 +399,9 @@ GET_DESCRIPTION = Description().add_head("Fetches a list of service assignments.
     tags=["Service Assignment"],
     response_model=ServiceAssignmentSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(POST_EXCEPTIONS),
+    responses=fuse_exception_responses(
+        [*POST_EXCEPTIONS, exceptions.UnknownValue(ServiceAssignment.company_id)]
+    ),
     description=(
         POST_DESCRIPTION.copy()
         .add_line(
@@ -421,6 +424,9 @@ async def create_service_assignment_for_executive(
             session,
             access_token,
             [ExecutivePermissionPath.CREATE_COMPANY_SERVICE_ASSIGNMENT],
+        )
+        validate_id(
+            session, Company, form_param.company_id, ServiceAssignment.company_id
         )
         return create_service_assignment(
             session,
