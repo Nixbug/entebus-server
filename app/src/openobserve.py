@@ -24,8 +24,10 @@ from app.src.constants import (
 )
 from app.src.db import ExecutiveToken, OperatorToken, VendorToken
 from app.src.schemas import RequestInfo
-from app.src.enums import AppID
 
+# ---------------------------------------------------------------------------
+## OpenObserve Configuration
+# ---------------------------------------------------------------------------
 # Prepare Basic Auth credentials
 credentials = base64.b64encode(
     f"{OPENOBSERVE_USERNAME}:{OPENOBSERVE_PASSWORD}".encode("utf-8")
@@ -39,7 +41,10 @@ openobserve_host = f"{OPENOBSERVE_PROTOCOL}://{OPENOBSERVE_HOST}:{OPENOBSERVE_PO
 openobserve_url = f"{openobserve_host}/api/{OPENOBSERVE_ORG}/{OPENOBSERVE_STREAM}/_json"
 
 
-def _post_log_event(event_data: dict) -> Response:
+# ---------------------------------------------------------------------------
+## Logging Functions
+# ---------------------------------------------------------------------------
+def _post_log_event(event_data: dict) -> Response | None:
     """
     Send an event log to the configured OpenObserve instance.
 
@@ -47,7 +52,7 @@ def _post_log_event(event_data: dict) -> Response:
     to the OpenObserve API using HTTP POST with Basic authentication.
 
     Args:
-        eventData (dict): A dictionary representing the event log to be sent.
+        event_data (dict): A dictionary representing the event log to be sent.
             Example:
                 {
                     "_method": "POST",
@@ -65,7 +70,8 @@ def _post_log_event(event_data: dict) -> Response:
         )
         response.raise_for_status()
     except Exception:
-        pass
+        return None
+    return response
 
 
 def log_event(
@@ -94,11 +100,11 @@ def log_event(
         "_app_id": request_info.app_id,
     }
 
-    if request_info.app_id == AppID.EXECUTIVE:
+    if isinstance(token, ExecutiveToken):
         log_details["_executive_id"] = token.executive_id
-    if request_info.app_id == AppID.OPERATOR:
+    elif isinstance(token, OperatorToken):
         log_details["_operator_id"] = token.operator_id
-    if request_info.app_id == AppID.VENDOR:
+    elif isinstance(token, VendorToken):
         log_details["_vendor_id"] = token.vendor_id
 
     for key, value in data.items():

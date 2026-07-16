@@ -27,7 +27,7 @@ from app.src.db import (
     get_db_session,
 )
 from app.src.description import Description
-from app.src.enums import AppID, OrderIn
+from app.src.enums import OrderIn
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, UpdatedOnFilter
 from app.src.functions import (
     apply_created_on_filters,
@@ -216,7 +216,7 @@ def update_vendor_role_map(
         extra_filter=role_map_filter,
     )
 
-    if request_info.app_id == AppID.EXECUTIVE:
+    if isinstance(token, ExecutiveToken):
         role_filter = VendorRole.business_id == vendor_role_map.business_id
 
     update_data = form_param.model_dump(exclude_unset=True)

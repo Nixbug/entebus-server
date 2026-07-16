@@ -28,7 +28,7 @@ from app.src.db import (
     ServiceAutomation,
     get_db_session,
 )
-from app.src.enums import AppID, OrderIn
+from app.src.enums import OrderIn
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, UpdatedOnFilter
 from app.src.functions import (
     apply_created_on_filters,
@@ -217,7 +217,7 @@ def update_service_assignment_automation(
         extra_filter=service_assignment_automation_filter,
     )
 
-    if request_info.app_id == AppID.EXECUTIVE:
+    if isinstance(token, ExecutiveToken):
         operator_filter = (
             Operator.company_id == service_assignment_automation.company_id
         )

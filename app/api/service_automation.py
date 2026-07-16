@@ -31,7 +31,7 @@ from app.src.db import (
     get_db_session,
 )
 from app.src.description import Description
-from app.src.enums import AppID, FareScope, OrderIn, TicketingMode
+from app.src.enums import FareScope, OrderIn, TicketingMode
 from app.src.filters import (
     CreatedOnFilter,
     IDFilter,
@@ -295,7 +295,7 @@ def update_service_automation(
         extra_filter=service_automation_filter,
     )
 
-    if request_info.app_id == AppID.EXECUTIVE:
+    if isinstance(token, ExecutiveToken):
         route_filter = Route.company_id == service_automation.company_id
         vehicle_filter = Vehicle.company_id == service_automation.company_id
         fare_filter = (Fare.company_id == service_automation.company_id) | (

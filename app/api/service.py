@@ -71,7 +71,6 @@ from app.src.permissions.operator import PermissionPath as OperatorPermissionPat
 from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.enums import (
-    AppID,
     DutyStatus,
     OrderIn,
     VehicleStatus,
@@ -793,7 +792,7 @@ def update_service(
         service_lock = acquire_lock(construct_service_transition_lock(service.id))
         session.refresh(service)
 
-        if request_info.app_id == AppID.EXECUTIVE:
+        if isinstance(token, ExecutiveToken):
             route_filter = Route.company_id == service.company_id
             vehicle_filter = Vehicle.company_id == service.company_id
             fare_filter = (Fare.company_id == service.company_id) | (
