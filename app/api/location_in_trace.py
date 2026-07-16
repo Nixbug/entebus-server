@@ -13,7 +13,8 @@ from fastapi.encoders import jsonable_encoder
 from geoalchemy2 import Geography
 from pydantic import BaseModel, Field
 from shapely import Point, wkt
-from sqlalchemy import ColumnElement, func
+from sqlalchemy import func
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
