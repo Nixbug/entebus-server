@@ -972,7 +972,7 @@ def update_service(
                 if update_data["status"] == ServiceStatus.STARTED:
                     service.collection = Decimal(0)
                 elif update_data["status"] == ServiceStatus.ENDED:
-                    utc_now = datetime.now(timezone.utc)
+                    utc_now = datetime.now(TMZ_PRIMARY)
                     duties = (
                         session.query(Duty).filter(Duty.service_id == service.id).all()
                     )

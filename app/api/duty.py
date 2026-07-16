@@ -17,6 +17,7 @@ from sqlalchemy.orm.session import Session
 from sqlalchemy import func
 
 from app.api.bearer import bearer_operator, oauth2_executive
+from app.src.constants import TMZ_PRIMARY
 from app.src.db import (
     OperatorToken,
     Duty,
@@ -180,7 +181,7 @@ def update_duty(
                         .filter(PaperTicket.duty_id == duty.id)
                         .scalar()
                     )
-                    utc_now = datetime.now(timezone.utc)
+                    utc_now = datetime.now(TMZ_PRIMARY)
                     duty.finished_on = utc_now
                 elif update_data["status"] == DutyStatus.STARTED:
                     duty.finished_on = None

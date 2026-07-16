@@ -8,6 +8,7 @@ from PIL import Image
 import numpy as np
 from shapely import wkt
 
+from app.src.constants import TMZ_PRIMARY
 from app.src.enums import BusinessType, GenderType, GrantType, PlatformType
 from app.src.enums import (
     LandmarkType,
@@ -228,7 +229,7 @@ def generate_service_payload(
     payload = {
         "name": f"Service {np.random.randint(1000, 9999)}",
         "starting_at": (
-            datetime.now(timezone.utc) + timedelta(minutes=minutes_offset)
+            datetime.now(TMZ_PRIMARY) + timedelta(minutes=minutes_offset)
         ).isoformat(),
         "route_id": route_id,
         "fare_id": fare_id,

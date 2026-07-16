@@ -237,7 +237,7 @@ def validate_and_revoke_refresh_token(
     if token is None or token.is_revoked:
         raise exceptions.InvalidToken()
     # TODO: Optionally suspend account if revoked token reuse detected
-    if token.refresh_before < datetime.now(timezone.utc):
+    if token.refresh_before < datetime.now(TMZ_PRIMARY):
         raise exceptions.InvalidToken()
     # Revoke the current token
     token.is_revoked = True
@@ -265,7 +265,7 @@ def verify_token(
         InvalidToken: If token is invalid, revoked, or expired.
     """
     # Get token ensuring it's not revoked
-    current_time = datetime.now(timezone.utc)
+    current_time = datetime.now(TMZ_PRIMARY)
     token = (
         session.query(model_cls)
         .filter(model_cls.access_token == access_token)

@@ -33,7 +33,7 @@ def run_service_creation_job(session: Session, job: Job) -> bool:
     Placeholder function to execute a service creation job.
     """
     time.sleep(1)
-    print(f"Executed service creation job {job.id} at {datetime.now(timezone.utc)}")
+    print(f"Executed service creation job {job.id} at {datetime.now(TMZ_PRIMARY)}")
     return True
 
 
@@ -42,7 +42,7 @@ def run_statement_creation_job(session: Session, job: Job) -> bool:
     Placeholder function to execute a statement creation job.
     """
     time.sleep(1)
-    print(f"Executed statement creation job {job.id} at {datetime.now(timezone.utc)}")
+    print(f"Executed statement creation job {job.id} at {datetime.now(TMZ_PRIMARY)}")
     return True
 
 
@@ -79,7 +79,7 @@ def calculate_next_trigger_on(job: Job) -> Optional[datetime]:
         time_of_day.hour,
         time_of_day.minute,
         time_of_day.second,
-        tzinfo=time_of_day.tzinfo or timezone.utc,
+        tzinfo=time_of_day.tzinfo or TMZ_PRIMARY,
     )
     rule = rrulelib.rrulestr(
         job.recurrence_rule,
@@ -130,7 +130,7 @@ def load_jobs_to_queue() -> int:
             .filter(
                 Job.id > last_job_id,
                 Job.triggering_mode == TriggeringMode.AUTO,
-                Job.next_trigger_on <= datetime.now(timezone.utc),
+                Job.next_trigger_on <= datetime.now(TMZ_PRIMARY),
             )
             .order_by(Job.id)
             .limit(JOB_QUEUE_BATCH_SIZE)
@@ -178,7 +178,7 @@ def run_job_from_queue(job_id: int):
         if job is None:
             return
 
-        utc_now = datetime.now(timezone.utc)
+        utc_now = datetime.now(TMZ_PRIMARY)
         if job.next_trigger_on is None:
             return
         if job.next_trigger_on > utc_now:
