@@ -460,7 +460,6 @@ PATCH_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
     exceptions.UnknownValue(ServiceAutomation.id),
-    exceptions.UnknownValue(ServiceAutomation.job_id),
     exceptions.UnknownValue(ServiceAutomation.route_id),
     exceptions.UnknownValue(ServiceAutomation.fare_id),
     exceptions.UnknownValue(ServiceAutomation.vehicle_id),
