@@ -91,7 +91,7 @@ class StationSchema(BaseModel):
 class CreateForm(BaseModel):
     """Form data for creating a new station."""
 
-    name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN)
+    name: str = Field(min_length=1, max_length=128, pattern=NAME_PATTERN)
     landmark_id: int = Field()
     location: str = Field(
         description=(
@@ -105,7 +105,7 @@ class UpdateForm(PatchForm):
     """Form data for updating a station."""
 
     name: str | None = Field(
-        min_length=1, max_length=32, pattern=NAME_PATTERN, default=None
+        min_length=1, max_length=128, pattern=NAME_PATTERN, default=None
     )
     location: str | None = Field(
         default=None,
