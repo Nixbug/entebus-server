@@ -25,7 +25,7 @@ from app.src.db import (
     VendorToken,
     get_db_session,
 )
-from app.src.enums import OrderIn
+from app.src.enums import OrderIn, WaypointType
 from app.src.urls import URL_LANDMARK_IN_ROUTE
 from app.src.validators import (
     validate_id,
@@ -35,6 +35,7 @@ from app.src.validators import (
     authorize_operator,
 )
 from app.src.functions import (
+    apply_type_filters,
     enum_str,
     fuse_exception_responses,
     get_by_id,
@@ -91,6 +92,9 @@ class CreateForm(BaseModel):
 
     route_id: int = Field()
     landmark_id: int = Field()
+    type: WaypointType = Field(
+        description=enum_str(WaypointType), default=WaypointType.MAIN_STOP
+    )
     distance_from_start: int = Field(gt=-1)
     arrival_delta: int = Field(gt=-1)
     departure_delta: int = Field(gt=-1)
@@ -99,6 +103,7 @@ class CreateForm(BaseModel):
 class UpdateForm(PatchForm):
     """Form data for updating an landmark in route."""
 
+    type: WaypointType | None = Field(default=None, description=enum_str(WaypointType))
     distance_from_start: int | None = Field(default=None, gt=-1)
     arrival_delta: int | None = Field(default=None, gt=-1)
     departure_delta: int | None = Field(default=None, gt=-1)
@@ -121,6 +126,9 @@ class QueryParamsForPU(IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFil
 
     route_id: int | None = Field(Query(default=None))
     landmark_id: int | None = Field(Query(default=None))
+    type_list: list[WaypointType] | None = Field(
+        Query(default=None, description=enum_str(WaypointType))
+    )
     distance_from_start_ge: int | None = Field(Query(default=None))
     distance_from_start_le: int | None = Field(Query(default=None))
     arrival_delta_ge: int | None = Field(Query(default=None))
@@ -229,6 +237,7 @@ def create_landmark_in_route(
             company_id=route.company_id,
             route_id=form_param.route_id,
             landmark_id=form_param.landmark_id,
+            type=form_param.type,
             distance_from_start=form_param.distance_from_start,
             arrival_delta=form_param.arrival_delta,
             departure_delta=form_param.departure_delta,
@@ -428,6 +437,7 @@ def search_landmarks_in_route(
     query = apply_id_filters(query, LandmarkInRoute, query_params)
     query = apply_created_on_filters(query, LandmarkInRoute, query_params)
     query = apply_updated_on_filters(query, LandmarkInRoute, query_params)
+    query = apply_type_filters(query, LandmarkInRoute, query_params)
 
     # Ordering and pagination
     ordering_attr = getattr(LandmarkInRoute, query_params.order_by.value)
