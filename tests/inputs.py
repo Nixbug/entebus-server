@@ -9,7 +9,13 @@ import numpy as np
 from shapely import wkt
 
 from app.src.constants import TMZ_PRIMARY
-from app.src.enums import BusinessType, GenderType, GrantType, PlatformType
+from app.src.enums import (
+    BusinessType,
+    GenderType,
+    GrantType,
+    PlatformType,
+    WaypointType,
+)
 from app.src.enums import (
     LandmarkType,
     CompanyStatus,
@@ -215,6 +221,7 @@ def generate_landmark_in_route_payload(
     return {
         "route_id": route_id,
         "landmark_id": landmark_id,
+        "type": WaypointType.MAIN_STOP.value,
         "distance_from_start": distance_from_start,
         "arrival_delta": arrival_delta,
         "departure_delta": departure_delta,
