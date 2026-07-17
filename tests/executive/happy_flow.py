@@ -263,7 +263,7 @@ def test_station_endpoint(station_url: str, station_data: dict, token_headers: d
     data = response.json()
     assert isinstance(data, list) and len(data) == 1
 
-    print("Updating station location")
+    print("Updating station name")
     update_payload = {"name": f"{station.name}-updated"}
     response = requests.patch(
         f"{station_url}/{station.id}", headers=token_headers, json=update_payload
