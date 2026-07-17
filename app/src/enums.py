@@ -212,3 +212,11 @@ class JobType(IntEnum):
 
     SERVICE_CREATION = 1
     STATEMENT_CREATION = 2
+
+
+class WaypointType(IntEnum):
+    """Types of landmark within a route."""
+
+    MAIN_STOP = 1
+    INTERMEDIATE_STOP = 2
+    TEMPORARY_STOP = 3

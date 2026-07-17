@@ -76,6 +76,7 @@ from app.src.enums import (
     DutyStatus,
     JobType,
     TriggeringMode,
+    WaypointType,
 )
 
 
@@ -2167,6 +2168,9 @@ class LandmarkInRoute(ORMbase):
             Foreign key referencing `landmark.id` that this landmark is part of.
             Landmark referenced here cannot be deleted.
 
+        type (Integer, not null, default=WaypointType.MAIN_STOP):
+            Type of the waypoint within the route. Mapped from the `WaypointType` enum.
+
         distance_from_start (Integer, not null):
             Distance in meters from the starting landmark of the route.
             Used to determine ordering and physical spacing.
@@ -2205,6 +2209,9 @@ class LandmarkInRoute(ORMbase):
     )
     landmark_id: Mapped[int] = orm.mapped_column(
         BigInteger, ForeignKey("landmark.id"), nullable=False, index=True
+    )
+    type: Mapped[WaypointType] = orm.mapped_column(
+        Integer, nullable=False, default=WaypointType.MAIN_STOP
     )
     distance_from_start: Mapped[int] = orm.mapped_column(Integer, nullable=False)
     arrival_delta: Mapped[int] = orm.mapped_column(Integer, nullable=False)
