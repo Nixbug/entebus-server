@@ -1036,51 +1036,51 @@ class Landmark(ORMbase):
     )
 
 
-class BusStop(ORMbase):
+class Station(ORMbase):
     """
-    Represents a geo-referenced bus stop associated with a specific landmark.
+    Represents a geo-referenced station associated with a specific landmark.
 
-    Bus stops are stored as point-based spatial entities used for mapping,
-    routing, navigation, and proximity-based operations. Each bus stop belongs
+    Stations are stored as point-based spatial entities used for mapping,
+    routing, navigation, and proximity-based operations. Each station belongs
     to a landmark region, enabling localized grouping and spatial queries such as
-    nearest-stop detection, containment checks, or analytics within a landmark area.
+    nearest-station detection, containment checks, or analytics within a landmark area.
 
     Spatial Constraint:
-        - `uq_bus_stop_location_landmark_id` (unique BTree index on ST_AsBinary(location)):
-            Ensures no two bus stops under the same landmark share the exact same
+        - `uq_station_location_landmark_id` (unique BTree index on ST_AsBinary(location)):
+            Ensures no two stations under the same landmark share the exact same
             spatial point. Using ST_AsBinary avoids floating-point comparison issues
             with raw geometry objects.
 
     Columns:
         id (Integer, unique, not null):
-            Primary identifier for the bus stop.
+            Primary identifier for the station.
 
         name (TEXT, not null):
-            Official name of the bus stop.
+            Official name of the station.
             It should be 1-128 characters long.
             May include space ( ), hyphen (-), period (.), and underscore (_).
 
         landmark_id (Integer, not null):
             Foreign key referencing `landmark.id`.
-            Indicates the landmark to which this bus stop belongs.
-            Cascades on delete — all bus stops under a landmark are removed
+            Indicates the landmark to which this station belongs.
+            Cascades on delete — all stations under a landmark are removed
             automatically if the landmark is deleted.
 
         location (Geometry(POINT, SRID 4326), not null):
-            Geo-spatial point representing the exact location of the bus stop.
+            Geo-spatial point representing the exact location of the station.
             Stored as a PostGIS `POINT` geometry using SRID 4326 (WGS 84 longitude/latitude).
-            No two bus stops within the same landmark can share the same location,
-            with uniqueness enforced via the `uq_bus_stop_location_landmark_id`
+            No two stations within the same landmark can share the same location,
+            with uniqueness enforced via the `uq_station_location_landmark_id`
             unique index on `ST_AsBinary(location)` and `landmark_id`.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
-            Timestamp automatically updated whenever the bus stop record is modified.
+            Timestamp automatically updated whenever the station record is modified.
 
         created_on (DateTime, not null, default=func.now()):
-            Timestamp indicating when the bus stop record was created.
+            Timestamp indicating when the station record was created.
     """
 
-    __tablename__ = "bus_stop"
+    __tablename__ = "station"
 
     id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
     name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
@@ -1102,7 +1102,7 @@ class BusStop(ORMbase):
 
     __table_args__ = (
         Index(
-            "uq_bus_stop_location_landmark_id",
+            "uq_station_location_landmark_id",
             func.ST_AsBinary(location),
             landmark_id,
             unique=True,

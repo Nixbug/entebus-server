@@ -83,7 +83,7 @@ MAX_LANDMARK_UPDATE_DISTANCE = 1000  # 1 km
 MIN_LANDMARKS_PER_ROUTE = 2  # Minimum number of landmarks per route
 MAX_LANDMARKS_PER_ROUTE = 100  # # Maximum number of landmarks per route
 MAX_ROUTE_DISTANCE = 10000 * 1000  # Maximum  route length in meters (10000 km)
-MAX_BUS_STOPS_PER_LANDMARK = 20  # Maximum number of bus stops per landmark
+MAX_STATIONS_PER_LANDMARK = 20  # Maximum number of stations per landmark
 
 
 # ---------------------------------------------------------------------------
