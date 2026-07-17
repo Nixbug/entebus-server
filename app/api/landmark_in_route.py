@@ -77,6 +77,7 @@ class LandmarkInRouteSchema(BaseModel):
     company_id: int
     route_id: int
     landmark_id: int
+    type: int
     distance_from_start: int
     arrival_delta: int
     departure_delta: int
