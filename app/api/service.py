@@ -153,6 +153,7 @@ class LandmarkInServiceSchema(BaseModel):
 
     service_id: int
     landmark_id: int
+    type: int
     distance_from_start: int
     arrival_at: datetime
     departure_at: datetime
@@ -403,6 +404,7 @@ def create_landmarks_in_service(
         landmark_in_service = LandmarkInService(
             service_id=service.id,
             landmark_id=landmark_in_route.landmark_id,
+            type=landmark_in_route.type,
             distance_from_start=landmark_in_route.distance_from_start,
             arrival_at=service.starting_at
             + timedelta(minutes=landmark_in_route.arrival_delta),
