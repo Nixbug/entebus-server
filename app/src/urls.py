@@ -13,7 +13,7 @@ gateway or service base URL when making requests.
 # ---------------------------------------------------------------------------
 URL_HEALTH = "/health"
 URL_LANDMARK = "/landmark"
-URL_BUS_STOP = "/landmark/bus_stop"
+URL_STATION = "/landmark/station"
 
 # ---------------------------------------------------------------------------
 # Executive

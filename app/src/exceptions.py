@@ -428,14 +428,14 @@ class InvalidBoundaryArea(APIException):
     headers = {"X-Error": "InvalidBoundaryArea"}
 
 
-class BusStopOutsideLandmark(APIException):
+class StationOutsideLandmark(APIException):
     """
-    Raised when the bus stop location is not within the landmark boundary.
+    Raised when the station location is not within the landmark boundary.
     """
 
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-    detail = "The bus stop location is not within the landmark boundary"
-    headers = {"X-Error": "BusStopOutsideLandmark"}
+    detail = "The station location is not within the landmark boundary"
+    headers = {"X-Error": "StationOutsideLandmark"}
 
 
 class LandmarkDistanceLimitExceeded(APIException):

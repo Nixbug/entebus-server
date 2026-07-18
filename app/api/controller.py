@@ -10,7 +10,6 @@ from fastapi import FastAPI
 
 from app.api import (
     business,
-    bus_stop,
     company,
     duty,
     executive_account,
@@ -32,6 +31,7 @@ from app.api import (
     service_automation,
     service_assignment,
     service_assignment_automation,
+    station,
     trace,
     vehicle,
     vehicle_image,
@@ -70,7 +70,7 @@ app_executive.include_router(executive_role_map.route_executive)
 app_executive.include_router(executive_account.route_executive)
 app_executive.include_router(executive_image.route_executive)
 app_executive.include_router(landmark.route_executive)
-app_executive.include_router(bus_stop.route_executive)
+app_executive.include_router(station.route_executive)
 app_executive.include_router(operator_token.route_executive)
 app_executive.include_router(company.route_executive)
 app_executive.include_router(business.route_executive)
@@ -110,7 +110,7 @@ app_vendor.include_router(vendor_role_map.route_vendor)
 app_vendor.include_router(vendor_image.route_vendor)
 app_vendor.include_router(business.route_vendor)
 app_vendor.include_router(landmark.route_vendor)
-app_vendor.include_router(bus_stop.route_vendor)
+app_vendor.include_router(station.route_vendor)
 app_vendor.include_router(vehicle.route_vendor)
 app_vendor.include_router(route.route_vendor)
 app_vendor.include_router(landmark_in_route.route_vendor)
@@ -124,7 +124,7 @@ app_vendor.include_router(service.route_vendor)
 # ------------------------------------------------------
 app_operator.include_router(operator_token.route_operator)
 app_operator.include_router(landmark.route_operator)
-app_operator.include_router(bus_stop.route_operator)
+app_operator.include_router(station.route_operator)
 app_operator.include_router(company.route_operator)
 app_operator.include_router(operator_account.route_operator)
 app_operator.include_router(operator_role.route_operator)
@@ -151,7 +151,7 @@ app_operator.include_router(job.route_operator)
 # Public routers
 # ------------------------------------------------------
 app_public.include_router(landmark.route_public)
-app_public.include_router(bus_stop.route_public)
+app_public.include_router(station.route_public)
 app_public.include_router(company.route_public)
 app_public.include_router(business.route_public)
 app_public.include_router(vehicle.route_public)

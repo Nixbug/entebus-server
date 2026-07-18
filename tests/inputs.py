@@ -191,7 +191,7 @@ def generate_landmark_payload():
     }
 
 
-def generate_bus_stop_payload(landmark_id: int, boundary: str):
+def generate_station_payload(landmark_id: int, boundary: str):
     suffix = str(np.random.randint(1000, 9999))
 
     geom = wkt.loads(boundary) if boundary else None
@@ -205,7 +205,7 @@ def generate_bus_stop_payload(landmark_id: int, boundary: str):
 
     location = f"POINT({round(lon,6)} {round(lat,6)})"
     return {
-        "name": f"Bus Stop {suffix}",
+        "name": f"Station {suffix}",
         "landmark_id": landmark_id,
         "location": location,
     }

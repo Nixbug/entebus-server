@@ -19,9 +19,9 @@ class PermissionPath(StrEnum):
     UPDATE_LANDMARK = "landmark.update"
     DELETE_LANDMARK = "landmark.delete"
 
-    CREATE_BUS_STOP = "landmark.bus_stop.create"
-    UPDATE_BUS_STOP = "landmark.bus_stop.update"
-    DELETE_BUS_STOP = "landmark.bus_stop.delete"
+    CREATE_STATION = "landmark.station.create"
+    UPDATE_STATION = "landmark.station.update"
+    DELETE_STATION = "landmark.station.delete"
 
     CREATE_FARE = "fare.create"
     UPDATE_FARE = "fare.update"
@@ -120,7 +120,7 @@ class TokenPermission(PermissionBase):
 class LandmarkPermissions(CRUDPermission):
     """Landmark related permissions."""
 
-    bus_stop: CRUDPermission
+    station: CRUDPermission
 
 
 class ExecutivePermissions(CRUDPermission):

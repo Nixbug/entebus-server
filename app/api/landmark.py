@@ -30,7 +30,7 @@ from app.src.constants import (
     MIN_LANDMARK_AREA,
 )
 from app.src.db import (
-    BusStop,
+    Station,
     Landmark,
     ExecutiveToken,
     VendorToken,
@@ -312,11 +312,11 @@ def update_landmark(
             if distance_in_meters > MAX_LANDMARK_UPDATE_DISTANCE:
                 raise exceptions.LandmarkDistanceLimitExceeded()
 
-            bus_stops = session.query(BusStop).filter(BusStop.landmark_id == id).all()
-            for bus_stop in bus_stops:
-                bus_stop_geom = load_geometry(bus_stop.location)
-                if not bus_stop_geom.within(new_boundary_geom):
-                    raise exceptions.BusStopOutsideLandmark()
+            stations = session.query(Station).filter(Station.landmark_id == id).all()
+            for station in stations:
+                station_geom = load_geometry(station.location)
+                if not station_geom.within(new_boundary_geom):
+                    raise exceptions.StationOutsideLandmark()
             landmark.boundary = to_WKB(new_boundary_geom)
         update_data.pop("boundary")
 
@@ -443,7 +443,7 @@ PATCH_EXCEPTIONS = [
     exceptions.InvalidSRID4326(),
     exceptions.InvalidAABB(),
     exceptions.InvalidBoundaryArea(),
-    exceptions.BusStopOutsideLandmark(),
+    exceptions.StationOutsideLandmark(),
     exceptions.OverlappingLandmarkBoundary(),
     exceptions.LandmarkDistanceLimitExceeded(),
 ]
@@ -484,7 +484,7 @@ PATCH_DESCRIPTION = (
         f"When updating the boundary, the new centroid cannot be more than {MAX_LANDMARK_UPDATE_DISTANCE / 1000} km from the original centroid."
     )
     .add_line(
-        "All bus stops associated with the landmark must remain within the updated boundary."
+        "All stations associated with the landmark must remain within the updated boundary."
     )
     .add_line("Logged-in executive must have the `landmark.update` permission.")
 )
