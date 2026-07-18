@@ -2602,6 +2602,9 @@ class LandmarkInService(ORMbase):
             Identifier of the landmark.
             Stored without enforcing foreign key constraints to allow snapshot flexibility.
 
+        type (Integer, not null):
+            Type of the waypoint within the service. Mapped from the `WaypointType` enum.
+        
         distance_from_start (Integer, not null):
             Distance in meters from the starting landmark of the route.
 
@@ -2629,6 +2632,7 @@ class LandmarkInService(ORMbase):
         index=True,
     )
     landmark_id: Mapped[int] = orm.mapped_column(BigInteger, nullable=False, index=True)
+    type: Mapped[WaypointType] = orm.mapped_column(Integer, nullable=False)
     distance_from_start: Mapped[int] = orm.mapped_column(Integer, nullable=False)
     arrival_at: Mapped[datetime] = orm.mapped_column(
         DateTime(timezone=True), nullable=False
