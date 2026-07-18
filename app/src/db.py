@@ -2604,7 +2604,7 @@ class LandmarkInService(ORMbase):
 
         type (Integer, not null):
             Type of the waypoint within the service. Mapped from the `WaypointType` enum.
-        
+
         distance_from_start (Integer, not null):
             Distance in meters from the starting landmark of the route.
 
