@@ -1549,9 +1549,11 @@ async def update_service_for_operator(
     try:
         token = verify_token(session, OperatorToken, access_token)
         roles = get_operator_roles(session, token)
- 
+
         # only status is present then:
-        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_SERVICE_STATUS_TRANSITION)
+        verify_permission(
+            roles, OperatorPermissionPath.UPDATE_COMPANY_SERVICE_STATUS_TRANSITION
+        )
         # else
         verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_SERVICE)
 
