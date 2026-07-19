@@ -291,7 +291,7 @@ def create_company(
     guest_permissions = PermissionSchemaOP.all_denied().model_dump()
     conductor_permissions = PermissionSchemaOP.all_denied().model_dump()
     conductor_permissions["company"]["service"]["ticket"]["create"] = True
-    conductor_permissions["company"]["service"]["status"]["update"] = True
+    conductor_permissions["company"]["service"]["status_transition"] = True
     admin_role = OperatorRole(
         company_id=company.id, name="Admin", permissions=admin_permissions
     )

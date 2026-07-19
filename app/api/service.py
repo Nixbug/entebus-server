@@ -49,6 +49,7 @@ from app.src.description import Description
 from app.src.functions import (
     apply_id_filters,
     get_by_id,
+    get_operator_roles,
     resolve_model_defaults,
     get_request_info,
     fuse_exception_responses,
@@ -63,6 +64,7 @@ from app.src.functions import (
 from app.src.validators import (
     validate_id,
     validate_state_transition,
+    verify_permission,
     verify_token,
     authorize_executive,
     authorize_operator,
@@ -1545,11 +1547,14 @@ async def update_service_for_operator(
     session: Session = Depends(get_db_session),
 ):
     try:
-        token = authorize_operator(
-            session,
-            access_token.credentials,
-            [OperatorPermissionPath.UPDATE_COMPANY_SERVICE],
-        )
+        token = verify_token(session, OperatorToken, access_token)
+        roles = get_operator_roles(session, token)
+ 
+        # only status is present then:
+        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_SERVICE_STATUS_TRANSITION)
+        # else
+        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_SERVICE)
+
         return update_service(
             session,
             id,

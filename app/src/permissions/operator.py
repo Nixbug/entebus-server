@@ -48,6 +48,8 @@ class PermissionPath(StrEnum):
     UPDATE_COMPANY_SERVICE = "company.service.update"
     DELETE_COMPANY_SERVICE = "company.service.delete"
 
+    UPDATE_COMPANY_SERVICE_STATUS_TRANSITION = "company.service.status.update"
+
     UPDATE_COMPANY_SERVICE_DUTY = "company.service.duty.update"
 
     CREATE_COMPANY_SERVICE_ASSIGNMENT = "company.service.assignment.create"
@@ -84,12 +86,6 @@ class DutyPermission(PermissionBase):
     update: bool = Field(description="Allow updating duties")
 
 
-class ServiceStatusPermission(PermissionBase):
-    """Service status related permissions."""
-
-    update: bool = Field(description="Allow updating service status")
-
-
 class CreatePermission(PermissionBase):
     """Single action create permission."""
 
@@ -107,10 +103,10 @@ class ServicePermissions(CRUDPermission):
     """Service related permissions."""
 
     duty: DutyPermission
-    status: ServiceStatusPermission
     assignment: CRUDPermission
     ticket: CreatePermission
     statement: CreatePermission
+    status_transition: bool
 
 
 class CompanyPermission(PermissionBase):
