@@ -48,7 +48,7 @@ class PermissionPath(StrEnum):
     UPDATE_COMPANY_SERVICE = "company.service.update"
     DELETE_COMPANY_SERVICE = "company.service.delete"
 
-    UPDATE_COMPANY_SERVICE_STATUS_TRANSITION = "company.service.status.update"
+    UPDATE_COMPANY_SERVICE_STATUS_TRANSITION = "company.service.status_transition"
 
     UPDATE_COMPANY_SERVICE_DUTY = "company.service.duty.update"
 

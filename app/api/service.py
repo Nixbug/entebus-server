@@ -1547,7 +1547,7 @@ async def update_service_for_operator(
     session: Session = Depends(get_db_session),
 ):
     try:
-        token = verify_token(session, OperatorToken, access_token)
+        token = verify_token(session, OperatorToken, access_token.credentials)
         roles = get_operator_roles(session, token)
 
         # only status is present then:
