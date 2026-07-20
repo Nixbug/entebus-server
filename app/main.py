@@ -55,7 +55,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title=API_TITLE, version=API_VERSION, lifespan=lifespan)
 
 # Configure CORS (Cross-Origin Resource Sharing)
-origins = ["*"]
+origins = [
+    "https://entebus.com",
+    "https://executive.entebus.com",
+    "https://operator.entebus.com",
+    "https://vendor.entebus.com",
+]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
