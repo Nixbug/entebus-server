@@ -286,7 +286,7 @@ def create_company(
     session.add(wallet)
     session.flush()
 
-    # Create default operator roles for the company (Admin ,Guest and Conductor)
+    # Create default operator roles for the company (Admin, Guest, and Conductor)
     admin_permissions = PermissionSchemaOP.all_granted().model_dump()
     guest_permissions = PermissionSchemaOP.all_denied().model_dump()
     conductor_permissions = PermissionSchemaOP.all_denied().model_dump()
