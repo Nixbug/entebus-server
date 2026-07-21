@@ -16,6 +16,13 @@ from zoneinfo import ZoneInfo
 API_TITLE = "Entebus Server"
 API_VERSION = "1.0.0"
 
+# ---------------------------------------------------------------------------
+# CORS configuration
+# ---------------------------------------------------------------------------
+CORS_ORIGIN_REGEX = environ.get(
+    "CORS_ORIGIN_REGEX",
+    r"^(http://localhost:\d+|http://127\.0\.0\.1:\d+|https://([a-zA-Z0-9-]+\.)*entebus\.com)$",
+)
 
 # ---------------------------------------------------------------------------
 # PostgreSQL configuration
