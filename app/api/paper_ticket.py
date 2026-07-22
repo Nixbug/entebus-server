@@ -333,7 +333,9 @@ def create_paper_ticket(
             try:
                 ticket_payload = {
                     "created_on": ticket.created_on.isoformat(),
-                    "ticket_types": [tt.model_dump(mode="json") for tt in ticket.ticket_types],
+                    "ticket_types": [
+                        tt.model_dump(mode="json") for tt in ticket.ticket_types
+                    ],
                     "pickup_point": ticket.pickup_point,
                     "dropping_point": ticket.dropping_point,
                     "extras": extras,
