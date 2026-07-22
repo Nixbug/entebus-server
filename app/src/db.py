@@ -2810,6 +2810,10 @@ class PaperTicket(ORMbase):
             Identifies the service associated with this ticket.
             Cascades on delete — if the service is removed, related tickets are deleted.
 
+        sequence_id (String, not null):
+            Unique identifier for the ticket generated at the client side.
+            Must be unique within the context of a service.    
+
         duty_id (Integer, not null):
             Foreign key referencing `duty.id`.
             Indicates the specific duty under which the ticket was issued.

@@ -62,7 +62,6 @@ route_operator = APIRouter()
 class MinimalPaperTicketDetailSchema(BaseModel):
     """Schema for the paper ticket batch response."""
 
-    sequence_id: int
     warnings: list[PaperTicketWarning] = Field(default_factory=list)
     uploaded_by: int | None = None
 
@@ -91,6 +90,7 @@ class PaperTicketSchema(BaseModel):
 
     id: int
     service_id: int
+    sequence_id: str
     duty_id: int
     company_id: int
     amount: TwoDecimalPlaces
@@ -105,7 +105,7 @@ class PaperTicketForm(BaseModel):
     """Form data for a ticket within a paper ticket."""
 
     operator_id: int = Field()
-    sequence_id: int = Field()
+    sequence_id: str = Field()
     created_on: datetime = Field()
     ticket_types: list[TicketTypeSchema] = Field()
     amount: TwoDecimalPlaces = Field()
@@ -339,7 +339,6 @@ def create_paper_ticket(
                     "pickup_point": ticket.pickup_point,
                     "dropping_point": ticket.dropping_point,
                     "extras": extras,
-                    "uuid": ticket.sequence_id,
                 }
 
                 if warnings:
