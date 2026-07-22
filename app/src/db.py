@@ -2812,7 +2812,7 @@ class PaperTicket(ORMbase):
 
         sequence_id (String, not null):
             Unique identifier for the ticket generated at the client side.
-            Must be unique within the context of a service.    
+            Must be unique within the context of a service.
 
         duty_id (Integer, not null):
             Foreign key referencing `duty.id`.
