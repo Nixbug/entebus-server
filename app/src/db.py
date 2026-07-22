@@ -2839,6 +2839,7 @@ class PaperTicket(ORMbase):
     """
 
     __tablename__ = "paper_ticket"
+    __table_args__ = (UniqueConstraint("service_id", "sequence_id"),)
 
     id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
     service_id: Mapped[int] = orm.mapped_column(
@@ -2847,6 +2848,7 @@ class PaperTicket(ORMbase):
         nullable=False,
         index=True,
     )
+    sequence_id: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
     duty_id: Mapped[int] = orm.mapped_column(
         BigInteger, ForeignKey("duty.id"), nullable=False, index=True
     )

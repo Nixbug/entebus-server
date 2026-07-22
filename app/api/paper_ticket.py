@@ -13,6 +13,8 @@ from fastapi import APIRouter, Depends, status, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.bearer import bearer_operator, oauth2_executive
 from app.src.db import (
@@ -327,29 +329,47 @@ def create_paper_ticket(
             else:
                 duty = duty_cache[operator_id]
 
-            # Create paper ticket with warnings and uploaded_by info if applicable
-            paper_ticket = PaperTicket(
-                service_id=form_param.service_id,
-                duty_id=duty.id,
-                company_id=token.company_id,
-                ticket={
-                    "sequence_id": ticket.sequence_id,
+            # Create or update the paper ticket with warnings and uploaded_by info if applicable
+            try:
+                ticket_payload = {
                     "created_on": ticket.created_on.isoformat(),
-                    "ticket_types": [
-                        tt.model_dump(mode="json") for tt in ticket.ticket_types
-                    ],
+                    "ticket_types": [tt.model_dump(mode="json") for tt in ticket.ticket_types],
                     "pickup_point": ticket.pickup_point,
                     "dropping_point": ticket.dropping_point,
                     "extras": extras,
-                },
-                amount=ticket.amount,
-            )
-            if warnings:
-                paper_ticket.ticket["warnings"] = [w.value for w in warnings]
-            if token.operator_id != ticket.operator_id:
-                paper_ticket.ticket["uploaded_by"] = token.operator_id
-            session.add(paper_ticket)
-            paper_tickets.append(paper_ticket)
+                    "uuid": ticket.sequence_id,
+                }
+
+                if warnings:
+                    ticket_payload["warnings"] = [w.value for w in warnings]
+                if token.operator_id != ticket.operator_id:
+                    ticket_payload["uploaded_by"] = token.operator_id
+
+                stmt = pg_insert(PaperTicket).values(
+                    service_id=form_param.service_id,
+                    duty_id=duty.id,
+                    company_id=token.company_id,
+                    sequence_id=ticket.sequence_id,
+                    ticket=ticket_payload,
+                    amount=ticket.amount,
+                )
+
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["service_id", "sequence_id"],
+                    set_={
+                        "duty_id": stmt.excluded.duty_id,
+                        "company_id": stmt.excluded.company_id,
+                        "ticket": stmt.excluded.ticket,
+                        "amount": stmt.excluded.amount,
+                    },
+                ).returning(PaperTicket)
+
+                paper_ticket = session.scalars(stmt).one()
+                paper_tickets.append(paper_ticket)
+
+            except SQLAlchemyError as exc:
+                # log the actual DB error here instead of silently swallowing it
+                raise exc
 
         if service.status != ServiceStatus.STARTED:
             service.status = ServiceStatus.STARTED
