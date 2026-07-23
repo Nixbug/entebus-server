@@ -19,10 +19,11 @@ API_VERSION = "1.0.0"
 # ---------------------------------------------------------------------------
 # CORS configuration
 # ---------------------------------------------------------------------------
-CORS_ORIGINS = environ.get(
-    "CORS_ORIGINS",
-    "*",
-).split(",")
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in environ.get("CORS_ORIGINS", "*").split(",")
+    if origin.strip()
+]
 
 # ---------------------------------------------------------------------------
 # PostgreSQL configuration
