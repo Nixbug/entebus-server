@@ -70,6 +70,7 @@ class MinimalPaperTicketSchema(BaseModel):
 
     id: int
     duty_id: int
+    sequence_id: str
     ticket: MinimalPaperTicketDetailSchema
     created_on: datetime
 
@@ -328,7 +329,7 @@ def create_paper_ticket(
             else:
                 duty = duty_cache[operator_id]
 
-            # Create or update the paper ticket with warnings and uploaded_by info if applicable
+            # Create the paper ticket payload with warnings and uploaded_by info if applicable
             ticket_payload = {
                 "created_on": ticket.created_on.isoformat(),
                 "ticket_types": [
@@ -354,17 +355,19 @@ def create_paper_ticket(
                     ticket=ticket_payload,
                     amount=ticket.amount,
                 )
-                .on_conflict_do_nothing(
+                .on_conflict_do_update(
                     index_elements=[
-                        PaperTicket.service_id.name,
-                        PaperTicket.sequence_id.name,
-                    ]
+                        PaperTicket.service_id,
+                        PaperTicket.sequence_id,
+                    ],
+                    set_={
+                        "sequence_id": PaperTicket.sequence_id,  # no-op update
+                    },
                 )
                 .returning(PaperTicket)
             )
-            paper_ticket = session.scalars(stmt).first()
-            if paper_ticket is not None:
-                paper_tickets.append(paper_ticket)
+            paper_ticket = session.execute(stmt).scalar_one()
+            paper_tickets.append(paper_ticket)
 
         if service.status != ServiceStatus.STARTED:
             service.status = ServiceStatus.STARTED

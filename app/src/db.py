@@ -2811,8 +2811,8 @@ class PaperTicket(ORMbase):
             Cascades on delete — if the service is removed, related tickets are deleted.
 
         sequence_id (String, not null):
-            Unique identifier for the ticket generated at the client side.
-            Must be unique within the context of a service.
+            Client-generated unique identifier for the ticket.
+            Must be unique per service to avoid duplicate ticket entries.
 
         duty_id (Integer, not null):
             Foreign key referencing `duty.id`.
@@ -2825,7 +2825,6 @@ class PaperTicket(ORMbase):
         ticket (JSONB, not null):
             Structured data capturing the ticket details.
             Expected keys and values:
-                - `sequence_id`: Unique identifier for the ticket generated at the client side.
                 - `ticket_types`: List of ticket types.
                 - `pickup_point`: Starting landmark ID of the passenger.
                 - `dropping_point`: Ending landmark ID of the passenger.
