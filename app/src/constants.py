@@ -19,10 +19,10 @@ API_VERSION = "1.0.0"
 # ---------------------------------------------------------------------------
 # CORS configuration
 # ---------------------------------------------------------------------------
-CORS_ORIGIN_REGEX = environ.get(
-    "CORS_ORIGIN_REGEX",
-    r"^(http://localhost(?::\d+)?|http://127\.0\.0\.1(?::\d+)?|https://(?:[a-zA-Z0-9-]+\.)*entebus\.com)$",
-)
+CORS_ORIGINS = environ.get(
+    "CORS_ORIGINS",
+    "*",
+).split(",")
 
 # ---------------------------------------------------------------------------
 # PostgreSQL configuration

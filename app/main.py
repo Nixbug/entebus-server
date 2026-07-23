@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.src.schemas import HealthStatus
-from app.src.constants import API_TITLE, API_VERSION, CORS_ORIGIN_REGEX
+from app.src.constants import API_TITLE, API_VERSION, CORS_ORIGINS
 from app.api.controller import app_executive, app_operator, app_vendor, app_public
 from app.src.urls import URL_HEALTH
 from app.src.scheduler import start_job_manager
@@ -57,7 +57,7 @@ app = FastAPI(title=API_TITLE, version=API_VERSION, lifespan=lifespan)
 # Configure CORS (Cross-Origin Resource Sharing)
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=CORS_ORIGIN_REGEX,
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
