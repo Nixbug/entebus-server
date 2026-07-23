@@ -104,7 +104,7 @@ class PaperTicketForm(BaseModel):
     """Form data for a ticket within a paper ticket."""
 
     operator_id: int = Field()
-    sequence_id: str = Field()
+    sequence_id: str = Field(max_length=64)
     created_on: datetime = Field()
     ticket_types: list[TicketTypeSchema] = Field()
     amount: TwoDecimalPlaces = Field()
@@ -362,9 +362,7 @@ def create_paper_ticket(
                 )
                 .returning(PaperTicket)
             )
-
             paper_ticket = session.scalars(stmt).first()
-
             if paper_ticket is not None:
                 paper_tickets.append(paper_ticket)
 
