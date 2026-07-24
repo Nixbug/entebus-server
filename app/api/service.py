@@ -158,6 +158,12 @@ class LandmarkInServiceSchema(BaseModel):
     departure_at: datetime
 
 
+class MaskedServiceSchema(ServiceSchema):
+    """Schema for service response with masked details."""
+
+    collection: Decimal | None
+
+
 class PublicServiceSchema(ServiceSchema):
     """Schema for service response with masked details."""
 
@@ -170,7 +176,6 @@ class PrivateServiceSchema(PublicServiceSchema):
     """Schema for service response with detailed information."""
 
     public_key: str
-    collection: Decimal | None
 
 
 # ---------------------------------------------------------------------------
@@ -1421,7 +1426,7 @@ async def update_service_for_executive(
     URL_SERVICE,
     summary="Fetch service",
     tags=["Service"],
-    response_model=list[ServiceSchema],
+    response_model=list[MaskedServiceSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=GET_DESCRIPTION.to_string(),
 )
@@ -1572,7 +1577,7 @@ async def update_service_for_operator(
     URL_SERVICE,
     summary="Fetch service",
     tags=["Service"],
-    response_model=list[ServiceSchema],
+    response_model=list[MaskedServiceSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=GET_DESCRIPTION.to_string(),
 )
