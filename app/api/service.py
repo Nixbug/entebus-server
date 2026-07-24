@@ -599,8 +599,8 @@ def delete_vehicle_in_service(
 def create_service(
     session: Session,
     form_param: CreateForm,
-    token: ExecutiveToken | OperatorToken,
-    request_info: schemas.RequestInfo,
+    token: ExecutiveToken | OperatorToken | None,
+    request_info: schemas.RequestInfo | None,
     route_filter: ColumnElement[bool] | None = None,
     vehicle_filter: ColumnElement[bool] | None = None,
     fare_filter: ColumnElement[bool] | None = None,
@@ -616,8 +616,8 @@ def create_service(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a service.
-        token (ExecutiveToken | OperatorToken): Authenticated token.
-        request_info (schemas.RequestInfo): Request information for logging.
+        token (ExecutiveToken | OperatorToken | None): Authenticated token.
+        request_info (schemas.RequestInfo | None): Request information for logging.
         route_filter: Additional filter for route validation.
         vehicle_filter: Additional filter for vehicle validation.
         fare_filter: Additional filter for fare validation.
@@ -732,7 +732,8 @@ def create_service(
         session.refresh(service)
 
         service_data = jsonable_encoder(service, exclude={"private_key"})
-        log_event(token, request_info, service_data)
+        if token and request_info:
+            log_event(token, request_info, service_data)
         return service_data
     finally:
         release_lock(vehicle_lock)

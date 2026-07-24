@@ -138,8 +138,8 @@ class QueryParams(QueryParamsForEX):
 def create_service_assignment(
     session: Session,
     form_param: CreateForm,
-    token: ExecutiveToken | OperatorToken,
-    request_info: schemas.RequestInfo,
+    token: ExecutiveToken | OperatorToken | None,
+    request_info: schemas.RequestInfo | None,
     service_filter: ColumnElement[bool] | None = None,
     operator_filter: ColumnElement[bool] | None = None,
 ) -> dict:
@@ -149,8 +149,8 @@ def create_service_assignment(
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a service assignment.
-        token (ExecutiveToken | OperatorToken): Authenticated token.
-        request_info (schemas.RequestInfo): Request information for logging.
+        token (ExecutiveToken | OperatorToken | None): Authenticated token.
+        request_info (schemas.RequestInfo | None): Request information for logging.
         service_filter: Optional filter for validating the service.
         operator_filter: Optional filter for validating the operator.
 
@@ -182,7 +182,8 @@ def create_service_assignment(
     session.refresh(service_assignment)
 
     service_assignment_data = jsonable_encoder(service_assignment)
-    log_event(token, request_info, service_assignment_data)
+    if token and request_info:
+        log_event(token, request_info, service_assignment_data)
     return service_assignment_data
 
 

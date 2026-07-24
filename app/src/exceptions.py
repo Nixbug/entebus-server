@@ -11,7 +11,7 @@ It ensures consistent error responses across the API.
 
 from traceback import format_exception
 from logging import getLogger
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 from fastapi import status, HTTPException
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
@@ -80,7 +80,7 @@ class APIException(HTTPException):
 # ---------------------------------------------------------------------------
 # Exception handling entrypoint
 # ---------------------------------------------------------------------------
-def handle(e: Exception) -> None:
+def handle(e: Exception) -> NoReturn:
     """
     Normalize and re-raise exceptions as API-friendly errors.
 
