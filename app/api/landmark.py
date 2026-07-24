@@ -20,7 +20,6 @@ from shapely.geometry import Polygon, Point
 from sqlalchemy import String, func, or_
 from shapely import wkt
 from shapely.ops import transform
-from geoalchemy2.shape import from_shape
 import pyproj
 
 from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
