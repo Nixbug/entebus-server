@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, status, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.api.bearer import bearer_operator, oauth2_executive
 from app.src.db import (
@@ -60,7 +61,6 @@ route_operator = APIRouter()
 class MinimalPaperTicketDetailSchema(BaseModel):
     """Schema for the paper ticket batch response."""
 
-    sequence_id: int
     warnings: list[PaperTicketWarning] = Field(default_factory=list)
     uploaded_by: int | None = None
 
@@ -70,6 +70,7 @@ class MinimalPaperTicketSchema(BaseModel):
 
     id: int
     duty_id: int
+    sequence_id: str
     ticket: MinimalPaperTicketDetailSchema
     created_on: datetime
 
@@ -89,6 +90,7 @@ class PaperTicketSchema(BaseModel):
 
     id: int
     service_id: int
+    sequence_id: str
     duty_id: int
     company_id: int
     amount: TwoDecimalPlaces
@@ -103,7 +105,7 @@ class PaperTicketForm(BaseModel):
     """Form data for a ticket within a paper ticket."""
 
     operator_id: int = Field()
-    sequence_id: int = Field()
+    sequence_id: str = Field(max_length=64)
     created_on: datetime = Field()
     ticket_types: list[TicketTypeSchema] = Field()
     amount: TwoDecimalPlaces = Field()
@@ -327,28 +329,44 @@ def create_paper_ticket(
             else:
                 duty = duty_cache[operator_id]
 
-            # Create paper ticket with warnings and uploaded_by info if applicable
-            paper_ticket = PaperTicket(
-                service_id=form_param.service_id,
-                duty_id=duty.id,
-                company_id=token.company_id,
-                ticket={
-                    "sequence_id": ticket.sequence_id,
-                    "created_on": ticket.created_on.isoformat(),
-                    "ticket_types": [
-                        tt.model_dump(mode="json") for tt in ticket.ticket_types
-                    ],
-                    "pickup_point": ticket.pickup_point,
-                    "dropping_point": ticket.dropping_point,
-                    "extras": extras,
-                },
-                amount=ticket.amount,
-            )
+            # Create the paper ticket payload with warnings and uploaded_by info if applicable
+            ticket_payload = {
+                "created_on": ticket.created_on.isoformat(),
+                "ticket_types": [
+                    tt.model_dump(mode="json") for tt in ticket.ticket_types
+                ],
+                "pickup_point": ticket.pickup_point,
+                "dropping_point": ticket.dropping_point,
+                "extras": extras,
+            }
+
             if warnings:
-                paper_ticket.ticket["warnings"] = [w.value for w in warnings]
+                ticket_payload["warnings"] = [w.value for w in warnings]
             if token.operator_id != ticket.operator_id:
-                paper_ticket.ticket["uploaded_by"] = token.operator_id
-            session.add(paper_ticket)
+                ticket_payload["uploaded_by"] = token.operator_id
+
+            stmt = (
+                pg_insert(PaperTicket)
+                .values(
+                    service_id=form_param.service_id,
+                    duty_id=duty.id,
+                    company_id=token.company_id,
+                    sequence_id=ticket.sequence_id,
+                    ticket=ticket_payload,
+                    amount=ticket.amount,
+                )
+                .on_conflict_do_update(
+                    index_elements=[
+                        PaperTicket.service_id,
+                        PaperTicket.sequence_id,
+                    ],
+                    set_={
+                        "sequence_id": PaperTicket.sequence_id,  # no-op update
+                    },
+                )
+                .returning(PaperTicket)
+            )
+            paper_ticket = session.execute(stmt).scalar_one()
             paper_tickets.append(paper_ticket)
 
         if service.status != ServiceStatus.STARTED:

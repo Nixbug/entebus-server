@@ -2810,6 +2810,10 @@ class PaperTicket(ORMbase):
             Identifies the service associated with this ticket.
             Cascades on delete — if the service is removed, related tickets are deleted.
 
+        sequence_id (String, not null):
+            Client-generated unique identifier for the ticket.
+            Must be unique per service to avoid duplicate ticket entries.
+
         duty_id (Integer, not null):
             Foreign key referencing `duty.id`.
             Indicates the specific duty under which the ticket was issued.
@@ -2821,7 +2825,6 @@ class PaperTicket(ORMbase):
         ticket (JSONB, not null):
             Structured data capturing the ticket details.
             Expected keys and values:
-                - `sequence_id`: Unique identifier for the ticket generated at the client side.
                 - `ticket_types`: List of ticket types.
                 - `pickup_point`: Starting landmark ID of the passenger.
                 - `dropping_point`: Ending landmark ID of the passenger.
@@ -2839,6 +2842,7 @@ class PaperTicket(ORMbase):
     """
 
     __tablename__ = "paper_ticket"
+    __table_args__ = (UniqueConstraint("service_id", "sequence_id"),)
 
     id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
     service_id: Mapped[int] = orm.mapped_column(
@@ -2847,6 +2851,7 @@ class PaperTicket(ORMbase):
         nullable=False,
         index=True,
     )
+    sequence_id: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
     duty_id: Mapped[int] = orm.mapped_column(
         BigInteger, ForeignKey("duty.id"), nullable=False, index=True
     )
