@@ -121,7 +121,6 @@ class ServiceSchema(BaseModel):
     remark: str | None
     starting_at: datetime
     ending_at: datetime
-    collection: Decimal | None
     updated_on: datetime | None = None
     created_on: datetime
 
@@ -171,6 +170,7 @@ class PrivateServiceSchema(PublicServiceSchema):
     """Schema for service response with detailed information."""
 
     public_key: str
+    collection: Decimal | None
 
 
 # ---------------------------------------------------------------------------
