@@ -1012,7 +1012,8 @@ class Landmark(ORMbase):
         ARRAY(TEXT), nullable=False, default=list
     )
     boundary: Mapped[WKBElement] = orm.mapped_column(
-        Geometry(geometry_type="POLYGON", srid=4326), nullable=False
+        Geometry(geometry_type="POLYGON", srid=4326, spatial_index=False),
+        nullable=False,
     )
     type: Mapped[LandmarkType] = orm.mapped_column(
         Integer, nullable=False, default=LandmarkType.LOCAL, index=True
