@@ -274,7 +274,7 @@ class ExecutiveRole(ORMbase):
             It should be 4-32 characters long.
 
         permissions (JSONB, not null):
-            List of permissions associated with the role.
+            Dict of permissions associated with the role.
             These permissions determine which actions the executive can perform within the system.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
@@ -625,7 +625,7 @@ class OperatorRole(ORMbase):
             It should be 4-32 characters long.
 
         permissions (JSONB, not null):
-            List of permissions associated with the role.
+            Dict of permissions associated with the role.
             These permissions determine which actions the operator can perform within the system.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
@@ -850,7 +850,7 @@ class VendorRole(ORMbase):
             Should be 4-32 characters long.
 
         permissions (JSONB, not null):
-            List of permissions associated with the role.
+            Dict of permissions associated with the role.
             These permissions determine which actions the vendor can perform within the system.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
