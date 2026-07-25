@@ -167,7 +167,7 @@ class Executive(ORMbase):
     necessary to manage executive-level access and communication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the executive.
 
         username (TEXT, unique, not null):
@@ -213,7 +213,7 @@ class Executive(ORMbase):
             Enforce the format prescribed by RFC 5322 (https://en.wikipedia.org/wiki/Email_address).
 
         updated_on (DateTime, nullable, onupdate=func.now()):
-            Timestamp automatically update whenever the executive's profile record is modified.
+            Timestamp automatically updated whenever the executive's profile record is modified.
 
         created_on (DateTime, not null, default=func.now()):
             Timestamp of when the executive account was created.
@@ -266,7 +266,7 @@ class ExecutiveRole(ORMbase):
     enabling fine-grained control over executive access and functionality within the system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the executive role.
 
         name (TEXT, unique, not null):
@@ -274,7 +274,7 @@ class ExecutiveRole(ORMbase):
             It should be 4-32 characters long.
 
         permissions (JSONB, not null):
-            List of permissions associated with the role.
+            Dict of permissions associated with the role.
             These permissions determine which actions the executive can perform within the system.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
@@ -309,15 +309,15 @@ class ExecutiveRoleMap(ORMbase):
     Role-Based Access Control (RBAC) system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the executive role mapped.
 
-        role_id (Integer, not null):
+        role_id (BigInteger, not null):
             Foreign key referencing `executive_role.id`.
             Specifies the role assigned to the executive.
             Cascades on delete — if the role is removed, related mappings are deleted.
 
-        executive_id (Integer, not null):
+        executive_id (BigInteger, not null):
             Foreign key referencing `executive.id`.
             Identifies the executive receiving the role.
             Cascades on delete — if the executive is removed, related mappings are deleted.
@@ -365,10 +365,10 @@ class ExecutiveToken(ORMbase):
     Useful for session management, device tracking, and implementing token-based authentication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the executive token.
 
-        executive_id (Integer, not null):
+        executive_id (BigInteger, not null):
             Foreign key referencing `executive.id`.
             Identifies the executive associated with this token.
             Cascades on delete — if the executive is removed, related tokens are deleted.
@@ -387,7 +387,7 @@ class ExecutiveToken(ORMbase):
             Access token expiration duration in seconds.
             Defines the duration after which the token becomes invalid.
 
-        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(timezone.utc) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
+        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(TMZ_PRIMARY) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
             Defines the UTC timestamp after which the refresh token becomes invalid.
 
         platform_type (Integer, nullable, default=PlatformType.OTHER):
@@ -457,10 +457,10 @@ class ExecutiveImage(ORMbase):
     allowing for management, retrieval, and replacement of profile or related images.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the executive image.
 
-        executive_id (Integer, not null, unique):
+        executive_id (BigInteger, not null, unique):
             Foreign key referencing `executive.id` to whom this image belongs.
             Cascades on delete — if the executive is removed, related image is deleted.
 
@@ -475,7 +475,7 @@ class ExecutiveImage(ORMbase):
             MIME type of the uploaded file (e.g., "image/jpeg", "image/png").
             Maximum 128 characters long.
 
-       created_on (DateTime, not null, default=func.now()):
+        created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the image record was initially created.
     """
 
@@ -510,15 +510,15 @@ class OperatorToken(ORMbase):
     Useful for session management, device tracking, and implementing token-based authentication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the operator token.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Identifies the company to which the token belongs.
             Cascades on delete — if the company is removed, related tokens are deleted.
 
-        operator_id (Integer, not null):
+        operator_id (BigInteger, not null):
             Foreign key referencing `operator.id`.
             Identifies the operator associated with this token.
             Cascades on delete — if the operator is removed, related tokens are deleted.
@@ -534,7 +534,7 @@ class OperatorToken(ORMbase):
         expires_in (Integer, not null, default=MAX_ACCESS_TOKEN_VALIDITY):
             Access token expiration duration in seconds.
 
-        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(timezone.utc) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
+        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(TMZ_PRIMARY) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
             Defines the UTC timestamp after which the refresh token becomes invalid.
 
         platform_type (Integer, nullable, default=PlatformType.OTHER):
@@ -612,10 +612,10 @@ class OperatorRole(ORMbase):
     enabling fine-grained control over operator access and functionality within the system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the operator role.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Identifies the company that owns the role.
             Cascades on delete — if the company is removed, related roles are deleted.
@@ -625,7 +625,7 @@ class OperatorRole(ORMbase):
             It should be 4-32 characters long.
 
         permissions (JSONB, not null):
-            List of permissions associated with the role.
+            Dict of permissions associated with the role.
             These permissions determine which actions the operator can perform within the system.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
@@ -668,20 +668,20 @@ class OperatorRoleMap(ORMbase):
     a flexible Role-Based Access Control (RBAC) system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the operator role mapping.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Identifies the company that owns the role assignment.
             Cascades on delete — if the company is removed, related mappings are deleted.
 
-        role_id (Integer, not null):
+        role_id (BigInteger, not null):
             Foreign key referencing `operator_role.id`.
             Specifies the role assigned to the operator.
             Cascades on delete — if the role is removed, related mappings are deleted.
 
-        operator_id (Integer, not null):
+        operator_id (BigInteger, not null):
             Foreign key referencing `operator.id`.
             Identifies the operator receiving the role.
             Cascades on delete — if the operator is removed, related mappings are deleted.
@@ -735,15 +735,15 @@ class VendorToken(ORMbase):
     Useful for session management, device tracking, and implementing token-based authentication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vendor token.
 
-        business_id (Integer, not null):
+        business_id (BigInteger, not null):
             Foreign key referencing `business.id`.
             Identifies the business context for this vendor token.
             Cascades on delete — if the business is removed, related tokens are deleted.
 
-        vendor_id (Integer, not null):
+        vendor_id (BigInteger, not null):
             Foreign key referencing `vendor.id`.
             Identifies the vendor associated with this token.
             Cascades on delete — if the vendor is removed, related tokens are deleted.
@@ -759,7 +759,7 @@ class VendorToken(ORMbase):
         expires_in (Integer, not null, default=MAX_ACCESS_TOKEN_VALIDITY):
             Access token expiration duration in seconds.
 
-        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(timezone.utc) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
+        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(TMZ_PRIMARY) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
             Defines the UTC timestamp after which the refresh token becomes invalid.
 
         is_revoked (Boolean, not null, default=False):
@@ -837,10 +837,10 @@ class VendorRole(ORMbase):
     enabling fine-grained control over vendor access and functionality within the system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vendor role.
 
-        business_id (Integer, not null):
+        business_id (BigInteger, not null):
             Foreign key referencing `business.id`.
             Identifies the business that owns the role.
             Cascades on delete — if the business is removed, related roles are deleted.
@@ -850,7 +850,7 @@ class VendorRole(ORMbase):
             Should be 4-32 characters long.
 
         permissions (JSONB, not null):
-            List of permissions associated with the role.
+            Dict of permissions associated with the role.
             These permissions determine which actions the vendor can perform within the system.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
@@ -871,8 +871,8 @@ class VendorRole(ORMbase):
         index=True,
     )
     name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
-    permissions: Mapped[list[Any]] = orm.mapped_column(
-        JSONB, nullable=False, default=list
+    permissions: Mapped[dict[str, Any]] = orm.mapped_column(
+        JSONB, nullable=False, default=dict
     )
     # Metadata
     updated_on: Mapped[datetime | None] = orm.mapped_column(
@@ -893,20 +893,20 @@ class VendorRoleMap(ORMbase):
     a flexible Role-Based Access Control (RBAC) system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vendor role mapping.
 
-        business_id (Integer, not null):
+        business_id (BigInteger, not null):
             Foreign key referencing `business.id`.
             Identifies the business that owns the role assignment.
             Cascades on delete — if the business is removed, related mappings are deleted.
 
-        role_id (Integer, not null):
+        role_id (BigInteger, not null):
             Foreign key referencing `vendor_role.id`.
             Specifies the role assigned to the vendor.
             Cascades on delete — if the role is removed, related mappings are deleted.
 
-        vendor_id (Integer, not null):
+        vendor_id (BigInteger, not null):
             Foreign key referencing `vendor.id`.
             Identifies the vendor receiving the role.
             Cascades on delete — if the vendor is removed, related mappings are deleted.
@@ -972,7 +972,7 @@ class Landmark(ORMbase):
             Ensures no two landmarks have identical geometries.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the landmark.
 
         name (TEXT, not null, indexed):
@@ -1012,7 +1012,8 @@ class Landmark(ORMbase):
         ARRAY(TEXT), nullable=False, default=list
     )
     boundary: Mapped[WKBElement] = orm.mapped_column(
-        Geometry(geometry_type="POLYGON", srid=4326), nullable=False
+        Geometry(geometry_type="POLYGON", srid=4326, spatial_index=False),
+        nullable=False,
     )
     type: Mapped[LandmarkType] = orm.mapped_column(
         Integer, nullable=False, default=LandmarkType.LOCAL, index=True
@@ -1052,7 +1053,7 @@ class Station(ORMbase):
             with raw geometry objects.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the station.
 
         name (TEXT, not null):
@@ -1060,7 +1061,7 @@ class Station(ORMbase):
             It should be 1-128 characters long.
             May include space ( ), hyphen (-), period (.), and underscore (_).
 
-        landmark_id (Integer, not null):
+        landmark_id (BigInteger, not null):
             Foreign key referencing `landmark.id`.
             Indicates the landmark to which this station belongs.
             Cascades on delete — all stations under a landmark are removed
@@ -1120,7 +1121,7 @@ class Company(ORMbase):
     and location-based operations.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the company.
 
         name (TEXT, unique, not null):
@@ -1196,10 +1197,10 @@ class Operator(ORMbase):
     necessary to manage operator-level access and communication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the operator.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Identifies the company to which the operator belongs.
             Cascades on delete — if the company is removed, related operators are deleted.
@@ -1310,14 +1311,14 @@ class OperatorImage(ORMbase):
     allowing for management, retrieval, and replacement of profile or related images.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the operator image.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id` to whom this image belongs.
             Cascades on delete — if the company is removed, related image is deleted.
 
-        operator_id (Integer, not null, unique):
+        operator_id (BigInteger, not null, unique):
             Foreign key referencing `operator.id` to whom this image belongs.
             Cascades on delete — if the operator is removed, related image is deleted.
 
@@ -1372,7 +1373,7 @@ class Business(ORMbase):
     and location-based operations.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the business.
 
         name (TEXT, unique, not null):
@@ -1448,10 +1449,10 @@ class Vendor(ORMbase):
     necessary to manage vendor-level access and communication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vendor.
 
-        business_id (Integer, not null):
+        business_id (BigInteger, not null):
             Foreign key referencing `business.id`.
             Identifies the business to which the vendor belongs.
             Cascades on delete — if the business is removed, related vendors are deleted.
@@ -1562,14 +1563,14 @@ class VendorImage(ORMbase):
     allowing for management, retrieval, and replacement of profile or related images.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vendor image.
 
-        business_id (Integer, not null):
+        business_id (BigInteger, not null):
             Foreign key referencing `business.id` to whom this image belongs.
             Cascades on delete — if the business is removed, related image is deleted.
 
-        vendor_id (Integer, not null, unique):
+        vendor_id (BigInteger, not null, unique):
             Foreign key referencing `vendor.id` to whom this image belongs.
             Cascades on delete — if the vendor is removed, related image is deleted.
 
@@ -1623,7 +1624,7 @@ class Wallet(ORMbase):
     Remove unused wallets explicitly (or via a data-cleaner).
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the wallet.
 
         name (TEXT, not null):
@@ -1670,14 +1671,14 @@ class CompanyWallet(ORMbase):
     be guarded by business rules (balance must be zero).
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the company-wallet entry.
 
-        wallet_id (Integer, not null):
+        wallet_id (BigInteger, not null):
             Foreign key referencing `wallet.id`.
             Cascades on delete — if the wallet is removed, related entries are deleted.
 
-        company_id (Integer, not null, unique):
+        company_id (BigInteger, not null, unique):
             Foreign key referencing `company.id`.
             Each company can have only one wallet.
             Cascades on delete — if the company is removed, related mappings are deleted.
@@ -1717,14 +1718,14 @@ class BusinessWallet(ORMbase):
     be guarded by business rules (balance must be zero).
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the business-wallet entry.
 
-        wallet_id (Integer, not null):
+        wallet_id (BigInteger, not null):
             Foreign key referencing `wallet.id`.
             Cascades on delete — if the wallet is removed, related entries are deleted.
 
-        business_id (Integer, not null, unique):
+        business_id (BigInteger, not null, unique):
             Foreign key referencing `business.id`.
             Each business can have only one wallet.
             Cascades on delete — if the business is removed, related mappings are deleted.
@@ -1768,7 +1769,7 @@ class BankAccount(ORMbase):
     separately.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the bank account.
 
         bank_name (TEXT, not null):
@@ -1834,15 +1835,15 @@ class CompanyBankAccount(ORMbase):
     preserve referential integrity.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the company-bank-account mapping.
 
-        bank_account_id (Integer, not null, unique):
+        bank_account_id (BigInteger, not null, unique):
             Foreign key referencing `bank_account.id`.
             Each bank account may be assigned to only one company.
             Cascades on delete — if the bank account is removed, related mappings are deleted.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Identifies the owning company for this bank account.
             Cascades on delete — if the company is removed, related mappings are deleted.
@@ -1888,15 +1889,15 @@ class BusinessBankAccount(ORMbase):
     preserve referential integrity.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the business-bank-account mapping.
 
-        bank_account_id (Integer, not null, unique):
+        bank_account_id (BigInteger, not null, unique):
             Foreign key referencing `bank_account.id`.
             Each bank account may be assigned to only one business.
             Cascades on delete — if the bank account is removed, related mappings are deleted.
 
-        business_id (Integer, not null):
+        business_id (BigInteger, not null):
             Foreign key referencing `business.id`.
             Identifies the owning business for this bank account.
             Cascades on delete — if the business is removed, related mappings are deleted.
@@ -1941,10 +1942,10 @@ class Vehicle(ORMbase):
     identified by a combination of its registration number and company ID.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vehicle.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id` to whom this vehicle belongs.
             Cascades on delete — if the company is removed, related vehicles are deleted.
 
@@ -2029,14 +2030,14 @@ class VehicleImage(ORMbase):
     allowing for management, retrieval, and storage of vehicle photos.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vehicle image.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id` to whom this image belongs.
             Cascades on delete — if the company is removed, related images are deleted.
 
-        vehicle_id (Integer, not null):
+        vehicle_id (BigInteger, not null):
             Foreign key referencing `vehicle.id` to whom this image belongs.
             Cascades on delete — if the vehicle is removed, related images are deleted.
 
@@ -2153,18 +2154,18 @@ class LandmarkInRoute(ORMbase):
     It helps determine the structure and scheduling of transportation or logistics operations.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the landmark-in-route
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id` that operates on the route.
             Cascades on delete — if the company is removed, related landmark in routes are deleted.
 
-        route_id (Integer, not null):
+        route_id (BigInteger, not null):
             Foreign key referencing `route.id` that this landmark is part of.
             Cascades on delete — if the route is removed, related landmarks in routes are deleted.
 
-        landmark_id (Integer, not null):
+        landmark_id (BigInteger, not null):
             Foreign key referencing `landmark.id` that this landmark is part of.
             Landmark referenced here cannot be deleted.
 
@@ -2235,10 +2236,10 @@ class Fare(ORMbase):
     parameters or configuration details.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the fare.
 
-        company_id (Integer, nullable):
+        company_id (BigInteger, nullable):
             Foreign key referencing `company.id` that fare is associated with.
             Cascades on delete — if the company is removed, related fares are deleted.
             nullable to allow for global fares that are not tied to a specific company.
@@ -2318,33 +2319,33 @@ class Service(ORMbase):
     and records various states and modes related to the service.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the service.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id` that operates the service.
 
         name (TEXT, not null):
             Name of the service.
             Maximum 128 characters long.
 
-        vehicle_in_service_id (Integer, not null):
+        vehicle_in_service_id (BigInteger, not null):
             Foreign key referencing `vehicle_in_service.id`.
             Specifies the snapshot of the vehicle details at the time of service creation.
 
-        fare_in_service_id (Integer, not null):
+        fare_in_service_id (BigInteger, not null):
             Foreign key referencing `fare_in_service.id`.
             Specifies the snapshot of the fare details at the time of service creation.
 
-        fare_id (Integer, nullable):
+        fare_id (BigInteger, nullable):
             Foreign key referencing `fare.id`.
             This is the original fare from which the `fare_in_service` snapshot was created.
 
-        vehicle_id (Integer, nullable):
+        vehicle_id (BigInteger, nullable):
             Foreign key referencing `vehicle.id`.
             This is the original vehicle from which the `vehicle_in_service` snapshot was created.
 
-        route_id (Integer, nullable):
+        route_id (BigInteger, nullable):
             Foreign key referencing `route.id`.
             Identifies the route that this service operates on.
 
@@ -2367,10 +2368,10 @@ class Service(ORMbase):
         ending_at (DateTime, not null):
             The time of the day when the service ends operation, based on route information.
 
-        starting_landmark_id (Integer, not null):
+        starting_landmark_id (BigInteger, not null):
             Foreign key referencing `landmark.id` for the starting point of the service.
 
-        ending_landmark_id (Integer, not null):
+        ending_landmark_id (BigInteger, not null):
             Foreign key referencing `landmark.id` for the ending point of the service.
 
         private_key (TEXT, not null):
@@ -2464,19 +2465,19 @@ class ServiceAssignment(ORMbase):
     executive and operator applications.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the assignment record.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id` that operates the service.
             Cascades on delete — if the company is removed, related assignments are deleted.
 
-        service_id (Integer, not null):
+        service_id (BigInteger, not null):
             Foreign key referencing `service.id`.
             Identifies the service assigned to an operator.
             Cascades on delete — if the service is removed, related assignments are deleted.
 
-        operator_id (Integer, not null):
+        operator_id (BigInteger, not null):
             Foreign key referencing `operator.id`.
             Identifies the operator assigned to the service.
             Cascades on delete — if the operator is removed, related assignments are deleted.
@@ -2528,12 +2529,12 @@ class FareInService(ORMbase):
     Each record captures the version of the fare along with its configuration and logic.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the fare snapshot.
 
-        fare_id (Integer, not null):
+        fare_id (BigInteger, not null):
             Identifier of the original fare.
-            Stored as a plain integer (not a foreign key) to preserve snapshot independence.
+            Stored as a plain BigInteger (not a foreign key) to preserve snapshot independence.
             This field is non-nullable so snapshots remain traceable even if the
             original fare row is removed; the unique constraint on
             `(fare_id, version)` enforces a single snapshot per fare version.
@@ -2591,14 +2592,14 @@ class LandmarkInService(ORMbase):
     ensuring that service schedules remain consistent even if the underlying route changes.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the landmark-in-service record.
 
-        service_id (Integer, not null):
+        service_id (BigInteger, not null):
             Foreign key referencing `service.id` that the record is associated with.
             Cascades on delete — if the referenced service is removed, this record is automatically deleted.
 
-        landmark_id (Integer, not null):
+        landmark_id (BigInteger, not null):
             Identifier of the landmark.
             Stored without enforcing foreign key constraints to allow snapshot flexibility.
 
@@ -2658,12 +2659,12 @@ class VehicleInService(ORMbase):
     Each record captures the version of the vehicle along with its core operational details.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vehicle snapshot.
 
-        vehicle_id (Integer, not null):
+        vehicle_id (BigInteger, not null):
             Identifier of the original vehicle.
-            Stored as a plain integer (not a foreign key) to preserve snapshot independence.
+            Stored as a plain BigInteger (not a foreign key) to preserve snapshot independence.
             This field is non-nullable so snapshots remain traceable even if the
             original vehicle row is removed; the unique constraint on
             `(vehicle_id, version)` enforces a single snapshot per vehicle version.
@@ -2720,19 +2721,19 @@ class Duty(ORMbase):
     monitoring, and auditing operator activities.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the duty record.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Indicates the company under which this duty is assigned.
             Cascades on delete — if the company is removed, related duties are deleted.
 
-        operator_id (Integer, nullable):
+        operator_id (BigInteger, nullable):
             Operator identifier. Foreign key referencing `operator.id`.
             Set to NULL when the referenced operator is deleted.
 
-        service_id (Integer, not null):
+        service_id (BigInteger, not null):
             Foreign key referencing `service.id`.
             Indicates the service the operator is assigned to perform.
             Cascades on delete — if the service is removed, related duties are deleted.
@@ -2802,10 +2803,10 @@ class PaperTicket(ORMbase):
     for operations involving manual ticketing systems.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the paper ticket.
 
-        service_id (Integer, not null):
+        service_id (BigInteger, not null):
             Foreign key referencing `service.id`.
             Identifies the service associated with this ticket.
             Cascades on delete — if the service is removed, related tickets are deleted.
@@ -2814,11 +2815,11 @@ class PaperTicket(ORMbase):
             Client-generated unique identifier for the ticket.
             Must be unique per service to avoid duplicate ticket entries.
 
-        duty_id (Integer, not null):
+        duty_id (BigInteger, not null):
             Foreign key referencing `duty.id`.
             Indicates the specific duty under which the ticket was issued.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Indicates the company under which the ticket was issued.
 
@@ -2876,20 +2877,20 @@ class ServiceLocation(ORMbase):
     landmark reference, geographic coordinates, and optional accuracy metric.
 
     Columns:
-        id (Integer, unique, not null):
-            Primary identifier for the trace record.
+        id (BigInteger, not null):
+            Primary identifier for the service location record.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Indicates the company associated with this location record.
             Cascades on delete — if the company is removed, related location records are deleted.
 
-        service_id (Integer, not null):
+        service_id (BigInteger, not null):
             Foreign key referencing `service.id`.
             Indicates the service associated with this location record.
             Cascades on delete — if the service is removed, related location records are deleted.
 
-        landmark_id (Integer, not null):
+        landmark_id (BigInteger, not null):
             Foreign key referencing `landmark.id`.
             The last landmark passed by the service at the time of recording this location.
 
@@ -2945,10 +2946,10 @@ class Trace(ORMbase):
     This table stores trace records that define a named trace belonging to a company.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the trace record.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Indicates the company associated with this trace record.
             Cascades on delete — if the company is removed, related trace records are deleted.
@@ -2992,14 +2993,14 @@ class LocationInTrace(ORMbase):
     This table stores locations associated with a trace, including the geospatial point, type of location, and timestamps.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the location in trace record.
 
-        trace_id (Integer, not null):
+        trace_id (BigInteger, not null):
             Foreign key referencing `trace.id`.
             Indicates the trace associated with this location in trace record.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Indicates the company associated with this trace record.
             Cascades on delete — if the company is removed, related trace records are deleted.
@@ -3054,10 +3055,10 @@ class Job(ORMbase):
     This table stores information about background jobs that are scheduled to run at specific times.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the job record.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Indicates the company associated with this job record.
             Cascades on delete — if the company is removed, related job records are deleted.
@@ -3097,7 +3098,7 @@ class Job(ORMbase):
             Timestamp indicating the end of the period during which the job should be triggered.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
-        Timestamp automatically updated whenever the job record is modified.
+            Timestamp automatically updated whenever the job record is modified.
 
         created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the job record was created.
@@ -3147,15 +3148,15 @@ class ServiceAutomation(ORMbase):
     This table stores configurations for automatically creating services based on predefined parameters.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the service automation record.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Indicates the company associated with this service automation record.
             Cascades on delete — if the company is removed, related service automation records are deleted.
 
-        job_id (Integer):
+        job_id (BigInteger, nullable):
             Foreign key referencing `job.id`.
             The job that triggers this service automation.
 
@@ -3167,17 +3168,17 @@ class ServiceAutomation(ORMbase):
             Optional description or notes about the service creation automation.
             Maximum 1024 characters long.
 
-        route_id (Integer, not null):
+        route_id (BigInteger, not null):
             Foreign key referencing `route.id`.
             Indicates the route associated with this service creation automation.
             Cascades on delete — if the route is removed, related service automation records are deleted.
 
-        fare_id (Integer, not null):
+        fare_id (BigInteger, not null):
             Foreign key referencing `fare.id`.
             Indicates the fare associated with this service creation automation.
             Cascades on delete — if the fare is removed, related service automation records are deleted.
 
-        vehicle_id (Integer, not null):
+        vehicle_id (BigInteger, not null):
             Foreign key referencing `vehicle.id`.
             Indicates the vehicle associated with this service creation automation.
             Cascades on delete — if the vehicle is removed, related service automation records are deleted.
@@ -3189,7 +3190,7 @@ class ServiceAutomation(ORMbase):
             The time of the day at which the service should start.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
-        Timestamp automatically updated whenever the service creation automation record is modified.
+            Timestamp automatically updated whenever the service creation automation record is modified.
 
         created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the service creation automation record was created.
@@ -3241,20 +3242,20 @@ class ServiceAssignmentAutomation(ORMbase):
     whenever a service is created from a specific `service_automation` template.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the assignment automation record.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Indicates the company associated with this assignment automation.
             Cascades on delete - if the company is removed, related records are deleted.
 
-        service_automation_id (Integer, not null):
+        service_automation_id (BigInteger, not null):
             Foreign key referencing `service_automation.id`.
             Identifies the service automation template.
             Cascades on delete - if the template is removed, related records are deleted.
 
-        operator_id (Integer, not null):
+        operator_id (BigInteger, not null):
             Foreign key referencing `operator.id`.
             Identifies the operator to auto-assign when automation runs.
             Cascades on delete - if the operator is removed, related records are deleted.
