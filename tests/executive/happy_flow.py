@@ -38,7 +38,7 @@ from app.src.urls import (
     URL_VENDOR_PICTURE,
     URL_VENDOR_ACCOUNT,
 )
-from app.api.service import ServiceSchema
+from app.api.service import MaskedServiceSchema
 from app.api.service_assignment import ServiceAssignmentSchema
 from tests.inputs import (
     generate_company_payload,
@@ -562,7 +562,7 @@ def test_service_endpoint(service_url: str, service_data: dict, token_headers: d
     print("Creating service")
     response = requests.post(service_url, headers=token_headers, json=service_data)
     assert response.status_code == 201
-    svc = ServiceSchema.model_validate(response.json())
+    svc = MaskedServiceSchema.model_validate(response.json())
 
     print("Fetching service list")
     response = requests.get(f"{service_url}?id={svc.id}", headers=token_headers)
@@ -590,7 +590,7 @@ def test_service_endpoint(service_url: str, service_data: dict, token_headers: d
 
 def test_service_assignment(
     service_assignment_url: str,
-    service: ServiceSchema,
+    service: MaskedServiceSchema,
     operator_1: OperatorSchema,
     operator_2: OperatorSchema,
     company: CompanySchema,
@@ -875,7 +875,7 @@ def run_test(target_url):
         json=generate_service_payload(route.id, fare.id, vehicle.id, company.id),
     )
     assert response.status_code == 201
-    service = ServiceSchema.model_validate(response.json())
+    service = MaskedServiceSchema.model_validate(response.json())
 
     # Business
     print("Creating business")
