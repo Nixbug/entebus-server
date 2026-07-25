@@ -103,7 +103,7 @@ route_public = APIRouter()
 # ---------------------------------------------------------------------------
 ## Output Schema
 # ---------------------------------------------------------------------------
-class ServiceSchema(BaseModel):
+class MaskedServiceSchema(BaseModel):
     """Schema for service response without revealing all details."""
 
     id: int
@@ -158,13 +158,13 @@ class LandmarkInServiceSchema(BaseModel):
     departure_at: datetime
 
 
-class MaskedServiceSchema(ServiceSchema):
+class ServiceSchema(MaskedServiceSchema):
     """Schema for service response with masked details."""
 
     collection: Decimal | None
 
 
-class PublicServiceSchema(ServiceSchema):
+class MaskedServiceDetailSchema(MaskedServiceSchema):
     """Schema for service response with masked details."""
 
     fare: FareInServiceSchema
@@ -172,7 +172,7 @@ class PublicServiceSchema(ServiceSchema):
     route: list[LandmarkInServiceSchema]
 
 
-class PrivateServiceSchema(PublicServiceSchema):
+class ServiceDetailSchema(MaskedServiceDetailSchema):
     """Schema for service response with detailed information."""
 
     public_key: str
@@ -1356,7 +1356,7 @@ GET_DETAIL_DESCRIPTION = Description().add_head("Fetch service details by ID.")
     URL_SERVICE,
     summary="Create service",
     tags=["Service"],
-    response_model=ServiceSchema,
+    response_model=MaskedServiceSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=POST_DESCRIPTION.copy()
@@ -1394,7 +1394,7 @@ async def create_service_for_executive(
     f"{URL_SERVICE}/{{id}}",
     summary="Update service",
     tags=["Service"],
-    response_model=ServiceSchema,
+    response_model=MaskedServiceSchema,
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=PATCH_DESCRIPTION.copy()
     .add_line("Logged-in executive must have `company.service.update` permission.")
@@ -1426,7 +1426,7 @@ async def update_service_for_executive(
     URL_SERVICE,
     summary="Fetch service",
     tags=["Service"],
-    response_model=list[MaskedServiceSchema],
+    response_model=list[ServiceSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=GET_DESCRIPTION.to_string(),
 )
@@ -1449,7 +1449,7 @@ async def fetch_services_for_executive(
     f"{URL_SERVICE}/{{id}}",
     summary="Fetch service details",
     tags=["Service"],
-    response_model=PublicServiceSchema,
+    response_model=MaskedServiceDetailSchema,
     responses=fuse_exception_responses(
         [*GET_DETAIL_EXCEPTIONS, exceptions.InvalidToken()]
     ),
@@ -1500,7 +1500,7 @@ async def delete_service_for_executive(
     URL_SERVICE,
     summary="Create service",
     tags=["Service"],
-    response_model=ServiceSchema,
+    response_model=MaskedServiceSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=POST_DESCRIPTION.copy()
@@ -1537,7 +1537,7 @@ async def create_service_for_operator(
     f"{URL_SERVICE}/{{id}}",
     summary="Update service",
     tags=["Service"],
-    response_model=ServiceSchema,
+    response_model=MaskedServiceSchema,
     status_code=status.HTTP_200_OK,
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=PATCH_DESCRIPTION.copy()
@@ -1577,7 +1577,7 @@ async def update_service_for_operator(
     URL_SERVICE,
     summary="Fetch service",
     tags=["Service"],
-    response_model=list[MaskedServiceSchema],
+    response_model=list[ServiceSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=GET_DESCRIPTION.to_string(),
 )
@@ -1600,7 +1600,7 @@ async def fetch_services_for_operator(
     f"{URL_SERVICE}/{{id}}",
     summary="Fetch service details",
     tags=["Service"],
-    response_model=PrivateServiceSchema,
+    response_model=ServiceDetailSchema,
     responses=fuse_exception_responses(
         [*GET_DETAIL_EXCEPTIONS, exceptions.InvalidToken()]
     ),
@@ -1663,7 +1663,7 @@ async def delete_service_for_operator(
     URL_SERVICE,
     summary="Fetch service",
     tags=["Service"],
-    response_model=list[ServiceSchema],
+    response_model=list[MaskedServiceSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=GET_DESCRIPTION.to_string(),
 )
@@ -1686,7 +1686,7 @@ async def fetch_services_for_vendor(
     f"{URL_SERVICE}/{{id}}",
     summary="Fetch service details",
     tags=["Service"],
-    response_model=PublicServiceSchema,
+    response_model=MaskedServiceDetailSchema,
     responses=fuse_exception_responses(
         [*GET_DETAIL_EXCEPTIONS, exceptions.InvalidToken()]
     ),
@@ -1711,7 +1711,7 @@ async def fetch_service_details_for_vendor(
     URL_SERVICE,
     summary="Fetch service",
     tags=["Service"],
-    response_model=list[ServiceSchema],
+    response_model=list[MaskedServiceSchema],
     description=(
         GET_DESCRIPTION.copy()
         .add_line("Public users can fetch services without authentication.")
@@ -1733,7 +1733,7 @@ async def fetch_services_for_public(
     f"{URL_SERVICE}/{{id}}",
     summary="Fetch service details",
     tags=["Service"],
-    response_model=PublicServiceSchema,
+    response_model=MaskedServiceDetailSchema,
     responses=fuse_exception_responses(GET_DETAIL_EXCEPTIONS),
     description=GET_DETAIL_DESCRIPTION.to_string(),
 )
