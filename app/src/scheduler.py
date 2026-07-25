@@ -1,9 +1,13 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, cast
 from sqlalchemy.orm import Session
 import time
 from dateutil import rrule as rrulelib
 
+from app.api.service import create_service
+from app.api.service import CreateForm as ServiceCreateForm
+from app.api.service_assignment import CreateForm as ServiceAssignmentCreateForm
+from app.api.service_assignment import create_service_assignment
 from app.src import exceptions
 from app.src.constants import TMZ_PRIMARY
 from app.src.enums import JobType, TriggeringMode
@@ -14,7 +18,7 @@ from app.src.redis import (
     queue_push,
     queue_pop,
 )
-from app.src.db import Job, SessionLocal
+from app.src.db import Job, ServiceAssignmentAutomation, ServiceAutomation, SessionLocal
 
 # ---------------------------------------------------------------------------
 ## Constants and configurations
@@ -28,22 +32,80 @@ GLOB_LAST_JOB_ID = "gb_last_job_id"
 # ---------------------------------------------------------------------------
 ## Job execution logic
 # ---------------------------------------------------------------------------
-def run_service_creation_job(session: Session, job: Job) -> bool:
+def run_service_creation_job(session: Session, job: Job):
     """
-    Placeholder function to execute a service creation job.
+    Execute a service creation job by creating services and their assignments based on the
+    associated ServiceAutomation and ServiceAssignmentAutomation records.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        job (Job): The job object containing scheduling information.
     """
-    time.sleep(1)
-    print(f"Executed service creation job {job.id} at {datetime.now(TMZ_PRIMARY)}")
-    return True
+    service_automations = (
+        session.query(ServiceAutomation)
+        .filter(ServiceAutomation.job_id == job.id)
+        .all()
+    )
+
+    utc_now = datetime.now(TMZ_PRIMARY)
+    for service_automation in service_automations:
+        starting_at = datetime(
+            utc_now.year,
+            utc_now.month,
+            utc_now.day,
+            service_automation.starting_at.hour,
+            service_automation.starting_at.minute,
+            service_automation.starting_at.second,
+            tzinfo=service_automation.starting_at.tzinfo or TMZ_PRIMARY,
+        )
+
+        try:
+            with SessionLocal() as temp_session:
+                service_data = create_service(
+                    temp_session,
+                    ServiceCreateForm(
+                        route_id=service_automation.route_id,
+                        fare_id=service_automation.fare_id,
+                        vehicle_id=service_automation.vehicle_id,
+                        name=service_automation.name,
+                        ticket_mode=service_automation.ticket_mode,
+                        starting_at=starting_at,
+                        company_id=service_automation.company_id,
+                    ),
+                    token=None,
+                    request_info=None,
+                )
+
+                service_assignment_automations = (
+                    session.query(ServiceAssignmentAutomation)
+                    .filter(
+                        ServiceAssignmentAutomation.service_automation_id
+                        == service_automation.id
+                    )
+                    .all()
+                )
+                for service_assignment in service_assignment_automations:
+                    create_service_assignment(
+                        temp_session,
+                        ServiceAssignmentCreateForm(
+                            service_id=service_data["id"],
+                            operator_id=service_assignment.operator_id,
+                            company_id=service_assignment.company_id,
+                        ),
+                        token=None,
+                        request_info=None,
+                    )
+        except Exception:
+            # TODO: Create a notification or log exception details here for debugging purposes.
+            continue
 
 
-def run_statement_creation_job(session: Session, job: Job) -> bool:
+def run_statement_creation_job(session: Session, job: Job):
     """
     Placeholder function to execute a statement creation job.
     """
     time.sleep(1)
     print(f"Executed statement creation job {job.id} at {datetime.now(TMZ_PRIMARY)}")
-    return True
 
 
 # ---------------------------------------------------------------------------
@@ -64,7 +126,11 @@ def calculate_next_trigger_on(job: Job) -> Optional[datetime]:
     if job.trigger_till is not None and utc_now >= job.trigger_till:
         return None
 
-    if job.last_trigger_on is not None and (job.last_trigger_on > job.trigger_from):
+    if (
+        job.last_trigger_on is not None
+        and job.trigger_from is not None
+        and job.last_trigger_on > job.trigger_from
+    ):
         base_date = job.last_trigger_on.date()
     elif job.trigger_from is not None and (job.trigger_from > utc_now):
         base_date = job.trigger_from.date()
@@ -116,47 +182,49 @@ def load_jobs_to_queue() -> int:
         int: The number of jobs pushed to the queue.
     """
     queue_lock = None
+    jobs: list[Job] = []
     try:
-        session = SessionLocal()
         try:
             queue_lock = acquire_lock(JOB_QUEUE_PUSH_LOCK, blocking=False)
         except exceptions.LockAcquireTimeout:
             # Another master is already pushing jobs, skip this cycle.
             return 0
 
-        last_job_id = int(redis_client.get(GLOB_LAST_JOB_ID) or 0)
-        jobs = (
-            session.query(Job)
-            .filter(
-                Job.id > last_job_id,
-                Job.triggering_mode == TriggeringMode.AUTO,
-                Job.next_trigger_on <= datetime.now(TMZ_PRIMARY),
+        with SessionLocal() as session:
+            last_job_id = int(
+                cast(Optional[str], redis_client.get(GLOB_LAST_JOB_ID)) or 0
             )
-            .order_by(Job.id)
-            .limit(JOB_QUEUE_BATCH_SIZE)
-            .all()
-        )
-
-        # Push jobs to the queue
-        for job in jobs:
-            queue_push(
-                JOB_QUEUE_NAME,
-                {"job_id": job.id},
+            jobs = (
+                session.query(Job)
+                .filter(
+                    Job.id > last_job_id,
+                    Job.triggering_mode == TriggeringMode.AUTO,
+                    Job.next_trigger_on <= datetime.now(TMZ_PRIMARY),
+                )
+                .order_by(Job.id)
+                .limit(JOB_QUEUE_BATCH_SIZE)
+                .all()
             )
 
-        # Update the last job ID in Redis
-        if jobs:
-            redis_client.set(
-                GLOB_LAST_JOB_ID,
-                jobs[-1].id,
-            )
-        else:
-            redis_client.set(
-                GLOB_LAST_JOB_ID,
-                0,
-            )
+            # Push jobs to the queue
+            for job in jobs:
+                queue_push(
+                    JOB_QUEUE_NAME,
+                    {"job_id": job.id},
+                )
+
+            # Update the last job ID in Redis
+            if jobs:
+                redis_client.set(
+                    GLOB_LAST_JOB_ID,
+                    jobs[-1].id,
+                )
+            else:
+                redis_client.set(
+                    GLOB_LAST_JOB_ID,
+                    0,
+                )
     finally:
-        session.close()
         release_lock(queue_lock)
 
     return len(jobs)
@@ -171,37 +239,33 @@ def run_job_from_queue(job_id: int):
     """
     job_lock = None
     try:
-        session = SessionLocal()
         job_lock = acquire_lock(f"lk_job_{job_id}")
 
-        job = session.query(Job).filter(Job.id == job_id).first()
-        if job is None:
-            return
+        with SessionLocal() as session:
+            job = session.query(Job).filter(Job.id == job_id).first()
+            if job is None:
+                return
 
-        utc_now = datetime.now(TMZ_PRIMARY)
-        if job.next_trigger_on is None:
-            return
-        if job.next_trigger_on > utc_now:
-            return
-        if not job.triggering_mode == TriggeringMode.AUTO:
-            return
+            utc_now = datetime.now(TMZ_PRIMARY)
+            if job.next_trigger_on is None:
+                return
+            if job.next_trigger_on > utc_now:
+                return
+            if job.triggering_mode != TriggeringMode.AUTO:
+                return
+            job.next_trigger_on = calculate_next_trigger_on(job)
+            job.last_trigger_on = utc_now
 
-        job.next_trigger_on = calculate_next_trigger_on(job)
-        job.last_trigger_on = utc_now
+            if job.job_type == JobType.SERVICE_CREATION:
+                run_service_creation_job(session, job)
+            elif job.job_type == JobType.STATEMENT_CREATION:
+                run_statement_creation_job(session, job)
 
-        if job.job_type == JobType.SERVICE_CREATION:
-            can_run_again = run_service_creation_job(session, job)
-        elif job.job_type == JobType.STATEMENT_CREATION:
-            can_run_again = run_statement_creation_job(session, job)
-
-        if not can_run_again or job.next_trigger_on is None:
-            job.triggering_mode = TriggeringMode.DISABLED
-
-        session.flush()
-        session.commit()
+            if job.next_trigger_on is None:
+                job.triggering_mode = TriggeringMode.DISABLED
+            session.commit()
     finally:
         release_lock(job_lock)
-        session.close()
 
 
 def start_job_manager():

@@ -1,5 +1,5 @@
 from redis import Redis
-from typing import Optional
+from typing import Optional, cast
 from redis.exceptions import LockError
 from redis.lock import Lock
 import json
@@ -107,7 +107,7 @@ def queue_pop(queue_name: str) -> dict[str, Any] | None:
     Redis queues follow FIFO (First In, First Out) order, so the first
     item added to the queue is the first item returned.
     """
-    item = redis_client.lpop(queue_name)
+    item = cast(Optional[str], redis_client.lpop(queue_name))
     if item is None:
         return None
 
