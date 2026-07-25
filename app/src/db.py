@@ -5,11 +5,19 @@ This module:
 - Configures the SQLAlchemy engine, session factory, and base class.
 - Defines ORM models for core entities.
 
+Schema conventions:
+- Primary key `id` columns use `BigInteger`.
+- Foreign key ID columns also use `BigInteger` to match referenced PKs.
+- Enum/status/type fields use `Integer`.
+
 All ORM models should inherit from `ORMbase`.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, time as dt_time
+from decimal import Decimal
+from typing import Any, Generator
 from geoalchemy2 import Geometry
+from geoalchemy2.elements import WKBElement
 from sqlalchemy import (
     ARRAY,
     CheckConstraint,
@@ -19,11 +27,10 @@ from sqlalchemy import (
     create_engine,
     Boolean,
     TEXT,
-    Column,
     DateTime,
     ForeignKey,
+    BigInteger,
     Integer,
-    String,
     UniqueConstraint,
     event,
     Connection,
@@ -31,7 +38,8 @@ from sqlalchemy import (
     inspect,
     Time,
 )
-from sqlalchemy.orm import sessionmaker, DeclarativeBase, Mapper
+from sqlalchemy.orm import Session, sessionmaker, DeclarativeBase, Mapper, Mapped
+import sqlalchemy.orm as orm
 from secrets import token_hex
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -45,6 +53,7 @@ from app.src.constants import (
     PSQL_DB_USERNAME,
     MAX_REFRESH_TOKEN_VALIDITY,
     MAX_ACCESS_TOKEN_VALIDITY,
+    TMZ_PRIMARY,
 )
 from app.src.enums import (
     AccountStatus,
@@ -52,6 +61,7 @@ from app.src.enums import (
     BusinessType,
     GenderType,
     LandmarkType,
+    LocationType,
     PlatformType,
     CompanyStatus,
     CompanyType,
@@ -64,6 +74,9 @@ from app.src.enums import (
     ServiceStatus,
     TicketingMode,
     DutyStatus,
+    JobType,
+    TriggeringMode,
+    WaypointType,
 )
 
 
@@ -81,6 +94,15 @@ def get_db_url() -> str:
 db_url = get_db_url()
 engine = create_engine(url=db_url, echo=False)
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
+
+
+def get_db_session() -> Generator[Session, None, None]:
+    """Provide a database session for dependency injection."""
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -145,10 +167,10 @@ class Executive(ORMbase):
     necessary to manage executive-level access and communication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the executive.
 
-        username (String(32), unique, not null):
+        username (TEXT, unique, not null):
             Username used for login or identification within the system.
             Ideally, the username shouldn't be changed once set.
             It should start with an alphabet (uppercase or lowercase).
@@ -191,7 +213,7 @@ class Executive(ORMbase):
             Enforce the format prescribed by RFC 5322 (https://en.wikipedia.org/wiki/Email_address).
 
         updated_on (DateTime, nullable, onupdate=func.now()):
-            Timestamp automatically update whenever the executive's profile record is modified.
+            Timestamp automatically updated whenever the executive's profile record is modified.
 
         created_on (DateTime, not null, default=func.now()):
             Timestamp of when the executive account was created.
@@ -199,19 +221,27 @@ class Executive(ORMbase):
 
     __tablename__ = "executive"
 
-    id = Column(Integer, primary_key=True)
-    username = Column(String(32), nullable=False, unique=True)
-    password = Column(TEXT, nullable=False)
-    gender = Column(Integer, nullable=False, default=GenderType.OTHER)
-    full_name = Column(TEXT)
-    designation = Column(TEXT)
-    status = Column(Integer, nullable=False, default=AccountStatus.ACTIVE)
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    username: Mapped[str] = orm.mapped_column(TEXT, nullable=False, unique=True)
+    password: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    gender: Mapped[GenderType] = orm.mapped_column(
+        Integer, nullable=False, default=GenderType.OTHER
+    )
+    full_name: Mapped[str | None] = orm.mapped_column(TEXT)
+    designation: Mapped[str | None] = orm.mapped_column(TEXT)
+    status: Mapped[AccountStatus] = orm.mapped_column(
+        Integer, nullable=False, default=AccountStatus.ACTIVE
+    )
     # Contact details
-    phone_number = Column(TEXT)
-    email_id = Column(TEXT)
+    phone_number: Mapped[str | None] = orm.mapped_column(TEXT)
+    email_id: Mapped[str | None] = orm.mapped_column(TEXT)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 @event.listens_for(Executive, "before_insert")
@@ -236,15 +266,15 @@ class ExecutiveRole(ORMbase):
     enabling fine-grained control over executive access and functionality within the system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the executive role.
 
-        name (String(32), unique, not null):
+        name (TEXT, unique, not null):
             Name or label for the role.
             It should be 4-32 characters long.
 
         permissions (JSONB, not null):
-            List of permissions associated with the role.
+            Dict of permissions associated with the role.
             These permissions determine which actions the executive can perform within the system.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
@@ -256,12 +286,16 @@ class ExecutiveRole(ORMbase):
 
     __tablename__ = "executive_role"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String(32), nullable=False, unique=True)
-    permissions = Column(JSONB, nullable=False, default=dict)
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False, unique=True)
+    permissions: Mapped[dict[str, Any]] = orm.mapped_column(
+        JSONB, nullable=False, default=dict
+    )
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
     )
 
 
@@ -275,15 +309,15 @@ class ExecutiveRoleMap(ORMbase):
     Role-Based Access Control (RBAC) system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the executive role mapped.
 
-        role_id (Integer, not null):
+        role_id (BigInteger, not null):
             Foreign key referencing `executive_role.id`.
             Specifies the role assigned to the executive.
             Cascades on delete — if the role is removed, related mappings are deleted.
 
-        executive_id (Integer, not null):
+        executive_id (BigInteger, not null):
             Foreign key referencing `executive.id`.
             Identifies the executive receiving the role.
             Cascades on delete — if the executive is removed, related mappings are deleted.
@@ -298,22 +332,26 @@ class ExecutiveRoleMap(ORMbase):
     __tablename__ = "executive_role_map"
     __table_args__ = (UniqueConstraint("role_id", "executive_id"),)
 
-    id = Column(Integer, primary_key=True)
-    role_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    role_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("executive_role.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    executive_id = Column(
-        Integer,
+    executive_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("executive.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class ExecutiveToken(ORMbase):
@@ -327,20 +365,20 @@ class ExecutiveToken(ORMbase):
     Useful for session management, device tracking, and implementing token-based authentication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the executive token.
 
-        executive_id (Integer, not null):
+        executive_id (BigInteger, not null):
             Foreign key referencing `executive.id`.
             Identifies the executive associated with this token.
             Cascades on delete — if the executive is removed, related tokens are deleted.
 
-        access_token (String, not null, unique, default=lambda: token_hex(32)):
+        access_token (TEXT, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal access token.
             Used to authenticate the executive on subsequent requests.
             In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749).
 
-        refresh_token (String, not null, unique, default=lambda: token_hex(32)):
+        refresh_token (TEXT, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal refresh token.
             Used to refresh the access token when needed.
             In format prescribed by RFC 6749 (https://datatracker.ietf.org/doc/html/rfc6749).
@@ -349,7 +387,7 @@ class ExecutiveToken(ORMbase):
             Access token expiration duration in seconds.
             Defines the duration after which the token becomes invalid.
 
-        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(timezone.utc) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
+        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(TMZ_PRIMARY) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
             Defines the UTC timestamp after which the refresh token becomes invalid.
 
         platform_type (Integer, nullable, default=PlatformType.OTHER):
@@ -372,35 +410,43 @@ class ExecutiveToken(ORMbase):
 
     __tablename__ = "executive_token"
 
-    id = Column(Integer, primary_key=True)
-    executive_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    executive_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("executive.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Tokens
-    access_token = Column(
-        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+    access_token: Mapped[str] = orm.mapped_column(
+        TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
-    refresh_token = Column(
-        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+    refresh_token: Mapped[str] = orm.mapped_column(
+        TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
     # Expirations
-    expires_in = Column(Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY)
-    refresh_before = Column(
+    expires_in: Mapped[int] = orm.mapped_column(
+        Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY
+    )
+    refresh_before: Mapped[datetime] = orm.mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc)
+        default=lambda: datetime.now(TMZ_PRIMARY)
         + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY),
     )
-    is_revoked = Column(Boolean, nullable=False, default=False)
+    is_revoked: Mapped[bool] = orm.mapped_column(Boolean, nullable=False, default=False)
     # Device related details
-    platform_type = Column(Integer, default=PlatformType.OTHER)
-    client_details = Column(TEXT)
+    platform_type: Mapped[PlatformType | None] = orm.mapped_column(
+        Integer, default=PlatformType.OTHER
+    )
+    client_details: Mapped[str | None] = orm.mapped_column(TEXT)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class ExecutiveImage(ORMbase):
@@ -411,42 +457,46 @@ class ExecutiveImage(ORMbase):
     allowing for management, retrieval, and replacement of profile or related images.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the executive image.
 
-        executive_id (Integer, not null, unique):
+        executive_id (BigInteger, not null, unique):
             Foreign key referencing `executive.id` to whom this image belongs.
             Cascades on delete — if the executive is removed, related image is deleted.
 
-        file_name (String(128), not null):
+        file_name (TEXT, not null):
             Original name of the uploaded image file, including extension.
+            Maximum 128 characters long.
 
         file_size (Integer, not null):
             Size of the uploaded file in bytes.
 
-        file_type (String(128), not null):
+        file_type (TEXT, not null):
             MIME type of the uploaded file (e.g., "image/jpeg", "image/png").
+            Maximum 128 characters long.
 
-       created_on (DateTime, not null, default=func.now()):
+        created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the image record was initially created.
     """
 
     __tablename__ = "executive_image"
 
-    id = Column(Integer, primary_key=True)
-    executive_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    executive_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("executive.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
     # File metadata
-    file_name = Column(String(128), nullable=False)
-    file_size = Column(Integer, nullable=False)
-    file_type = Column(String(128), nullable=False)
+    file_name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    file_size: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    file_type: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
     # Metadata
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class OperatorToken(ORMbase):
@@ -460,31 +510,31 @@ class OperatorToken(ORMbase):
     Useful for session management, device tracking, and implementing token-based authentication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the operator token.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Identifies the company to which the token belongs.
             Cascades on delete — if the company is removed, related tokens are deleted.
 
-        operator_id (Integer, not null):
+        operator_id (BigInteger, not null):
             Foreign key referencing `operator.id`.
             Identifies the operator associated with this token.
             Cascades on delete — if the operator is removed, related tokens are deleted.
 
-        access_token (String(64), not null, unique, default=lambda: token_hex(32)):
+        access_token (TEXT, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal access token.
             Used to authenticate the operator on subsequent requests.
 
-        refresh_token (String(64), not null, unique, default=lambda: token_hex(32)):
+        refresh_token (TEXT, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal refresh token.
             Used to refresh the access token when needed.
 
         expires_in (Integer, not null, default=MAX_ACCESS_TOKEN_VALIDITY):
             Access token expiration duration in seconds.
 
-        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(timezone.utc) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
+        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(TMZ_PRIMARY) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
             Defines the UTC timestamp after which the refresh token becomes invalid.
 
         platform_type (Integer, nullable, default=PlatformType.OTHER):
@@ -507,41 +557,49 @@ class OperatorToken(ORMbase):
 
     __tablename__ = "operator_token"
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    operator_id = Column(
-        Integer,
+    operator_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("operator.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Tokens
-    access_token = Column(
-        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+    access_token: Mapped[str] = orm.mapped_column(
+        TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
-    refresh_token = Column(
-        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+    refresh_token: Mapped[str] = orm.mapped_column(
+        TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
     # Expirations
-    expires_in = Column(Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY)
-    refresh_before = Column(
+    expires_in: Mapped[int] = orm.mapped_column(
+        Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY
+    )
+    refresh_before: Mapped[datetime] = orm.mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc)
+        default=lambda: datetime.now(TMZ_PRIMARY)
         + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY),
     )
-    is_revoked = Column(Boolean, nullable=False, default=False)
+    is_revoked: Mapped[bool] = orm.mapped_column(Boolean, nullable=False, default=False)
     # Device related details
-    platform_type = Column(Integer, default=PlatformType.OTHER)
-    client_details = Column(TEXT)
+    platform_type: Mapped[PlatformType | None] = orm.mapped_column(
+        Integer, default=PlatformType.OTHER
+    )
+    client_details: Mapped[str | None] = orm.mapped_column(TEXT)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class OperatorRole(ORMbase):
@@ -554,20 +612,20 @@ class OperatorRole(ORMbase):
     enabling fine-grained control over operator access and functionality within the system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the operator role.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Identifies the company that owns the role.
             Cascades on delete — if the company is removed, related roles are deleted.
 
-        name (String(32), not null):
+        name (TEXT, not null):
             Name or label for the role.
             It should be 4-32 characters long.
 
         permissions (JSONB, not null):
-            List of permissions associated with the role.
+            Dict of permissions associated with the role.
             These permissions determine which actions the operator can perform within the system.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
@@ -580,19 +638,23 @@ class OperatorRole(ORMbase):
     __tablename__ = "operator_role"
     __table_args__ = (UniqueConstraint("company_id", "name"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    name = Column(String(32), nullable=False)
-    permissions = Column(JSONB, nullable=False, default=dict)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    permissions: Mapped[dict[str, Any]] = orm.mapped_column(
+        JSONB, nullable=False, default=dict
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
     )
 
 
@@ -606,20 +668,20 @@ class OperatorRoleMap(ORMbase):
     a flexible Role-Based Access Control (RBAC) system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the operator role mapping.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Identifies the company that owns the role assignment.
             Cascades on delete — if the company is removed, related mappings are deleted.
 
-        role_id (Integer, not null):
+        role_id (BigInteger, not null):
             Foreign key referencing `operator_role.id`.
             Specifies the role assigned to the operator.
             Cascades on delete — if the role is removed, related mappings are deleted.
 
-        operator_id (Integer, not null):
+        operator_id (BigInteger, not null):
             Foreign key referencing `operator.id`.
             Identifies the operator receiving the role.
             Cascades on delete — if the operator is removed, related mappings are deleted.
@@ -634,28 +696,32 @@ class OperatorRoleMap(ORMbase):
     __tablename__ = "operator_role_map"
     __table_args__ = (UniqueConstraint("company_id", "role_id", "operator_id"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    role_id = Column(
-        Integer,
+    role_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("operator_role.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    operator_id = Column(
-        Integer,
+    operator_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("operator.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class VendorToken(ORMbase):
@@ -669,31 +735,31 @@ class VendorToken(ORMbase):
     Useful for session management, device tracking, and implementing token-based authentication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vendor token.
 
-        business_id (Integer, not null):
+        business_id (BigInteger, not null):
             Foreign key referencing `business.id`.
             Identifies the business context for this vendor token.
             Cascades on delete — if the business is removed, related tokens are deleted.
 
-        vendor_id (Integer, not null):
+        vendor_id (BigInteger, not null):
             Foreign key referencing `vendor.id`.
             Identifies the vendor associated with this token.
             Cascades on delete — if the vendor is removed, related tokens are deleted.
 
-        access_token (String(64), not null, unique, default=lambda: token_hex(32)):
+        access_token (TEXT, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal access token.
             Used to authenticate the vendor on subsequent requests.
 
-        refresh_token (String(64), not null, unique, default=lambda: token_hex(32)):
+        refresh_token (TEXT, not null, unique, default=lambda: token_hex(32)):
             Securely generated 64-character hexadecimal refresh token.
             Used to refresh the access token when needed.
 
         expires_in (Integer, not null, default=MAX_ACCESS_TOKEN_VALIDITY):
             Access token expiration duration in seconds.
 
-        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(timezone.utc) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
+        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(TMZ_PRIMARY) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
             Defines the UTC timestamp after which the refresh token becomes invalid.
 
         is_revoked (Boolean, not null, default=False):
@@ -716,41 +782,49 @@ class VendorToken(ORMbase):
 
     __tablename__ = "vendor_token"
 
-    id = Column(Integer, primary_key=True)
-    business_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    business_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("business.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    vendor_id = Column(
-        Integer,
+    vendor_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("vendor.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Tokens
-    access_token = Column(
-        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+    access_token: Mapped[str] = orm.mapped_column(
+        TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
-    refresh_token = Column(
-        String(64), unique=True, nullable=False, default=lambda: token_hex(32)
+    refresh_token: Mapped[str] = orm.mapped_column(
+        TEXT, unique=True, nullable=False, default=lambda: token_hex(32)
     )
     # Expirations
-    expires_in = Column(Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY)
-    refresh_before = Column(
+    expires_in: Mapped[int] = orm.mapped_column(
+        Integer, nullable=False, default=MAX_ACCESS_TOKEN_VALIDITY
+    )
+    refresh_before: Mapped[datetime] = orm.mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc)
+        default=lambda: datetime.now(TMZ_PRIMARY)
         + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY),
     )
-    is_revoked = Column(Boolean, nullable=False, default=False)
+    is_revoked: Mapped[bool] = orm.mapped_column(Boolean, nullable=False, default=False)
     # Device related details
-    platform_type = Column(Integer, default=PlatformType.OTHER)
-    client_details = Column(TEXT)
+    platform_type: Mapped[PlatformType | None] = orm.mapped_column(
+        Integer, default=PlatformType.OTHER
+    )
+    client_details: Mapped[str | None] = orm.mapped_column(TEXT)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class VendorRole(ORMbase):
@@ -763,20 +837,20 @@ class VendorRole(ORMbase):
     enabling fine-grained control over vendor access and functionality within the system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vendor role.
 
-        business_id (Integer, not null):
+        business_id (BigInteger, not null):
             Foreign key referencing `business.id`.
             Identifies the business that owns the role.
             Cascades on delete — if the business is removed, related roles are deleted.
 
-        name (String(32), not null):
+        name (TEXT, not null):
             Name or label for the role.
             Should be 4-32 characters long.
 
         permissions (JSONB, not null):
-            List of permissions associated with the role.
+            Dict of permissions associated with the role.
             These permissions determine which actions the vendor can perform within the system.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
@@ -789,19 +863,23 @@ class VendorRole(ORMbase):
     __tablename__ = "vendor_role"
     __table_args__ = (UniqueConstraint("business_id", "name"),)
 
-    id = Column(Integer, primary_key=True)
-    business_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    business_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("business.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    name = Column(String(32), nullable=False)
-    permissions = Column(JSONB, nullable=False, default=list)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    permissions: Mapped[dict[str, Any]] = orm.mapped_column(
+        JSONB, nullable=False, default=dict
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
     )
 
 
@@ -815,20 +893,20 @@ class VendorRoleMap(ORMbase):
     a flexible Role-Based Access Control (RBAC) system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vendor role mapping.
 
-        business_id (Integer, not null):
+        business_id (BigInteger, not null):
             Foreign key referencing `business.id`.
             Identifies the business that owns the role assignment.
             Cascades on delete — if the business is removed, related mappings are deleted.
 
-        role_id (Integer, not null):
+        role_id (BigInteger, not null):
             Foreign key referencing `vendor_role.id`.
             Specifies the role assigned to the vendor.
             Cascades on delete — if the role is removed, related mappings are deleted.
 
-        vendor_id (Integer, not null):
+        vendor_id (BigInteger, not null):
             Foreign key referencing `vendor.id`.
             Identifies the vendor receiving the role.
             Cascades on delete — if the vendor is removed, related mappings are deleted.
@@ -843,28 +921,32 @@ class VendorRoleMap(ORMbase):
     __tablename__ = "vendor_role_map"
     __table_args__ = (UniqueConstraint("business_id", "role_id", "vendor_id"),)
 
-    id = Column(Integer, primary_key=True)
-    business_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    business_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("business.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    role_id = Column(
-        Integer,
+    role_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("vendor_role.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    vendor_id = Column(
-        Integer,
+    vendor_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("vendor.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Landmark(ORMbase):
@@ -890,10 +972,10 @@ class Landmark(ORMbase):
             Ensures no two landmarks have identical geometries.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the landmark.
 
-        name (String(32), not null, indexed):
+        name (TEXT, not null, indexed):
             Official name of the landmark.
             It should be 1-32 characters long.
             May include space ( ), hyphen (-), period (.), and underscore (_).
@@ -902,7 +984,7 @@ class Landmark(ORMbase):
             Version number incremented on updates.
             Useful for tracking changes and synchronizing updated boundaries.
 
-        alias_names (ARRAY(String(32)), nullable):
+        alias_names (ARRAY(TEXT), nullable):
             Optional list of alternative or local names for the landmark.
             Each alias can be up to 32 characters long.
 
@@ -923,14 +1005,25 @@ class Landmark(ORMbase):
 
     __tablename__ = "landmark"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String(32), nullable=False, index=True)
-    version = Column(Integer, nullable=False, default=1)
-    alias_names = Column(ARRAY(String(32)))
-    boundary = Column(Geometry(geometry_type="POLYGON", srid=4326), nullable=False)
-    type = Column(Integer, nullable=False, default=LandmarkType.LOCAL, index=True)
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False, index=True)
+    version: Mapped[int] = orm.mapped_column(Integer, nullable=False, default=1)
+    alias_names: Mapped[list[str]] = orm.mapped_column(
+        ARRAY(TEXT), nullable=False, default=list
+    )
+    boundary: Mapped[WKBElement] = orm.mapped_column(
+        Geometry(geometry_type="POLYGON", srid=4326, spatial_index=False),
+        nullable=False,
+    )
+    type: Mapped[LandmarkType] = orm.mapped_column(
+        Integer, nullable=False, default=LandmarkType.LOCAL, index=True
+    )
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
+    )
 
     __table_args__ = (
         Index("ix_landmark_alias_names_gin", alias_names, postgresql_using="gin"),
@@ -944,69 +1037,73 @@ class Landmark(ORMbase):
     )
 
 
-class BusStop(ORMbase):
+class Station(ORMbase):
     """
-    Represents a geo-referenced bus stop associated with a specific landmark.
+    Represents a geo-referenced station associated with a specific landmark.
 
-    Bus stops are stored as point-based spatial entities used for mapping,
-    routing, navigation, and proximity-based operations. Each bus stop belongs
+    Stations are stored as point-based spatial entities used for mapping,
+    routing, navigation, and proximity-based operations. Each station belongs
     to a landmark region, enabling localized grouping and spatial queries such as
-    nearest-stop detection, containment checks, or analytics within a landmark area.
+    nearest-station detection, containment checks, or analytics within a landmark area.
 
     Spatial Constraint:
-        - `uq_bus_stop_location_landmark_id` (unique BTree index on ST_AsBinary(location)):
-            Ensures no two bus stops under the same landmark share the exact same
+        - `uq_station_location_landmark_id` (unique BTree index on ST_AsBinary(location)):
+            Ensures no two stations under the same landmark share the exact same
             spatial point. Using ST_AsBinary avoids floating-point comparison issues
             with raw geometry objects.
 
     Columns:
-        id (Integer, unique, not null):
-            Primary identifier for the bus stop.
+        id (BigInteger, not null):
+            Primary identifier for the station.
 
         name (TEXT, not null):
-            Official name of the bus stop.
+            Official name of the station.
             It should be 1-128 characters long.
             May include space ( ), hyphen (-), period (.), and underscore (_).
 
-        landmark_id (Integer, not null):
+        landmark_id (BigInteger, not null):
             Foreign key referencing `landmark.id`.
-            Indicates the landmark to which this bus stop belongs.
-            Cascades on delete — all bus stops under a landmark are removed
+            Indicates the landmark to which this station belongs.
+            Cascades on delete — all stations under a landmark are removed
             automatically if the landmark is deleted.
 
         location (Geometry(POINT, SRID 4326), not null):
-            Geo-spatial point representing the exact location of the bus stop.
+            Geo-spatial point representing the exact location of the station.
             Stored as a PostGIS `POINT` geometry using SRID 4326 (WGS 84 longitude/latitude).
-            No two bus stops within the same landmark can share the same location,
-            with uniqueness enforced via the `uq_bus_stop_location_landmark_id`
+            No two stations within the same landmark can share the same location,
+            with uniqueness enforced via the `uq_station_location_landmark_id`
             unique index on `ST_AsBinary(location)` and `landmark_id`.
 
         updated_on (DateTime, nullable, onupdate=func.now()):
-            Timestamp automatically updated whenever the bus stop record is modified.
+            Timestamp automatically updated whenever the station record is modified.
 
         created_on (DateTime, not null, default=func.now()):
-            Timestamp indicating when the bus stop record was created.
+            Timestamp indicating when the station record was created.
     """
 
-    __tablename__ = "bus_stop"
+    __tablename__ = "station"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(TEXT, nullable=False)
-    landmark_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    landmark_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey(Landmark.id, ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    location = Column(Geometry(geometry_type="POINT", srid=4326), nullable=False)
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+    location: Mapped[WKBElement] = orm.mapped_column(
+        Geometry(geometry_type="POINT", srid=4326), nullable=False
+    )
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), default=func.now(), nullable=False
     )
 
     __table_args__ = (
         Index(
-            "uq_bus_stop_location_landmark_id",
+            "uq_station_location_landmark_id",
             func.ST_AsBinary(location),
             landmark_id,
             unique=True,
@@ -1024,10 +1121,10 @@ class Company(ORMbase):
     and location-based operations.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the company.
 
-        name (String(32), unique, not null):
+        name (TEXT, unique, not null):
             Name of the company.
             Must be unique and is required.
             Maximum 32 characters long.
@@ -1066,17 +1163,29 @@ class Company(ORMbase):
 
     __tablename__ = "company"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String(32), nullable=False, unique=True)
-    status = Column(Integer, nullable=False, default=CompanyStatus.UNDER_VERIFICATION)
-    type = Column(Integer, nullable=False, default=CompanyType.OTHER)
-    description = Column(TEXT)
-    address = Column(TEXT, nullable=False)
-    location = Column(Geometry(geometry_type="POINT", srid=4326), nullable=False)
-    settings = Column(JSONB, default=dict)  # For future expansion
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False, unique=True)
+    status: Mapped[CompanyStatus] = orm.mapped_column(
+        Integer, nullable=False, default=CompanyStatus.UNDER_VERIFICATION
+    )
+    type: Mapped[CompanyType] = orm.mapped_column(
+        Integer, nullable=False, default=CompanyType.OTHER
+    )
+    description: Mapped[str | None] = orm.mapped_column(TEXT)
+    address: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    location: Mapped[WKBElement] = orm.mapped_column(
+        Geometry(geometry_type="POINT", srid=4326), nullable=False
+    )
+    settings: Mapped[dict[str, Any]] = orm.mapped_column(
+        JSONB, nullable=False, default=dict
+    )  # For future expansion
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Operator(ORMbase):
@@ -1088,15 +1197,15 @@ class Operator(ORMbase):
     necessary to manage operator-level access and communication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the operator.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Identifies the company to which the operator belongs.
             Cascades on delete — if the company is removed, related operators are deleted.
 
-        username (String(32), not null):
+        username (TEXT, not null):
             Username used for login or identification within the company.
             Ideally, the username shouldn't be changed once set.
             It should start with an alphabet (uppercase or lowercase).
@@ -1151,25 +1260,35 @@ class Operator(ORMbase):
     __tablename__ = "operator"
     __table_args__ = (UniqueConstraint("username", "company_id"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    username = Column(String(32), nullable=False)
-    password = Column(TEXT, nullable=False)
-    gender = Column(Integer, nullable=False, default=GenderType.OTHER)
-    description = Column(TEXT)
-    type = Column(Integer, nullable=False, default=OperatorType.NORMAL)
-    full_name = Column(TEXT)
-    status = Column(Integer, nullable=False, default=AccountStatus.ACTIVE)
-    phone_number = Column(TEXT)
-    email_id = Column(TEXT)
+    username: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    password: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    gender: Mapped[GenderType] = orm.mapped_column(
+        Integer, nullable=False, default=GenderType.OTHER
+    )
+    description: Mapped[str | None] = orm.mapped_column(TEXT)
+    type: Mapped[OperatorType] = orm.mapped_column(
+        Integer, nullable=False, default=OperatorType.NORMAL
+    )
+    full_name: Mapped[str | None] = orm.mapped_column(TEXT)
+    status: Mapped[AccountStatus] = orm.mapped_column(
+        Integer, nullable=False, default=AccountStatus.ACTIVE
+    )
+    phone_number: Mapped[str | None] = orm.mapped_column(TEXT)
+    email_id: Mapped[str | None] = orm.mapped_column(TEXT)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 @event.listens_for(Operator, "before_insert")
@@ -1192,25 +1311,27 @@ class OperatorImage(ORMbase):
     allowing for management, retrieval, and replacement of profile or related images.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the operator image.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id` to whom this image belongs.
             Cascades on delete — if the company is removed, related image is deleted.
 
-        operator_id (Integer, not null, unique):
+        operator_id (BigInteger, not null, unique):
             Foreign key referencing `operator.id` to whom this image belongs.
             Cascades on delete — if the operator is removed, related image is deleted.
 
-        file_name (String(128), not null):
+        file_name (TEXT, not null):
             Original name of the uploaded image file, including extension.
+            Maximum 128 characters long.
 
         file_size (Integer, not null):
             Size of the uploaded file in bytes.
 
-        file_type (String(128), not null):
+        file_type (TEXT, not null):
             MIME type of the uploaded file (e.g., "image/jpeg", "image/png").
+            Maximum 128 characters long.
 
         created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the image record was initially created.
@@ -1218,26 +1339,28 @@ class OperatorImage(ORMbase):
 
     __tablename__ = "operator_image"
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    operator_id = Column(
-        Integer,
+    operator_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("operator.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
     # File metadata
-    file_name = Column(String(128), nullable=False)
-    file_size = Column(Integer, nullable=False)
-    file_type = Column(String(128), nullable=False)
+    file_name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    file_size: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    file_type: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
     # Metadata
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Business(ORMbase):
@@ -1250,10 +1373,10 @@ class Business(ORMbase):
     and location-based operations.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the business.
 
-        name (String(32), unique, not null):
+        name (TEXT, unique, not null):
             Name of the business.
             Must be unique and is required.
             Maximum 32 characters long.
@@ -1292,17 +1415,29 @@ class Business(ORMbase):
 
     __tablename__ = "business"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String(32), nullable=False, unique=True)
-    status = Column(Integer, nullable=False, default=BusinessStatus.ACTIVE)
-    type = Column(Integer, nullable=False, default=BusinessType.OTHER)
-    description = Column(TEXT)
-    address = Column(TEXT, nullable=False)
-    location = Column(Geometry(geometry_type="POINT", srid=4326), nullable=False)
-    settings = Column(JSONB, default=dict)
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False, unique=True)
+    status: Mapped[BusinessStatus] = orm.mapped_column(
+        Integer, nullable=False, default=BusinessStatus.ACTIVE
+    )
+    type: Mapped[BusinessType] = orm.mapped_column(
+        Integer, nullable=False, default=BusinessType.OTHER
+    )
+    description: Mapped[str | None] = orm.mapped_column(TEXT)
+    address: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    location: Mapped[WKBElement] = orm.mapped_column(
+        Geometry(geometry_type="POINT", srid=4326), nullable=False
+    )
+    settings: Mapped[dict[str, Any]] = orm.mapped_column(
+        JSONB, nullable=False, default=dict
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Vendor(ORMbase):
@@ -1314,15 +1449,15 @@ class Vendor(ORMbase):
     necessary to manage vendor-level access and communication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vendor.
 
-        business_id (Integer, not null):
+        business_id (BigInteger, not null):
             Foreign key referencing `business.id`.
             Identifies the business to which the vendor belongs.
             Cascades on delete — if the business is removed, related vendors are deleted.
 
-        username (String(32), not null):
+        username (TEXT, not null):
             Username used for login or identification within the business.
             Ideally, the username shouldn't be changed once set.
             It should start with an alphabet (uppercase or lowercase).
@@ -1377,25 +1512,35 @@ class Vendor(ORMbase):
     __tablename__ = "vendor"
     __table_args__ = (UniqueConstraint("username", "business_id"),)
 
-    id = Column(Integer, primary_key=True)
-    business_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    business_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("business.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    username = Column(String(32), nullable=False)
-    password = Column(TEXT, nullable=False)
-    gender = Column(Integer, nullable=False, default=GenderType.OTHER)
-    description = Column(TEXT)
-    type = Column(Integer, nullable=False, default=VendorType.NORMAL)
-    full_name = Column(TEXT)
-    status = Column(Integer, nullable=False, default=AccountStatus.ACTIVE)
-    phone_number = Column(TEXT)
-    email_id = Column(TEXT)
+    username: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    password: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    gender: Mapped[GenderType] = orm.mapped_column(
+        Integer, nullable=False, default=GenderType.OTHER
+    )
+    description: Mapped[str | None] = orm.mapped_column(TEXT)
+    type: Mapped[VendorType] = orm.mapped_column(
+        Integer, nullable=False, default=VendorType.NORMAL
+    )
+    full_name: Mapped[str | None] = orm.mapped_column(TEXT)
+    status: Mapped[AccountStatus] = orm.mapped_column(
+        Integer, nullable=False, default=AccountStatus.ACTIVE
+    )
+    phone_number: Mapped[str | None] = orm.mapped_column(TEXT)
+    email_id: Mapped[str | None] = orm.mapped_column(TEXT)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 @event.listens_for(Vendor, "before_insert")
@@ -1418,25 +1563,27 @@ class VendorImage(ORMbase):
     allowing for management, retrieval, and replacement of profile or related images.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vendor image.
 
-        business_id (Integer, not null):
+        business_id (BigInteger, not null):
             Foreign key referencing `business.id` to whom this image belongs.
             Cascades on delete — if the business is removed, related image is deleted.
 
-        vendor_id (Integer, not null, unique):
+        vendor_id (BigInteger, not null, unique):
             Foreign key referencing `vendor.id` to whom this image belongs.
             Cascades on delete — if the vendor is removed, related image is deleted.
 
-        file_name (String(128), not null):
+        file_name (TEXT, not null):
             Original name of the uploaded image file, including extension.
+            Maximum 128 characters long.
 
         file_size (Integer, not null):
             Size of the uploaded file in bytes.
 
-        file_type (String(128), not null):
+        file_type (TEXT, not null):
             MIME type of the uploaded file (e.g., "image/jpeg", "image/png").
+            Maximum 128 characters long.
 
         created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the image record was initially created.
@@ -1444,26 +1591,28 @@ class VendorImage(ORMbase):
 
     __tablename__ = "vendor_image"
 
-    id = Column(Integer, primary_key=True)
-    business_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    business_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("business.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    vendor_id = Column(
-        Integer,
+    vendor_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("vendor.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
     # File metadata
-    file_name = Column(String(128), nullable=False)
-    file_size = Column(Integer, nullable=False)
-    file_type = Column(String(128), nullable=False)
+    file_name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    file_size: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    file_type: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
     # Metadata
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Wallet(ORMbase):
@@ -1475,10 +1624,10 @@ class Wallet(ORMbase):
     Remove unused wallets explicitly (or via a data-cleaner).
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the wallet.
 
-        name (String(32), not null):
+        name (TEXT, not null):
             Name of the wallet.
             Must not be null.
             Maximum 32 characters.
@@ -1499,12 +1648,18 @@ class Wallet(ORMbase):
         CheckConstraint("balance >= 0", name="ck_wallet_balance_non_negative"),
     )
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String(32), nullable=False)
-    balance = Column(Numeric(10, 2), nullable=False, default=0)
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    balance: Mapped[Decimal] = orm.mapped_column(
+        Numeric(10, 2), nullable=False, default=0
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class CompanyWallet(ORMbase):
@@ -1516,14 +1671,14 @@ class CompanyWallet(ORMbase):
     be guarded by business rules (balance must be zero).
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the company-wallet entry.
 
-        wallet_id (Integer, not null):
+        wallet_id (BigInteger, not null):
             Foreign key referencing `wallet.id`.
             Cascades on delete — if the wallet is removed, related entries are deleted.
 
-        company_id (Integer, not null, unique):
+        company_id (BigInteger, not null, unique):
             Foreign key referencing `company.id`.
             Each company can have only one wallet.
             Cascades on delete — if the company is removed, related mappings are deleted.
@@ -1534,22 +1689,24 @@ class CompanyWallet(ORMbase):
 
     __tablename__ = "company_wallet"
 
-    id = Column(Integer, primary_key=True)
-    wallet_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    wallet_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("wallet.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    company_id = Column(
-        Integer,
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
     # Metadata
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class BusinessWallet(ORMbase):
@@ -1561,14 +1718,14 @@ class BusinessWallet(ORMbase):
     be guarded by business rules (balance must be zero).
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the business-wallet entry.
 
-        wallet_id (Integer, not null):
+        wallet_id (BigInteger, not null):
             Foreign key referencing `wallet.id`.
             Cascades on delete — if the wallet is removed, related entries are deleted.
 
-        business_id (Integer, not null, unique):
+        business_id (BigInteger, not null, unique):
             Foreign key referencing `business.id`.
             Each business can have only one wallet.
             Cascades on delete — if the business is removed, related mappings are deleted.
@@ -1579,22 +1736,24 @@ class BusinessWallet(ORMbase):
 
     __tablename__ = "business_wallet"
 
-    id = Column(Integer, primary_key=True)
-    wallet_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    wallet_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("wallet.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    business_id = Column(
-        Integer,
+    business_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("business.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
     # Metadata
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class BankAccount(ORMbase):
@@ -1610,7 +1769,7 @@ class BankAccount(ORMbase):
     separately.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the bank account.
 
         bank_name (TEXT, not null):
@@ -1649,16 +1808,22 @@ class BankAccount(ORMbase):
 
     __tablename__ = "bank_account"
 
-    id = Column(Integer, primary_key=True)
-    bank_name = Column(TEXT, nullable=False)
-    branch_name = Column(TEXT)
-    account_number = Column(TEXT, nullable=False)
-    holder_name = Column(TEXT, nullable=False)
-    ifsc = Column(TEXT, nullable=False)
-    account_type = Column(Integer, nullable=False, default=BankAccountType.OTHER)
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    bank_name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    branch_name: Mapped[str | None] = orm.mapped_column(TEXT)
+    account_number: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    holder_name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    ifsc: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    account_type: Mapped[BankAccountType] = orm.mapped_column(
+        Integer, nullable=False, default=BankAccountType.OTHER
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class CompanyBankAccount(ORMbase):
@@ -1670,15 +1835,15 @@ class CompanyBankAccount(ORMbase):
     preserve referential integrity.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the company-bank-account mapping.
 
-        bank_account_id (Integer, not null, unique):
+        bank_account_id (BigInteger, not null, unique):
             Foreign key referencing `bank_account.id`.
             Each bank account may be assigned to only one company.
             Cascades on delete — if the bank account is removed, related mappings are deleted.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Identifies the owning company for this bank account.
             Cascades on delete — if the company is removed, related mappings are deleted.
@@ -1692,23 +1857,27 @@ class CompanyBankAccount(ORMbase):
 
     __tablename__ = "company_bank_account"
 
-    id = Column(Integer, primary_key=True)
-    bank_account_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    bank_account_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("bank_account.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
-    company_id = Column(
-        Integer,
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class BusinessBankAccount(ORMbase):
@@ -1720,15 +1889,15 @@ class BusinessBankAccount(ORMbase):
     preserve referential integrity.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the business-bank-account mapping.
 
-        bank_account_id (Integer, not null, unique):
+        bank_account_id (BigInteger, not null, unique):
             Foreign key referencing `bank_account.id`.
             Each bank account may be assigned to only one business.
             Cascades on delete — if the bank account is removed, related mappings are deleted.
 
-        business_id (Integer, not null):
+        business_id (BigInteger, not null):
             Foreign key referencing `business.id`.
             Identifies the owning business for this bank account.
             Cascades on delete — if the business is removed, related mappings are deleted.
@@ -1742,23 +1911,27 @@ class BusinessBankAccount(ORMbase):
 
     __tablename__ = "business_bank_account"
 
-    id = Column(Integer, primary_key=True)
-    bank_account_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    bank_account_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("bank_account.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
-    business_id = Column(
-        Integer,
+    business_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("business.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Vehicle(ORMbase):
@@ -1769,20 +1942,20 @@ class Vehicle(ORMbase):
     identified by a combination of its registration number and company ID.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vehicle.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id` to whom this vehicle belongs.
             Cascades on delete — if the company is removed, related vehicles are deleted.
 
-        registration_number (String(16), not null):
+        registration_number (TEXT, not null):
             This should be an immutable value.
             Vehicle registration number.
             Must be unique per company and non-null.
             Indexed for fast lookup.
 
-        name (String(32),  not null):
+        name (TEXT, not null):
             Name or model of the vehicle.
             Maximum 32 characters long.
 
@@ -1817,26 +1990,36 @@ class Vehicle(ORMbase):
     __tablename__ = "vehicle"
     __table_args__ = (UniqueConstraint("registration_number", "company_id"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    registration_number = Column(String(16), nullable=False, index=True)
-    name = Column(String(32), nullable=False, index=True)
-    capacity = Column(Integer, nullable=False)
-    version = Column(Integer, nullable=False, default=1)
-    manufactured_on = Column(DateTime(timezone=True))
-    insurance_upto = Column(DateTime(timezone=True))
-    pollution_upto = Column(DateTime(timezone=True))
-    fitness_upto = Column(DateTime(timezone=True))
-    road_tax_upto = Column(DateTime(timezone=True))
-    status = Column(Integer, nullable=False, default=VehicleStatus.CREATED)
+    registration_number: Mapped[str] = orm.mapped_column(
+        TEXT, nullable=False, index=True
+    )
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False, index=True)
+    capacity: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    version: Mapped[int] = orm.mapped_column(Integer, nullable=False, default=1)
+    manufactured_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True)
+    )
+    insurance_upto: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    pollution_upto: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    fitness_upto: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    road_tax_upto: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    status: Mapped[VehicleStatus] = orm.mapped_column(
+        Integer, nullable=False, default=VehicleStatus.CREATED
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class VehicleImage(ORMbase):
@@ -1847,25 +2030,27 @@ class VehicleImage(ORMbase):
     allowing for management, retrieval, and storage of vehicle photos.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vehicle image.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id` to whom this image belongs.
             Cascades on delete — if the company is removed, related images are deleted.
 
-        vehicle_id (Integer, not null):
+        vehicle_id (BigInteger, not null):
             Foreign key referencing `vehicle.id` to whom this image belongs.
             Cascades on delete — if the vehicle is removed, related images are deleted.
 
-        file_name (String(128), not null):
+        file_name (TEXT, not null):
             Original name of the uploaded image file, including extension.
+            Maximum 128 characters long.
 
         file_size (Integer, not null):
             Size of the uploaded file in bytes.
 
-        file_type (String(128), not null):
+        file_type (TEXT, not null):
             MIME type of the uploaded file (e.g., "image/jpeg", "image/png").
+            Maximum 128 characters long.
 
         created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the image record was initially created.
@@ -1873,26 +2058,28 @@ class VehicleImage(ORMbase):
 
     __tablename__ = "vehicle_image"
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    vehicle_id = Column(
-        Integer,
+    vehicle_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("vehicle.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
     # File metadata
-    file_name = Column(String(128), nullable=False)
-    file_size = Column(Integer, nullable=False)
-    file_type = Column(String(128), nullable=False)
+    file_name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    file_size: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    file_type: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
     # Metadata
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Route(ORMbase):
@@ -1904,16 +2091,20 @@ class Route(ORMbase):
     specific landmarks or stops, if any, are managed outside this model.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, unique, not null):
             Primary identifier for the route.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id` to whom this route belongs.
             Cascades on delete — if the company is removed, related routes are deleted.
 
-        name (String(4096), not null):
+        name (TEXT, not null):
             Name of the route.
             Maximum 4096 characters long.
+
+        version (Integer, not null, default=1):
+            Version number incremented on updates
+            Useful for tracking changes and synchronizing route updates.
 
         start_time (Time, not null):
             The time of day when the route operation starts.
@@ -1933,19 +2124,26 @@ class Route(ORMbase):
     __tablename__ = "route"
     __table_args__ = (UniqueConstraint("name", "company_id"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    name = Column(String(4096), nullable=False)
-    start_time = Column(Time(timezone=True), nullable=False)
-    status = Column(Integer, nullable=False, default=RouteStatus.INVALID)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    version: Mapped[int] = orm.mapped_column(Integer, nullable=False, default=1)
+    start_time: Mapped[dt_time] = orm.mapped_column(Time(timezone=True), nullable=False)
+    status: Mapped[RouteStatus] = orm.mapped_column(
+        Integer, nullable=False, default=RouteStatus.INVALID
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class LandmarkInRoute(ORMbase):
@@ -1956,20 +2154,23 @@ class LandmarkInRoute(ORMbase):
     It helps determine the structure and scheduling of transportation or logistics operations.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the landmark-in-route
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id` that operates on the route.
             Cascades on delete — if the company is removed, related landmark in routes are deleted.
 
-        route_id (Integer, not null):
+        route_id (BigInteger, not null):
             Foreign key referencing `route.id` that this landmark is part of.
             Cascades on delete — if the route is removed, related landmarks in routes are deleted.
 
-        landmark_id (Integer, not null):
+        landmark_id (BigInteger, not null):
             Foreign key referencing `landmark.id` that this landmark is part of.
             Landmark referenced here cannot be deleted.
+
+        type (Integer, not null, default=WaypointType.MAIN_STOP):
+            Type of the waypoint within the route. Mapped from the `WaypointType` enum.
 
         distance_from_start (Integer, not null):
             Distance in meters from the starting landmark of the route.
@@ -1994,23 +2195,35 @@ class LandmarkInRoute(ORMbase):
     __tablename__ = "landmark_in_route"
     __table_args__ = (UniqueConstraint("route_id", "distance_from_start"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    route_id = Column(
-        Integer, ForeignKey("route.id", ondelete="CASCADE"), nullable=False, index=True
+    route_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
+        ForeignKey("route.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
-    landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False, index=True)
-    distance_from_start = Column(Integer, nullable=False)
-    arrival_delta = Column(Integer, nullable=False)
-    departure_delta = Column(Integer, nullable=False)
+    landmark_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("landmark.id"), nullable=False, index=True
+    )
+    type: Mapped[WaypointType] = orm.mapped_column(
+        Integer, nullable=False, default=WaypointType.MAIN_STOP
+    )
+    distance_from_start: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    arrival_delta: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    departure_delta: Mapped[int] = orm.mapped_column(Integer, nullable=False)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Fare(ORMbase):
@@ -2023,10 +2236,10 @@ class Fare(ORMbase):
     parameters or configuration details.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the fare.
 
-        company_id (Integer, nullable):
+        company_id (BigInteger, nullable):
             Foreign key referencing `company.id` that fare is associated with.
             Cascades on delete — if the company is removed, related fares are deleted.
             nullable to allow for global fares that are not tied to a specific company.
@@ -2035,7 +2248,7 @@ class Fare(ORMbase):
             Version number incremented on updates
             Useful for tracking changes and synchronizing fare updates.
 
-        name (String(32), not null):
+        name (TEXT, not null):
             Official name of the fare.
             Maximum 32 characters long.
 
@@ -2061,13 +2274,17 @@ class Fare(ORMbase):
 
     __tablename__ = "fare"
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(Integer, ForeignKey("company.id", ondelete="CASCADE"))
-    version = Column(Integer, nullable=False, default=1)
-    name = Column(String(32), nullable=False)
-    attributes = Column(JSONB, nullable=False)
-    function = Column(TEXT, nullable=False)
-    scope = Column(Integer, nullable=False, default=FareScope.GLOBAL)
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int | None] = orm.mapped_column(
+        BigInteger, ForeignKey("company.id", ondelete="CASCADE")
+    )
+    version: Mapped[int] = orm.mapped_column(Integer, nullable=False, default=1)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    attributes: Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False)
+    function: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    scope: Mapped[FareScope] = orm.mapped_column(
+        Integer, nullable=False, default=FareScope.GLOBAL
+    )
     __table_args__ = (
         Index(
             "ix_fare_name_company_unique",
@@ -2084,8 +2301,12 @@ class Fare(ORMbase):
         ),
     )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Service(ORMbase):
@@ -2098,37 +2319,40 @@ class Service(ORMbase):
     and records various states and modes related to the service.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the service.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id` that operates the service.
 
-        name (String(128), not null):
+        name (TEXT, not null):
             Name of the service.
             Maximum 128 characters long.
 
-        vehicle_in_service_id (Integer, not null):
+        vehicle_in_service_id (BigInteger, not null):
             Foreign key referencing `vehicle_in_service.id`.
             Specifies the snapshot of the vehicle details at the time of service creation.
 
-        fare_in_service_id (Integer, not null):
+        fare_in_service_id (BigInteger, not null):
             Foreign key referencing `fare_in_service.id`.
             Specifies the snapshot of the fare details at the time of service creation.
 
-        fare_id (Integer, nullable):
+        fare_id (BigInteger, nullable):
             Foreign key referencing `fare.id`.
             This is the original fare from which the `fare_in_service` snapshot was created.
 
-        vehicle_id (Integer, nullable):
+        vehicle_id (BigInteger, nullable):
             Foreign key referencing `vehicle.id`.
             This is the original vehicle from which the `vehicle_in_service` snapshot was created.
 
-        route_id (Integer, nullable):
+        route_id (BigInteger, nullable):
             Foreign key referencing `route.id`.
             Identifies the route that this service operates on.
 
-        registration_number (String(16), not null):
+        route_version (Integer, nullable):
+            Version of the route at the time of service creation.
+
+        registration_number (TEXT, not null):
             Registration number of the vehicle assigned to this service.
 
         ticket_mode (Integer, not null, default=TicketingMode.HYBRID):
@@ -2144,10 +2368,10 @@ class Service(ORMbase):
         ending_at (DateTime, not null):
             The time of the day when the service ends operation, based on route information.
 
-        starting_landmark_id (Integer, not null):
+        starting_landmark_id (BigInteger, not null):
             Foreign key referencing `landmark.id` for the starting point of the service.
 
-        ending_landmark_id (Integer, not null):
+        ending_landmark_id (BigInteger, not null):
             Foreign key referencing `landmark.id` for the ending point of the service.
 
         private_key (TEXT, not null):
@@ -2162,6 +2386,10 @@ class Service(ORMbase):
             Optional text field for additional remarks or notes related to the service.
             Maximum 1024 characters long.
 
+        collection (Numeric, nullable):
+            Total collection amount for the service (sum of collections across duties).
+            Precise up to two decimal places.
+
         updated_on (DateTime, nullable, onupdate=func.now()):
             Timestamp automatically updated whenever the service record is modified.
 
@@ -2171,35 +2399,61 @@ class Service(ORMbase):
 
     __tablename__ = "service"
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(Integer, ForeignKey("company.id"), nullable=False, index=True)
-    name = Column(String(128), nullable=False)
-    fare_in_service_id = Column(
-        Integer, ForeignKey("fare_in_service.id"), nullable=False
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("company.id"), nullable=False, index=True
     )
-    vehicle_in_service_id = Column(
-        Integer, ForeignKey("vehicle_in_service.id"), nullable=False
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    fare_in_service_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("fare_in_service.id"), nullable=False
     )
-    fare_id = Column(Integer, ForeignKey("fare.id", ondelete="SET NULL"), index=True)
-    vehicle_id = Column(
-        Integer,
+    vehicle_in_service_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("vehicle_in_service.id"), nullable=False
+    )
+    fare_id: Mapped[int | None] = orm.mapped_column(
+        BigInteger, ForeignKey("fare.id", ondelete="SET NULL"), index=True
+    )
+    vehicle_id: Mapped[int | None] = orm.mapped_column(
+        BigInteger,
         ForeignKey("vehicle.id", ondelete="SET NULL"),
         index=True,
     )
-    route_id = Column(Integer, ForeignKey("route.id", ondelete="SET NULL"), index=True)
-    registration_number = Column(String(16), nullable=False, index=True)
-    ticket_mode = Column(Integer, nullable=False, default=TicketingMode.HYBRID)
-    status = Column(Integer, nullable=False, default=ServiceStatus.CREATED)
-    starting_at = Column(DateTime(timezone=True), nullable=False)
-    ending_at = Column(DateTime(timezone=True), nullable=False)
-    starting_landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
-    ending_landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
-    private_key = Column(TEXT, nullable=False)
-    public_key = Column(TEXT, nullable=False)
-    remark = Column(TEXT)
+    route_id: Mapped[int | None] = orm.mapped_column(
+        BigInteger, ForeignKey("route.id", ondelete="SET NULL"), index=True
+    )
+    route_version: Mapped[int | None] = orm.mapped_column(Integer)
+    registration_number: Mapped[str] = orm.mapped_column(
+        TEXT, nullable=False, index=True
+    )
+    ticket_mode: Mapped[TicketingMode] = orm.mapped_column(
+        Integer, nullable=False, default=TicketingMode.HYBRID
+    )
+    status: Mapped[ServiceStatus] = orm.mapped_column(
+        Integer, nullable=False, default=ServiceStatus.CREATED
+    )
+    starting_at: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    ending_at: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    starting_landmark_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("landmark.id"), nullable=False
+    )
+    ending_landmark_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("landmark.id"), nullable=False
+    )
+    private_key: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    public_key: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    remark: Mapped[str | None] = orm.mapped_column(TEXT)
+    collection: Mapped[Decimal | None] = orm.mapped_column(Numeric(10, 2))
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class ServiceAssignment(ORMbase):
@@ -2211,19 +2465,19 @@ class ServiceAssignment(ORMbase):
     executive and operator applications.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the assignment record.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id` that operates the service.
             Cascades on delete — if the company is removed, related assignments are deleted.
 
-        service_id (Integer, not null):
+        service_id (BigInteger, not null):
             Foreign key referencing `service.id`.
             Identifies the service assigned to an operator.
             Cascades on delete — if the service is removed, related assignments are deleted.
 
-        operator_id (Integer, not null):
+        operator_id (BigInteger, not null):
             Foreign key referencing `operator.id`.
             Identifies the operator assigned to the service.
             Cascades on delete — if the operator is removed, related assignments are deleted.
@@ -2238,28 +2492,32 @@ class ServiceAssignment(ORMbase):
     __tablename__ = "service_assignment"
     __table_args__ = (UniqueConstraint("service_id", "operator_id"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    service_id = Column(
-        Integer,
+    service_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("service.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    operator_id = Column(
-        Integer,
+    operator_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("operator.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class FareInService(ORMbase):
@@ -2271,12 +2529,12 @@ class FareInService(ORMbase):
     Each record captures the version of the fare along with its configuration and logic.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the fare snapshot.
 
-        fare_id (Integer, not null):
+        fare_id (BigInteger, not null):
             Identifier of the original fare.
-            Stored as a plain integer (not a foreign key) to preserve snapshot independence.
+            Stored as a plain BigInteger (not a foreign key) to preserve snapshot independence.
             This field is non-nullable so snapshots remain traceable even if the
             original fare row is removed; the unique constraint on
             `(fare_id, version)` enforces a single snapshot per fare version.
@@ -2285,7 +2543,7 @@ class FareInService(ORMbase):
             Version of the fare at the time of assignment.
             Used to track which version of the fare is applied to the service.
 
-        name (String(32), not null):
+        name (TEXT, not null):
             Name of the fare at the time of snapshot.
 
         attributes (JSONB, not null):
@@ -2309,16 +2567,20 @@ class FareInService(ORMbase):
     __tablename__ = "fare_in_service"
     __table_args__ = (UniqueConstraint("fare_id", "version"),)
 
-    id = Column(Integer, primary_key=True)
-    fare_id = Column(Integer, nullable=False, index=True)
-    version = Column(Integer, nullable=False)
-    name = Column(String(32), nullable=False)
-    attributes = Column(JSONB, nullable=False)
-    function = Column(TEXT, nullable=False)
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    fare_id: Mapped[int] = orm.mapped_column(BigInteger, nullable=False, index=True)
+    version: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    attributes: Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False)
+    function: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
     # Metadata
-    reference_count = Column(Integer, nullable=False, default=1)
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    reference_count: Mapped[int] = orm.mapped_column(Integer, nullable=False, default=1)
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class LandmarkInService(ORMbase):
@@ -2330,16 +2592,19 @@ class LandmarkInService(ORMbase):
     ensuring that service schedules remain consistent even if the underlying route changes.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the landmark-in-service record.
 
-        service_id (Integer, not null):
+        service_id (BigInteger, not null):
             Foreign key referencing `service.id` that the record is associated with.
             Cascades on delete — if the referenced service is removed, this record is automatically deleted.
 
-        landmark_id (Integer, not null):
+        landmark_id (BigInteger, not null):
             Identifier of the landmark.
             Stored without enforcing foreign key constraints to allow snapshot flexibility.
+
+        type (Integer, not null):
+            Type of the waypoint within the service. Mapped from the `WaypointType` enum.
 
         distance_from_start (Integer, not null):
             Distance in meters from the starting landmark of the route.
@@ -2360,20 +2625,29 @@ class LandmarkInService(ORMbase):
 
     __tablename__ = "landmark_in_service"
 
-    id = Column(Integer, primary_key=True)
-    service_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    service_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("service.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    landmark_id = Column(Integer, nullable=False, index=True)
-    distance_from_start = Column(Integer, nullable=False)
-    arrival_at = Column(DateTime(timezone=True), nullable=False)
-    departure_at = Column(DateTime(timezone=True), nullable=False)
+    landmark_id: Mapped[int] = orm.mapped_column(BigInteger, nullable=False, index=True)
+    type: Mapped[WaypointType] = orm.mapped_column(Integer, nullable=False)
+    distance_from_start: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    arrival_at: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    departure_at: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class VehicleInService(ORMbase):
@@ -2385,12 +2659,12 @@ class VehicleInService(ORMbase):
     Each record captures the version of the vehicle along with its core operational details.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vehicle snapshot.
 
-        vehicle_id (Integer, not null):
+        vehicle_id (BigInteger, not null):
             Identifier of the original vehicle.
-            Stored as a plain integer (not a foreign key) to preserve snapshot independence.
+            Stored as a plain BigInteger (not a foreign key) to preserve snapshot independence.
             This field is non-nullable so snapshots remain traceable even if the
             original vehicle row is removed; the unique constraint on
             `(vehicle_id, version)` enforces a single snapshot per vehicle version.
@@ -2399,10 +2673,10 @@ class VehicleInService(ORMbase):
             Version of the vehicle at the time of assignment.
             Used to track which version of the vehicle is applied to the service.
 
-        registration_number (String(16), not null):
+        registration_number (TEXT, not null):
             Vehicle registration number at the time of snapshot.
 
-        name (String(32), not null):
+        name (TEXT, not null):
             Name or model of the vehicle at the time of snapshot.
 
         capacity (Integer, not null):
@@ -2422,16 +2696,20 @@ class VehicleInService(ORMbase):
     __tablename__ = "vehicle_in_service"
     __table_args__ = (UniqueConstraint("vehicle_id", "version"),)
 
-    id = Column(Integer, primary_key=True)
-    vehicle_id = Column(Integer, nullable=False, index=True)
-    version = Column(Integer, nullable=False)
-    registration_number = Column(String(16), nullable=False)
-    name = Column(String(32), nullable=False)
-    capacity = Column(Integer, nullable=False)
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    vehicle_id: Mapped[int] = orm.mapped_column(BigInteger, nullable=False, index=True)
+    version: Mapped[int] = orm.mapped_column(Integer, nullable=False)
+    registration_number: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    capacity: Mapped[int] = orm.mapped_column(Integer, nullable=False)
     # Metadata
-    reference_count = Column(Integer, nullable=False, default=1)
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    reference_count: Mapped[int] = orm.mapped_column(Integer, nullable=False, default=1)
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class Duty(ORMbase):
@@ -2443,19 +2721,19 @@ class Duty(ORMbase):
     monitoring, and auditing operator activities.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the duty record.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Indicates the company under which this duty is assigned.
             Cascades on delete — if the company is removed, related duties are deleted.
 
-        operator_id (Integer, nullable):
+        operator_id (BigInteger, nullable):
             Operator identifier. Foreign key referencing `operator.id`.
             Set to NULL when the referenced operator is deleted.
 
-        service_id (Integer, not null):
+        service_id (BigInteger, not null):
             Foreign key referencing `service.id`.
             Indicates the service the operator is assigned to perform.
             Cascades on delete — if the service is removed, related duties are deleted.
@@ -2482,31 +2760,37 @@ class Duty(ORMbase):
 
     __tablename__ = "duty"
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    operator_id = Column(
-        Integer,
+    operator_id: Mapped[int | None] = orm.mapped_column(
+        BigInteger,
         ForeignKey("operator.id", ondelete="SET NULL"),
         index=True,
     )
-    service_id = Column(
-        Integer,
+    service_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("service.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    status = Column(Integer, nullable=False, default=DutyStatus.STARTED)
-    started_on = Column(DateTime(timezone=True))
-    finished_on = Column(DateTime(timezone=True))
-    collection = Column(Numeric(10, 2))
+    status: Mapped[DutyStatus] = orm.mapped_column(
+        Integer, nullable=False, default=DutyStatus.STARTED
+    )
+    started_on: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    finished_on: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    collection: Mapped[Decimal | None] = orm.mapped_column(Numeric(10, 2))
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class PaperTicket(ORMbase):
@@ -2519,26 +2803,36 @@ class PaperTicket(ORMbase):
     for operations involving manual ticketing systems.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the paper ticket.
 
-        service_id (Integer, not null):
+        service_id (BigInteger, not null):
             Foreign key referencing `service.id`.
             Identifies the service associated with this ticket.
             Cascades on delete — if the service is removed, related tickets are deleted.
 
-        duty_id (Integer, not null):
+        sequence_id (String, not null):
+            Client-generated unique identifier for the ticket.
+            Must be unique per service to avoid duplicate ticket entries.
+
+        duty_id (BigInteger, not null):
             Foreign key referencing `duty.id`.
             Indicates the specific duty under which the ticket was issued.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Indicates the company under which the ticket was issued.
 
         ticket (JSONB, not null):
-            Structured data capturing the full ticket content including ticket types,
-            pickup_point, dropping_point, and any additional metadata.
-            It is closely bound to `ticket_type` in fare attributes.
+            Structured data capturing the ticket details.
+            Expected keys and values:
+                - `ticket_types`: List of ticket types.
+                - `pickup_point`: Starting landmark ID of the passenger.
+                - `dropping_point`: Ending landmark ID of the passenger.
+                - `extras`: Any additional information relevant to the ticket.
+                - `warnings`: Optional field for any warnings related to the ticket. Mapped from the `PaperTicketWarning` enum.
+                - `uploaded_by`: Optional operator ID of the person who uploaded the ticket, if different from the duty operator.
+                - `created_on`: Timestamp of when the ticket was created at client side.
 
         amount (Numeric(10, 2), not null):
             Total fare amount collected for this ticket.
@@ -2549,54 +2843,54 @@ class PaperTicket(ORMbase):
     """
 
     __tablename__ = "paper_ticket"
+    __table_args__ = (UniqueConstraint("service_id", "sequence_id"),)
 
-    id = Column(Integer, primary_key=True)
-    service_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    service_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("service.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    duty_id = Column(Integer, ForeignKey("duty.id"), nullable=False, index=True)
-    company_id = Column(Integer, ForeignKey("company.id"), nullable=False, index=True)
+    sequence_id: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    duty_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("duty.id"), nullable=False, index=True
+    )
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("company.id"), nullable=False, index=True
+    )
     # Ticket content
-    ticket = Column(JSONB, nullable=False)
-    amount = Column(Numeric(10, 2), nullable=False)
+    ticket: Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False)
+    amount: Mapped[Decimal] = orm.mapped_column(Numeric(10, 2), nullable=False)
     # Metadata
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class ServiceLocation(ORMbase):
     """
-    Real-time or historical geospatial trace for services.
+    Real-time service location information.
 
-    This table stores location samples linked to a company and a service,
-    and may include an `operator_id` and a reference to a `landmark`.
-    Each record represents a point-in-time position with optional accuracy
-    metadata and timestamps.
+    This table stores the current location associated with a company and a service.
+    Each service can have only one location record, identified by its
+    landmark reference, geographic coordinates, and optional accuracy metric.
 
     Columns:
-        id (Integer, unique, not null):
-            Primary identifier for the trace record.
+        id (BigInteger, not null):
+            Primary identifier for the service location record.
 
-        company_id (Integer, not null):
+        company_id (BigInteger, not null):
             Foreign key referencing `company.id`.
             Indicates the company associated with this location record.
             Cascades on delete — if the company is removed, related location records are deleted.
 
-        service_id (Integer, not null):
+        service_id (BigInteger, not null):
             Foreign key referencing `service.id`.
             Indicates the service associated with this location record.
             Cascades on delete — if the service is removed, related location records are deleted.
 
-        operator_id (Integer, nullable):
-            Foreign key referencing `operator.id`.
-            Indicates the operator associated with this location record, if any.
-            Set to NULL when the referenced operator is deleted.
-            Unique constraint `(service_id, operator_id)` ensures at most one
-            location record per operator for a given service.
-
-        landmark_id (Integer, not null):
+        landmark_id (BigInteger, not null):
             Foreign key referencing `landmark.id`.
             The last landmark passed by the service at the time of recording this location.
 
@@ -2614,29 +2908,391 @@ class ServiceLocation(ORMbase):
     """
 
     __tablename__ = "service_location"
-    __table_args__ = (UniqueConstraint("service_id", "operator_id"),)
 
-    id = Column(Integer, primary_key=True)
-    company_id = Column(
-        Integer,
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("company.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    service_id = Column(
-        Integer,
+    service_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
         ForeignKey("service.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
+        unique=True,
     )
-    operator_id = Column(
-        Integer,
-        ForeignKey("operator.id", ondelete="SET NULL"),
+    landmark_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("landmark.id"), nullable=False
+    )
+    location: Mapped[WKBElement | None] = orm.mapped_column(
+        Geometry(geometry_type="POINT", srid=4326)
+    )
+    accuracy: Mapped[float | None] = orm.mapped_column(Float)
+    # Metadata
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
+
+
+class Trace(ORMbase):
+    """
+    Represents a route trace record associated with a company.
+
+    This table stores trace records that define a named trace belonging to a company.
+
+    Columns:
+        id (BigInteger, not null):
+            Primary identifier for the trace record.
+
+        company_id (BigInteger, not null):
+            Foreign key referencing `company.id`.
+            Indicates the company associated with this trace record.
+            Cascades on delete — if the company is removed, related trace records are deleted.
+
+        name (TEXT, not null):
+            Name of the trace.
+            Maximum 128 characters long.
+            Unique together with `company_id` to prevent duplicate trace names within the same company.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the trace record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the trace record was created.
+    """
+
+    __tablename__ = "trace"
+    __table_args__ = (UniqueConstraint("name", "company_id"),)
+
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
         index=True,
     )
-    landmark_id = Column(Integer, ForeignKey("landmark.id"), nullable=False)
-    location = Column(Geometry(geometry_type="POINT", srid=4326))
-    accuracy = Column(Float)
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
     # Metadata
-    updated_on = Column(DateTime(timezone=True), onupdate=func.now())
-    created_on = Column(DateTime(timezone=True), nullable=False, default=func.now())
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
+
+
+class LocationInTrace(ORMbase):
+    """
+    Represents a location record associated with a trace.
+
+    This table stores locations associated with a trace, including the geospatial point, type of location, and timestamps.
+
+    Columns:
+        id (BigInteger, not null):
+            Primary identifier for the location in trace record.
+
+        trace_id (BigInteger, not null):
+            Foreign key referencing `trace.id`.
+            Indicates the trace associated with this location in trace record.
+
+        company_id (BigInteger, not null):
+            Foreign key referencing `company.id`.
+            Indicates the company associated with this trace record.
+            Cascades on delete — if the company is removed, related trace records are deleted.
+
+        captured_at (DateTime, not null):
+            Timestamp indicating when the location was captured.
+
+        location (Geometry(geometry_type="POINT", srid=4326), not null):
+            Geospatial point representing the recorded location.
+
+        location_type (Integer, not null, default=LocationType.WAYPOINT):
+            Type of the location. Mapped from the `LocationType` enum.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the location in trace record was created.
+    """
+
+    __tablename__ = "location_in_trace"
+
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    trace_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
+        ForeignKey("trace.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    captured_at: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    location: Mapped[WKBElement] = orm.mapped_column(
+        Geometry(geometry_type="POINT", srid=4326), nullable=False
+    )
+    location_type: Mapped[LocationType] = orm.mapped_column(
+        Integer, nullable=False, default=LocationType.WAYPOINT
+    )
+    # Metadata
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
+
+
+class Job(ORMbase):
+    """
+    Represents a scheduled background job.
+
+    This table stores information about background jobs that are scheduled to run at specific times.
+
+    Columns:
+        id (BigInteger, not null):
+            Primary identifier for the job record.
+
+        company_id (BigInteger, not null):
+            Foreign key referencing `company.id`.
+            Indicates the company associated with this job record.
+            Cascades on delete — if the company is removed, related job records are deleted.
+
+        name(TEXT, not null):
+            Name of the job.
+            Maximum 32 characters long.
+
+        description (TEXT, nullable):
+            Optional description or notes about the job.
+            Maximum 1024 characters long.
+
+        job_type (Integer, not null, default=JobType.SERVICE_CREATION):
+            Type of the job. Mapped from the `JobType` enum.
+
+        recurrence_rule (TEXT, not null):
+            Required recurrence rule for the job, expressed in iCalendar RRULE (RFC5545) format.
+            Maximum 256 characters long.
+
+        trigger_at (Time(timezone=True), not null):
+            Time of the day when the job should be triggered.
+
+        triggering_mode (Integer, not null, default=TriggeringMode.AUTO):
+            Mode of triggering the job. Mapped from the `TriggeringMode` enum.
+
+        next_trigger_on (DateTime, nullable):
+            Timestamp indicating the next scheduled trigger time for the job.
+            Next trigger can become null if the job is completed or disabled, or if the recurrence rule does not allow for future triggers.
+
+        last_trigger_on (DateTime, nullable):
+            Timestamp indicating the last time the job was triggered.
+
+        trigger_from (DateTime, nullable):
+            Timestamp indicating the start of the period during which the job should be triggered.
+
+        trigger_till (DateTime, nullable):
+            Timestamp indicating the end of the period during which the job should be triggered.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the job record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the job record was created.
+    """
+
+    __tablename__ = "job"
+    __table_args__ = (UniqueConstraint("name", "company_id"),)
+
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    description: Mapped[str | None] = orm.mapped_column(TEXT)
+    job_type: Mapped[JobType] = orm.mapped_column(
+        Integer, nullable=False, default=JobType.SERVICE_CREATION
+    )
+    recurrence_rule: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    trigger_at: Mapped[dt_time] = orm.mapped_column(Time(timezone=True), nullable=False)
+    triggering_mode: Mapped[TriggeringMode] = orm.mapped_column(
+        Integer, nullable=False, default=TriggeringMode.AUTO
+    )
+    next_trigger_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True)
+    )
+    last_trigger_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True)
+    )
+    trigger_from: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    trigger_till: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    # Metadata
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
+
+
+class ServiceAutomation(ORMbase):
+    """
+    Represents an automated service creation configuration.
+
+    This table stores configurations for automatically creating services based on predefined parameters.
+
+    Columns:
+        id (BigInteger, not null):
+            Primary identifier for the service automation record.
+
+        company_id (BigInteger, not null):
+            Foreign key referencing `company.id`.
+            Indicates the company associated with this service automation record.
+            Cascades on delete — if the company is removed, related service automation records are deleted.
+
+        job_id (BigInteger, nullable):
+            Foreign key referencing `job.id`.
+            The job that triggers this service automation.
+
+        name (TEXT, not null):
+            Name of the service creation automation.
+            Maximum 128 characters long.
+
+        description (TEXT, nullable):
+            Optional description or notes about the service creation automation.
+            Maximum 1024 characters long.
+
+        route_id (BigInteger, not null):
+            Foreign key referencing `route.id`.
+            Indicates the route associated with this service creation automation.
+            Cascades on delete — if the route is removed, related service automation records are deleted.
+
+        fare_id (BigInteger, not null):
+            Foreign key referencing `fare.id`.
+            Indicates the fare associated with this service creation automation.
+            Cascades on delete — if the fare is removed, related service automation records are deleted.
+
+        vehicle_id (BigInteger, not null):
+            Foreign key referencing `vehicle.id`.
+            Indicates the vehicle associated with this service creation automation.
+            Cascades on delete — if the vehicle is removed, related service automation records are deleted.
+
+        ticket_mode (Integer, not null, default=TicketingMode.HYBRID):
+            Ticketing mode for the service creation automation. Mapped from the `TicketingMode` enum.
+
+        starting_at (Time(timezone=True), not null):
+            The time of the day at which the service should start.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the service creation automation record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the service creation automation record was created.
+    """
+
+    __tablename__ = "service_automation"
+
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    job_id: Mapped[int | None] = orm.mapped_column(
+        BigInteger, ForeignKey("job.id"), index=True
+    )
+    name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    description: Mapped[str | None] = orm.mapped_column(TEXT)
+    route_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("route.id", ondelete="CASCADE"), nullable=False
+    )
+    fare_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("fare.id", ondelete="CASCADE"), nullable=False
+    )
+    vehicle_id: Mapped[int] = orm.mapped_column(
+        BigInteger, ForeignKey("vehicle.id", ondelete="CASCADE"), nullable=False
+    )
+    ticket_mode: Mapped[TicketingMode] = orm.mapped_column(
+        Integer, nullable=False, default=TicketingMode.HYBRID
+    )
+    starting_at: Mapped[dt_time] = orm.mapped_column(
+        Time(timezone=True), nullable=False
+    )
+    # Metadata
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
+
+
+class ServiceAssignmentAutomation(ORMbase):
+    """
+    Represents an assignment automation between a service automation and an operator.
+
+    This table stores the set of operators that should be assigned automatically
+    whenever a service is created from a specific `service_automation` template.
+
+    Columns:
+        id (BigInteger, not null):
+            Primary identifier for the assignment automation record.
+
+        company_id (BigInteger, not null):
+            Foreign key referencing `company.id`.
+            Indicates the company associated with this assignment automation.
+            Cascades on delete - if the company is removed, related records are deleted.
+
+        service_automation_id (BigInteger, not null):
+            Foreign key referencing `service_automation.id`.
+            Identifies the service automation template.
+            Cascades on delete - if the template is removed, related records are deleted.
+
+        operator_id (BigInteger, not null):
+            Foreign key referencing `operator.id`.
+            Identifies the operator to auto-assign when automation runs.
+            Cascades on delete - if the operator is removed, related records are deleted.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated whenever the record is modified.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the record was created.
+    """
+
+    __tablename__ = "service_assignment_automation"
+    __table_args__ = (UniqueConstraint("service_automation_id", "operator_id"),)
+
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    service_automation_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
+        ForeignKey("service_automation.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    operator_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
+        ForeignKey("operator.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Metadata
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )

@@ -1,73 +1,73 @@
 """
-Operator Image API Router for EnteBus.
+Operator Image API router.
 
-Provides endpoints for managing operator images, including creation,
-deletion, and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing operator images:
+    - POST (executive, operator)
+    - DELETE (executive, operator)
+    - GET (executive, operator)
+    - GET /{id} (executive, operator)
 """
 
 from datetime import datetime
-from fastapi import APIRouter, Form, File, UploadFile, Response, status, Depends, Query
+from enum import StrEnum
+from io import BytesIO
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
-from io import BytesIO
-from typing import List
-from enum import StrEnum
 from pydantic import BaseModel, Field
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
+from app.api.bearer import bearer_operator, oauth2_executive
+from app.src import exceptions, schemas
+from app.src.buckets import OPERATOR_IMAGES
+from app.src.constants import (
+    MAX_IMAGE_FILE_SIZE,
+    MAX_IMAGE_RESOLUTION,
+    MIN_IMAGE_FILE_SIZE,
+    MIN_IMAGE_RESOLUTION,
+)
 from app.src.db import (
-    Company,
-    OperatorImage,
-    OperatorToken,
-    SessionLocal,
     ExecutiveToken,
     Operator,
+    OperatorImage,
+    OperatorToken,
+    get_db_session,
 )
-from app.api.bearer import oauth2_executive, bearer_operator
-from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
-from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
-from app.src import exceptions
-from app.src.urls import URL_OPERATOR_PICTURE
-from app.src.minio import delete_file, upload_file, download_file
-from app.src.openobserve import log_event
-from app.src.validators import (
-    verify_permission,
-    verify_token,
-    validate_id,
-    validate_image,
-)
+from app.src.description import Description
+from app.src.enums import OrderIn
+from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, PictureFilter
 from app.src.functions import (
-    fuse_exception_responses,
-    get_request_info,
-    get_executive_roles,
-    get_operator_roles,
     apply_created_on_filters,
     apply_id_filters,
     apply_picture_filters,
     enum_str,
+    fuse_exception_responses,
+    get_by_id,
+    get_operator_roles,
+    get_request_info,
     resize_image,
 )
-from app.src.constants import (
-    MAX_IMAGE_RESOLUTION,
-    MAX_IMAGE_FILE_SIZE,
-    MIN_IMAGE_RESOLUTION,
-    MIN_IMAGE_FILE_SIZE,
-)
-from app.src.buckets import OPERATOR_IMAGES
-from app.src.enums import OrderIn
-from app.src.filters import (
-    CreatedOnFilter,
-    IDFilter,
-    PaginationFilter,
-    PictureFilter,
+from app.src.minio import delete_file, download_file, upload_file
+from app.src.openobserve import log_event
+from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
+from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
+from app.src.urls import URL_OPERATOR_PICTURE
+from app.src.validators import (
+    authorize_executive,
+    validate_id,
+    validate_image,
+    verify_permission,
+    verify_token,
 )
 
 route_executive = APIRouter()
 route_operator = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class OperatorImageSchema(BaseModel):
     """Schema for operator image response."""
 
@@ -80,7 +80,9 @@ class OperatorImageSchema(BaseModel):
     created_on: datetime
 
 
+# ---------------------------------------------------------------------------
 ## Input Forms
+# ---------------------------------------------------------------------------
 class ImageUploadForm(BaseModel):
     """Form data for uploading an operator image."""
 
@@ -114,7 +116,9 @@ class CreateForm(CreateFormForEX):
     pass
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering results."""
 
@@ -156,27 +160,52 @@ class ImageQueryParams(BaseModel):
     )
 
 
-# Functions
-def create_image(
-    session: Session, form_param: CreateForm, operator: Operator, file_bytes: bytes
+# ---------------------------------------------------------------------------
+## Core Functions
+# ---------------------------------------------------------------------------
+async def create_operator_image(
+    session: Session,
+    form_param: CreateForm,
+    token: ExecutiveToken | OperatorToken,
+    request_info: schemas.RequestInfo,
+    operator_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
-    Creates a new operator image record in the database.
+    Create a new operator image in the database.
 
     Args:
-        session (Session): SQLAlchemy database session.
-        form_param (CreateForm): Form data for creating an operator image.
-        operator (Operator): The operator instance associated with the image.
-        file_bytes (bytes): The image file bytes.
+        session (Session): Active SQLAlchemy database session.
+        form_param (CreateForm): Form data for creating a new operator image.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
+        operator_filter: Additional filter for validating operator ownership.
 
     Returns:
-        dict: The created operator image data.
+        dict: Created operator image data.
     """
+    operator = validate_id(
+        session,
+        Operator,
+        form_param.operator_id,
+        OperatorImage.operator_id,
+        extra_filter=operator_filter,
+    )
+
+    file_bytes = await form_param.file.read()
+    filename = form_param.file.filename
+    if not filename:
+        raise exceptions.InvalidValue("filename")
+    validate_image(file_bytes, filename)
+
+    content_type = form_param.file.content_type
+    if not content_type:
+        raise exceptions.InvalidValue("content_type")
+
     operator_image = OperatorImage(
         company_id=operator.company_id,
         operator_id=operator.id,
-        file_name=form_param.file.filename,
-        file_type=form_param.file.content_type,
+        file_name=filename,
+        file_type=content_type,
         file_size=len(file_bytes),
     )
     session.add(operator_image)
@@ -189,44 +218,49 @@ def create_image(
     )
     session.commit()
     session.refresh(operator_image)
+
     operator_image_data = jsonable_encoder(operator_image)
+    log_event(token, request_info, operator_image_data)
     return operator_image_data
 
 
-def delete_image(
+def delete_operator_image(
     session: Session,
     operator_image: OperatorImage,
-) -> dict:
+    token: ExecutiveToken | OperatorToken,
+    request_info: schemas.RequestInfo,
+):
     """
-    Deletes an operator image and its associated file from storage.
+    Delete an operator image from the database.
 
     Args:
-        session (Session): SQLAlchemy database session.
-        operator_image (OperatorImage): Operator image to delete.
-
-    Returns:
-        dict: deleted operator image data for logging purposes.
+        session (Session): Active SQLAlchemy database session.
+        operator_image (OperatorImage): Operator image instance to delete.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
     """
     operator_image_data = jsonable_encoder(operator_image)
     session.delete(operator_image)
     session.commit()
     delete_file(OPERATOR_IMAGES, str(operator_image.id))
-    return operator_image_data
+    log_event(token, request_info, operator_image_data)
 
 
-def search_image(session: Session, query_params: QueryParams) -> list[OperatorImage]:
+def search_operator_images(
+    session: Session, query_params: QueryParams
+) -> list[OperatorImage]:
     """
     Search for operator images based on provided query parameters.
 
-    This function supports multiple filtering, searching, ordering, and
-    pagination capabilities to retrieve operator images that match various criteria.
+    This function supports multiple filtering, ordering, and pagination capabilities
+    to retrieve operator images that match various criteria.
 
     Args:
-        session (Session): SQLAlchemy database session.
+        session (Session): Active SQLAlchemy database session.
         query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
-        List[OperatorImage]: List of OperatorImage instances that match the search criteria.
+        list[OperatorImage]: List of operator images that match the search criteria.
     """
     query = session.query(OperatorImage)
     if query_params.company_id is not None:
@@ -253,43 +287,88 @@ def search_image(session: Session, query_params: QueryParams) -> list[OperatorIm
     return operator_images
 
 
-def download_image(
-    operator_image: OperatorImage, query_params: ImageQueryParams
+def fetch_operator_image(
+    session: Session,
+    id: int,
+    query_params: ImageQueryParams,
+    image_filter: ColumnElement[bool] | None = None,
 ) -> StreamingResponse:
     """
-    Download an operator image by its ID.
-
-    This function retrieves the operator image metadata from the database and
-    then fetches the corresponding image file from the MinIO bucket.
+    Fetch an operator image by its ID and optionally resize it.
 
     Args:
-        operator_image (OperatorImage): The OperatorImage instance to download.
-        query_params (ImageQueryParams): Query parameters for image resizing.
+        session (Session): Active SQLAlchemy database session.
+        id (int): ID of the operator image to fetch.
+        query_params (ImageQueryParams): Query parameters for resizing the image.
+        image_filter: Additional filter for restricting image access.
 
     Returns:
-        StreamingResponse: A StreamingResponse containing the downloaded image.
-
-    Raises:
-        exceptions.UnknownValue: If no operator image with the specified ID is found.
+        StreamingResponse: The operator image stream in original or resized form.
     """
-    if operator_image is not None:
-        file_bytes = download_file(OPERATOR_IMAGES, str(operator_image.id))
-        if query_params.width is not None or query_params.height is not None:
-            file_bytes = resize_image(
-                file_bytes,
-                width=query_params.width,
-                height=query_params.height,
-            )
+    operator_image = get_by_id(session, OperatorImage, id, extra_filter=image_filter)
+    if operator_image is None:
+        raise exceptions.UnknownValue(OperatorImage.id)
 
-        return StreamingResponse(
-            BytesIO(file_bytes),
-            media_type=operator_image.file_type,
-            headers={
-                "Content-Disposition": f'inline; filename="{operator_image.file_name}"',
-                "Cache-Control": "public, max-age=31536000, immutable",
-            },
-        )
-    raise exceptions.UnknownValue(OperatorImage.id)
+    file_bytes = download_file(OPERATOR_IMAGES, str(operator_image.id))
+    assert file_bytes is not None, "Downloaded file bytes should not be None"
+    resized_bytes = resize_image(
+        file_bytes,
+        width=query_params.width,
+        height=query_params.height,
+    )
+    return StreamingResponse(
+        BytesIO(resized_bytes),
+        media_type=operator_image.file_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{operator_image.file_name}"',
+            "Cache-Control": "public, max-age=31536000, immutable",
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.InvalidImageFile(),
+    exceptions.UnknownValue(OperatorImage.operator_id),
+    exceptions.InvalidValue("filename"),
+    exceptions.InvalidValue("content_type"),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+]
+
+DOWNLOAD_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.UnknownValue(OperatorImage.id),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common description
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = Description().add_head("Uploads an operator image.")
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes an operator image.")
+    .add_line("Returns 204 No Content even if the specified image does not exist.")
+)
+
+GET_DESCRIPTION = Description().add_head("Fetches a list of operator images.")
+
+DOWNLOAD_DESCRIPTION = Description().add_head(
+    "Downloads operator profile picture in original or resized resolution."
+)
 
 
 # ---------------------------------------------------------------------------
@@ -301,49 +380,30 @@ def download_image(
     tags=["Operator Account Image"],
     response_model=OperatorImageSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidImageFile(),
-            exceptions.UnknownValue(OperatorImage.operator_id),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Uploads an operator image.**    
-            - Executive must have a valid access token.    
-            - Logged-in executive must have `company.operator.update` permission to upload other operator images.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.operator.update` permission.")
+        .to_string()
     ),
 )
 async def upload_operator_image_for_executive(
     form_param: CreateFormForEX = Depends(),
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR)
-
-        operator = validate_id(
-            session, Operator, form_param.operator_id, OperatorImage.operator_id
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR],
         )
-
-        file_bytes = await form_param.file.read()
-        validate_image(file_bytes, form_param.file.filename)
-
-        operator_image_data = create_image(
-            session, CreateForm(**form_param.model_dump()), operator, file_bytes
+        return await create_operator_image(
+            session, CreateForm(**form_param.model_dump()), token, request_info
         )
-        log_event(token, request_info, operator_image_data)
-        return operator_image_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -351,103 +411,74 @@ async def upload_operator_image_for_executive(
     summary="Delete operator image",
     tags=["Operator Account Image"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes an operator image.**    
-            - Executive must have a valid access token.    
-            - To delete operator's image, the `company.operator.update` permission is required.    
-            - Returns 204 No Content even if the specified image does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.operator.update` permission.")
+        .to_string()
     ),
 )
 async def delete_operator_image_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR)
-
-        operator_image = (
-            session.query(OperatorImage).filter(OperatorImage.id == id).first()
+        token = authorize_executive(
+            session,
+            access_token,
+            [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR],
         )
+        operator_image = get_by_id(session, OperatorImage, id)
         if operator_image is not None:
-            operator_image_data = delete_image(session, operator_image)
-            log_event(token, request_info, operator_image_data)
+            delete_operator_image(session, operator_image, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
     URL_OPERATOR_PICTURE,
     summary="Fetch operator image",
     tags=["Operator Account Image"],
-    response_model=List[OperatorImageSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of operator images.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    response_model=list[OperatorImageSchema],
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
-async def fetch_operator_image_for_executive(
-    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+async def fetch_operator_images_for_executive(
+    query_params: QueryParamsForEX = Depends(),
+    access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
-        return search_image(
+        return search_operator_images(
             session,
             QueryParams(**query_params.model_dump()),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
     f"{URL_OPERATOR_PICTURE}/{{id}}",
     summary="Download operator image",
     tags=["Operator Account Image"],
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.UnknownValue(OperatorImage.id)]
-    ),
-    description=(
-        """
-            **Download operator profile picture in original or resized resolution.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(DOWNLOAD_EXCEPTIONS),
+    description=(DOWNLOAD_DESCRIPTION.to_string()),
 )
 async def download_operator_image_for_executive(
     id: int,
     query_params: ImageQueryParams = Depends(),
     access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
-        operator_image = (
-            session.query(OperatorImage).filter(OperatorImage.id == id).first()
-        )
-        return download_image(operator_image, query_params)
+        return fetch_operator_image(session, id, query_params)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -459,61 +490,41 @@ async def download_operator_image_for_executive(
     tags=["Account Image"],
     response_model=OperatorImageSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidImageFile(),
-            exceptions.UnknownValue(OperatorImage.operator_id),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
-        """
-            **Uploads an operator image.**    
-            - Operator must have a valid access token.    
-            - Logged-in operator must have `company.operator.update` permission to upload other operator images.    
-            - Operator can update their own image without permission.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line(
+            "Logged-in operator must have `company.operator.update` permission to upload other operator images."
+        )
+        .add_line("Operator can update their own image without permission.")
+        .to_string()
     ),
 )
 async def upload_operator_image_for_operator(
     form_param: CreateFormForOP = Depends(),
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
-
-        if form_param.operator_id is None:
-            form_param.operator_id = token.operator_id
-        is_self_update = form_param.operator_id == token.operator_id
-        if not is_self_update:
+        operator_id = form_param.operator_id or token.operator_id
+        if operator_id != token.operator_id:
             roles = get_operator_roles(session, token)
             verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR)
 
-        operator = validate_id(
+        return await create_operator_image(
             session,
-            Operator,
-            form_param.operator_id,
-            OperatorImage.operator_id,
-            extra_filter=Operator.company_id == token.company_id,
+            CreateForm(
+                **form_param.model_dump(exclude={"operator_id"}),
+                operator_id=operator_id,
+            ),
+            token,
+            request_info,
+            operator_filter=(Operator.company_id == token.company_id),
         )
-        file_bytes = await form_param.file.read()
-        validate_image(file_bytes, form_param.file.filename)
-
-        operator_image_data = create_image(
-            session,
-            CreateForm(**form_param.model_dump()),
-            operator,
-            file_bytes,
-        )
-        log_event(token, request_info, operator_image_data)
-        return operator_image_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.delete(
@@ -521,112 +532,93 @@ async def upload_operator_image_for_operator(
     summary="Delete operator image",
     tags=["Account Image"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes an operator image.**    
-            - Operator must have a valid access token.    
-            - Operators can delete their own image without additional permissions.    
-            - To delete another operator's image, the `company.operator.update` permission is required.    
-            - Returns 204 No Content even if the specified image does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line(
+            "Operators can delete their own image without additional permissions."
+        )
+        .add_line(
+            "To delete another operator's image, the `company.operator.update` permission is required."
+        )
+        .to_string()
     ),
 )
 async def delete_operator_image_for_operator(
     id: int,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
-
-        operator_image = (
-            session.query(OperatorImage)
-            .filter(
-                OperatorImage.id == id, OperatorImage.company_id == token.company_id
-            )
-            .first()
+        operator_image = get_by_id(
+            session,
+            OperatorImage,
+            id,
+            extra_filter=(OperatorImage.company_id == token.company_id),
         )
-        if operator_image is None or operator_image.operator_id != token.operator_id:
-            roles = get_operator_roles(session, token)
-            verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR)
         if operator_image is None:
             return Response(status_code=status.HTTP_204_NO_CONTENT)
-        operator_image_data = delete_image(session, operator_image)
-        log_event(token, request_info, operator_image_data)
+        if operator_image.operator_id != token.operator_id:
+            roles = get_operator_roles(session, token)
+            verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_OPERATOR)
+
+        delete_operator_image(session, operator_image, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.get(
     URL_OPERATOR_PICTURE,
     summary="Fetch operator image",
     tags=["Account Image"],
-    response_model=List[OperatorImageSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
+    response_model=list[OperatorImageSchema],
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(
-        """
-            **Fetches a list of operator images.**    
-            - Requires a valid access token for authentication.    
-            - Only operator images belonging to the same company as the logged-in operator will be returned.    
-        """
+        GET_DESCRIPTION.copy()
+        .add_line(
+            "Only operator images belonging to the same company as the logged-in operator will be returned."
+        )
+        .to_string()
     ),
 )
-async def fetch_operator_image_for_operator(
-    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+async def fetch_operator_images_for_operator(
+    query_params: QueryParamsForOP = Depends(),
+    access_token=Depends(bearer_operator),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
-
-        return search_image(
+        return search_operator_images(
             session,
             QueryParams(**query_params.model_dump(), company_id=token.company_id),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.get(
     f"{URL_OPERATOR_PICTURE}/{{id}}",
     summary="Download operator image",
     tags=["Account Image"],
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.UnknownValue(OperatorImage.id)]
-    ),
-    description=(
-        """
-            **Download operator profile picture in original or resized resolution.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    responses=fuse_exception_responses(DOWNLOAD_EXCEPTIONS),
+    description=(DOWNLOAD_DESCRIPTION.to_string()),
 )
 async def download_operator_image_for_operator(
     id: int,
     query_params: ImageQueryParams = Depends(),
     access_token=Depends(bearer_operator),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
-
-        operator_image = (
-            session.query(OperatorImage)
-            .filter(
-                OperatorImage.id == id, OperatorImage.company_id == token.company_id
-            )
-            .first()
+        return fetch_operator_image(
+            session,
+            id,
+            query_params,
+            image_filter=(OperatorImage.company_id == token.company_id),
         )
-        return download_image(operator_image, query_params)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()

@@ -9,7 +9,7 @@ from app.api.executive_role_map import ExecutiveRoleMapSchema
 from app.api.executive_token import ExecutiveTokenSchema
 from app.api.landmark import LandmarkSchema
 from app.api.landmark_in_route import LandmarkInRouteSchema
-from app.api.bus_stop import BusStopSchema
+from app.api.station import StationSchema
 from app.api.operator_role import OperatorRoleSchema
 from app.api.operator_role_map import OperatorRoleMapSchema
 from app.api.vehicle import VehicleSchema
@@ -32,13 +32,13 @@ from app.src.urls import (
     URL_VEHICLE_PICTURE,
     URL_EXECUTIVE_TOKEN,
     URL_LANDMARK,
-    URL_BUS_STOP,
+    URL_STATION,
     URL_ROUTE,
     URL_BUSINESS,
     URL_VENDOR_PICTURE,
     URL_VENDOR_ACCOUNT,
 )
-from app.api.service import ServiceSchema
+from app.api.service import MaskedServiceSchema
 from app.api.service_assignment import ServiceAssignmentSchema
 from tests.inputs import (
     generate_company_payload,
@@ -56,7 +56,7 @@ from tests.inputs import (
     generate_test_image,
     generate_vehicle_payload,
     generate_landmark_payload,
-    generate_bus_stop_payload,
+    generate_station_payload,
     generate_service_assignment_payload,
 )
 from app.api.fare import FareSchema
@@ -251,27 +251,27 @@ def test_landmark_endpoint(landmark_url: str, landmark_data: dict, token_headers
     assert response.status_code == 204
 
 
-def test_bus_stop_endpoint(bus_stop_url: str, bus_stop_data: dict, token_headers: dict):
-    print("Creating bus stop")
-    response = requests.post(bus_stop_url, headers=token_headers, json=bus_stop_data)
+def test_station_endpoint(station_url: str, station_data: dict, token_headers: dict):
+    print("Creating station")
+    response = requests.post(station_url, headers=token_headers, json=station_data)
     assert response.status_code == 201
-    bus_stop = BusStopSchema.model_validate(response.json())
+    station = StationSchema.model_validate(response.json())
 
-    print("Fetching bus stop by id")
-    response = requests.get(f"{bus_stop_url}?id={bus_stop.id}", headers=token_headers)
+    print("Fetching station by id")
+    response = requests.get(f"{station_url}?id={station.id}", headers=token_headers)
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list) and len(data) == 1
 
-    print("Updating bus stop location")
-    update_payload = {"name": f"{bus_stop.name}-updated"}
+    print("Updating station name")
+    update_payload = {"name": f"{station.name}-updated"}
     response = requests.patch(
-        f"{bus_stop_url}/{bus_stop.id}", headers=token_headers, json=update_payload
+        f"{station_url}/{station.id}", headers=token_headers, json=update_payload
     )
     assert response.status_code == 200
 
-    print("Deleting bus stop")
-    response = requests.delete(f"{bus_stop_url}/{bus_stop.id}", headers=token_headers)
+    print("Deleting station")
+    response = requests.delete(f"{station_url}/{station.id}", headers=token_headers)
     assert response.status_code == 204
 
 
@@ -357,7 +357,11 @@ def test_operator_role_map_endpoint(
     token_headers: dict,
 ):
     print("Creating role mapping")
-    role_map_payload = {"role_id": role_1.id, "operator_id": operator.id}
+    role_map_payload = {
+        "role_id": role_1.id,
+        "operator_id": operator.id,
+        "company_id": operator.company_id,
+    }
     response = requests.post(
         operator_role_map_url,
         headers=token_headers,
@@ -558,7 +562,7 @@ def test_service_endpoint(service_url: str, service_data: dict, token_headers: d
     print("Creating service")
     response = requests.post(service_url, headers=token_headers, json=service_data)
     assert response.status_code == 201
-    svc = ServiceSchema.model_validate(response.json())
+    svc = MaskedServiceSchema.model_validate(response.json())
 
     print("Fetching service list")
     response = requests.get(f"{service_url}?id={svc.id}", headers=token_headers)
@@ -586,14 +590,18 @@ def test_service_endpoint(service_url: str, service_data: dict, token_headers: d
 
 def test_service_assignment(
     service_assignment_url: str,
-    service: ServiceSchema,
+    service: MaskedServiceSchema,
     operator_1: OperatorSchema,
     operator_2: OperatorSchema,
     company: CompanySchema,
     token_headers: dict,
 ):
     print("Creating service assignment")
-    payload = generate_service_assignment_payload(service.id, operator_1.id, company.id)
+    payload = generate_service_assignment_payload(
+        service.id,
+        operator_1.id,
+        company_id=company.id,
+    )
     response = requests.post(
         service_assignment_url, headers=token_headers, json=payload
     )
@@ -710,7 +718,7 @@ def run_test(target_url):
     TOKEN_URL = f"{target_url}/executive{URL_EXECUTIVE_TOKEN}"
     ROLE_MAP_URL = f"{target_url}/executive{URL_EXECUTIVE_ROLE_MAP}"
     LANDMARK_URL = f"{target_url}/executive{URL_LANDMARK}"
-    BUS_STOP_URL = f"{target_url}/executive{URL_BUS_STOP}"
+    STATION_URL = f"{target_url}/executive{URL_STATION}"
     COMPANY_URL = f"{target_url}/executive{URL_COMPANY}"
     OPERATOR_URL = f"{target_url}/executive{URL_OPERATOR_ACCOUNT}"
     OPERATOR_ROLE_URL = f"{target_url}/executive{URL_OPERATOR_ROLE}"
@@ -864,10 +872,10 @@ def run_test(target_url):
     response = requests.post(
         SERVICE_URL,
         headers=admin_headers,
-        json=generate_service_payload(company.id, route.id, fare.id, vehicle.id),
+        json=generate_service_payload(route.id, fare.id, vehicle.id, company.id),
     )
     assert response.status_code == 201
-    service = ServiceSchema.model_validate(response.json())
+    service = MaskedServiceSchema.model_validate(response.json())
 
     # Business
     print("Creating business")
@@ -906,10 +914,10 @@ def run_test(target_url):
 
     # Test landmark creation, retrieval, updating and deletion
     test_landmark_endpoint(LANDMARK_URL, generate_landmark_payload(), admin_headers)
-    # Test bus stop creation, retrieval, updating and deletion
-    test_bus_stop_endpoint(
-        BUS_STOP_URL,
-        generate_bus_stop_payload(landmark_1.id, landmark_1.boundary),
+    # Test station creation, retrieval, updating and deletion
+    test_station_endpoint(
+        STATION_URL,
+        generate_station_payload(landmark_1.id, landmark_1.boundary),
         admin_headers,
     )
 
@@ -960,7 +968,7 @@ def run_test(target_url):
     # Test service creation, retrieval, updating and deletion
     test_service_endpoint(
         SERVICE_URL,
-        generate_service_payload(company.id, route.id, fare.id, vehicle.id),
+        generate_service_payload(route.id, fare.id, vehicle.id, company.id),
         admin_headers,
     )
     # Test service assignment create/update/delete

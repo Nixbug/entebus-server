@@ -10,7 +10,6 @@ Configuration values can be overridden via environment variables.
 from os import environ
 from zoneinfo import ZoneInfo
 
-
 # ---------------------------------------------------------------------------
 # Application metadata
 # ---------------------------------------------------------------------------
@@ -84,6 +83,9 @@ MAX_LANDMARK_UPDATE_DISTANCE = 1000  # 1 km
 MIN_LANDMARKS_PER_ROUTE = 2  # Minimum number of landmarks per route
 MAX_LANDMARKS_PER_ROUTE = 100  # # Maximum number of landmarks per route
 MAX_ROUTE_DISTANCE = 10000 * 1000  # Maximum  route length in meters (10000 km)
+MAX_STATIONS_PER_LANDMARK = 20  # Maximum number of stations per landmark
+
+
 # ---------------------------------------------------------------------------
 # Service/duty constraints
 # ---------------------------------------------------------------------------
@@ -102,8 +104,8 @@ TMZ_SECONDARY = ZoneInfo("Asia/Kolkata")
 # ---------------------------------------------------------------------------
 # MiniRacer constants (for JS execution limits)
 # ---------------------------------------------------------------------------
-JSX_TIMEOUT_MS = 1000  # Timeout for script execution (in milliseconds)
-JSX_MAX_MEMORY_BYTES = 10 * 1024 * 1024  # Max memory size (10 MB)
+JSX_TIMEOUT_MS = 100  # Timeout for script execution (in milliseconds)
+JSX_MAX_MEMORY_BYTES = 68 * 1024  # Max memory size (68 KB)
 
 
 # ---------------------------------------------------------------------------
@@ -120,6 +122,7 @@ LOCK_MAX_WAIT_SECONDS = 10
 # ---------------------------------------------------------------------------
 DYNAMIC_FARE_VERSION = 1  # Current dynamic fare version
 
+
 # ---------------------------------------------------------------------------
 # Image constants
 # ---------------------------------------------------------------------------
@@ -127,3 +130,24 @@ MAX_IMAGE_RESOLUTION = 4096  # Maximum allowed width/height in pixels
 MIN_IMAGE_RESOLUTION = 16  # Minimum allowed width/height in pixels
 MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024  # Maximum allowed file size in bytes (10 MB)
 MIN_IMAGE_FILE_SIZE = 1 * 1024  # Minimum allowed file size in bytes (1 KB)
+
+
+# ---------------------------------------------------------------------------
+# Company constraints
+# ---------------------------------------------------------------------------
+MAX_ROUTES_PER_COMPANY = 100  # Maximum routes per company
+MAX_OPERATORS_PER_COMPANY = 100  # Maximum operators per company
+MAX_VENDORS_PER_COMPANY = 100  # Maximum vendors per company
+MAX_LOCAL_FARES_PER_COMPANY = 50  # Maximum LOCAL fares per company
+MAX_VEHICLES_PER_COMPANY = 100  # Maximum vehicles per company
+MAX_TRACES_PER_COMPANY = 100  # Maximum traces per company
+MAX_LOCATIONS_PER_TRACE = 65536  # Maximum locations per trace
+MAX_LOCATIONS_PER_BATCH = 100  # Maximum locations per batch upload
+
+
+# ---------------------------------------------------------------------------
+# Role constraints (executive/operator/vendor)
+# ---------------------------------------------------------------------------
+MAX_EXECUTIVE_ROLE = 20
+MAX_OPERATOR_ROLE = 20
+MAX_VENDOR_ROLE = 20

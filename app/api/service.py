@@ -1,35 +1,39 @@
 """
-Service API Router for EnteBus.
+Service API Router.
 
-Provides endpoints for managing services, including creation,
-update, deletion and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing services:
+    - POST (executive, operator)
+    - GET (public, executive, operator, vendor)
+    - PATCH (executive, operator)
+    - DELETE (executive, operator)
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
+from decimal import Decimal
 from enum import StrEnum
 from fastapi.encoders import jsonable_encoder
-from typing import Any, Dict, List
+from typing import Annotated, Any
 from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel, Field
 from datetime import timedelta
 from fastapi import status, Depends
 from sqlalchemy import String, and_, func, or_
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import aliased
 
 from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
 from app.api.fare import FareAttributes
+from app.src import schemas
+from app.src.schemas import PatchForm
 from app.src.urls import URL_SERVICE
 from app.src.db import (
-    SessionLocal,
     ExecutiveToken,
     OperatorToken,
     Service,
     Duty,
     Route,
     LandmarkInRoute,
-    Landmark,
     Fare,
     Vehicle,
     FareInService,
@@ -38,14 +42,16 @@ from app.src.db import (
     Company,
     PaperTicket,
     VendorToken,
+    ServiceLocation,
+    get_db_session,
 )
 from app.src import exceptions
+from app.src.description import Description
 from app.src.functions import (
     apply_id_filters,
+    get_by_id,
     resolve_model_defaults,
     get_request_info,
-    get_executive_roles,
-    get_operator_roles,
     fuse_exception_responses,
     enum_str,
     apply_name_filters,
@@ -59,7 +65,8 @@ from app.src.validators import (
     validate_id,
     validate_state_transition,
     verify_token,
-    verify_permission,
+    authorize_executive,
+    authorize_operator,
 )
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.openobserve import log_event
@@ -81,9 +88,11 @@ from app.src.filters import (
     PaginationFilter,
 )
 from app.src.regex import NAME_PATTERN
-from app.src.constants import TMZ_SECONDARY
 from app.src.digital_ticket.v1 import TicketCreator
 from app.src.constants import SERVICE_CREATION_LEAD_TIME_DAYS, TMZ_PRIMARY
+from app.src.redis import acquire_lock, release_lock
+from app.api.fare import construct_fare_reference_lock
+from app.api.vehicle import construct_vehicle_reference_lock
 
 route_executive = APIRouter()
 route_operator = APIRouter()
@@ -91,8 +100,10 @@ route_vendor = APIRouter()
 route_public = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
-class ServiceSchema(BaseModel):
+# ---------------------------------------------------------------------------
+class MaskedServiceSchema(BaseModel):
     """Schema for service response without revealing all details."""
 
     id: int
@@ -103,6 +114,7 @@ class ServiceSchema(BaseModel):
     fare_id: int | None
     vehicle_id: int | None
     route_id: int | None
+    route_version: int | None
     starting_landmark_id: int
     ending_landmark_id: int
     ticket_mode: int
@@ -140,35 +152,42 @@ class LandmarkInServiceSchema(BaseModel):
 
     service_id: int
     landmark_id: int
+    type: int
     distance_from_start: int
     arrival_at: datetime
     departure_at: datetime
 
 
-class PublicServiceSchema(ServiceSchema):
+class ServiceSchema(MaskedServiceSchema):
+    """Schema for service response with additional details."""
+
+    collection: Decimal | None
+
+
+class MaskedServiceDetailSchema(MaskedServiceSchema):
     """Schema for service response with masked details."""
 
     fare: FareInServiceSchema
     vehicle: VehicleInServiceSchema
-    route: List[LandmarkInServiceSchema]
+    route: list[LandmarkInServiceSchema]
 
 
-class PrivateServiceSchema(PublicServiceSchema):
+class ServiceDetailSchema(MaskedServiceDetailSchema):
     """Schema for service response with detailed information."""
 
     public_key: str
 
 
-# Input Forms
+# ---------------------------------------------------------------------------
+## Input Forms
+# ---------------------------------------------------------------------------
 class CreateFormForOP(BaseModel):
-    """Form data for creating a new service by an operator."""
+    """Form data for creating a new service for an operator."""
 
     route_id: int = Field()
     fare_id: int = Field()
     vehicle_id: int = Field()
-    name: str | None = Field(
-        default=None, min_length=1, max_length=128, pattern=NAME_PATTERN
-    )
+    name: str = Field(min_length=1, max_length=128, pattern=NAME_PATTERN)
     ticket_mode: TicketingMode = Field(
         description=enum_str(TicketingMode), default=TicketingMode.HYBRID
     )
@@ -176,7 +195,7 @@ class CreateFormForOP(BaseModel):
 
 
 class CreateFormForEX(CreateFormForOP):
-    """Form data for creating a new service by an executive."""
+    """Form data for creating a new service for an executive."""
 
     company_id: int = Field()
 
@@ -187,24 +206,30 @@ class CreateForm(CreateFormForEX):
     pass
 
 
-class UpdateForm(BaseModel):
-    """Form data for updating an existing service."""
+class UpdateForm(PatchForm):
+    """Form data for updating a service."""
 
     name: str | None = Field(
         default=None, min_length=1, max_length=128, pattern=NAME_PATTERN
     )
-    ticket_mode: TicketingMode = Field(
+    ticket_mode: TicketingMode | None = Field(
         default=None, description=enum_str(TicketingMode)
     )
-    status: ServiceStatus = Field(default=None, description=enum_str(ServiceStatus))
-    remark: str | None = Field(default=None, min_length=1, max_length=1024)
-    vehicle_id: int = Field(default=None)
-    route_id: int = Field(default=None)
-    fare_id: int = Field(default=None)
-    starting_at: datetime = Field(default=None)
+    status: ServiceStatus | None = Field(
+        default=None, description=enum_str(ServiceStatus)
+    )
+    remark: Annotated[str | None, "nullable"] = Field(
+        default=None, min_length=1, max_length=1024
+    )
+    vehicle_id: int | None = Field(default=None)
+    route_id: int | None = Field(default=None)
+    fare_id: int | None = Field(default=None)
+    starting_at: datetime | None = Field(default=None)
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering service results."""
 
@@ -224,7 +249,7 @@ class QueryParamsForPU(IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFil
     ticket_mode: TicketingMode | None = Field(
         Query(default=None, description=enum_str(TicketingMode))
     )
-    status_list: List[ServiceStatus] | None = Field(
+    status_list: list[ServiceStatus] | None = Field(
         Query(default=None, description=enum_str(ServiceStatus))
     )
     starting_at_ge: datetime | None = Field(Query(default=None))
@@ -242,7 +267,7 @@ class QueryParamsForPU(IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFil
 class QueryParamsForOP(QueryParamsForPU):
     """Query parameters for operator users."""
 
-    id_excluding: List[int] | None = Field(Query(default=None))
+    id_excluding: list[int] | None = Field(Query(default=None))
     fare_id: int | None = Field(Query(default=None))
     vehicle_id: int | None = Field(Query(default=None))
     route_id: int | None = Field(Query(default=None))
@@ -266,13 +291,38 @@ class QueryParams(QueryParamsForEX):
     pass
 
 
-class ServiceQueryParams(BaseModel):
-    """Query parameters for retrieving a service."""
+# ---------------------------------------------------------------------------
+## Lock Generator
+# ---------------------------------------------------------------------------
+def construct_service_transition_lock(service_id: int) -> str:
+    """
+    Creates a Redis lock key for a service.
 
-    marked_as_cached: bool = Field(Query(default=False))
+    Prevents concurrent service transitions, duty state transitions,
+    duty creation, and paper ticket creation for the same service.
+
+    Args:
+        service_id (int): ID of the service for which to create the lock.
+    """
+    return f"lk_service_:{service_id}"
 
 
-# Functions
+def construct_service_creation_lock(registration_number: str) -> str:
+    """
+    Creates a Redis lock key for service creation.
+
+    Prevents overlapping services from being created concurrently
+    for the same vehicle registration number.
+
+    Args:
+        registration_number (str): Vehicle registration number.
+    """
+    return f"lk_service_:{registration_number}"
+
+
+# ---------------------------------------------------------------------------
+## Helper Functions
+# ---------------------------------------------------------------------------
 def validate_starting_at(starting_at: datetime) -> datetime:
     """
     Normalize a datetime to UTC and validate it is within the allowed creation window.
@@ -320,36 +370,91 @@ def validate_service_timing(
         raise exceptions.OverlappingService()
 
 
+def fetch_landmarks_in_route(session: Session, route: Route) -> list[LandmarkInRoute]:
+    """
+    Fetch and return all landmarks in a given route, ordered by distance from start.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        route (Route): The route object for which to fetch landmarks.
+
+    Returns:
+        List[LandmarkInRoute]: List of `LandmarkInRoute` objects ordered by distance from start.
+    """
+    return (
+        session.query(LandmarkInRoute)
+        .filter(LandmarkInRoute.route_id == route.id)
+        .order_by(LandmarkInRoute.distance_from_start.asc())
+        .all()
+    )
+
+
 def create_landmarks_in_service(
-    service_id: int,
-    landmarks_in_route: List[LandmarkInRoute],
-    starting_at: datetime,
-) -> List[LandmarkInService]:
+    session: Session,
+    service: Service,
+    landmarks_in_route: list[LandmarkInRoute],
+) -> list[LandmarkInService]:
     """
     Create landmark snapshot rows for a service based on route timing deltas.
 
     Args:
-        service_id (int): The ID of the service.
-        landmarks_in_route (List[LandmarkInRoute]): The landmarks in the route.
-        starting_at (datetime): The starting time of the service.
+        session (Session): SQLAlchemy database session.
+        service (Service): The service object.
 
     Returns:
         List[LandmarkInService]: The list of landmarks in the service.
     """
     landmarks_in_service = []
     for landmark_in_route in landmarks_in_route:
-        landmarks_in_service.append(
-            LandmarkInService(
-                service_id=service_id,
-                landmark_id=landmark_in_route.landmark_id,
-                distance_from_start=landmark_in_route.distance_from_start,
-                arrival_at=starting_at
-                + timedelta(minutes=landmark_in_route.arrival_delta),
-                departure_at=starting_at
-                + timedelta(minutes=landmark_in_route.departure_delta),
-            )
+        landmark_in_service = LandmarkInService(
+            service_id=service.id,
+            landmark_id=landmark_in_route.landmark_id,
+            type=landmark_in_route.type,
+            distance_from_start=landmark_in_route.distance_from_start,
+            arrival_at=service.starting_at
+            + timedelta(minutes=landmark_in_route.arrival_delta),
+            departure_at=service.starting_at
+            + timedelta(minutes=landmark_in_route.departure_delta),
         )
+        landmarks_in_service.append(landmark_in_service)
+    session.add_all(landmarks_in_service)
+    session.flush()
     return landmarks_in_service
+
+
+def fetch_landmarks_in_service(
+    session: Session, service: Service
+) -> list[LandmarkInService]:
+    """
+    Fetch and return landmark snapshots (`LandmarkInService`) for a service.
+
+    Args:
+        session (Session): SQLAlchemy session.
+        service (Service): Service object to lookup.
+
+    Returns:
+        List[LandmarkInService]: List of `LandmarkInService` objects.
+    """
+    return (
+        session.query(LandmarkInService)
+        .filter(LandmarkInService.service_id == service.id)
+        .order_by(LandmarkInService.distance_from_start.asc())
+        .all()
+    )
+
+
+def delete_landmarks_in_service(session: Session, service: Service) -> None:
+    """
+    Delete all `LandmarkInService` rows associated with a `Service`.
+
+    Args:
+        session (Session): SQLAlchemy session.
+        service (Service): Service whose landmark snapshots should be removed.
+    """
+    session.query(LandmarkInService).filter(
+        LandmarkInService.service_id == service.id
+    ).delete(synchronize_session=False)
+    session.flush()
 
 
 def create_fare_in_service(session: Session, fare: Fare) -> FareInService:
@@ -383,6 +488,40 @@ def create_fare_in_service(session: Session, fare: Fare) -> FareInService:
         session.add(fare_in_service)
     session.flush()
     return fare_in_service
+
+
+def fetch_fare_in_service(session: Session, service: Service) -> FareInService:
+    """
+    Fetch and return the `FareInService` snapshot for a service.
+
+    Args :
+        session (Session): SQLAlchemy session.
+        service (Service): Service object to lookup.
+
+    Returns:
+        FareInService: `FareInService` object.
+    """
+    fare_in_service = (
+        session.query(FareInService)
+        .filter(FareInService.id == service.fare_in_service_id)
+        .first()
+    )
+    assert fare_in_service is not None, "FareInService snapshot should not be None."
+    return fare_in_service
+
+
+def delete_fare_in_service(session: Session, fare_in_service: FareInService) -> None:
+    """
+    Decrements the reference count of the `FareInService` snapshot referenced by the
+    given `Service` and deletes it if the count reaches zero.
+
+    Args:
+        session (Session): SQLAlchemy database session.
+        fare_in_service (FareInService): `FareInService` object to be decremented/cleaned up.
+    """
+    fare_in_service.reference_count -= 1
+    if fare_in_service.reference_count == 0:
+        session.delete(fare_in_service)
 
 
 def create_vehicle_in_service(session: Session, vehicle: Vehicle) -> VehicleInService:
@@ -421,50 +560,7 @@ def create_vehicle_in_service(session: Session, vehicle: Vehicle) -> VehicleInSe
     return vehicle_in_service
 
 
-def fetch_landmarks_in_service(
-    session: Session, service: Service
-) -> List[LandmarkInServiceSchema]:
-    """
-    Fetch and return landmark snapshots (`LandmarkInService`) for a service.
-
-    Args:
-        session (Session): SQLAlchemy session.
-        service (Service): Service object to lookup.
-
-    Returns:
-        List[LandmarkInServiceSchema]: List of `LandmarkInServiceSchema` objects.
-    """
-    landmarks = (
-        session.query(LandmarkInService)
-        .filter(LandmarkInService.service_id == service.id)
-        .order_by(LandmarkInService.distance_from_start.asc())
-        .all()
-    )
-    return jsonable_encoder(landmarks)
-
-
-def fetch_fare_in_service(session: Session, service: Service) -> FareInServiceSchema:
-    """
-    Fetch and return the `FareInService` snapshot for a service.
-
-    Args :
-        session (Session): SQLAlchemy session.
-        service (Service): Service object to lookup.
-
-    Returns:
-        FareInServiceSchema: `FareInServiceSchema` object.
-    """
-    fare_in_service = (
-        session.query(FareInService)
-        .filter(FareInService.id == service.fare_in_service_id)
-        .first()
-    )
-    return jsonable_encoder(fare_in_service, exclude={"reference_count"})
-
-
-def fetch_vehicle_in_service(
-    session: Session, service: Service
-) -> VehicleInServiceSchema:
+def fetch_vehicle_in_service(session: Session, service: Service) -> VehicleInService:
     """
     Fetch and return the `VehicleInService` snapshot for a service.
 
@@ -473,98 +569,63 @@ def fetch_vehicle_in_service(
         service (Service): Service object to lookup.
 
     Returns:
-        VehicleInServiceSchema: `VehicleInServiceSchema` object.
-
+        VehicleInService: `VehicleInService` object.
     """
     vehicle_in_service = (
         session.query(VehicleInService)
         .filter(VehicleInService.id == service.vehicle_in_service_id)
         .first()
     )
-    return jsonable_encoder(vehicle_in_service, exclude={"reference_count"})
+    assert (
+        vehicle_in_service is not None
+    ), "VehicleInService snapshot should not be None."
+    return vehicle_in_service
 
 
-def delete_landmarks_in_service(session: Session, service: Service) -> None:
-    """
-    Delete all `LandmarkInService` rows associated with a `Service`.
-
-    Args:
-        session (Session): SQLAlchemy session.
-        service (Service): Service whose landmark snapshots should be removed.
-
-    Returns:
-        None
-    """
-    session.query(LandmarkInService).filter(
-        LandmarkInService.service_id == service.id
-    ).delete(synchronize_session=False)
-    session.flush()
-
-
-def delete_fare_in_service(session: Session, fare_in_service_id: int) -> None:
-    """
-    Decrements the reference count of the `FareInService` snapshot referenced by the
-    given `Service` and deletes it if the count reaches zero.
-
-    Args:
-        session (Session): SQLAlchemy database session.
-        fare_in_service_id (int): ID of the `FareInService` snapshot to be decremented/cleaned up.
-
-    Returns:
-        None
-    """
-    fare_in_service = (
-        session.query(FareInService)
-        .filter(FareInService.id == fare_in_service_id)
-        .first()
-    )
-    fare_in_service.reference_count -= 1
-    if fare_in_service.reference_count == 0:
-        session.delete(fare_in_service)
-    session.flush()
-
-
-def delete_vehicle_in_service(session: Session, vehicle_in_service_id: int) -> None:
+def delete_vehicle_in_service(
+    session: Session, vehicle_in_service: VehicleInService
+) -> None:
     """
     Decrements the reference count of the `VehicleInService` snapshot referenced by the
     given `Service` and deletes it if the count reaches zero.
 
     Args:
         session (Session): SQLAlchemy database session.
-        vehicle_in_service_id (int): ID of the `VehicleInService` snapshot to be decremented/cleaned up.
-
-    Returns:
-        None
+        vehicle_in_service (VehicleInService): `VehicleInService` object to be decremented/cleaned up.
     """
-    vehicle_in_service = (
-        session.query(VehicleInService)
-        .filter(VehicleInService.id == vehicle_in_service_id)
-        .first()
-    )
     vehicle_in_service.reference_count -= 1
     if vehicle_in_service.reference_count == 0:
         session.delete(vehicle_in_service)
-    session.flush()
 
 
+# ---------------------------------------------------------------------------
+## Core Functions
+# ---------------------------------------------------------------------------
 def create_service(
     session: Session,
-    route: Route,
-    vehicle: Vehicle,
-    fare: Fare,
-    company: Company,
-    form_param: CreateFormForOP,
+    form_param: CreateForm,
+    token: ExecutiveToken | OperatorToken | None,
+    request_info: schemas.RequestInfo | None,
+    route_filter: ColumnElement[bool] | None = None,
+    vehicle_filter: ColumnElement[bool] | None = None,
+    fare_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
     Creates a new service record in the database.
 
+    Lock Acquisition Order:
+        1. Service creation lock (prevent overlapping services)
+        2. Fare reference lock (protect fare snapshot updates)
+        3. Vehicle reference lock (protect vehicle snapshot updates)
+
     Args:
         session (Session): SQLAlchemy database session.
-        route (Route): The route associated with the service.
-        vehicle (Vehicle): The vehicle associated with the service.
-        fare (Fare): The fare associated with the service.
-        company (Company): The company associated with the service.
         form_param (CreateForm): Form data for creating a service.
+        token (ExecutiveToken | OperatorToken | None): Authenticated token.
+        request_info (schemas.RequestInfo | None): Request information for logging.
+        route_filter: Additional filter for route validation.
+        vehicle_filter: Additional filter for vehicle validation.
+        fare_filter: Additional filter for fare validation.
 
     Returns:
         dict: The created service data.
@@ -572,104 +633,130 @@ def create_service(
     Raises:
         exceptions.InactiveResource: If the vehicle, company, or route is not active/verified/valid.
         exceptions.InvalidValue: If the starting date is not valid.
-        exceptions.InvalidAssociation: If there are invalid associations between vehicle, route, fare, and company.
     """
-    # validations
-    if vehicle.status != VehicleStatus.ACTIVE:
-        raise exceptions.InactiveResource(Vehicle)
-    if company.status != CompanyStatus.VERIFIED:
-        raise exceptions.InactiveResource(Company)
-    if route.status != RouteStatus.VALID:
-        raise exceptions.InactiveResource(Route)
-
-    # Normalize and validate starting_at
-    starting_at = validate_starting_at(form_param.starting_at)
-
-    # Fetch all landmarks for the route ordered by distance from start.
-    # Use the first/last entries to determine display names and ending_at.
-    landmarks_in_route = (
-        session.query(LandmarkInRoute)
-        .filter(LandmarkInRoute.route_id == route.id)
-        .order_by(LandmarkInRoute.distance_from_start.asc())
-        .all()
-    )
-    first_landmark_in_route = landmarks_in_route[0]
-    last_landmark_in_route = landmarks_in_route[-1]
-    ending_at = starting_at + timedelta(minutes=last_landmark_in_route.arrival_delta)
-
-    # Prevent assigning the same vehicle to overlapping services (any company)
-    validate_service_timing(
-        session, starting_at, ending_at, vehicle.registration_number
-    )
-
-    # Use provided name if present, otherwise create service name for display
-    if form_param.name is not None:
-        name = form_param.name
-    else:
-        first_landmark = (
-            session.query(Landmark)
-            .filter(Landmark.id == first_landmark_in_route.landmark_id)
-            .first()
+    service_creation_lock = None
+    fare_lock = None
+    vehicle_lock = None
+    try:
+        company = validate_id(
+            session,
+            Company,
+            form_param.company_id,
+            Service.company_id,
         )
-        last_landmark = (
-            session.query(Landmark)
-            .filter(Landmark.id == last_landmark_in_route.landmark_id)
-            .first()
+        if company.status != CompanyStatus.VERIFIED:
+            raise exceptions.InactiveResource(Company)
+
+        vehicle = validate_id(
+            session,
+            Vehicle,
+            form_param.vehicle_id,
+            Service.vehicle_id,
+            extra_filter=vehicle_filter,
         )
-        starting_at_str = starting_at.astimezone(TMZ_SECONDARY).strftime(
-            "%Y-%m-%d %-I:%M %p"
+        if vehicle.status != VehicleStatus.ACTIVE:
+            raise exceptions.InactiveResource(Vehicle)
+        route = validate_id(
+            session,
+            Route,
+            form_param.route_id,
+            Service.route_id,
+            extra_filter=route_filter,
         )
-        name = f"{starting_at_str} {first_landmark.name} -> {last_landmark.name} ({vehicle.registration_number})"
+        if route.status != RouteStatus.VALID:
+            raise exceptions.InactiveResource(Route)
+        fare = validate_id(
+            session,
+            Fare,
+            form_param.fare_id,
+            Service.fare_id,
+            extra_filter=fare_filter,
+        )
 
-    fare_in_service = create_fare_in_service(session, fare)
+        landmarks_in_route = fetch_landmarks_in_route(session, route)
+        starting_at = validate_starting_at(form_param.starting_at)
+        first_landmark_in_route = landmarks_in_route[0]
+        last_landmark_in_route = landmarks_in_route[-1]
+        ending_at = starting_at + timedelta(
+            minutes=last_landmark_in_route.arrival_delta
+        )
 
-    vehicle_in_service = create_vehicle_in_service(session, vehicle)
+        # Prevent assigning the same vehicle to overlapping services (any company)
+        service_creation_lock = acquire_lock(
+            construct_service_creation_lock(vehicle.registration_number)
+        )
+        validate_service_timing(
+            session, starting_at, ending_at, vehicle.registration_number
+        )
 
-    # Generate keys
-    ticket_creator = TicketCreator()
-    private_key = ticket_creator.pem_private_key_string
-    public_key = ticket_creator.pem_public_key_string
+        # Acquire fare and vehicle locks to protect snapshot reference counts
+        fare_lock = acquire_lock(construct_fare_reference_lock(fare.id, fare.version))
+        fare_in_service = create_fare_in_service(session, fare)
+        vehicle_lock = acquire_lock(
+            construct_vehicle_reference_lock(vehicle.id, vehicle.version)
+        )
+        vehicle_in_service = create_vehicle_in_service(session, vehicle)
 
-    service = Service(
-        company_id=company.id,
-        name=name,
-        fare_in_service_id=fare_in_service.id,
-        fare_id=fare.id,
-        vehicle_in_service_id=vehicle_in_service.id,
-        vehicle_id=vehicle.id,
-        registration_number=vehicle.registration_number,
-        route_id=route.id,
-        ticket_mode=form_param.ticket_mode,
-        status=ServiceStatus.CREATED,
-        starting_at=starting_at,
-        ending_at=ending_at,
-        private_key=private_key,
-        public_key=public_key,
-        starting_landmark_id=first_landmark_in_route.landmark_id,
-        ending_landmark_id=last_landmark_in_route.landmark_id,
-    )
-    session.add(service)
-    session.flush()
+        # Generate keys
+        ticket_creator = TicketCreator()
+        private_key = ticket_creator.pem_private_key_string
+        public_key = ticket_creator.pem_public_key_string
 
-    landmarks_in_service = create_landmarks_in_service(
-        service.id, landmarks_in_route, starting_at
-    )
-    session.add_all(landmarks_in_service)
+        service = Service(
+            company_id=company.id,
+            name=form_param.name,
+            fare_in_service_id=fare_in_service.id,
+            fare_id=fare.id,
+            vehicle_in_service_id=vehicle_in_service.id,
+            vehicle_id=vehicle.id,
+            registration_number=vehicle.registration_number,
+            route_id=route.id,
+            route_version=route.version,
+            ticket_mode=form_param.ticket_mode,
+            status=ServiceStatus.CREATED,
+            starting_at=starting_at,
+            ending_at=ending_at,
+            private_key=private_key,
+            public_key=public_key,
+            starting_landmark_id=first_landmark_in_route.landmark_id,
+            ending_landmark_id=last_landmark_in_route.landmark_id,
+        )
+        session.add(service)
+        session.flush()
+        create_landmarks_in_service(session, service, landmarks_in_route)
 
-    session.commit()
-    session.refresh(service)
-    service_data = jsonable_encoder(service, exclude={"private_key"})
-    return service_data
+        # Create a ServiceLocation entry for the service, linking it to the first landmark in the route
+        service_location = ServiceLocation(
+            service_id=service.id,
+            company_id=company.id,
+            landmark_id=first_landmark_in_route.landmark_id,
+        )
+        session.add(service_location)
+
+        session.commit()
+        session.refresh(service)
+
+        service_data = jsonable_encoder(service, exclude={"private_key"})
+        if token and request_info:
+            log_event(token, request_info, service_data)
+        return service_data
+    finally:
+        release_lock(vehicle_lock)
+        release_lock(fare_lock)
+        release_lock(service_creation_lock)
 
 
 def update_service(
     session: Session,
-    service: Service,
+    id: int,
     form_param: UpdateForm,
-    vehicle: Vehicle | None,
-    route: Route | None,
-    fare: Fare | None,
-) -> tuple[bool, dict]:
+    token: ExecutiveToken | OperatorToken,
+    request_info: schemas.RequestInfo,
+    service_filter: ColumnElement[bool] | None = None,
+    route_filter: ColumnElement[bool] | None = None,
+    vehicle_filter: ColumnElement[bool] | None = None,
+    fare_filter: ColumnElement[bool] | None = None,
+) -> dict:
     """
     Updates an existing service record.
 
@@ -679,196 +766,267 @@ def update_service(
     finalized from related paper tickets. Reactivating a service does not
     reactivate duties.
 
+    Lock Acquisition Order:
+        1. Service transition lock (prevent concurrent modifications to the service_)
+        2. Old fare reference lock (if updating fare, protect old fare snapshot reference count update and potential deletion)
+        3. New fare reference lock (if updating fare, protect new fare snapshot creation or reference count update)
+        4. Old vehicle reference lock (if updating vehicle, protect old vehicle snapshot reference count update and potential deletion)
+        5. New vehicle reference lock (if updating vehicle, protect new vehicle snapshot creation or reference count update)
+        6. Service creation lock (prevent overlapping services)
+
     Args:
         session (Session): SQLAlchemy database session.
-        service (Service): Existing service to update.
+        id (int): ID of the service to update.
         form_param (UpdateForm): Form data for updating the service.
-        vehicle (Vehicle | None): New vehicle if vehicle_id was provided.
-        route (Route | None): New route if route_id was provided.
-        fare (Fare | None): New fare if fare_id was provided.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
+        service_filter: Additional filter for service validation.
+        route_filter: Additional filter for route validation.
+        vehicle_filter: Additional filter for vehicle validation.
+        fare_filter: Additional filter for fare validation.
 
     Returns:
-        tuple[bool, dict]: (have_updates, service_data)
+        dict: Updated service data.
     """
-    _allowed_service_status_transitions = {
-        ServiceStatus.CREATED: [ServiceStatus.CACHED],
-        ServiceStatus.CACHED: [ServiceStatus.ENDED],
-        ServiceStatus.STARTED: [ServiceStatus.ENDED],
-        ServiceStatus.ENDED: [ServiceStatus.STARTED],
-    }
-
-    update_data = form_param.model_dump(exclude_unset=True)
-    duties = []
-
-    if "status" in update_data:
-        new_status = update_data.pop("status")
-        if new_status != service.status:
-            validate_state_transition(
-                _allowed_service_status_transitions,
-                service.status,
-                new_status,
-                Service.status,
-            )
-
-            if new_status == ServiceStatus.ENDED:
-                utc_now = datetime.now(timezone.utc)
-                duties = (
-                    session.query(Duty)
-                    .filter(
-                        Duty.service_id == service.id,
-                        Duty.status == DutyStatus.STARTED,
-                    )
-                    .all()
-                )
-                duty_ids = [duty.id for duty in duties]
-                collections_by_duty_id = {}
-                if duty_ids:
-                    collections_by_duty_id = dict(
-                        session.query(
-                            PaperTicket.duty_id,
-                            func.sum(PaperTicket.amount),
-                        )
-                        .filter(PaperTicket.duty_id.in_(duty_ids))
-                        .group_by(PaperTicket.duty_id)
-                        .all()
-                    )
-                for duty in duties:
-                    duty.collection = collections_by_duty_id.get(duty.id)
-                    duty.finished_on = utc_now
-                    duty.status = DutyStatus.ENDED
-
-            service.status = new_status
-
-    vehicle_id = update_data.pop("vehicle_id", None)
-    route_id = update_data.pop("route_id", None)
-    fare_id = update_data.pop("fare_id", None)
-    starting_at = update_data.pop("starting_at", None)
-    need_critical_change = (
-        vehicle_id is not None
-        or route_id is not None
-        or fare_id is not None
-        or starting_at is not None
-    )
-    have_critical_change = False
-
-    if need_critical_change and service.status != ServiceStatus.CREATED:
-        raise exceptions.DataInUse(Service)
-
-    if starting_at is not None:
-        starting_at = validate_starting_at(starting_at)
-        if starting_at != service.starting_at:
-            old_starting_at = service.starting_at
-            service.starting_at = starting_at
-            time_change = service.starting_at - old_starting_at
-            session.query(LandmarkInService).filter(
-                LandmarkInService.service_id == service.id
-            ).update(
-                {
-                    LandmarkInService.arrival_at: LandmarkInService.arrival_at
-                    + time_change,
-                    LandmarkInService.departure_at: LandmarkInService.departure_at
-                    + time_change,
-                },
-                synchronize_session=False,
-            )
-            service.ending_at = service.ending_at + time_change
-            session.flush()
-            have_critical_change = True
-
-    if route_id is not None:
-        if route.status != RouteStatus.VALID:
-            raise exceptions.InactiveResource(Route)
-        landmarks_in_route = (
-            session.query(LandmarkInRoute)
-            .filter(LandmarkInRoute.route_id == route.id)
-            .order_by(LandmarkInRoute.distance_from_start.asc())
-            .all()
+    service_lock = None
+    service_creation_lock = None
+    fare_lock_1 = None
+    fare_lock_2 = None
+    vehicle_lock_1 = None
+    vehicle_lock_2 = None
+    try:
+        service = validate_id(
+            session, Service, id, Service.id, extra_filter=service_filter
         )
-        first_landmark_in_route = landmarks_in_route[0]
-        last_landmark_in_route = landmarks_in_route[-1]
-        ending_at = service.starting_at + timedelta(
-            minutes=last_landmark_in_route.arrival_delta
-        )
-
-        delete_landmarks_in_service(session, service)
-        landmarks_in_service = create_landmarks_in_service(
-            service.id, landmarks_in_route, service.starting_at
-        )
-        session.add_all(landmarks_in_service)
-        session.flush()
-        service.ending_at = ending_at
-        service.starting_landmark_id = first_landmark_in_route.landmark_id
-        service.ending_landmark_id = last_landmark_in_route.landmark_id
-        service.route_id = route.id
-        have_critical_change = True
-
-    if fare_id is not None:
-        old_fare_in_service = (
-            session.query(FareInService)
-            .filter(FareInService.id == service.fare_in_service_id)
-            .first()
-        )
-        if (
-            old_fare_in_service is None
-            or old_fare_in_service.fare_id != fare.id
-            or old_fare_in_service.version != fare.version
-        ):
-            old_fare_in_service_id = service.fare_in_service_id
-            fare_in_service = create_fare_in_service(session, fare)
-            service.fare_in_service_id = fare_in_service.id
-            service.fare_id = fare.id
-            session.flush()
-            delete_fare_in_service(session, old_fare_in_service_id)
-            session.flush()
-            have_critical_change = True
-
-    if vehicle_id is not None:
-        if vehicle.status != VehicleStatus.ACTIVE:
-            raise exceptions.InactiveResource(Vehicle)
-        old_vehicle_in_service = (
-            session.query(VehicleInService)
-            .filter(VehicleInService.id == service.vehicle_in_service_id)
-            .first()
-        )
-        if (
-            old_vehicle_in_service is None
-            or old_vehicle_in_service.vehicle_id != vehicle.id
-            or old_vehicle_in_service.version != vehicle.version
-        ):
-            old_vehicle_in_service_id = service.vehicle_in_service_id
-            vehicle_in_service = create_vehicle_in_service(session, vehicle)
-            service.vehicle_in_service_id = vehicle_in_service.id
-            service.registration_number = vehicle.registration_number
-            service.vehicle_id = vehicle.id
-            session.flush()
-            delete_vehicle_in_service(session, old_vehicle_in_service_id)
-            have_critical_change = True
-
-    if vehicle_id is not None or route_id is not None or starting_at is not None:
-        session.flush()
-        validate_service_timing(
-            session,
-            service.starting_at,
-            service.ending_at,
-            service.registration_number,
-            exclude_service_id=service.id,
-        )
-
-    update_if_changed(service, update_data)
-    have_updates = (
-        have_critical_change
-        or session.is_modified(service)
-        or any(session.is_modified(duty) for duty in duties)
-    )
-    if have_updates:
-        session.commit()
+        service_lock = acquire_lock(construct_service_transition_lock(service.id))
         session.refresh(service)
 
-    service_data = jsonable_encoder(service, exclude={"private_key"})
-    return have_updates, service_data
+        if isinstance(token, ExecutiveToken):
+            route_filter = Route.company_id == service.company_id
+            vehicle_filter = Vehicle.company_id == service.company_id
+            fare_filter = (Fare.company_id == service.company_id) | (
+                Fare.scope == FareScope.GLOBAL
+            )
+
+        update_data = form_param.model_dump(exclude_unset=True)
+        revalidate_service_timing = False
+        have_updates = False
+        if "vehicle_id" in update_data:
+            vehicle = validate_id(
+                session,
+                Vehicle,
+                update_data["vehicle_id"],
+                Service.vehicle_id,
+                extra_filter=vehicle_filter,
+            )
+            vehicle_in_service = fetch_vehicle_in_service(session, service)
+
+            vehicle_changed = vehicle.id != vehicle_in_service.vehicle_id
+            if vehicle_changed or vehicle.version != vehicle_in_service.version:
+                if service.status != ServiceStatus.CREATED:
+                    raise exceptions.DataInUse(Service)
+                if vehicle.status != VehicleStatus.ACTIVE:
+                    raise exceptions.InactiveResource(Vehicle)
+
+                # Acquire locks for old and new vehicle snapshots ensuring consistent
+                # lock acquisition order to prevent deadlocks
+                old_vehicle_lock_key = construct_vehicle_reference_lock(
+                    vehicle_in_service.vehicle_id, vehicle_in_service.version
+                )
+                new_vehicle_lock_key = construct_vehicle_reference_lock(
+                    vehicle.id, vehicle.version
+                )
+                first_lock_key, second_lock_key = sorted(
+                    (old_vehicle_lock_key, new_vehicle_lock_key)
+                )
+                vehicle_lock_1 = acquire_lock(first_lock_key)
+                vehicle_lock_2 = acquire_lock(second_lock_key)
+
+                old_vehicle_in_service = vehicle_in_service
+                new_vehicle_in_service = create_vehicle_in_service(session, vehicle)
+                delete_vehicle_in_service(session, old_vehicle_in_service)
+
+                if vehicle_changed:
+                    service.registration_number = vehicle.registration_number
+                    service.vehicle_id = vehicle.id
+                    revalidate_service_timing = True
+                service.vehicle_in_service_id = new_vehicle_in_service.id
+                session.flush()
+                have_updates = True
+            update_data.pop("vehicle_id")
+        if "fare_id" in update_data:
+            fare = validate_id(
+                session,
+                Fare,
+                update_data["fare_id"],
+                Service.fare_id,
+                extra_filter=fare_filter,
+            )
+            fare_in_service = fetch_fare_in_service(session, service)
+
+            fare_changed = fare.id != fare_in_service.fare_id
+            if fare_changed or fare.version != fare_in_service.version:
+                if service.status != ServiceStatus.CREATED:
+                    raise exceptions.DataInUse(Service)
+
+                # Acquire locks for old and new fare snapshots ensuring consistent
+                # lock acquisition order to prevent deadlocks
+                old_fare_lock_key = construct_fare_reference_lock(
+                    fare_in_service.fare_id, fare_in_service.version
+                )
+                new_fare_lock_key = construct_fare_reference_lock(fare.id, fare.version)
+                first_lock_key, second_lock_key = sorted(
+                    (old_fare_lock_key, new_fare_lock_key)
+                )
+                fare_lock_1 = acquire_lock(first_lock_key)
+                fare_lock_2 = acquire_lock(second_lock_key)
+
+                old_fare_in_service = fare_in_service
+                new_fare_in_service = create_fare_in_service(session, fare)
+                delete_fare_in_service(session, old_fare_in_service)
+
+                if fare_changed:
+                    service.fare_id = fare.id
+                service.fare_in_service_id = new_fare_in_service.id
+                session.flush()
+                have_updates = True
+            update_data.pop("fare_id")
+        if "route_id" in update_data:
+            route = validate_id(
+                session,
+                Route,
+                update_data["route_id"],
+                Service.route_id,
+                extra_filter=route_filter,
+            )
+
+            if route.id != service.route_id or route.version != service.route_version:
+                if service.status != ServiceStatus.CREATED:
+                    raise exceptions.DataInUse(Service)
+                if route.status != RouteStatus.VALID:
+                    raise exceptions.InactiveResource(Route)
+
+                delete_landmarks_in_service(session, service)
+                landmarks_in_route = fetch_landmarks_in_route(session, route)
+                first_landmark_in_route = landmarks_in_route[0]
+                last_landmark_in_route = landmarks_in_route[-1]
+                ending_at = service.starting_at + timedelta(
+                    minutes=last_landmark_in_route.arrival_delta
+                )
+                create_landmarks_in_service(session, service, landmarks_in_route)
+
+                service.ending_at = ending_at
+                service.starting_landmark_id = first_landmark_in_route.landmark_id
+                service.ending_landmark_id = last_landmark_in_route.landmark_id
+                service.route_id = route.id
+                service.route_version = route.version
+                revalidate_service_timing = True
+                session.flush()
+                have_updates = True
+            update_data.pop("route_id")
+        if "starting_at" in update_data:
+            if update_data["starting_at"] != service.starting_at:
+                if service.status != ServiceStatus.CREATED:
+                    raise exceptions.DataInUse(Service)
+
+                old_starting_at = service.starting_at
+                new_starting_at = validate_starting_at(update_data["starting_at"])
+                time_difference = new_starting_at - old_starting_at
+                session.query(LandmarkInService).filter(
+                    LandmarkInService.service_id == service.id
+                ).update(
+                    {
+                        LandmarkInService.arrival_at: LandmarkInService.arrival_at
+                        + time_difference,
+                        LandmarkInService.departure_at: LandmarkInService.departure_at
+                        + time_difference,
+                    },
+                    synchronize_session=False,
+                )
+                service.starting_at = new_starting_at
+                service.ending_at = service.ending_at + time_difference
+                revalidate_service_timing = True
+                session.flush()
+                have_updates = True
+            update_data.pop("starting_at")
+
+        if revalidate_service_timing:
+            service_creation_lock = acquire_lock(
+                construct_service_creation_lock(service.registration_number)
+            )
+            validate_service_timing(
+                session,
+                service.starting_at,
+                service.ending_at,
+                service.registration_number,
+                exclude_service_id=service.id,
+            )
+
+        if "status" in update_data:
+            if update_data["status"] != service.status:
+                allowed_service_status_transitions = {
+                    ServiceStatus.CREATED: [ServiceStatus.CACHED],
+                    ServiceStatus.CACHED: [ServiceStatus.ENDED],
+                    ServiceStatus.STARTED: [ServiceStatus.ENDED],
+                    ServiceStatus.ENDED: [ServiceStatus.STARTED],
+                }
+                validate_state_transition(
+                    allowed_service_status_transitions,
+                    service.status,
+                    update_data["status"],
+                    Service.status,
+                )
+
+                if update_data["status"] == ServiceStatus.STARTED:
+                    service.collection = Decimal(0)
+                elif update_data["status"] == ServiceStatus.ENDED:
+                    utc_now = datetime.now(TMZ_PRIMARY)
+                    duties = (
+                        session.query(Duty).filter(Duty.service_id == service.id).all()
+                    )
+
+                    collections_by_duty_id: dict[int, Decimal] = {
+                        duty_id: total
+                        for duty_id, total in session.query(
+                            PaperTicket.duty_id, func.sum(PaperTicket.amount)
+                        )
+                        .filter(PaperTicket.duty_id.in_([duty.id for duty in duties]))
+                        .group_by(PaperTicket.duty_id)
+                        .all()
+                    }
+
+                    service_collection = Decimal(0)
+                    for duty in duties:
+                        if duty.status == DutyStatus.STARTED:
+                            duty.finished_on = utc_now
+                            duty.status = DutyStatus.ENDED
+                        duty.collection = collections_by_duty_id.get(duty.id)
+                        service_collection += duty.collection or Decimal(0)
+                    service.collection = service_collection
+                service.status = update_data["status"]
+                session.flush()
+                have_updates = True
+            update_data.pop("status")
+
+        update_if_changed(service, update_data)
+        if have_updates or session.is_modified(service):
+            session.commit()
+            session.refresh(service)
+            service_data = jsonable_encoder(service, exclude={"private_key"})
+            log_event(token, request_info, service_data)
+        else:
+            service_data = jsonable_encoder(service, exclude={"private_key"})
+        return service_data
+    finally:
+        release_lock(vehicle_lock_1)
+        release_lock(vehicle_lock_2)
+        release_lock(fare_lock_1)
+        release_lock(fare_lock_2)
+        release_lock(service_creation_lock)
+        release_lock(service_lock)
 
 
-def search_service(session: Session, query_params: QueryParams) -> List[Service]:
+def search_service(session: Session, query_params: QueryParams) -> list[Service]:
     """
     Search for Services based on provided query parameters.
 
@@ -882,7 +1040,7 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
     Returns:
         List[Service]: List of Services that match the search criteria.
     """
-    svcs_to_consider = None
+    services_to_consider = None
 
     if (
         query_params.starting_landmark_id is not None
@@ -893,7 +1051,7 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
         starting_lmk = aliased(LandmarkInService)
         ending_lmk = aliased(LandmarkInService)
 
-        svcs_to_consider = (
+        services_to_consider = (
             session.query(starting_lmk.service_id)
             .join(
                 ending_lmk,
@@ -909,7 +1067,7 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
 
     elif query_params.starting_landmark_id is not None:
         # Find services with the starting landmark only
-        svcs_to_consider = (
+        services_to_consider = (
             session.query(LandmarkInService.service_id)
             .filter(LandmarkInService.landmark_id == query_params.starting_landmark_id)
             .distinct()
@@ -917,15 +1075,15 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
 
     elif query_params.ending_landmark_id is not None:
         # Find services with the ending landmark only
-        svcs_to_consider = (
+        services_to_consider = (
             session.query(LandmarkInService.service_id)
             .filter(LandmarkInService.landmark_id == query_params.ending_landmark_id)
             .distinct()
         )
 
     query = session.query(Service)
-    if svcs_to_consider is not None:
-        query = query.filter(Service.id.in_(svcs_to_consider))
+    if services_to_consider is not None:
+        query = query.filter(Service.id.in_(services_to_consider))
     if query_params.company_id is not None:
         query = query.filter(Service.company_id == query_params.company_id)
     if query_params.fare_id is not None:
@@ -982,34 +1140,44 @@ def search_service(session: Session, query_params: QueryParams) -> List[Service]
     return services
 
 
-def fetch_service_details(session: Session, service: Service) -> PrivateServiceSchema:
+def fetch_service_details(
+    session: Session, id: int, service_filter: ColumnElement[bool] | None = None
+) -> dict[str, Any]:
     """
     Returns details of a service along with related entities like landmarks, fare, and vehicle in service.
 
     Args:
         session (Session): SQLAlchemy session.
-        service (Service): Service object to lookup.
+        id (int): ID of the service to lookup.
+        service_filter: Optional filter to apply when fetching the service.
 
-    Returns:
-        Dict[str, Any]: Dict containing `service`, `landmarks_in_service`,
-        `fare_in_service`, and `vehicle_in_service` serialized for JSON.
+    Returns dict[str, Any]:
+        - Dict[str, Any]: JSON-encoded representation of the service details.
     """
+    service = get_by_id(session, Service, id, extra_filter=service_filter)
+    if service is None:
+        raise exceptions.UnknownValue(Service.id)
 
-    landmarks_in_service_data = fetch_landmarks_in_service(session, service)
-    fare_in_service_data = fetch_fare_in_service(session, service)
-    vehicle_in_service_data = fetch_vehicle_in_service(session, service)
+    landmarks_in_service = fetch_landmarks_in_service(session, service)
+    fare_in_service = fetch_fare_in_service(session, service)
+    vehicle_in_service = fetch_vehicle_in_service(session, service)
 
     service_data = jsonable_encoder(service, exclude={"private_key"})
-
     return {
         **service_data,
-        "route": landmarks_in_service_data,
-        "fare": fare_in_service_data,
-        "vehicle": vehicle_in_service_data,
+        "route": jsonable_encoder(landmarks_in_service),
+        "fare": jsonable_encoder(fare_in_service),
+        "vehicle": jsonable_encoder(vehicle_in_service),
     }
 
 
-def delete_service(session: Session, service: Service) -> dict:
+def delete_service(
+    session: Session,
+    id: int,
+    token: ExecutiveToken | OperatorToken,
+    request_info: schemas.RequestInfo,
+    service_filter: ColumnElement[bool] | None = None,
+) -> None:
     """
     Deletes a service from the database and decrements/cleans up related snapshot reference counts.
 
@@ -1020,32 +1188,166 @@ def delete_service(session: Session, service: Service) -> dict:
     4. If VehicleInService reference_count reaches 0, the snapshot is deleted
     5. The service and related LandmarkInService entries are deleted
 
+    Lock Acquisition Order:
+        1. Service transition lock (prevent concurrent modifications to the service)
+        2. Fare reference lock (protect fare snapshot updates)
+        3. Vehicle reference lock (protect vehicle snapshot updates)
+
     Args:
         session (Session): SQLAlchemy database session.
-        service (Service): Service object to delete.
-
-    Returns:
-        dict: JSON-encoded representation of the deleted service.
+        id (int): ID of the service to delete.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
     """
-    service_data = jsonable_encoder(service, exclude={"private_key", "public_key"})
+    service_lock = None
+    fare_lock = None
+    vehicle_lock = None
+    try:
+        service = get_by_id(session, Service, id, extra_filter=service_filter)
+        if service is None:
+            return
 
-    # remove landmark snapshots first
-    delete_landmarks_in_service(session, service)
+        service_lock = acquire_lock(construct_service_transition_lock(service.id))
+        session.refresh(service)
+        if service.status != ServiceStatus.CREATED:
+            raise exceptions.DataInUse(Service)
+        service_data = jsonable_encoder(service, exclude={"private_key", "public_key"})
+        session.delete(service)
+        session.flush()
 
-    # capture snapshot ids before removing the service row
-    old_fare_in_service_id = service.fare_in_service_id
-    old_vehicle_in_service_id = service.vehicle_in_service_id
+        delete_landmarks_in_service(session, service)
+        fare_in_service = fetch_fare_in_service(session, service)
+        fare_lock = acquire_lock(
+            construct_fare_reference_lock(
+                fare_in_service.fare_id, fare_in_service.version
+            )
+        )
+        delete_fare_in_service(session, fare_in_service)
+        vehicle_in_service = fetch_vehicle_in_service(session, service)
+        vehicle_lock = acquire_lock(
+            construct_vehicle_reference_lock(
+                vehicle_in_service.vehicle_id, vehicle_in_service.version
+            )
+        )
+        delete_vehicle_in_service(session, vehicle_in_service)
 
-    # delete the service row so snapshots are no longer referenced
-    session.delete(service)
-    session.flush()
+        session.commit()
+        log_event(token, request_info, service_data)
+    finally:
+        release_lock(vehicle_lock)
+        release_lock(fare_lock)
+        release_lock(service_lock)
 
-    # decrement/delete snapshots referenced by the (now-deleted) service
-    delete_fare_in_service(session, old_fare_in_service_id)
-    delete_vehicle_in_service(session, old_vehicle_in_service_id)
 
-    session.commit()
-    return service_data
+# ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue("vehicle_id"),
+    exceptions.UnknownValue("route_id"),
+    exceptions.UnknownValue("fare_id"),
+    exceptions.InactiveResource(Vehicle),
+    exceptions.InactiveResource(Company),
+    exceptions.InactiveResource(Route),
+    exceptions.OverlappingService(),
+    exceptions.InvalidValue(Service.starting_at),
+    exceptions.UnknownValue(Service.company_id),
+    exceptions.LockAcquireTimeout(),
+]
+
+PATCH_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue(Service.id),
+    exceptions.UnknownValue("vehicle_id"),
+    exceptions.UnknownValue("route_id"),
+    exceptions.UnknownValue("fare_id"),
+    exceptions.InvalidStateTransition(Service.status),
+    exceptions.InactiveResource(Vehicle),
+    exceptions.InactiveResource(Route),
+    exceptions.OverlappingService(),
+    exceptions.DataInUse(Service),
+    exceptions.InvalidValue(Service.starting_at),
+    exceptions.LockAcquireTimeout(),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.DataInUse(Service),
+    exceptions.LockAcquireTimeout(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+]
+
+GET_DETAIL_EXCEPTIONS = [
+    exceptions.UnknownValue(Service.id),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common description
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Create a new service.")
+    .add_line("Logged-in user must have service creation permission.")
+    .add_line("Validates that the vehicle, route, and fare are valid and accessible.")
+    .add_line(
+        "Status of vehicle must be ACTIVE, company must be VERIFIED, and route must be VALID."
+    )
+    .add_line(
+        f"`starting_at` must be between now and {SERVICE_CREATION_LEAD_TIME_DAYS} days from now."
+    )
+    .add_line(
+        "The service name is auto-generated based on the route, vehicle, and starting date if not provided."
+    )
+    .add_line("By default the status of the service is set to CREATED.")
+    .add_line(
+        "When a service is created, a corresponding service location is also created."
+    )
+)
+
+PATCH_DESCRIPTION = (
+    Description()
+    .add_head("Update an existing service.")
+    .add_line("Logged-in user must have service update permission.")
+    .add_line(
+        "Allowed status transitions: CREATED → CACHED, CACHED → ENDED, STARTED → ENDED, ENDED → STARTED."
+    )
+    .add_line(
+        "When status transitions to ENDED, all STARTED duties on the service are ended at the same time."
+    )
+    .add_line(
+        "`vehicle_id`, `route_id`, `fare_id`, and `starting_at` can only be updated when service status is CREATED."
+    )
+    .add_line(
+        f"`starting_at` must be between now and {SERVICE_CREATION_LEAD_TIME_DAYS} days from now."
+    )
+    .add_line(
+        "When status transitions to ENDED, the service collection is calculated and saved."
+    )
+    .add_line(
+        "When status transitions from ENDED to STARTED, the service collection is reset to 0."
+    )
+    .add_line("Empty PATCH requests are allowed and will result in no changes.")
+)
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Delete an existing service.")
+    .add_line("Logged-in user must have service delete permission.")
+    .add_line("Service can only be deleted if it is in CREATED status.")
+    .add_line("Returns 204 No Content even if the specified service does not exist.")
+)
+
+GET_DESCRIPTION = Description().add_head("Fetches a list of services.")
+
+GET_DETAIL_DESCRIPTION = Description().add_head("Fetch service details by ID.")
 
 
 # ---------------------------------------------------------------------------
@@ -1055,246 +1357,115 @@ def delete_service(session: Session, service: Service) -> dict:
     URL_SERVICE,
     summary="Create service",
     tags=["Service"],
-    response_model=ServiceSchema,
+    response_model=MaskedServiceSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidAssociation(
-                VehicleInService.vehicle_id, Service.company_id
-            ),
-            exceptions.InvalidAssociation(LandmarkInRoute.route_id, Service.company_id),
-            exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id),
-            exceptions.UnknownValue(Service.company_id),
-            exceptions.UnknownValue("vehicle_id"),
-            exceptions.UnknownValue("route_id"),
-            exceptions.UnknownValue("fare_id"),
-            exceptions.InactiveResource(Vehicle),
-            exceptions.InactiveResource(Company),
-            exceptions.InactiveResource(Route),
-            exceptions.OverlappingService(),
-            exceptions.InvalidValue(Service.starting_at),
-        ]
-    ),
-    description=(
-        f"""
-            **Creates a new service for a company.**    
-            - Requires a valid access token.    
-            - Logged in executive must have `company.service.create` permission.    
-            - Validates that the vehicle, route, and fare belong to the specified company.    
-            - Status of vehicle must be ACTIVE, company must be VERIFIED, and route must be VALID.    
-            - `starting_at` must be between now and `{SERVICE_CREATION_LEAD_TIME_DAYS}` days from now.    
-            - The service name is auto-generated based on the name of the route, vehicle, and starting date.    
-            - By default the status of the service is set to CREATED.    
-        """
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
+    description=POST_DESCRIPTION.copy()
+    .add_line("Logged-in executive must have `company.service.create` permission.")
+    .add_line(
+        "`company_id` is required and used to validate route, fare, and vehicle ownership."
+    )
+    .to_string(),
 )
-async def create_service_executive(
+async def create_service_for_executive(
     form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY_SERVICE)
-
-        company = validate_id(
-            session, Company, form_param.company_id, Service.company_id
+        token = authorize_executive(
+            session, access_token, [ExecutivePermissionPath.CREATE_COMPANY_SERVICE]
         )
-        vehicle = validate_id(session, Vehicle, form_param.vehicle_id, "vehicle_id")
-        route = validate_id(session, Route, form_param.route_id, "route_id")
-        fare = validate_id(session, Fare, form_param.fare_id, "fare_id")
-
-        if vehicle.company_id != company.id:
-            raise exceptions.InvalidAssociation(
-                VehicleInService.vehicle_id, Service.company_id
-            )
-        if route.company_id != company.id:
-            raise exceptions.InvalidAssociation(
-                LandmarkInRoute.route_id, Service.company_id
-            )
-        if fare.scope != FareScope.GLOBAL:
-            if fare.company_id != company.id:
-                raise exceptions.InvalidAssociation(
-                    FareInService.fare_id, Service.company_id
-                )
-
-        service_data = create_service(
+        return create_service(
             session,
-            route,
-            vehicle,
-            fare,
-            company,
             CreateForm(**form_param.model_dump()),
+            token,
+            request_info,
+            route_filter=(Route.company_id == form_param.company_id),
+            vehicle_filter=(Vehicle.company_id == form_param.company_id),
+            fare_filter=(Fare.company_id == form_param.company_id)
+            | (Fare.scope == FareScope.GLOBAL),
         )
-        log_event(token, request_info, service_data)
-        return service_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.patch(
     f"{URL_SERVICE}/{{id}}",
     summary="Update service",
     tags=["Service"],
-    response_model=ServiceSchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(Service.id),
-            exceptions.UnknownValue("vehicle_id"),
-            exceptions.UnknownValue("route_id"),
-            exceptions.UnknownValue("fare_id"),
-            exceptions.InvalidStateTransition(Service.status),
-            exceptions.InvalidAssociation(
-                VehicleInService.vehicle_id, Service.company_id
-            ),
-            exceptions.InvalidAssociation(LandmarkInRoute.route_id, Service.company_id),
-            exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id),
-            exceptions.InactiveResource(Vehicle),
-            exceptions.InactiveResource(Route),
-            exceptions.OverlappingService(),
-            exceptions.DataInUse(Service),
-            exceptions.InvalidValue(Service.starting_at),
-        ]
-    ),
-    description=(
-        f"""
-            **Updates an existing service.**    
-            - Requires a valid access token.    
-            - Logged in executive must have `company.service.update` permission.    
-            - Allowed status transitions:    
-                - CREATED -> CACHED    
-                - CACHED -> ENDED    
-                - STARTED -> ENDED    
-                - ENDED -> STARTED    
-            - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
-            - `vehicle_id`, `route_id`, `fare_id`, and `starting_at` can only be updated when service status is CREATED.    
-            - `starting_at` must be between now and `{SERVICE_CREATION_LEAD_TIME_DAYS}` days from now.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+    response_model=MaskedServiceSchema,
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
+    description=PATCH_DESCRIPTION.copy()
+    .add_line("Logged-in executive must have `company.service.update` permission.")
+    .to_string(),
 )
-async def update_service_executive(
+async def update_service_for_executive(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_SERVICE)
-
-        service = validate_id(session, Service, id, Service.id)
-
-        update_data = form_param.model_dump(exclude_unset=True)
-        vehicle = None
-        route = None
-        fare = None
-        if "vehicle_id" in update_data:
-            vehicle = validate_id(session, Vehicle, form_param.vehicle_id, "vehicle_id")
-            if vehicle.company_id != service.company_id:
-                raise exceptions.InvalidAssociation(
-                    VehicleInService.vehicle_id, Service.company_id
-                )
-        if "route_id" in update_data:
-            route = validate_id(session, Route, form_param.route_id, "route_id")
-            if route.company_id != service.company_id:
-                raise exceptions.InvalidAssociation(
-                    LandmarkInRoute.route_id, Service.company_id
-                )
-        if "fare_id" in update_data:
-            fare = validate_id(session, Fare, form_param.fare_id, "fare_id")
-            if fare.scope != FareScope.GLOBAL and fare.company_id != service.company_id:
-                raise exceptions.InvalidAssociation(
-                    FareInService.fare_id, Service.company_id
-                )
-
-        have_updates, service_data = update_service(
-            session,
-            service,
-            UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            vehicle=vehicle,
-            route=route,
-            fare=fare,
+        token = authorize_executive(
+            session, access_token, [ExecutivePermissionPath.UPDATE_COMPANY_SERVICE]
         )
-
-        if have_updates:
-            log_event(token, request_info, service_data)
-        return service_data
+        return update_service(
+            session,
+            id,
+            UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            token,
+            request_info,
+        )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
     URL_SERVICE,
     summary="Fetch service",
     tags=["Service"],
-    response_model=List[ServiceSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of services.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    response_model=list[ServiceSchema],
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=GET_DESCRIPTION.to_string(),
 )
-async def fetch_service_executive(
-    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+async def fetch_services_for_executive(
+    query_params: QueryParamsForEX = Depends(),
+    access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
         return search_service(
             session,
             QueryParams(**query_params.model_dump()),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
     f"{URL_SERVICE}/{{id}}",
     summary="Fetch service details",
     tags=["Service"],
-    response_model=PublicServiceSchema,
+    response_model=MaskedServiceDetailSchema,
     responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.UnknownValue(Service.id)]
+        [*GET_DETAIL_EXCEPTIONS, exceptions.InvalidToken()]
     ),
-    description=(
-        """
-            **Fetch a service by its ID.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    description=GET_DETAIL_DESCRIPTION.to_string(),
 )
 async def fetch_service_details_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
-        service = validate_id(session, Service, id, Service.id)
-        return fetch_service_details(session, service)
+        return fetch_service_details(session, id)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -1302,45 +1473,25 @@ async def fetch_service_details_for_executive(
     summary="Delete service",
     tags=["Service"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.DataInUse(Service),
-        ]
-    ),
-    description=(
-        """
-            **Deletes an existing service.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in executive must have the `company.service.delete` permission.    
-            - Service can only be deleted if it is in CREATED status.    
-            - Returns 204 No Content even if the specified service does not exist.    
-        """
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
+    description=DELETE_DESCRIPTION.copy()
+    .add_line("Logged-in executive must have `company.service.delete` permission.")
+    .to_string(),
 )
-async def delete_service_executive(
+async def delete_service_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-        token = verify_token(session, ExecutiveToken, access_token)
-        roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_SERVICE)
-
-        service = session.query(Service).filter(Service.id == id).first()
-        if service and service.status != ServiceStatus.CREATED:
-            raise exceptions.DataInUse(Service)
-        if service is not None:
-            service_data = delete_service(session, service)
-            log_event(token, request_info, service_data)
+        token = authorize_executive(
+            session, access_token, [ExecutivePermissionPath.DELETE_COMPANY_SERVICE]
+        )
+        delete_service(session, id, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1350,263 +1501,126 @@ async def delete_service_executive(
     URL_SERVICE,
     summary="Create service",
     tags=["Service"],
-    response_model=ServiceSchema,
+    response_model=MaskedServiceSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue("vehicle_id"),
-            exceptions.UnknownValue("route_id"),
-            exceptions.UnknownValue("fare_id"),
-            exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id),
-            exceptions.InactiveResource(Vehicle),
-            exceptions.InactiveResource(Company),
-            exceptions.InactiveResource(Route),
-            exceptions.OverlappingService(),
-            exceptions.InvalidValue(Service.starting_at),
-        ]
-    ),
-    description=(
-        f"""
-            **Creates a new service for a company.**    
-            - Requires a valid access token.    
-            - Logged in operator must have `company.service.create` permission.    
-            - Operator can only create services for the company they belong to.    
-            - Validates that the vehicle, route, and fare belong to the specified company.    
-            - Status of vehicle must be ACTIVE, company must be VERIFIED, and route must be VALID.    
-            - `starting_at` must be between now and `{SERVICE_CREATION_LEAD_TIME_DAYS}` days from now.    
-            - The service name is auto-generated based on the name of the route, vehicle, and starting date.    
-            - By default the status of the service is set to CREATED.    
-        """
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS),
+    description=POST_DESCRIPTION.copy()
+    .add_line("Logged-in operator must have `company.service.create` permission.")
+    .to_string(),
 )
-async def create_service_operator(
+async def create_service_for_operator(
     form_param: CreateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_SERVICE)
-
-        company = validate_id(session, Company, token.company_id, Service.company_id)
-        vehicle = validate_id(
+        token = authorize_operator(
             session,
-            Vehicle,
-            form_param.vehicle_id,
-            "vehicle_id",
-            extra_filter=(Vehicle.company_id == token.company_id),
+            access_token.credentials,
+            [OperatorPermissionPath.CREATE_COMPANY_SERVICE],
         )
-        route = validate_id(
+        return create_service(
             session,
-            Route,
-            form_param.route_id,
-            "route_id",
-            extra_filter=(Route.company_id == token.company_id),
-        )
-        fare = validate_id(session, Fare, form_param.fare_id, "fare_id")
-
-        if fare.scope != FareScope.GLOBAL:
-            if fare.company_id != token.company_id:
-                raise exceptions.InvalidAssociation(
-                    FareInService.fare_id, Service.company_id
-                )
-
-        service_data = create_service(
-            session,
-            route,
-            vehicle,
-            fare,
-            company,
             CreateForm(**form_param.model_dump(), company_id=token.company_id),
+            token,
+            request_info,
+            route_filter=(Route.company_id == token.company_id),
+            vehicle_filter=(Vehicle.company_id == token.company_id),
+            fare_filter=(Fare.company_id == token.company_id)
+            | (Fare.scope == FareScope.GLOBAL),
         )
-        log_event(token, request_info, service_data)
-        return service_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.patch(
     f"{URL_SERVICE}/{{id}}",
     summary="Update service",
     tags=["Service"],
-    response_model=ServiceSchema,
+    response_model=MaskedServiceSchema,
     status_code=status.HTTP_200_OK,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(Service.id),
-            exceptions.UnknownValue("vehicle_id"),
-            exceptions.UnknownValue("route_id"),
-            exceptions.UnknownValue("fare_id"),
-            exceptions.InvalidStateTransition(Service.status),
-            exceptions.InvalidAssociation(FareInService.fare_id, Service.company_id),
-            exceptions.InactiveResource(Vehicle),
-            exceptions.InactiveResource(Route),
-            exceptions.OverlappingService(),
-            exceptions.DataInUse(Service),
-            exceptions.InvalidValue(Service.starting_at),
-        ]
-    ),
-    description=(
-        f"""
-            **Updates an existing service for a company.**    
-            - Requires a valid access token.    
-            - Logged in operator must have `company.service.update` permission.    
-            - Allowed status transitions:    
-                - CREATED -> CACHED    
-                - CACHED -> ENDED    
-                - STARTED -> ENDED    
-                - ENDED -> STARTED    
-            - When status transitions to ENDED, all STARTED duties on the service are ended at the same time.    
-            - `vehicle_id`, `route_id`, `fare_id`, and `starting_at` can only be updated when service status is CREATED.    
-            - `starting_at` must be between now and `{SERVICE_CREATION_LEAD_TIME_DAYS}` days from now.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-        """
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
+    description=PATCH_DESCRIPTION.copy()
+    .add_line("Logged-in operator must have `company.service.update` permission.")
+    .to_string(),
 )
-async def update_service_operator(
+async def update_service_for_operator(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_SERVICE)
-
-        service = validate_id(
+        token = authorize_operator(
             session,
-            Service,
+            access_token.credentials,
+            [OperatorPermissionPath.UPDATE_COMPANY_SERVICE],
+        )
+        return update_service(
+            session,
             id,
-            Service.id,
-            extra_filter=(Service.company_id == token.company_id),
-        )
-
-        update_data = form_param.model_dump(exclude_unset=True)
-        vehicle = None
-        route = None
-        fare = None
-        if "vehicle_id" in update_data:
-            vehicle = validate_id(
-                session,
-                Vehicle,
-                form_param.vehicle_id,
-                "vehicle_id",
-                extra_filter=(Vehicle.company_id == token.company_id),
-            )
-        if "route_id" in update_data:
-            route = validate_id(
-                session,
-                Route,
-                form_param.route_id,
-                "route_id",
-                extra_filter=(Route.company_id == token.company_id),
-            )
-        if "fare_id" in update_data:
-            fare = validate_id(session, Fare, form_param.fare_id, "fare_id")
-            if fare.scope != FareScope.GLOBAL and fare.company_id != token.company_id:
-                raise exceptions.InvalidAssociation(
-                    FareInService.fare_id, Service.company_id
-                )
-
-        have_updates, service_data = update_service(
-            session,
-            service,
             UpdateForm(**form_param.model_dump(exclude_unset=True)),
-            vehicle=vehicle,
-            route=route,
-            fare=fare,
+            token,
+            request_info,
+            service_filter=(Service.company_id == token.company_id),
+            route_filter=(Route.company_id == token.company_id),
+            vehicle_filter=(Vehicle.company_id == token.company_id),
+            fare_filter=(Fare.company_id == token.company_id)
+            | (Fare.scope == FareScope.GLOBAL),
         )
-
-        if have_updates:
-            log_event(token, request_info, service_data)
-        return service_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.get(
     URL_SERVICE,
     summary="Fetch service",
     tags=["Service"],
-    response_model=List[ServiceSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of services.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    response_model=list[ServiceSchema],
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=GET_DESCRIPTION.to_string(),
 )
-async def fetch_service_operator(
-    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+async def fetch_services_for_operator(
+    query_params: QueryParamsForOP = Depends(),
+    access_token=Depends(bearer_operator),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
-
         return search_service(
             session,
             QueryParams(**query_params.model_dump(), company_id=token.company_id),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.get(
     f"{URL_SERVICE}/{{id}}",
     summary="Fetch service details",
     tags=["Service"],
-    response_model=PrivateServiceSchema,
+    response_model=ServiceDetailSchema,
     responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.UnknownValue(Service.id)]
+        [*GET_DETAIL_EXCEPTIONS, exceptions.InvalidToken()]
     ),
-    description=(
-        """
-            **Fetch a service by its ID.**    
-            - Requires a valid access token for authentication.    
-            - If `marked_as_cached` query parameter is set to true, and the service status is currently CREATED, the status will be updated to CACHED.    
-        """
-    ),
+    description=GET_DETAIL_DESCRIPTION.copy()
+    .add_line("PATCH the status to CACHED state if you intend to use this service.")
+    .to_string(),
 )
 async def fetch_service_details_for_operator(
     id: int,
-    query_params: ServiceQueryParams = Depends(),
     access_token=Depends(bearer_operator),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
-
-        service = validate_id(
-            session,
-            Service,
-            id,
-            Service.id,
-            extra_filter=(Service.company_id == token.company_id),
+        return fetch_service_details(
+            session, id, service_filter=(Service.company_id == token.company_id)
         )
-        if query_params.marked_as_cached and service.status == ServiceStatus.CREATED:
-            service.status = ServiceStatus.CACHED
-            session.commit()
-            session.refresh(service)
-        return fetch_service_details(session, service)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.delete(
@@ -1614,53 +1628,33 @@ async def fetch_service_details_for_operator(
     summary="Delete service",
     tags=["Service"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.DataInUse(Service),
-        ]
-    ),
-    description=(
-        """
-            **Deletes an existing service.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in operator must have the `company.service.delete` permission.    
-            - Operator can only delete services within their company.    
-            - Service can only be deleted if it is in CREATED status.    
-            - Returns 204 No Content even if the specified service does not exist.    
-        """
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
+    description=DELETE_DESCRIPTION.copy()
+    .add_line("Logged-in operator must have `company.service.delete` permission.")
+    .to_string(),
 )
-async def delete_service_operator(
+async def delete_service_for_operator(
     id: int,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_SERVICE)
-
-        service = (
-            session.query(Service)
-            .filter(
-                Service.id == id,
-                Service.company_id == token.company_id,
-            )
-            .first()
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.DELETE_COMPANY_SERVICE],
         )
-        if service and service.status != ServiceStatus.CREATED:
-            raise exceptions.DataInUse(Service)
-        if service is not None:
-            service_data = delete_service(session, service)
-            log_event(token, request_info, service_data)
+        delete_service(
+            session,
+            id,
+            token,
+            request_info,
+            service_filter=(Service.company_id == token.company_id),
+        )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1670,61 +1664,45 @@ async def delete_service_operator(
     URL_SERVICE,
     summary="Fetch service",
     tags=["Service"],
-    response_model=List[ServiceSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of services.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    response_model=list[MaskedServiceSchema],
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=GET_DESCRIPTION.to_string(),
 )
-async def fetch_service_vendor(
-    query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
+async def fetch_services_for_vendor(
+    query_params: QueryParamsForVE = Depends(),
+    access_token=Depends(bearer_vendor),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, VendorToken, access_token.credentials)
-
         return search_service(
             session,
             QueryParams(**query_params.model_dump()),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_vendor.get(
     f"{URL_SERVICE}/{{id}}",
     summary="Fetch service details",
     tags=["Service"],
-    response_model=PublicServiceSchema,
+    response_model=MaskedServiceDetailSchema,
     responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.UnknownValue(Service.id)]
+        [*GET_DETAIL_EXCEPTIONS, exceptions.InvalidToken()]
     ),
-    description=(
-        """
-            **Fetch a service by its ID.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    description=GET_DETAIL_DESCRIPTION.to_string(),
 )
 async def fetch_service_details_for_vendor(
     id: int,
     access_token=Depends(bearer_vendor),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, VendorToken, access_token.credentials)
-
-        service = validate_id(session, Service, id, Service.id)
-        return fetch_service_details(session, service)
+        return fetch_service_details(session, id)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1734,44 +1712,37 @@ async def fetch_service_details_for_vendor(
     URL_SERVICE,
     summary="Fetch service",
     tags=["Service"],
-    response_model=List[ServiceSchema],
+    response_model=list[MaskedServiceSchema],
     description=(
-        """
-            **Fetches a list of services for public users.**    
-        """
+        GET_DESCRIPTION.copy()
+        .add_line("Public users can fetch services without authentication.")
+        .to_string()
     ),
 )
-async def fetch_service_public(query_params: QueryParamsForPU = Depends()):
+async def fetch_services_for_public(
+    query_params: QueryParamsForPU = Depends(),
+    session: Session = Depends(get_db_session),
+):
     try:
-        session = SessionLocal()
-
         query_params = resolve_model_defaults(QueryParams, **query_params.model_dump())
         return search_service(session, query_params)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_public.get(
     f"{URL_SERVICE}/{{id}}",
     summary="Fetch service details",
     tags=["Service"],
-    response_model=PublicServiceSchema,
-    responses=fuse_exception_responses([exceptions.UnknownValue(Service.id)]),
-    description=(
-        """
-            **Fetches a service by its ID.**    
-        """
-    ),
+    response_model=MaskedServiceDetailSchema,
+    responses=fuse_exception_responses(GET_DETAIL_EXCEPTIONS),
+    description=GET_DETAIL_DESCRIPTION.to_string(),
 )
-async def fetch_service_details_public(id: int):
+async def fetch_service_details_for_public(
+    id: int,
+    session: Session = Depends(get_db_session),
+):
     try:
-        session = SessionLocal()
-
-        service = validate_id(session, Service, id, Service.id)
-        return fetch_service_details(session, service)
+        return fetch_service_details(session, id)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()

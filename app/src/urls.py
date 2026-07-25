@@ -13,7 +13,7 @@ gateway or service base URL when making requests.
 # ---------------------------------------------------------------------------
 URL_HEALTH = "/health"
 URL_LANDMARK = "/landmark"
-URL_BUS_STOP = "/landmark/bus_stop"
+URL_STATION = "/landmark/station"
 
 # ---------------------------------------------------------------------------
 # Executive
@@ -50,8 +50,13 @@ URL_FARE = "/company/fare"
 URL_SCHEDULE = "/company/schedule"
 URL_SCHEDULE_TRIGGER = "/company/schedule/trigger"
 URL_SERVICE = "/company/service"
+URL_SERVICE_AUTOMATION = "/company/service/automation"
+URL_SERVICE_ASSIGNMENT_AUTOMATION = "/company/service/assignment/automation"
 URL_SERVICE_ASSIGNMENT = "/company/service/assignment"
 URL_DUTY = "/company/service/duty"
 URL_PAPER_TICKET = "/company/service/ticket/paper"
 URL_SERVICE_TRACE = "/company/service/location"
 URL_VEHICLE_PICTURE = "/company/vehicle/picture"
+URL_ROUTE_TRACE = "/company/trace"
+URL_LOCATION_TRACE = "/company/trace/location"
+URL_JOB = "/company/job"

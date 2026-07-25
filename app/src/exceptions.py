@@ -11,14 +11,21 @@ It ensures consistent error responses across the API.
 
 from traceback import format_exception
 from logging import getLogger
-from typing import Union
+from typing import TYPE_CHECKING, NoReturn
 from fastapi import status, HTTPException
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
 from pydantic import ValidationError
 from redis.exceptions import RedisError
 from requests.exceptions import ConnectionError, Timeout
-from sqlalchemy.orm import DeclarativeMeta, InstrumentedAttribute
+from sqlalchemy.orm import InstrumentedAttribute
+
+if TYPE_CHECKING:
+    from app.src.db import ORMbase
+else:
+    # Runtime placeholder to avoid importing app.src.db and initializing DB engine.
+    class ORMbase:  # pragma: no cover
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +80,7 @@ class APIException(HTTPException):
 # ---------------------------------------------------------------------------
 # Exception handling entrypoint
 # ---------------------------------------------------------------------------
-def handle(e: Exception) -> None:
+def handle(e: Exception) -> NoReturn:
     """
     Normalize and re-raise exceptions as API-friendly errors.
 
@@ -220,25 +227,9 @@ class UnknownValue(APIException):
     status_code = status.HTTP_404_NOT_FOUND
     headers = {"X-Error": "UnknownValue"}
 
-    def __init__(self, column: Union[InstrumentedAttribute, str]):
-        if isinstance(column, str):
-            column = type("Column", (), {"name": column})()
-        detail = f"Unknown {column.name} is provided"
-        super().__init__(detail=detail)
-
-
-class InvalidAssociation(APIException):
-    """
-    Raised when an association between two columns is invalid.
-    """
-
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-    headers = {"X-Error": "InvalidAssociation"}
-
-    def __init__(
-        self, column_1: InstrumentedAttribute, column_2: InstrumentedAttribute
-    ):
-        detail = f"The {column_1.name} is not associated with {column_2.name}"
+    def __init__(self, column: InstrumentedAttribute | str):
+        column_name = column if isinstance(column, str) else column.key
+        detail = f"Unknown {column_name} is provided"
         super().__init__(detail=detail)
 
 
@@ -250,8 +241,9 @@ class InvalidValue(APIException):
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
     headers = {"X-Error": "InvalidValue"}
 
-    def __init__(self, column: InstrumentedAttribute):
-        detail = f"Invalid {column.name} is provided"
+    def __init__(self, column: InstrumentedAttribute | str):
+        column_name = column if isinstance(column, str) else column.key
+        detail = f"Invalid {column_name} is provided"
         super().__init__(detail=detail)
 
 
@@ -300,7 +292,7 @@ class InactiveResource(APIException):
     status_code = status.HTTP_412_PRECONDITION_FAILED
     headers = {"X-Error": "InactiveResource"}
 
-    def __init__(self, orm_class: DeclarativeMeta):
+    def __init__(self, orm_class: type[ORMbase]):
         detail = (
             f"The status of {orm_class.__name__} is not in an active or useful state"
         )
@@ -315,7 +307,7 @@ class DataInUse(APIException):
     status_code = status.HTTP_409_CONFLICT
     headers = {"X-Error": "DataInUse"}
 
-    def __init__(self, orm_class: DeclarativeMeta):
+    def __init__(self, orm_class: type[ORMbase]):
         detail = f"The {orm_class.__name__} is currently in use"
         super().__init__(detail=detail)
 
@@ -328,7 +320,7 @@ class LimitExceeded(APIException):
     status_code = status.HTTP_409_CONFLICT
     headers = {"X-Error": "LimitExceeded"}
 
-    def __init__(self, orm_class: DeclarativeMeta):
+    def __init__(self, orm_class: type[ORMbase]):
         detail = (
             f"The number of entries in {orm_class.__name__} exceeds the allowed limit."
         )
@@ -395,6 +387,16 @@ class InvalidAABB(APIException):
     headers = {"X-Error": "InvalidAABB"}
 
 
+class InvalidRRULEString(APIException):
+    """
+    Raised when an invalid RRULE string is provided.
+    """
+
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    detail = "Invalid RRULE string"
+    headers = {"X-Error": "InvalidRRULEString"}
+
+
 class OverlappingLandmarkBoundary(APIException):
     """
     Raised when a landmark boundary overlaps with another landmark boundary.
@@ -426,14 +428,14 @@ class InvalidBoundaryArea(APIException):
     headers = {"X-Error": "InvalidBoundaryArea"}
 
 
-class BusStopOutsideLandmark(APIException):
+class StationOutsideLandmark(APIException):
     """
-    Raised when the bus stop location is not within the landmark boundary.
+    Raised when the station location is not within the landmark boundary.
     """
 
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-    detail = "The bus stop location is not within the landmark boundary"
-    headers = {"X-Error": "BusStopOutsideLandmark"}
+    detail = "The station location is not within the landmark boundary"
+    headers = {"X-Error": "StationOutsideLandmark"}
 
 
 class LandmarkDistanceLimitExceeded(APIException):

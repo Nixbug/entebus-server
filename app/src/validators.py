@@ -5,28 +5,34 @@ It includes reusable utilities to handle common operations,
 making it easier for developers to integrate them into their projects.
 """
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Type, Union
-from dns.enum import IntEnum
+from datetime import datetime, timedelta
+from enum import IntEnum
+from typing import Any, List, Mapping, Sequence, Type
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.orm.session import Session
-from sqlalchemy.sql.elements import ClauseElement
 import math
 import mimetypes
 from io import BytesIO
 from PIL import Image, UnidentifiedImageError
 from shapely.geometry.base import BaseGeometry
 from shapely import Polygon, wkt, errors
+from dateutil.rrule import rrulestr
 
-from app.src.functions import get_by_path
+from app.src.functions import (
+    get_by_id,
+    get_by_path,
+    get_executive_roles,
+    get_operator_roles,
+    get_vendor_roles,
+)
 from app.src import argon2, exceptions
 from app.src.enums import AccountStatus, BusinessStatus, CompanyStatus, GrantType
 from app.src.db import (
     Executive,
     ExecutiveRole,
     ExecutiveToken,
-    ORMbase,
     Operator,
     OperatorToken,
     Vendor,
@@ -44,14 +50,17 @@ from app.src.constants import (
     MIN_IMAGE_FILE_SIZE,
     MAX_IMAGE_RESOLUTION,
     MIN_IMAGE_RESOLUTION,
+    TMZ_PRIMARY,
 )
 from app.src.dynamic_fare.v1 import DynamicFare
+from app.src.types import GeometryT, ORMbaseT, TokenT
+from app.src.types import EnumT
 
 
 def user_credentials(
-    user: Union[Executive, Operator, Vendor],
+    user: Executive | Operator | Vendor,
     credentials: OAuth2PasswordRequestForm,
-) -> Union[Executive, Operator, Vendor]:
+) -> Executive | Operator | Vendor:
     """
     Generic user authentication function for Executive, Operator, and Vendor.
 
@@ -60,11 +69,11 @@ def user_credentials(
     the account is active.
 
     Args:
-        user (Union[Executive, Operator, Vendor]): The already fetched user instance.
+        user (Executive | Operator | Vendor): The already fetched user instance.
         credentials (OAuth2PasswordRequestForm): Credentials containing password, and grant_type.
 
     Returns:
-        Union[Executive, Operator, Vendor]: The authenticated user instance.
+        Executive | Operator | Vendor: The authenticated user instance.
 
     Raises:
         InvalidGrantType: If the grant_type is not PASSWORD.
@@ -195,9 +204,9 @@ def authenticate_vendor(
 
 def validate_and_revoke_refresh_token(
     session: Session,
-    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
+    model_cls: Type[TokenT],
     form_param: Any,
-) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
+) -> TokenT:
     """
     Validates a refresh token and revokes it.
 
@@ -208,11 +217,11 @@ def validate_and_revoke_refresh_token(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[Union[ExecutiveToken, OperatorToken, VendorToken]]): The ORM model class.
+        model_cls (Type[TokenT]): The ORM model class for the token (ExecutiveToken, OperatorToken, VendorToken).
         form_param (Any): Form parameters containing refresh_token and grant_type.
 
     Returns:
-        token: The valid token object from the database.
+        TokenT: The valid token object from the database.
 
     Raises:
         InvalidGrantType: If the grant_type is not REFRESH_TOKEN.
@@ -228,7 +237,7 @@ def validate_and_revoke_refresh_token(
     if token is None or token.is_revoked:
         raise exceptions.InvalidToken()
     # TODO: Optionally suspend account if revoked token reuse detected
-    if token.refresh_before < datetime.now(timezone.utc):
+    if token.refresh_before < datetime.now(TMZ_PRIMARY):
         raise exceptions.InvalidToken()
     # Revoke the current token
     token.is_revoked = True
@@ -238,25 +247,25 @@ def validate_and_revoke_refresh_token(
 
 def verify_token(
     session: Session,
-    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
+    model_cls: Type[TokenT],
     access_token: str,
-) -> Union[ExecutiveToken, OperatorToken, VendorToken]:
+) -> TokenT:
     """
     Generic token validation function for user.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[Union[ExecutiveToken, OperatorToken, VendorToken]]): The ORM model class.
+        model_cls (Type[TokenT]): The ORM model class.
         access_token (str): The access token string to validate.
 
     Returns:
-        The valid token model instance.
+        TokenT: The valid token model instance.
 
     Raises:
         InvalidToken: If token is invalid, revoked, or expired.
     """
     # Get token ensuring it's not revoked
-    current_time = datetime.now(timezone.utc)
+    current_time = datetime.now(TMZ_PRIMARY)
     token = (
         session.query(model_cls)
         .filter(model_cls.access_token == access_token)
@@ -272,7 +281,7 @@ def verify_token(
 
 
 def verify_permission(
-    role_list: list[ExecutiveRole | VendorRole | OperatorRole],
+    role_list: Sequence[ExecutiveRole | VendorRole | OperatorRole],
     permission_path: str,
     raise_exception: bool = True,
 ) -> bool:
@@ -280,7 +289,7 @@ def verify_permission(
     Validate if a user has a specific permission based on their roles.
 
     Args:
-        role_list (list[ExecutiveRole | VendorRole | OperatorRole]): List of roles.
+        role_list (Sequence[ExecutiveRole | VendorRole | OperatorRole]): List of roles.
         permission_path (str): Permission path.
         raise_exception (bool): Whether to raise `NoPermission` if permission is not found, defaults to True.
 
@@ -389,18 +398,36 @@ def validate_srid_4326(geometry: BaseGeometry) -> bool:
     return True
 
 
-def validate_wkt_string(
-    wkt_string: str, expected_type: Type[BaseGeometry]
-) -> BaseGeometry:
+def validate_rrule_string(rrule_string: str) -> bool:
+    """
+    Validate a recurrence rule (RRULE) string.
+
+    Args:
+        rrule_string (str): The RRULE string to validate.
+
+    Returns:
+        bool: True if the RRULE string is valid.
+
+    Raises:
+        InvalidRRULEString: If the RRULE string is invalid.
+    """
+    try:
+        rrulestr(rrule_string, dtstart=datetime.now(tz=TMZ_PRIMARY), ignoretz=False)
+    except Exception:
+        raise exceptions.InvalidRRULEString()
+    return True
+
+
+def validate_wkt_string(wkt_string: str, expected_type: Type[GeometryT]) -> GeometryT:
     """
     Validate and parse a WKT string into a Shapely geometry of the expected type.
 
     Args:
         wkt_string (str): Well-Known Text (WKT) geometry string.
-        expected_type (Type[BaseGeometry]): Expected Shapely geometry class.
+        expected_type (Type[GeometryT]): Expected Shapely geometry class.
 
     Returns:
-        BaseGeometry: Parsed Shapely geometry instance.
+        GeometryT: Parsed Shapely geometry instance.
 
     Raises:
         InvalidWKTStringOrType: If WKT parsing fails or type does not match `expected_type`.
@@ -416,12 +443,12 @@ def validate_wkt_string(
     return geom
 
 
-def validate_AABB(geometry: BaseGeometry) -> bool:
+def validate_AABB(polygon: Polygon) -> bool:
     """
     Validate that the provided geometry is a valid Axis-Aligned Bounding Box (AABB).
 
     Args:
-        geometry (BaseGeometry): Shapely geometry instance to validate.
+        polygon (Polygon): Shapely geometry instance to validate.
 
     Returns:
         bool: True if the geometry is a valid AABB.
@@ -429,10 +456,10 @@ def validate_AABB(geometry: BaseGeometry) -> bool:
     Raises:
         InvalidAABB: If the geometry violates AABB structural or alignment rules.
     """
-    if not isinstance(geometry, Polygon):
+    if not isinstance(polygon, Polygon):
         raise exceptions.InvalidAABB()
 
-    coords = list(geometry.exterior.coords)
+    coords = list(polygon.exterior.coords)
     if len(coords) != 5:
         raise exceptions.InvalidAABB()
 
@@ -448,13 +475,13 @@ def validate_AABB(geometry: BaseGeometry) -> bool:
 
 
 def is_valid_transition(
-    transitions: dict[Any, list[Any]], old_state: Any, new_state: Any
+    transitions: Mapping[EnumT, Sequence[EnumT]], old_state: Any, new_state: Any
 ) -> bool:
     """
     Check if a state transition is valid.
 
     Args:
-        transitions (dict[Any, list[Any]]): A mapping of valid state transitions.
+        transitions (Mapping[EnumT, Sequence[EnumT]]): A mapping of valid state transitions.
         old_state (Any): The current state before the transition.
         new_state (Any): The desired state after the transition.
 
@@ -472,32 +499,28 @@ def is_valid_transition(
 
 def validate_id(
     session: Session,
-    model_cls: Type[ORMbase],
+    model_cls: Type[ORMbaseT],
     unique_id: int,
-    column: Union[InstrumentedAttribute, str],
-    extra_filter: ClauseElement[bool] | None = None,
-) -> Any:
+    column: InstrumentedAttribute | str,
+    extra_filter: ColumnElement[bool] | None = None,
+) -> ORMbaseT:
     """
     Generic function to validate an ID based on a given model class.
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls (Type[ORMbase]): The ORM model class.
+        model_cls (Type[ORMbaseT]): The ORM model class.
         unique_id (int): The ID of the record to fetch.
         column (InstrumentedAttribute | str): ORM column or field name for error messages.
         extra_filter (ClauseElement[bool] | None): Additional filters to apply, defaults to None.
 
     Returns:
-        Any: The instance of the model class matching the given ID.
+        ORMbaseT: The instance of the model class matching the given ID.
 
     Raises:
         UnknownValue: If no instance with the provided ID exists.
     """
-    query = session.query(model_cls).filter(model_cls.id == unique_id)
-    if extra_filter is not None:
-        query = query.filter(extra_filter)
-    result = query.first()
-
+    result = get_by_id(session, model_cls, unique_id, extra_filter)
     if result is None:
         raise exceptions.UnknownValue(column)
     return result
@@ -612,7 +635,7 @@ def validate_fare_function(function: str, attributes: dict) -> DynamicFare:
 
 
 def validate_state_transition(
-    transitions: dict[IntEnum, list[IntEnum]],
+    transitions: Mapping[EnumT, Sequence[EnumT]],
     old_state: IntEnum,
     new_state: IntEnum,
     column: InstrumentedAttribute,
@@ -621,7 +644,7 @@ def validate_state_transition(
     Validate whether a state transition is allowed.
 
     Args:
-        transitions (dict[IntEnum, list[IntEnum]]): A mapping of valid state transitions.
+        transitions (Mapping[EnumT, Sequence[EnumT]]): A mapping of valid state transitions.
         old_state (IntEnum): The current state before the transition.
         new_state (IntEnum): The desired state after the transition.
         column (InstrumentedAttribute): The ORM column associated with the state, used for exception messages.
@@ -635,3 +658,90 @@ def validate_state_transition(
     if not is_valid_transition(transitions, old_state, new_state):
         raise exceptions.InvalidStateTransition(column)
     return True
+
+
+def authorize_executive(
+    session: Session, token_value: str, permissions: List[str]
+) -> ExecutiveToken:
+    """
+    Authorize an executive based on their access token and required permissions.
+
+    Authorization succeeds if the executive has any of the provided permissions.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        token_value (str): The access token value to be verified.
+        permissions (List[str]): A list of permission path strings. Authorization succeeds if
+                                the executive has at least one of these permissions.
+
+    Returns:
+        ExecutiveToken: The token object if the executive has at least one of the required permissions.
+
+    Raises:
+        exceptions.InvalidToken: If the token is invalid or cannot be verified.
+        exceptions.NoPermission: If the executive does not have any of the provided permissions.
+    """
+    token = verify_token(session, ExecutiveToken, token_value)
+    roles = get_executive_roles(session, token)
+    for permission in permissions:
+        if verify_permission(roles, permission, raise_exception=False):
+            return token
+    raise exceptions.NoPermission()
+
+
+def authorize_operator(
+    session: Session, token_value: str, permissions: List[str]
+) -> OperatorToken:
+    """
+    Authorize an operator based on their access token and required permissions.
+
+    Authorization succeeds if the operator has any of the provided permissions.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        token_value (str): The access token value to be verified.
+        permissions (List[str]): A list of permission path strings. Authorization succeeds if
+                                the operator has at least one of these permissions.
+
+    Returns:
+        OperatorToken: The token object if the operator has at least one of the required permissions.
+
+    Raises:
+        exceptions.InvalidToken: If the token is invalid or cannot be verified.
+        exceptions.NoPermission: If the operator does not have any of the provided permissions.
+    """
+    token = verify_token(session, OperatorToken, token_value)
+    roles = get_operator_roles(session, token)
+    for permission in permissions:
+        if verify_permission(roles, permission, raise_exception=False):
+            return token
+    raise exceptions.NoPermission()
+
+
+def authorize_vendor(
+    session: Session, token_value: str, permissions: List[str]
+) -> VendorToken:
+    """
+    Authorize a vendor based on their access token and required permissions.
+
+    Authorization succeeds if the vendor has any of the provided permissions.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        token_value (str): The access token value to be verified.
+        permissions (List[str]): A list of permission path strings. Authorization succeeds if
+                                the vendor has at least one of these permissions.
+
+    Returns:
+        VendorToken: The token object if the vendor has at least one of the required permissions.
+
+    Raises:
+        exceptions.InvalidToken: If the token is invalid or cannot be verified.
+        exceptions.NoPermission: If the vendor does not have any of the provided permissions.
+    """
+    token = verify_token(session, VendorToken, token_value)
+    roles = get_vendor_roles(session, token)
+    for permission in permissions:
+        if verify_permission(roles, permission, raise_exception=False):
+            return token
+    raise exceptions.NoPermission()

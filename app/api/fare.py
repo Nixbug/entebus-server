@@ -1,14 +1,16 @@
 """
-Fare API Router for EnteBus.
+Fare API Router.
 
-Provides endpoints for managing fares, including creation,
-update, deletion, and retrieval. Uses Pydantic schemas for
-input validation and structured output.
+Provides endpoints for managing fares:
+    - POST (executive, operator)
+    - PATCH (executive, operator)
+    - DELETE (executive, operator)
+    - GET (executive, operator, vendor)
 """
 
 from datetime import datetime
 from enum import StrEnum
-from typing import List, Dict, Any
+from typing import Any
 from fastapi import APIRouter, status, Depends, Response, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -20,15 +22,20 @@ from app.src.db import (
     Company,
     ExecutiveToken,
     OperatorToken,
-    SessionLocal,
     Fare,
     VendorToken,
+    get_db_session,
 )
 from app.src.enums import FareScope, OrderIn
+from app.src.constants import (
+    JSX_TIMEOUT_MS,
+    JSX_MAX_MEMORY_BYTES,
+    MAX_LOCAL_FARES_PER_COMPANY,
+)
 from app.src.functions import (
     fuse_exception_responses,
+    get_by_id,
     get_executive_roles,
-    get_operator_roles,
     get_request_info,
     enum_str,
     update_if_changed,
@@ -40,11 +47,18 @@ from app.src.functions import (
 from app.src.openobserve import log_event
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_FARE
-from app.src.validators import verify_token, verify_permission
+from app.src.validators import (
+    verify_permission,
+    verify_token,
+    authorize_operator,
+    validate_fare_function,
+    validate_id,
+)
+from app.src.description import Description
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
-from app.src import exceptions
-from app.src.validators import validate_fare_function, validate_id
+from app.src import exceptions, schemas
+from app.src.schemas import PatchForm
 from app.src.filters import PaginationFilter, CreatedOnFilter, UpdatedOnFilter, IDFilter
 
 route_executive = APIRouter()
@@ -52,7 +66,9 @@ route_operator = APIRouter()
 route_vendor = APIRouter()
 
 
+# ---------------------------------------------------------------------------
 ## Output Schema
+# ---------------------------------------------------------------------------
 class TicketTypesInAttribute(BaseModel):
     """Schema for ticket types in fare attributes."""
 
@@ -64,10 +80,10 @@ class FareAttributes(BaseModel):
     """Attributes for fare details."""
 
     df_version: int
-    ticket_types: List[TicketTypesInAttribute]
+    ticket_types: list[TicketTypesInAttribute]
     currency_type: str
     distance_unit: str
-    extras: Dict[str, Any]
+    extras: dict[str, Any]
 
 
 class FareSchema(BaseModel):
@@ -84,7 +100,9 @@ class FareSchema(BaseModel):
     created_on: datetime
 
 
+# ---------------------------------------------------------------------------
 ## Input Forms
+# ---------------------------------------------------------------------------
 class CreateFormForOP(BaseModel):
     """Form data for creating a new fare for an operator."""
 
@@ -106,15 +124,19 @@ class CreateForm(CreateFormForEX):
     pass
 
 
-class UpdateForm(BaseModel):
+class UpdateForm(PatchForm):
     """Form data for updating a fare."""
 
-    name: str = Field(default=None, min_length=1, max_length=32, pattern=NAME_PATTERN)
-    attributes: FareAttributes = Field(default=None)
-    function: str = Field(default=None, min_length=1, max_length=32768)
+    name: str | None = Field(
+        default=None, min_length=1, max_length=32, pattern=NAME_PATTERN
+    )
+    attributes: FareAttributes | None = Field(default=None)
+    function: str | None = Field(default=None, min_length=1, max_length=32768)
 
 
+# ---------------------------------------------------------------------------
 ## Query Parameters
+# ---------------------------------------------------------------------------
 class OrderBy(StrEnum):
     """Enum for ordering fare results."""
 
@@ -159,82 +181,144 @@ class QueryParams(QueryParamsForEX):
     pass
 
 
-## Functions
-def create_fare(session: Session, form_param: CreateForm) -> dict:
+# ---------------------------------------------------------------------------
+## Lock Generator
+# ---------------------------------------------------------------------------
+def construct_fare_reference_lock(fare_id: int, version: int) -> str:
+    """
+    Creates a Redis lock key for Fare snapshot creation and reference operations.
+
+    Serializes access to Fare snapshot operations for the same
+    fare_id, preventing concurrent creation or reference count
+    updates of the same snapshot.
+
+    Args:
+        fare_id (int): Fare ID.
+        version (int): Version of the fare.
+
+    Returns:
+        str: Redis lock key in the format "lk_fare_:<fare_id>:<version>".
+    """
+    return f"lk_fare_:{fare_id}:{version}"
+
+
+# ---------------------------------------------------------------------------
+## Core Functions
+# ---------------------------------------------------------------------------
+def create_fare(
+    session: Session,
+    form_param: CreateForm,
+    token: ExecutiveToken | OperatorToken,
+    request_info: schemas.RequestInfo,
+) -> dict:
     """
     Creates a new fare record in the database.
 
     Args:
         session (Session): SQLAlchemy database session.
         form_param (CreateForm): Form data for creating a fare.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
 
     Returns:
         dict: The created fare data.
     """
-    form_param.attributes = form_param.attributes.model_dump()
-    validate_fare_function(form_param.function, form_param.attributes)
+    if form_param.scope == FareScope.LOCAL:
+        local_fare_count = (
+            session.query(Fare)
+            .filter(
+                Fare.company_id == form_param.company_id,
+                Fare.scope == FareScope.LOCAL,
+            )
+            .count()
+        )
+        if local_fare_count >= MAX_LOCAL_FARES_PER_COMPANY:
+            raise exceptions.LimitExceeded(Fare)
+
+    attributes = form_param.attributes.model_dump()
+    validate_fare_function(form_param.function, attributes)
     fare = Fare(
         company_id=form_param.company_id,
         name=form_param.name,
-        attributes=form_param.attributes,
+        attributes=attributes,
         function=form_param.function,
         scope=form_param.scope,
     )
     session.add(fare)
     session.commit()
     session.refresh(fare)
+
     fare_data = jsonable_encoder(fare)
+    log_event(token, request_info, fare_data)
     return fare_data
 
 
-def update_fare(session: Session, fare: Fare, form_param: UpdateForm):
+def update_fare(
+    session: Session,
+    fare: Fare,
+    form_param: UpdateForm,
+    token: ExecutiveToken | OperatorToken,
+    request_info: schemas.RequestInfo,
+) -> dict:
     """
-    Updates an existing fare record in the database.
+    Update an existing fare in the database.
 
     Args:
-        session (Session): SQLAlchemy database session.
-        fare (Fare): The existing fare record to be updated.
+        session (Session): Active SQLAlchemy database session.
+        fare (Fare): The fare instance to update.
         form_param (UpdateForm): Form data for updating the fare.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
 
     Returns:
-        dict: The updated fare data.
+        dict: JSON-encoded representation of the updated fare.
     """
     update_data = form_param.model_dump(exclude_unset=True)
-    if form_param.attributes is not None:
-        attribute_data = form_param.attributes.model_dump()
-        if attribute_data != fare.attributes:
-            fare.attributes = attribute_data
+    revalidate_fare = False
+    if "attributes" in update_data:
+        if update_data["attributes"] != fare.attributes:
+            fare.attributes = update_data["attributes"]
+            revalidate_fare = True
         update_data.pop("attributes")
+    if "function" in update_data:
+        revalidate_fare = True
+
     update_if_changed(fare, update_data)
-    validate_fare_function(fare.function, fare.attributes)
-    have_updates = session.is_modified(fare)
-    if have_updates:
+    if revalidate_fare:
+        validate_fare_function(fare.function, fare.attributes)
+    if session.is_modified(fare):
         fare.version += 1
         session.commit()
         session.refresh(fare)
+        fare_data = jsonable_encoder(fare)
+        log_event(token, request_info, fare_data)
+    else:
+        fare_data = jsonable_encoder(fare)
+    return fare_data
 
-    fare_data = jsonable_encoder(fare)
-    return have_updates, fare_data
 
-
-def delete_fare(session: Session, fare: Fare) -> dict:
+def delete_fare(
+    session: Session,
+    fare: Fare,
+    token: ExecutiveToken | OperatorToken,
+    request_info: schemas.RequestInfo,
+) -> None:
     """
-    Deletes a fare from the database.
+    Delete a fare from the database.
 
     Args:
-        session (Session): SQLAlchemy database session.
-        fare (Fare): Fare to delete.
-
-    Returns:
-        dict: JSON-encoded representation of the deleted fare.
+        session (Session): Active SQLAlchemy database session.
+        fare (Fare): The fare instance to delete.
+        token (ExecutiveToken | OperatorToken): Authenticated token.
+        request_info (schemas.RequestInfo): Request information for logging.
     """
     fare_data = jsonable_encoder(fare)
     session.delete(fare)
     session.commit()
-    return fare_data
+    log_event(token, request_info, fare_data)
 
 
-def search_fare(session: Session, query_params: QueryParams) -> List[Fare]:
+def search_fares(session: Session, query_params: QueryParams) -> list[Fare]:
     """
     Search for Fares based on provided query parameters.
 
@@ -246,7 +330,7 @@ def search_fare(session: Session, query_params: QueryParams) -> List[Fare]:
         query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
-        List[Fare]: List of Fares that match the search criteria.
+        list[Fare]: List of Fares that match the search criteria.
     """
     query = session.query(Fare)
     if query_params.company_id is not None:
@@ -293,6 +377,76 @@ def search_fare(session: Session, query_params: QueryParams) -> List[Fare]:
 
 
 # ---------------------------------------------------------------------------
+## Common exceptions
+# ---------------------------------------------------------------------------
+POST_EXCEPTIONS_COMMON = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.InvalidFareVersion(),
+    exceptions.InvalidFareFunction(),
+    exceptions.JSTimeLimitExceeded(),
+    exceptions.JSMemoryLimitExceeded(),
+    exceptions.UnknownTicketType(),
+    exceptions.LimitExceeded(Fare),
+]
+
+PATCH_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+    exceptions.UnknownValue(Fare.id),
+    exceptions.InvalidFareVersion(),
+    exceptions.InvalidFareFunction(),
+    exceptions.JSTimeLimitExceeded(),
+    exceptions.JSMemoryLimitExceeded(),
+    exceptions.UnknownTicketType(),
+]
+
+DELETE_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+    exceptions.NoPermission(),
+]
+
+GET_EXCEPTIONS = [
+    exceptions.InvalidToken(),
+]
+
+
+# ---------------------------------------------------------------------------
+## Common description
+# ---------------------------------------------------------------------------
+POST_DESCRIPTION = (
+    Description()
+    .add_head("Creates a new fare.")
+    .add_line("The fare function is validated against the provided attributes.")
+    .add_line(
+        f"The maximum allowed size for the fare function is `{JSX_MAX_MEMORY_BYTES // 1024} KB` and maximum execution time is `{JSX_TIMEOUT_MS} ms`."
+    )
+    .add_line(
+        f"Local fare creation is limited to `{MAX_LOCAL_FARES_PER_COMPANY}` fares per company. Requests exceeding this limit will be rejected."
+    )
+    .add_line("Preferable dynamic fare version is 1.")
+    .add_line("Preferable distance unit is meter and currency is INR.")
+)
+
+PATCH_DESCRIPTION = (
+    Description()
+    .add_head("Updates an existing fare.")
+    .add_line("DF function and attributes are validated together.")
+    .add_line("Empty PATCH requests are allowed and will result in no changes.")
+    .add_line("Preferable dynamic fare version is 1.")
+    .add_line("Preferable distance unit is meter and currency is INR.")
+)
+
+DELETE_DESCRIPTION = (
+    Description()
+    .add_head("Deletes an existing fare.")
+    .add_line("Returns 204 No Content even if the specified fare does not exist.")
+)
+
+GET_DESCRIPTION = Description().add_head("Fetches a list of fares.")
+
+
+# ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
@@ -303,56 +457,46 @@ def search_fare(session: Session, query_params: QueryParams) -> List[Fare]:
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(
         [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(Fare.company_id),
-            exceptions.UnexpectedParameter(Fare.company_id),
+            *POST_EXCEPTIONS_COMMON,
             exceptions.MissingParameter(Fare.company_id),
-            exceptions.InvalidFareVersion(),
-            exceptions.InvalidFareFunction(),
-            exceptions.JSTimeLimitExceeded(),
-            exceptions.JSMemoryLimitExceeded(),
-            exceptions.UnknownTicketType(),
+            exceptions.UnexpectedParameter(Fare.company_id),
+            exceptions.UnknownValue(Fare.company_id),
         ]
     ),
     description=(
-        """
-            **Creates a new fare for a company.**    
-            - Requires a valid access token.    
-            - Logged-in executive must have `company.fare.create` permission.    
-            - If scope is GLOBAL, company_id must be null. If scope is LOCAL, company_id must be provided.    
-            - The fare function is validated against the provided attributes.    
-            - The maximum allowed size for the fare function is 10 MB and maximum execution time is 1 second.    
-            - Preferable dynamic fare version is 1.    
-            - Preferable distance unit is meter and currency is INR.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.fare.create` permission.")
+        .add_line(
+            "If scope is GLOBAL, company_id must be null. If scope is LOCAL, company_id must be provided."
+        )
+        .to_string()
     ),
 )
-async def create_fare_executive(
+async def create_fare_for_executive(
     form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY_FARE)
-
-        if form_param.scope == FareScope.GLOBAL and form_param.company_id is not None:
-            raise exceptions.UnexpectedParameter(Fare.company_id)
-        if form_param.scope == FareScope.LOCAL and form_param.company_id is None:
-            raise exceptions.MissingParameter(Fare.company_id)
+        if form_param.scope == FareScope.GLOBAL:
+            if form_param.company_id is not None:
+                raise exceptions.UnexpectedParameter(Fare.company_id)
+            verify_permission(roles, ExecutivePermissionPath.CREATE_FARE)
+        if form_param.scope == FareScope.LOCAL:
+            if form_param.company_id is None:
+                raise exceptions.MissingParameter(Fare.company_id)
+            verify_permission(roles, ExecutivePermissionPath.CREATE_COMPANY_FARE)
         if form_param.company_id is not None:
             validate_id(session, Company, form_param.company_id, Fare.company_id)
-        fare_data = create_fare(session, CreateForm(**form_param.model_dump()))
 
-        log_event(token, request_info, fare_data)
-        return fare_data
+        return create_fare(
+            session, CreateForm(**form_param.model_dump()), token, request_info
+        )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.patch(
@@ -360,55 +504,39 @@ async def create_fare_executive(
     summary="Update fare",
     tags=["Fare"],
     response_model=FareSchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.UnknownValue(Fare.id),
-            exceptions.InvalidFareVersion(),
-            exceptions.InvalidFareFunction(),
-            exceptions.JSTimeLimitExceeded(),
-            exceptions.JSMemoryLimitExceeded(),
-            exceptions.UnknownTicketType(),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing fare for a company.**    
-            - Requires a valid access token.    
-            - Logged-in executive must have `company.fare.update` permission.    
-            - DF function and attributes are validated together.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-            - Preferable dynamic fare version is 1.    
-            - Preferable distance unit is meter and currency is INR.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line("Logged-in executive must have `company.fare.update` permission.")
+        .to_string()
     ),
 )
-async def update_fare_executive(
+async def update_fare_for_executive(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_FARE)
 
         fare = validate_id(session, Fare, id, Fare.id)
+        if fare.scope == FareScope.GLOBAL:
+            verify_permission(roles, ExecutivePermissionPath.UPDATE_FARE)
+        elif fare.scope == FareScope.LOCAL:
+            verify_permission(roles, ExecutivePermissionPath.UPDATE_COMPANY_FARE)
 
-        have_updates, fare_data = update_fare(
-            session, fare, UpdateForm(**form_param.model_dump(exclude_unset=True))
+        return update_fare(
+            session,
+            fare,
+            UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            token,
+            request_info,
         )
-
-        if have_updates:
-            log_event(token, request_info, fare_data)
-        return fare_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.delete(
@@ -416,68 +544,58 @@ async def update_fare_executive(
     summary="Delete fare",
     tags=["Fare"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes an existing fare.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in executive must have the `company.fare.delete` permission.    
-            - Returns 204 No Content even if the specified fare does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line(
+            "The logged-in executive must have the `company.fare.delete` permission."
+        )
+        .to_string()
     ),
 )
-async def delete_fare_executive(
+async def delete_fare_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, ExecutiveToken, access_token)
         roles = get_executive_roles(session, token)
-        verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_FARE)
 
-        fare = session.query(Fare).filter(Fare.id == id).first()
+        fare = get_by_id(session, Fare, id)
         if fare is not None:
-            fare_data = delete_fare(session, fare)
-            log_event(token, request_info, fare_data)
+            if fare.scope == FareScope.GLOBAL:
+                verify_permission(roles, ExecutivePermissionPath.DELETE_FARE)
+            elif fare.scope == FareScope.LOCAL:
+                verify_permission(roles, ExecutivePermissionPath.DELETE_COMPANY_FARE)
+            delete_fare(session, fare, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_executive.get(
     URL_FARE,
     summary="Fetch fare",
     tags=["Fare"],
-    response_model=List[FareSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of fares.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    response_model=list[FareSchema],
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
-async def fetch_fare_executive(
-    query_params: QueryParamsForEX = Depends(), access_token=Depends(oauth2_executive)
+async def fetch_fares_for_executive(
+    query_params: QueryParamsForEX = Depends(),
+    access_token=Depends(oauth2_executive),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, ExecutiveToken, access_token)
-
-        return search_fare(
+        return search_fares(
             session,
             QueryParams(**query_params.model_dump()),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -489,56 +607,40 @@ async def fetch_fare_executive(
     tags=["Fare"],
     response_model=FareSchema,
     status_code=status.HTTP_201_CREATED,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidFareVersion(),
-            exceptions.InvalidFareFunction(),
-            exceptions.JSTimeLimitExceeded(),
-            exceptions.JSMemoryLimitExceeded(),
-            exceptions.UnknownTicketType(),
-        ]
-    ),
+    responses=fuse_exception_responses(POST_EXCEPTIONS_COMMON),
     description=(
-        """
-            **Creates a new fare for a company.**    
-            - Requires a valid access token.    
-            - Logged-in operator must have `company.fare.create` permission.    
-            - Operators can only create fares with LOCAL scope for their own company.    
-            - The fare function is validated against the provided attributes.    
-            - Enforces function size is 10 MB or less and execution time is 1 second or less.    
-            - Preferable dynamic fare version is 1.    
-            - Preferable distance unit is meter and currency is INR.    
-        """
+        POST_DESCRIPTION.copy()
+        .add_line("Logged-in operator must have `company.fare.create` permission.")
+        .add_line(
+            "Operators can only create fares with LOCAL scope for their own company."
+        )
+        .to_string()
     ),
 )
-async def create_fare_operator(
+async def create_fare_for_operator(
     form_param: CreateFormForOP,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.CREATE_COMPANY_FARE)
-
-        fare_data = create_fare(
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.CREATE_COMPANY_FARE],
+        )
+        return create_fare(
             session,
             CreateForm(
                 **form_param.model_dump(),
                 company_id=token.company_id,
                 scope=FareScope.LOCAL,
             ),
+            token,
+            request_info,
         )
-
-        log_event(token, request_info, fare_data)
-        return fare_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.patch(
@@ -546,58 +648,43 @@ async def create_fare_operator(
     summary="Update fare",
     tags=["Fare"],
     response_model=FareSchema,
-    responses=fuse_exception_responses(
-        [
-            exceptions.InvalidToken(),
-            exceptions.NoPermission(),
-            exceptions.InvalidFareVersion(),
-            exceptions.InvalidFareFunction(),
-            exceptions.JSTimeLimitExceeded(),
-            exceptions.JSMemoryLimitExceeded(),
-            exceptions.UnknownTicketType(),
-            exceptions.UnknownValue(Fare.id),
-        ]
-    ),
+    responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
-        """
-            **Updates an existing fare for a company.**    
-            - Requires a valid access token.    
-            - Logged-in operator must have `company.fare.update` permission.    
-            - DF function and attributes are validated together.    
-            - Only fares belonging to the operator's company can be updated.    
-            - Empty PATCH requests are allowed and will result in no changes.    
-            - Preferable dynamic fare version is 1.    
-            - Preferable distance unit is meter and currency is INR.    
-        """
+        PATCH_DESCRIPTION.copy()
+        .add_line("Logged-in operator must have `company.fare.update` permission.")
+        .add_line("Only fares belonging to the operator's company can be updated.")
+        .to_string()
     ),
 )
-async def update_fare_operator(
+async def update_fare_for_operator(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.UPDATE_COMPANY_FARE)
-
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.UPDATE_COMPANY_FARE],
+        )
         fare = validate_id(
-            session, Fare, id, Fare.id, (Fare.company_id == token.company_id)
+            session,
+            Fare,
+            id,
+            Fare.id,
+            extra_filter=(Fare.company_id == token.company_id),
         )
-
-        have_updates, fare_data = update_fare(
-            session, fare, UpdateForm(**form_param.model_dump(exclude_unset=True))
+        return update_fare(
+            session,
+            fare,
+            UpdateForm(**form_param.model_dump(exclude_unset=True)),
+            token,
+            request_info,
         )
-
-        if have_updates:
-            log_event(token, request_info, fare_data)
-        return fare_data
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.delete(
@@ -605,72 +692,59 @@ async def update_fare_operator(
     summary="Delete fare",
     tags=["Fare"],
     status_code=status.HTTP_204_NO_CONTENT,
-    responses=fuse_exception_responses(
-        [exceptions.InvalidToken(), exceptions.NoPermission()]
-    ),
+    responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
-        """
-            **Deletes an existing fare.**    
-            - Requires a valid access token for authentication.    
-            - The logged-in operator must have the `company.fare.delete` permission.    
-            - Returns 204 No Content even if the specified fare does not exist.    
-        """
+        DELETE_DESCRIPTION.copy()
+        .add_line(
+            "The logged-in operator must have the `company.fare.delete` permission."
+        )
+        .to_string()
     ),
 )
-async def delete_fare_operator(
+async def delete_fare_for_operator(
     id: int,
     access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, token)
-        verify_permission(roles, OperatorPermissionPath.DELETE_COMPANY_FARE)
+        token = authorize_operator(
+            session,
+            access_token.credentials,
+            [OperatorPermissionPath.DELETE_COMPANY_FARE],
+        )
 
-        fare = (
-            session.query(Fare)
-            .filter(Fare.id == id, Fare.company_id == token.company_id)
-            .first()
+        fare = get_by_id(
+            session, Fare, id, extra_filter=(Fare.company_id == token.company_id)
         )
         if fare is not None:
-            fare_data = delete_fare(session, fare)
-            log_event(token, request_info, fare_data)
+            delete_fare(session, fare, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 @route_operator.get(
     URL_FARE,
     summary="Fetch fare",
     tags=["Fare"],
-    response_model=List[FareSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of fares.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    response_model=list[FareSchema],
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
-async def fetch_fare_operator(
-    query_params: QueryParamsForOP = Depends(), access_token=Depends(bearer_operator)
+async def fetch_fares_for_operator(
+    query_params: QueryParamsForOP = Depends(),
+    access_token=Depends(bearer_operator),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         token = verify_token(session, OperatorToken, access_token.credentials)
-
-        return search_fare(
+        return search_fares(
             session,
             QueryParams(**query_params.model_dump(), company_id=token.company_id),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -680,27 +754,20 @@ async def fetch_fare_operator(
     URL_FARE,
     summary="Fetch fare",
     tags=["Fare"],
-    response_model=List[FareSchema],
-    responses=fuse_exception_responses([exceptions.InvalidToken()]),
-    description=(
-        """
-            **Fetches a list of fares.**    
-            - Requires a valid access token for authentication.    
-        """
-    ),
+    response_model=list[FareSchema],
+    responses=fuse_exception_responses(GET_EXCEPTIONS),
+    description=(GET_DESCRIPTION.to_string()),
 )
-async def fetch_fare_vendor(
-    query_params: QueryParamsForVE = Depends(), access_token=Depends(bearer_vendor)
+async def fetch_fares_for_vendor(
+    query_params: QueryParamsForVE = Depends(),
+    access_token=Depends(bearer_vendor),
+    session: Session = Depends(get_db_session),
 ):
     try:
-        session = SessionLocal()
         verify_token(session, VendorToken, access_token.credentials)
-
-        return search_fare(
+        return search_fares(
             session,
             QueryParams(**query_params.model_dump()),
         )
     except Exception as e:
         exceptions.handle(e)
-    finally:
-        session.close()

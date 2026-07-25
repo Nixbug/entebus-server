@@ -1,11 +1,11 @@
 """
-Operator Role API router.
+Vendor Role API router.
 
-Provides endpoints for managing operator roles:
-    - POST (executive, operator)
-    - PATCH (executive, operator)
-    - DELETE (executive, operator)
-    - GET (executive, operator)
+Provides endpoints for managing vendor roles:
+    - POST (executive, vendor)
+    - PATCH (executive, vendor)
+    - DELETE (executive, vendor)
+    - GET (executive, vendor)
 """
 
 from datetime import datetime
@@ -17,13 +17,13 @@ from sqlalchemy import String, or_
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
-from app.api.bearer import bearer_operator, oauth2_executive
+from app.api.bearer import bearer_vendor, oauth2_executive
 from app.src import exceptions, schemas
-from app.src.constants import MAX_OPERATOR_ROLE
+from app.src.constants import MAX_VENDOR_ROLE
 from app.src.db import (
     ExecutiveToken,
-    OperatorRole,
-    OperatorToken,
+    VendorRole,
+    VendorToken,
     get_db_session,
 )
 from app.src.description import Description
@@ -48,32 +48,32 @@ from app.src.functions import (
 )
 from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
-from app.src.permissions.operator import (
-    PermissionPath as OperatorPermissionPath,
+from app.src.permissions.vendor import (
+    PermissionPath as VendorPermissionPath,
     PermissionSchema,
 )
 from app.src.regex import NAME_PATTERN
 from app.src.schemas import PatchForm
-from app.src.urls import URL_OPERATOR_ROLE
+from app.src.urls import URL_VENDOR_ROLE
 from app.src.validators import (
     authorize_executive,
-    authorize_operator,
+    authorize_vendor,
     validate_id,
     verify_token,
 )
 
 route_executive = APIRouter()
-route_operator = APIRouter()
+route_vendor = APIRouter()
 
 
 # ---------------------------------------------------------------------------
 ## Output Schema
 # ---------------------------------------------------------------------------
-class OperatorRoleSchema(BaseModel):
-    """Schema for operator role response."""
+class VendorRoleSchema(BaseModel):
+    """Schema for vendor role response."""
 
     id: int
-    company_id: int
+    business_id: int
     name: str
     permissions: PermissionSchema
     updated_on: datetime | None
@@ -83,27 +83,27 @@ class OperatorRoleSchema(BaseModel):
 # ---------------------------------------------------------------------------
 ## Input Forms
 # ---------------------------------------------------------------------------
-class CreateFormForOP(BaseModel):
-    """Form data for creating a new operator role for an operator."""
+class CreateFormForVE(BaseModel):
+    """Form data for creating a new vendor role for a vendor."""
 
     name: str = Field(min_length=1, max_length=32, pattern=NAME_PATTERN)
     permissions: PermissionSchema
 
 
-class CreateFormForEX(CreateFormForOP):
-    """Form data for creating a new operator role for an executive."""
+class CreateFormForEX(CreateFormForVE):
+    """Form data for creating a new vendor role for an executive."""
 
-    company_id: int = Field()
+    business_id: int = Field()
 
 
 class CreateForm(CreateFormForEX):
-    """Generic combined form data for creating a new operator role."""
+    """Generic combined form data for creating a new vendor role."""
 
     pass
 
 
 class UpdateForm(PatchForm):
-    """Form data for updating an operator role."""
+    """Form data for updating a vendor role."""
 
     name: str | None = Field(
         default=None,
@@ -125,10 +125,10 @@ class OrderBy(StrEnum):
     UPDATED_ON = "updated_on"
 
 
-class QueryParamsForOP(
+class QueryParamsForVE(
     UpdatedOnFilter, CreatedOnFilter, NameFilter, IDFilter, PaginationFilter
 ):
-    """Query parameters for operators."""
+    """Query parameters for vendors."""
 
     search: str | None = Field(Query(default=None))
     order_by: OrderBy = Field(Query(default=OrderBy.ID, description=enum_str(OrderBy)))
@@ -137,10 +137,10 @@ class QueryParamsForOP(
     )
 
 
-class QueryParamsForEX(QueryParamsForOP):
+class QueryParamsForEX(QueryParamsForVE):
     """Query parameters for executives."""
 
-    company_id: int | None = Field(Query(default=None))
+    business_id: int | None = Field(Query(default=None))
 
 
 class QueryParams(QueryParamsForEX):
@@ -152,153 +152,153 @@ class QueryParams(QueryParamsForEX):
 # ---------------------------------------------------------------------------
 ## Core Functions
 # ---------------------------------------------------------------------------
-def create_operator_role(
+def create_vendor_role(
     session: Session,
     form_param: CreateForm,
-    token: ExecutiveToken | OperatorToken,
+    token: ExecutiveToken | VendorToken,
     request_info: schemas.RequestInfo,
 ) -> dict:
     """
-    Creates a new operator role with the provided form data.
+    Creates a new vendor role with the provided form data.
 
     Args:
         session (Session): Active SQLAlchemy database session.
-        form_param (CreateForm): Form data for creating a new operator role.
-        token (ExecutiveToken | OperatorToken): Authenticated token.
+        form_param (CreateForm): Form data for creating a new vendor role.
+        token (ExecutiveToken | VendorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
 
     Returns:
-        dict: Created operator role data.
+        dict: Created vendor role data.
     """
     role_count = (
-        session.query(OperatorRole)
-        .filter(OperatorRole.company_id == form_param.company_id)
+        session.query(VendorRole)
+        .filter(VendorRole.business_id == form_param.business_id)
         .count()
     )
-    if role_count >= MAX_OPERATOR_ROLE:
-        raise exceptions.LimitExceeded(OperatorRole)
+    if role_count >= MAX_VENDOR_ROLE:
+        raise exceptions.LimitExceeded(VendorRole)
 
-    operator_role = OperatorRole(
-        company_id=form_param.company_id,
+    vendor_role = VendorRole(
+        business_id=form_param.business_id,
         name=form_param.name,
         permissions=form_param.permissions.model_dump(),
     )
-    session.add(operator_role)
+    session.add(vendor_role)
     session.commit()
-    session.refresh(operator_role)
+    session.refresh(vendor_role)
 
-    operator_role_data = jsonable_encoder(operator_role)
-    log_event(token, request_info, operator_role_data)
-    return operator_role_data
+    vendor_role_data = jsonable_encoder(vendor_role)
+    log_event(token, request_info, vendor_role_data)
+    return vendor_role_data
 
 
-def update_operator_role(
+def update_vendor_role(
     session: Session,
     id: int,
     form_param: UpdateForm,
-    token: ExecutiveToken | OperatorToken,
+    token: ExecutiveToken | VendorToken,
     request_info: schemas.RequestInfo,
     role_filter: ColumnElement[bool] | None = None,
 ) -> dict:
     """
-    Updates an operator role with the provided form data.
+    Updates a vendor role with the provided form data.
 
     Args:
         session (Session): Active SQLAlchemy database session.
-        id (int): ID of the operator role to update.
+        id (int): ID of the vendor role to update.
         form_param (UpdateForm): Form data containing fields to update.
-        token (ExecutiveToken | OperatorToken): Authenticated token.
+        token (ExecutiveToken | VendorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         role_filter: Additional filter to apply when validating role ID.
 
     Returns:
-        dict: Updated operator role data.
+        dict: Updated vendor role data.
     """
-    operator_role = validate_id(
+    vendor_role = validate_id(
         session,
-        OperatorRole,
+        VendorRole,
         id,
-        OperatorRole.id,
+        VendorRole.id,
         extra_filter=role_filter,
     )
 
     update_data = form_param.model_dump(exclude_unset=True)
-    update_if_changed(operator_role, update_data)
-    if session.is_modified(operator_role):
+    update_if_changed(vendor_role, update_data)
+    if session.is_modified(vendor_role):
         session.commit()
-        session.refresh(operator_role)
-        operator_role_data = jsonable_encoder(operator_role)
-        log_event(token, request_info, operator_role_data)
+        session.refresh(vendor_role)
+        vendor_role_data = jsonable_encoder(vendor_role)
+        log_event(token, request_info, vendor_role_data)
     else:
-        operator_role_data = jsonable_encoder(operator_role)
-    return operator_role_data
+        vendor_role_data = jsonable_encoder(vendor_role)
+    return vendor_role_data
 
 
-def delete_operator_role(
+def delete_vendor_role(
     session: Session,
     id: int,
-    token: ExecutiveToken | OperatorToken,
+    token: ExecutiveToken | VendorToken,
     request_info: schemas.RequestInfo,
     role_filter: ColumnElement[bool] | None = None,
 ) -> None:
     """
-    Deletes an operator role from the database.
+    Deletes a vendor role from the database.
 
     Args:
         session (Session): Active SQLAlchemy database session.
-        id (int): ID of the operator role to delete.
-        token (ExecutiveToken | OperatorToken): Authenticated token.
+        id (int): ID of the vendor role to delete.
+        token (ExecutiveToken | VendorToken): Authenticated token.
         request_info (schemas.RequestInfo): Request information for logging.
         role_filter: Additional filter to apply when fetching role.
     """
-    operator_role = get_by_id(session, OperatorRole, id, extra_filter=role_filter)
-    if operator_role is None:
+    vendor_role = get_by_id(session, VendorRole, id, extra_filter=role_filter)
+    if vendor_role is None:
         return
 
-    operator_role_data = jsonable_encoder(operator_role)
-    session.delete(operator_role)
+    vendor_role_data = jsonable_encoder(vendor_role)
+    session.delete(vendor_role)
     session.commit()
-    log_event(token, request_info, operator_role_data)
+    log_event(token, request_info, vendor_role_data)
 
 
-def search_operator_roles(
+def search_vendor_roles(
     session: Session, query_params: QueryParams
-) -> list[OperatorRole]:
+) -> list[VendorRole]:
     """
-    Searches for operator roles based on the provided query parameters.
+    Searches for vendor roles based on the provided query parameters.
 
     This function supports multiple filtering, searching, ordering, and
-    pagination capabilities to retrieve operator roles that match various criteria.
+    pagination capabilities to retrieve vendor roles that match various criteria.
 
     Args:
         session (Session): Active SQLAlchemy database session.
         query_params (QueryParams): Query parameters containing search criteria.
 
     Returns:
-        list[OperatorRole]: List of operator roles that match the search criteria.
+        list[VendorRole]: List of vendor roles that match the search criteria.
     """
-    query = session.query(OperatorRole)
-    if query_params.company_id is not None:
-        query = query.filter(OperatorRole.company_id == query_params.company_id)
+    query = session.query(VendorRole)
+    if query_params.business_id is not None:
+        query = query.filter(VendorRole.business_id == query_params.business_id)
 
     # Common search
     if query_params.search:
         search = f"%{query_params.search}%"
         query = query.filter(
             or_(
-                OperatorRole.id.cast(String).ilike(search),
-                OperatorRole.name.ilike(search),
+                VendorRole.id.cast(String).ilike(search),
+                VendorRole.name.ilike(search),
             )
         )
 
     # Generalized filters
-    query = apply_id_filters(query, OperatorRole, query_params)
-    query = apply_created_on_filters(query, OperatorRole, query_params)
-    query = apply_updated_on_filters(query, OperatorRole, query_params)
-    query = apply_name_filters(query, OperatorRole, query_params)
+    query = apply_id_filters(query, VendorRole, query_params)
+    query = apply_created_on_filters(query, VendorRole, query_params)
+    query = apply_updated_on_filters(query, VendorRole, query_params)
+    query = apply_name_filters(query, VendorRole, query_params)
 
     # Ordering and pagination
-    ordering_attr = getattr(OperatorRole, query_params.order_by.value)
+    ordering_attr = getattr(VendorRole, query_params.order_by.value)
     ordering_func = (
         ordering_attr.asc
         if query_params.order_in == OrderIn.ASCENDING
@@ -307,8 +307,8 @@ def search_operator_roles(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    operator_roles = query.all()
-    return operator_roles
+    vendor_roles = query.all()
+    return vendor_roles
 
 
 # ---------------------------------------------------------------------------
@@ -317,13 +317,13 @@ def search_operator_roles(
 POST_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
-    exceptions.LimitExceeded(OperatorRole),
+    exceptions.LimitExceeded(VendorRole),
 ]
 
 PATCH_EXCEPTIONS = [
     exceptions.InvalidToken(),
     exceptions.NoPermission(),
-    exceptions.UnknownValue(OperatorRole.id),
+    exceptions.UnknownValue(VendorRole.id),
 ]
 
 DELETE_EXCEPTIONS = [
@@ -341,44 +341,44 @@ GET_EXCEPTIONS = [
 # ---------------------------------------------------------------------------
 POST_DESCRIPTION = (
     Description()
-    .add_head("Creates a new operator role.")
+    .add_head("Creates a new vendor role.")
     .add_line("Duplicate names are not allowed.")
 )
 
 PATCH_DESCRIPTION = (
     Description()
-    .add_head("Updates an existing operator role.")
+    .add_head("Updates an existing vendor role.")
     .add_line("Empty PATCH requests are allowed and will result in no changes.")
 )
 
 DELETE_DESCRIPTION = (
     Description()
-    .add_head("Deletes an existing operator role.")
+    .add_head("Deletes an existing vendor role.")
     .add_line("Returns 204 No Content even if the specified role does not exist.")
 )
 
-GET_DESCRIPTION = Description().add_head("Fetches a list of operator roles.")
+GET_DESCRIPTION = Description().add_head("Fetches a list of vendor roles.")
 
 
 # ---------------------------------------------------------------------------
 ## API endpoints [Executive]
 # ---------------------------------------------------------------------------
 @route_executive.post(
-    URL_OPERATOR_ROLE,
-    summary="Create operator role",
-    tags=["Operator Role"],
-    response_model=OperatorRoleSchema,
+    URL_VENDOR_ROLE,
+    summary="Create vendor role",
+    tags=["Vendor Role"],
+    response_model=VendorRoleSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
         POST_DESCRIPTION.copy()
         .add_line(
-            "Logged-in executive must have `company.operator.role.create` permission."
+            "Logged-in executive must have `business.vendor.role.create` permission."
         )
         .to_string()
     ),
 )
-async def create_operator_role_for_executive(
+async def create_vendor_role_for_executive(
     form_param: CreateFormForEX,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -388,9 +388,9 @@ async def create_operator_role_for_executive(
         token = authorize_executive(
             session,
             access_token,
-            [ExecutivePermissionPath.CREATE_COMPANY_OPERATOR_ROLE],
+            [ExecutivePermissionPath.CREATE_BUSINESS_VENDOR_ROLE],
         )
-        return create_operator_role(
+        return create_vendor_role(
             session,
             CreateForm(**form_param.model_dump()),
             token,
@@ -401,21 +401,21 @@ async def create_operator_role_for_executive(
 
 
 @route_executive.patch(
-    f"{URL_OPERATOR_ROLE}/{{id}}",
-    summary="Update operator role",
-    tags=["Operator Role"],
-    response_model=OperatorRoleSchema,
+    f"{URL_VENDOR_ROLE}/{{id}}",
+    summary="Update vendor role",
+    tags=["Vendor Role"],
+    response_model=VendorRoleSchema,
     status_code=status.HTTP_200_OK,
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
         PATCH_DESCRIPTION.copy()
         .add_line(
-            "Logged-in executive must have `company.operator.role.update` permission."
+            "Logged-in executive must have `business.vendor.role.update` permission."
         )
         .to_string()
     ),
 )
-async def update_operator_role_for_executive(
+async def update_vendor_role_for_executive(
     id: int,
     form_param: UpdateForm,
     access_token=Depends(oauth2_executive),
@@ -426,28 +426,28 @@ async def update_operator_role_for_executive(
         token = authorize_executive(
             session,
             access_token,
-            [ExecutivePermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
+            [ExecutivePermissionPath.UPDATE_BUSINESS_VENDOR_ROLE],
         )
-        return update_operator_role(session, id, form_param, token, request_info)
+        return update_vendor_role(session, id, form_param, token, request_info)
     except Exception as e:
         exceptions.handle(e)
 
 
 @route_executive.delete(
-    f"{URL_OPERATOR_ROLE}/{{id}}",
-    summary="Delete operator role",
-    tags=["Operator Role"],
+    f"{URL_VENDOR_ROLE}/{{id}}",
+    summary="Delete vendor role",
+    tags=["Vendor Role"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
         DELETE_DESCRIPTION.copy()
         .add_line(
-            "The logged-in executive must have the `company.operator.role.delete` permission."
+            "The logged-in executive must have the `business.vendor.role.delete` permission."
         )
         .to_string()
     ),
 )
-async def delete_operator_role_for_executive(
+async def delete_vendor_role_for_executive(
     id: int,
     access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
@@ -457,30 +457,30 @@ async def delete_operator_role_for_executive(
         token = authorize_executive(
             session,
             access_token,
-            [ExecutivePermissionPath.DELETE_COMPANY_OPERATOR_ROLE],
+            [ExecutivePermissionPath.DELETE_BUSINESS_VENDOR_ROLE],
         )
-        delete_operator_role(session, id, token, request_info)
+        delete_vendor_role(session, id, token, request_info)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
 
 
 @route_executive.get(
-    URL_OPERATOR_ROLE,
-    summary="Fetch operator role",
-    tags=["Operator Role"],
-    response_model=list[OperatorRoleSchema],
+    URL_VENDOR_ROLE,
+    summary="Fetch vendor role",
+    tags=["Vendor Role"],
+    response_model=list[VendorRoleSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
-async def fetch_operator_roles_for_executive(
+async def fetch_vendor_roles_for_executive(
     query_params: QueryParamsForEX = Depends(),
     access_token=Depends(oauth2_executive),
     session: Session = Depends(get_db_session),
 ):
     try:
         verify_token(session, ExecutiveToken, access_token)
-        return search_operator_roles(
+        return search_vendor_roles(
             session,
             QueryParams(**query_params.model_dump()),
         )
@@ -489,38 +489,38 @@ async def fetch_operator_roles_for_executive(
 
 
 # ---------------------------------------------------------------------------
-## API endpoints [Operator]
+## API endpoints [Vendor]
 # ---------------------------------------------------------------------------
-@route_operator.post(
-    URL_OPERATOR_ROLE,
-    summary="Create operator role",
+@route_vendor.post(
+    URL_VENDOR_ROLE,
+    summary="Create vendor role",
     tags=["Role"],
-    response_model=OperatorRoleSchema,
+    response_model=VendorRoleSchema,
     status_code=status.HTTP_201_CREATED,
     responses=fuse_exception_responses(POST_EXCEPTIONS),
     description=(
         POST_DESCRIPTION.copy()
         .add_line(
-            "Logged-in operator must have `company.operator.role.create` permission."
+            "Logged-in vendor must have `business.vendor.role.create` permission."
         )
         .to_string()
     ),
 )
-async def create_operator_role_for_operator(
-    form_param: CreateFormForOP,
-    access_token=Depends(bearer_operator),
+async def create_vendor_role_for_vendor(
+    form_param: CreateFormForVE,
+    access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),
     session: Session = Depends(get_db_session),
 ):
     try:
-        token = authorize_operator(
+        token = authorize_vendor(
             session,
             access_token.credentials,
-            [OperatorPermissionPath.CREATE_COMPANY_OPERATOR_ROLE],
+            [VendorPermissionPath.CREATE_BUSINESS_VENDOR_ROLE],
         )
-        return create_operator_role(
+        return create_vendor_role(
             session,
-            CreateForm(**form_param.model_dump(), company_id=token.company_id),
+            CreateForm(**form_param.model_dump(), business_id=token.business_id),
             token,
             request_info,
         )
@@ -528,103 +528,103 @@ async def create_operator_role_for_operator(
         exceptions.handle(e)
 
 
-@route_operator.patch(
-    f"{URL_OPERATOR_ROLE}/{{id}}",
-    summary="Update operator role",
+@route_vendor.patch(
+    f"{URL_VENDOR_ROLE}/{{id}}",
+    summary="Update vendor role",
     tags=["Role"],
-    response_model=OperatorRoleSchema,
+    response_model=VendorRoleSchema,
     status_code=status.HTTP_200_OK,
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=(
         PATCH_DESCRIPTION.copy()
         .add_line(
-            "Logged-in operator must have `company.operator.role.update` permission."
+            "Logged-in vendor must have `business.vendor.role.update` permission."
         )
-        .add_line("Operators can update roles within their own company.")
+        .add_line("Vendors can update roles within their own business.")
         .to_string()
     ),
 )
-async def update_operator_role_for_operator(
+async def update_vendor_role_for_vendor(
     id: int,
     form_param: UpdateForm,
-    access_token=Depends(bearer_operator),
+    access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),
     session: Session = Depends(get_db_session),
 ):
     try:
-        token = authorize_operator(
+        token = authorize_vendor(
             session,
             access_token.credentials,
-            [OperatorPermissionPath.UPDATE_COMPANY_OPERATOR_ROLE],
+            [VendorPermissionPath.UPDATE_BUSINESS_VENDOR_ROLE],
         )
-        return update_operator_role(
+        return update_vendor_role(
             session,
             id,
             form_param,
             token,
             request_info,
-            role_filter=(OperatorRole.company_id == token.company_id),
+            role_filter=(VendorRole.business_id == token.business_id),
         )
     except Exception as e:
         exceptions.handle(e)
 
 
-@route_operator.delete(
-    f"{URL_OPERATOR_ROLE}/{{id}}",
-    summary="Delete operator role",
+@route_vendor.delete(
+    f"{URL_VENDOR_ROLE}/{{id}}",
+    summary="Delete vendor role",
     tags=["Role"],
     status_code=status.HTTP_204_NO_CONTENT,
     responses=fuse_exception_responses(DELETE_EXCEPTIONS),
     description=(
         DELETE_DESCRIPTION.copy()
         .add_line(
-            "The logged-in operator must have the `company.operator.role.delete` permission."
+            "The logged-in vendor must have the `business.vendor.role.delete` permission."
         )
         .to_string()
     ),
 )
-async def delete_operator_role_for_operator(
+async def delete_vendor_role_for_vendor(
     id: int,
-    access_token=Depends(bearer_operator),
+    access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),
     session: Session = Depends(get_db_session),
 ):
     try:
-        token = authorize_operator(
+        token = authorize_vendor(
             session,
             access_token.credentials,
-            [OperatorPermissionPath.DELETE_COMPANY_OPERATOR_ROLE],
+            [VendorPermissionPath.DELETE_BUSINESS_VENDOR_ROLE],
         )
-        delete_operator_role(
+        delete_vendor_role(
             session,
             id,
             token,
             request_info,
-            role_filter=(OperatorRole.company_id == token.company_id),
+            role_filter=(VendorRole.business_id == token.business_id),
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         exceptions.handle(e)
 
 
-@route_operator.get(
-    URL_OPERATOR_ROLE,
-    summary="Fetch operator role",
+@route_vendor.get(
+    URL_VENDOR_ROLE,
+    summary="Fetch vendor role",
     tags=["Role"],
-    response_model=list[OperatorRoleSchema],
+    response_model=list[VendorRoleSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=(GET_DESCRIPTION.to_string()),
 )
-async def fetch_operator_roles_for_operator(
-    query_params: QueryParamsForOP = Depends(),
-    access_token=Depends(bearer_operator),
+async def fetch_vendor_roles_for_vendor(
+    query_params: QueryParamsForVE = Depends(),
+    access_token=Depends(bearer_vendor),
     session: Session = Depends(get_db_session),
 ):
     try:
-        token = verify_token(session, OperatorToken, access_token.credentials)
-        return search_operator_roles(
+        token = verify_token(session, VendorToken, access_token.credentials)
+        return search_vendor_roles(
             session,
-            QueryParams(**query_params.model_dump(), company_id=token.company_id),
+            QueryParams(**query_params.model_dump(), business_id=token.business_id),
         )
     except Exception as e:
         exceptions.handle(e)

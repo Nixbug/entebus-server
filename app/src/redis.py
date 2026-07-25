@@ -1,7 +1,9 @@
 from redis import Redis
-from typing import Optional
+from typing import Optional, cast
 from redis.exceptions import LockError
 from redis.lock import Lock
+import json
+from typing import Any
 
 from app.src import exceptions
 from app.src.constants import (
@@ -24,6 +26,7 @@ redis_client = Redis(
 def acquire_lock(
     lock_id: str,
     timeout: int = LOCK_TIMEOUT_SECONDS,
+    blocking: bool = True,
     blocking_timeout: int = LOCK_MAX_WAIT_SECONDS,
 ) -> Lock:
     """
@@ -32,6 +35,7 @@ def acquire_lock(
     Args:
         lock_id (str): Unique identifier for the lock.
         timeout (int): Lock expiration in seconds (auto-released after this).
+        blocking (bool): Whether to block until the lock is acquired.
         blocking_timeout (int): Maximum time (in seconds) to wait for lock acquisition.
 
     Returns:
@@ -45,8 +49,8 @@ def acquire_lock(
     try:
         lock = redis_client.lock(lock_name, timeout=timeout)
         acquired = lock.acquire(
-            blocking=True,
-            blocking_timeout=blocking_timeout,
+            blocking=blocking,
+            blocking_timeout=blocking_timeout if blocking else None,
         )
 
     except Exception as e:
@@ -75,3 +79,36 @@ def release_lock(lock: Optional[Lock]) -> None:
             return
         except Exception as e:
             exceptions.handle(e)
+
+
+def queue_push(queue_name: str, data: dict[str, Any]) -> None:
+    """
+    Push an item to the end of a Redis queue.
+
+    Args:
+        queue_name: Name of the Redis queue.
+        data: Dictionary payload to push. The data is serialized to JSON
+            before being stored in Redis.
+    """
+    redis_client.rpush(queue_name, json.dumps(data))
+
+
+def queue_pop(queue_name: str) -> dict[str, Any] | None:
+    """
+    Pop and return the next item from a Redis queue.
+
+    Args:
+        queue_name: Name of the Redis queue.
+
+    Returns:
+        The next dictionary payload in the queue, or None if the queue
+        is empty.
+
+    Redis queues follow FIFO (First In, First Out) order, so the first
+    item added to the queue is the first item returned.
+    """
+    item = cast(Optional[str], redis_client.lpop(queue_name))
+    if item is None:
+        return None
+
+    return json.loads(item)

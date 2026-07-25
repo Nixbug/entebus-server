@@ -4,18 +4,23 @@ This module provides helper functions commonly used across FastAPI routes.
 It offers reusable utilities that make it easier for developers to integrate them into their projects.
 """
 
+from geoalchemy2.elements import WKBElement
 import pyproj
 from enum import Enum
 from io import BytesIO
 from PIL import Image
-from typing import Any, List, Dict, Type, Union
+from typing import Any, Dict, Sequence, Type
 from fastapi import Query, Request
 from pydantic import BaseModel
-from sqlalchemy import Column, asc, desc
+from shapely import wkb
+from sqlalchemy import asc, desc
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.orm.session import Session
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform
 from datetime import datetime
+from geoalchemy2.shape import from_shape
+from app.src.types import ORMbaseT
 
 from app.src import schemas, exceptions
 from app.src.constants import TMZ_PRIMARY
@@ -31,6 +36,7 @@ from app.src.db import (
     VendorRoleMap,
     VendorToken,
 )
+from app.src.types import BaseModelT, TokenT
 
 
 def get_request_info(request: Request) -> schemas.RequestInfo:
@@ -58,16 +64,16 @@ def get_request_info(request: Request) -> schemas.RequestInfo:
 
 
 def fuse_exception_responses(
-    exceptions: List[exceptions.APIException],
-) -> Dict[int, dict]:
+    exceptions: Sequence[exceptions.APIException],
+) -> Dict[int | str, Dict[str, Any]]:
     """
     Generate OpenAPI response documentation by fusing multiple APIException instances.
 
     Args:
-        exceptions (List[exceptions.APIException]): List of instantiated exceptions.
+        exceptions (Sequence[exceptions.APIException]): Sequence of instantiated exceptions.
 
     Returns:
-        Dict[int, dict]: A dictionary of OpenAPI response specs grouped by status code.
+        Dict[int | str, Dict[str, Any]]: A dictionary of OpenAPI response specs grouped by status code.
     """
     responses = {}
 
@@ -111,8 +117,8 @@ def enum_str(enum_class: Type[Enum]) -> str:
 
 def cleanup_old_tokens(
     session: Session,
-    model_cls: Type[Union[ExecutiveToken, OperatorToken, VendorToken]],
-    filter_condition: Column,
+    model_cls: Type[TokenT],
+    filter_condition: ColumnElement[bool],
     max_tokens: int,
 ) -> None:
     """
@@ -124,8 +130,8 @@ def cleanup_old_tokens(
 
     Args:
         session (Session): Active SQLAlchemy session.
-        model_cls Type[Union[ExecutiveToken, OperatorToken, VendorToken]]: The ORM model class.
-        filter_condition (Column): SQLAlchemy filter condition.
+        model_cls (Type[TokenT]): The ORM model class for the token (ExecutiveToken, OperatorToken, VendorToken).
+        filter_condition (ColumnElement[bool]): SQLAlchemy filter condition.
         max_tokens (int): The maximum number of tokens allowed.
 
     Returns:
@@ -472,7 +478,9 @@ def update_if_changed(target_obj: Any, source_obj: dict) -> None:
             setattr(target_obj, field, new_value)
 
 
-def resize_image(file_bytes: bytes, width: int = None, height: int = None) -> bytes:
+def resize_image(
+    file_bytes: bytes, width: int | None = None, height: int | None = None
+) -> bytes:
     """
     Resize an image file to fit within the specified width and height while maintaining aspect ratio.
 
@@ -482,8 +490,8 @@ def resize_image(file_bytes: bytes, width: int = None, height: int = None) -> by
 
     Args:
         file_bytes (bytes): The bytes of the image file.
-        width (int): The width for the resized image, defaults to None.
-        height (int): The height for the resized image, defaults to None.
+        width (int | None): The width for the resized image, defaults to None.
+        height (int | None): The height for the resized image, defaults to None.
 
     Returns:
         bytes: The resized image file as bytes.
@@ -495,6 +503,23 @@ def resize_image(file_bytes: bytes, width: int = None, height: int = None) -> by
     buffer = BytesIO()
     image.save(buffer, image.format)
     return buffer.getvalue()
+
+
+def load_geometry(value: WKBElement) -> BaseGeometry:
+    return wkb.loads(bytes(value.data))
+
+
+def to_WKB(geometry: BaseGeometry) -> WKBElement:
+    """
+    Convert a Shapely geometry to a WKBElement with SRID 4326.
+
+    Args:
+        geometry (BaseGeometry): The Shapely geometry to convert.
+
+    Returns:
+        WKBElement: The corresponding WKBElement with SRID 4326.
+    """
+    return from_shape(geometry, srid=4326)
 
 
 def get_area(geom: BaseGeometry) -> float:
@@ -515,16 +540,16 @@ def get_area(geom: BaseGeometry) -> float:
     return projected_geom.area
 
 
-def resolve_model_defaults(model_cls: Type[BaseModel], **overrides):
+def resolve_model_defaults(model_cls: Type[BaseModelT], **overrides) -> BaseModelT:
     """
     Build a model instance with all Query() defaults resolved to concrete values.
 
     Args:
-        model_cls (Type[BaseModel]): The Pydantic model class to build.
+        model_cls (Type[BaseModelT]): The Pydantic model class to build.
         **overrides: Field values to override the defaults.
 
     Returns:
-        BaseModel: An instance of model_cls with all Query() defaults resolved.
+        BaseModelT: An instance of model_cls with all Query() defaults resolved.
     """
     data = {}
     for field_name, field_info in model_cls.model_fields.items():
@@ -564,7 +589,7 @@ def is_valid_transition(
 
 def normalize_timestamp(timestamp: datetime) -> datetime:
     """
-     Normalize a naive or timezone-aware timestamp to UTC.
+    Normalize a naive or timezone-aware timestamp to UTC.
 
     Args:
          timestamp (datetime): The input timestamp, which can be naive or timezone-aware.
@@ -577,3 +602,55 @@ def normalize_timestamp(timestamp: datetime) -> datetime:
     else:
         timestamp = timestamp.astimezone(TMZ_PRIMARY)
     return timestamp
+
+
+def get_by_id(
+    session: Session,
+    model_cls: Type[ORMbaseT],
+    unique_id: int,
+    extra_filter: ColumnElement[bool] | None = None,
+) -> ORMbaseT | None:
+    """
+    Generic function to fetch a record by ID, without raising if not found.
+
+    Args:
+        session (Session): Active SQLAlchemy session.
+        model_cls (Type[ORMbaseT]): The ORM model class.
+        unique_id (int): The ID of the record to fetch.
+        extra_filter (ColumnElement[bool] | None): Additional filters to apply, defaults to None.
+
+    Returns:
+        ORMbaseT | None: The instance of the model class matching the given ID, or None if not found.
+    """
+    query = session.query(model_cls).filter(model_cls.id == unique_id)
+    if extra_filter is not None:
+        query = query.filter(extra_filter)
+    return query.first()
+
+
+def is_in_future(timestamp: datetime) -> bool:
+    """
+    Check if a given timestamp is in the future.
+
+    Args:
+        timestamp (datetime): The timestamp to check.
+
+    Returns:
+        bool: True if the timestamp is in the future, False otherwise.
+    """
+    normalized_timestamp = normalize_timestamp(timestamp)
+    return normalized_timestamp > datetime.now(tz=TMZ_PRIMARY)
+
+
+def is_in_past(timestamp: datetime) -> bool:
+    """
+    Check if a given timestamp is in the past.
+
+    Args:
+        timestamp (datetime): The timestamp to check.
+
+    Returns:
+        bool: True if the timestamp is in the past, False otherwise.
+    """
+    normalized_timestamp = normalize_timestamp(timestamp)
+    return normalized_timestamp < datetime.now(tz=TMZ_PRIMARY)

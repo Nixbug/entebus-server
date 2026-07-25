@@ -2,13 +2,20 @@
 This module generates input data or payloads for tests.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from io import BytesIO
 from PIL import Image
 import numpy as np
 from shapely import wkt
 
-from app.src.enums import BusinessType, GenderType, GrantType, PlatformType
+from app.src.constants import TMZ_PRIMARY
+from app.src.enums import (
+    BusinessType,
+    GenderType,
+    GrantType,
+    PlatformType,
+    WaypointType,
+)
 from app.src.enums import (
     LandmarkType,
     CompanyStatus,
@@ -184,7 +191,7 @@ def generate_landmark_payload():
     }
 
 
-def generate_bus_stop_payload(landmark_id: int, boundary: str):
+def generate_station_payload(landmark_id: int, boundary: str):
     suffix = str(np.random.randint(1000, 9999))
 
     geom = wkt.loads(boundary) if boundary else None
@@ -198,7 +205,7 @@ def generate_bus_stop_payload(landmark_id: int, boundary: str):
 
     location = f"POINT({round(lon,6)} {round(lat,6)})"
     return {
-        "name": f"Bus Stop {suffix}",
+        "name": f"Station {suffix}",
         "landmark_id": landmark_id,
         "location": location,
     }
@@ -214,6 +221,7 @@ def generate_landmark_in_route_payload(
     return {
         "route_id": route_id,
         "landmark_id": landmark_id,
+        "type": WaypointType.MAIN_STOP.value,
         "distance_from_start": distance_from_start,
         "arrival_delta": arrival_delta,
         "departure_delta": departure_delta,
@@ -221,29 +229,34 @@ def generate_landmark_in_route_payload(
 
 
 def generate_service_payload(
-    company_id: int, route_id: int, fare_id: int, vehicle_id: int
+    route_id: int, fare_id: int, vehicle_id: int, company_id: int | None = None
 ):
     # choose a start offset in minutes (5–1439) to avoid `starting_at` == now
     minutes_offset = int(np.random.randint(5, 1440))
-    return {
+    payload = {
+        "name": f"Service {np.random.randint(1000, 9999)}",
         "starting_at": (
-            datetime.now(timezone.utc) + timedelta(minutes=minutes_offset)
+            datetime.now(TMZ_PRIMARY) + timedelta(minutes=minutes_offset)
         ).isoformat(),
-        "company_id": company_id,
         "route_id": route_id,
         "fare_id": fare_id,
         "vehicle_id": vehicle_id,
     }
+    if company_id is not None:
+        payload["company_id"] = company_id
+    return payload
 
 
 def generate_service_assignment_payload(
-    service_id: int, operator_id: int, company_id: int
+    service_id: int, operator_id: int, company_id: int | None = None
 ) -> dict:
-    return {
+    payload = {
         "service_id": service_id,
         "operator_id": operator_id,
-        "company_id": company_id,
     }
+    if company_id is not None:
+        payload["company_id"] = company_id
+    return payload
 
 
 # Utility function to generate a random image for testing purposes
