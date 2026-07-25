@@ -477,6 +477,9 @@ POST_DESCRIPTION = (
         "If no warnings are generated, `warnings` will be empty. `uploaded_by` is only populated when an operator mismatch occurs."
     )
     .add_line("A maximum of 50 tickets can be created in a single batch upload.")
+    .add_line(
+        "Each ticket must include a unique `sequence_id` (max 64 characters) to identify it within the batch."
+    )
     .add_line("Duplicate sequence IDs within the same batch are not allowed.")
 )
 
