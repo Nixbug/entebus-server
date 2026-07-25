@@ -159,7 +159,7 @@ class LandmarkInServiceSchema(BaseModel):
 
 
 class ServiceSchema(MaskedServiceSchema):
-    """Schema for service response with masked details."""
+    """Schema for service response with additional details."""
 
     collection: Decimal | None
 
