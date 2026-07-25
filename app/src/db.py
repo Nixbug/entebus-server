@@ -167,7 +167,7 @@ class Executive(ORMbase):
     necessary to manage executive-level access and communication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the executive.
 
         username (TEXT, unique, not null):
@@ -266,7 +266,7 @@ class ExecutiveRole(ORMbase):
     enabling fine-grained control over executive access and functionality within the system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the executive role.
 
         name (TEXT, unique, not null):
@@ -309,7 +309,7 @@ class ExecutiveRoleMap(ORMbase):
     Role-Based Access Control (RBAC) system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the executive role mapped.
 
         role_id (Integer, not null):
@@ -365,7 +365,7 @@ class ExecutiveToken(ORMbase):
     Useful for session management, device tracking, and implementing token-based authentication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the executive token.
 
         executive_id (Integer, not null):
@@ -387,7 +387,7 @@ class ExecutiveToken(ORMbase):
             Access token expiration duration in seconds.
             Defines the duration after which the token becomes invalid.
 
-        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(timezone.utc) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
+        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(TMZ_PRIMARY) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
             Defines the UTC timestamp after which the refresh token becomes invalid.
 
         platform_type (Integer, nullable, default=PlatformType.OTHER):
@@ -457,7 +457,7 @@ class ExecutiveImage(ORMbase):
     allowing for management, retrieval, and replacement of profile or related images.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the executive image.
 
         executive_id (Integer, not null, unique):
@@ -510,7 +510,7 @@ class OperatorToken(ORMbase):
     Useful for session management, device tracking, and implementing token-based authentication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the operator token.
 
         company_id (Integer, not null):
@@ -534,7 +534,7 @@ class OperatorToken(ORMbase):
         expires_in (Integer, not null, default=MAX_ACCESS_TOKEN_VALIDITY):
             Access token expiration duration in seconds.
 
-        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(timezone.utc) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
+        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(TMZ_PRIMARY) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
             Defines the UTC timestamp after which the refresh token becomes invalid.
 
         platform_type (Integer, nullable, default=PlatformType.OTHER):
@@ -612,7 +612,7 @@ class OperatorRole(ORMbase):
     enabling fine-grained control over operator access and functionality within the system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the operator role.
 
         company_id (Integer, not null):
@@ -668,7 +668,7 @@ class OperatorRoleMap(ORMbase):
     a flexible Role-Based Access Control (RBAC) system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the operator role mapping.
 
         company_id (Integer, not null):
@@ -735,7 +735,7 @@ class VendorToken(ORMbase):
     Useful for session management, device tracking, and implementing token-based authentication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vendor token.
 
         business_id (Integer, not null):
@@ -759,7 +759,7 @@ class VendorToken(ORMbase):
         expires_in (Integer, not null, default=MAX_ACCESS_TOKEN_VALIDITY):
             Access token expiration duration in seconds.
 
-        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(timezone.utc) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
+        refresh_before (DateTime(timezone=True), not null, default=lambda: datetime.now(TMZ_PRIMARY) + timedelta(seconds=MAX_REFRESH_TOKEN_VALIDITY)):
             Defines the UTC timestamp after which the refresh token becomes invalid.
 
         is_revoked (Boolean, not null, default=False):
@@ -837,7 +837,7 @@ class VendorRole(ORMbase):
     enabling fine-grained control over vendor access and functionality within the system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vendor role.
 
         business_id (Integer, not null):
@@ -871,8 +871,8 @@ class VendorRole(ORMbase):
         index=True,
     )
     name: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
-    permissions: Mapped[list[Any]] = orm.mapped_column(
-        JSONB, nullable=False, default=list
+    permissions: Mapped[dict[str, Any]] = orm.mapped_column(
+        JSONB, nullable=False, default=dict
     )
     # Metadata
     updated_on: Mapped[datetime | None] = orm.mapped_column(
@@ -893,7 +893,7 @@ class VendorRoleMap(ORMbase):
     a flexible Role-Based Access Control (RBAC) system.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vendor role mapping.
 
         business_id (Integer, not null):
@@ -972,7 +972,7 @@ class Landmark(ORMbase):
             Ensures no two landmarks have identical geometries.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the landmark.
 
         name (TEXT, not null, indexed):
@@ -1052,7 +1052,7 @@ class Station(ORMbase):
             with raw geometry objects.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the station.
 
         name (TEXT, not null):
@@ -1120,7 +1120,7 @@ class Company(ORMbase):
     and location-based operations.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the company.
 
         name (TEXT, unique, not null):
@@ -1196,7 +1196,7 @@ class Operator(ORMbase):
     necessary to manage operator-level access and communication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the operator.
 
         company_id (Integer, not null):
@@ -1310,7 +1310,7 @@ class OperatorImage(ORMbase):
     allowing for management, retrieval, and replacement of profile or related images.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the operator image.
 
         company_id (Integer, not null):
@@ -1372,7 +1372,7 @@ class Business(ORMbase):
     and location-based operations.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the business.
 
         name (TEXT, unique, not null):
@@ -1448,7 +1448,7 @@ class Vendor(ORMbase):
     necessary to manage vendor-level access and communication.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vendor.
 
         business_id (Integer, not null):
@@ -1562,7 +1562,7 @@ class VendorImage(ORMbase):
     allowing for management, retrieval, and replacement of profile or related images.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vendor image.
 
         business_id (Integer, not null):
@@ -1623,7 +1623,7 @@ class Wallet(ORMbase):
     Remove unused wallets explicitly (or via a data-cleaner).
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the wallet.
 
         name (TEXT, not null):
@@ -1670,7 +1670,7 @@ class CompanyWallet(ORMbase):
     be guarded by business rules (balance must be zero).
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the company-wallet entry.
 
         wallet_id (Integer, not null):
@@ -1717,7 +1717,7 @@ class BusinessWallet(ORMbase):
     be guarded by business rules (balance must be zero).
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the business-wallet entry.
 
         wallet_id (Integer, not null):
@@ -1768,7 +1768,7 @@ class BankAccount(ORMbase):
     separately.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the bank account.
 
         bank_name (TEXT, not null):
@@ -1834,7 +1834,7 @@ class CompanyBankAccount(ORMbase):
     preserve referential integrity.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the company-bank-account mapping.
 
         bank_account_id (Integer, not null, unique):
@@ -1888,7 +1888,7 @@ class BusinessBankAccount(ORMbase):
     preserve referential integrity.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the business-bank-account mapping.
 
         bank_account_id (Integer, not null, unique):
@@ -1941,7 +1941,7 @@ class Vehicle(ORMbase):
     identified by a combination of its registration number and company ID.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vehicle.
 
         company_id (Integer, not null):
@@ -2029,7 +2029,7 @@ class VehicleImage(ORMbase):
     allowing for management, retrieval, and storage of vehicle photos.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vehicle image.
 
         company_id (Integer, not null):
@@ -2153,7 +2153,7 @@ class LandmarkInRoute(ORMbase):
     It helps determine the structure and scheduling of transportation or logistics operations.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the landmark-in-route
 
         company_id (Integer, not null):
@@ -2235,7 +2235,7 @@ class Fare(ORMbase):
     parameters or configuration details.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the fare.
 
         company_id (Integer, nullable):
@@ -2318,7 +2318,7 @@ class Service(ORMbase):
     and records various states and modes related to the service.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the service.
 
         company_id (Integer, not null):
@@ -2464,7 +2464,7 @@ class ServiceAssignment(ORMbase):
     executive and operator applications.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the assignment record.
 
         company_id (Integer, not null):
@@ -2528,7 +2528,7 @@ class FareInService(ORMbase):
     Each record captures the version of the fare along with its configuration and logic.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the fare snapshot.
 
         fare_id (Integer, not null):
@@ -2591,7 +2591,7 @@ class LandmarkInService(ORMbase):
     ensuring that service schedules remain consistent even if the underlying route changes.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the landmark-in-service record.
 
         service_id (Integer, not null):
@@ -2658,7 +2658,7 @@ class VehicleInService(ORMbase):
     Each record captures the version of the vehicle along with its core operational details.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the vehicle snapshot.
 
         vehicle_id (Integer, not null):
@@ -2720,7 +2720,7 @@ class Duty(ORMbase):
     monitoring, and auditing operator activities.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the duty record.
 
         company_id (Integer, not null):
@@ -2802,7 +2802,7 @@ class PaperTicket(ORMbase):
     for operations involving manual ticketing systems.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the paper ticket.
 
         service_id (Integer, not null):
@@ -2876,7 +2876,7 @@ class ServiceLocation(ORMbase):
     landmark reference, geographic coordinates, and optional accuracy metric.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the trace record.
 
         company_id (Integer, not null):
@@ -2945,7 +2945,7 @@ class Trace(ORMbase):
     This table stores trace records that define a named trace belonging to a company.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the trace record.
 
         company_id (Integer, not null):
@@ -2992,7 +2992,7 @@ class LocationInTrace(ORMbase):
     This table stores locations associated with a trace, including the geospatial point, type of location, and timestamps.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the location in trace record.
 
         trace_id (Integer, not null):
@@ -3054,7 +3054,7 @@ class Job(ORMbase):
     This table stores information about background jobs that are scheduled to run at specific times.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the job record.
 
         company_id (Integer, not null):
@@ -3147,7 +3147,7 @@ class ServiceAutomation(ORMbase):
     This table stores configurations for automatically creating services based on predefined parameters.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the service automation record.
 
         company_id (Integer, not null):
@@ -3241,7 +3241,7 @@ class ServiceAssignmentAutomation(ORMbase):
     whenever a service is created from a specific `service_automation` template.
 
     Columns:
-        id (Integer, unique, not null):
+        id (BigInteger, not null):
             Primary identifier for the assignment automation record.
 
         company_id (Integer, not null):
