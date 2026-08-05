@@ -31,6 +31,7 @@ from app.src.db import (
 from app.src.enums import DutyStatus, ServiceStatus, OrderIn
 from app.src.urls import URL_PAPER_TICKET
 from app.src.description import Description
+from app.src.constants import MAX_PAPER_TICKETS_PER_SERVICE
 from app.src.validators import (
     verify_token,
     validate_id,
@@ -233,6 +234,15 @@ def create_paper_ticket(
         assert (
             current_landmark is not None
         ), "Current landmark in service should exist for the service location"
+
+        paper_ticket_count = (
+            session.query(PaperTicket)
+            .filter(PaperTicket.service_id == form_param.service_id)
+            .count()
+        )
+
+        if paper_ticket_count >= MAX_PAPER_TICKETS_PER_SERVICE:
+            raise exceptions.LimitExceeded(PaperTicket)
 
         for ticket in form_param.tickets:
             pickup_point = landmarks_in_service_map.get(ticket.pickup_point)
@@ -439,6 +449,7 @@ POST_EXCEPTIONS = [
     exceptions.JSMemoryLimitExceeded(),
     exceptions.JSTimeLimitExceeded(),
     exceptions.LockAcquireTimeout(),
+    exceptions.LimitExceeded(PaperTicket),
 ]
 
 GET_EXCEPTIONS = [
@@ -478,6 +489,9 @@ POST_DESCRIPTION = (
     )
     .add_line("A maximum of 50 tickets can be created in a single batch upload.")
     .add_line("Duplicate sequence IDs within the same batch are not allowed.")
+    .add_line(
+        f"A maximum of {MAX_PAPER_TICKETS_PER_SERVICE} tickets can be created for each service."
+    )
 )
 
 GET_DESCRIPTION = Description().add_head("Fetches a list of paper tickets.")
