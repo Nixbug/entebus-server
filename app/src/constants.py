@@ -100,6 +100,9 @@ MAX_STATIONS_PER_LANDMARK = 20  # Maximum number of stations per landmark
 SERVICE_START_LEAD_TIME_MINUTES = 60  # Minimum buffer before a service starts
 SERVICE_CREATION_LEAD_TIME_DAYS = 1  # Minimum buffer before a service can be created
 MAX_DUTIES_PER_SERVICE = 50  # Maximum number of duties allowed per service
+MAX_PAPER_TICKETS_PER_SERVICE = (
+    65536  # Maximum number of paper tickets allowed per service
+)
 
 
 # ---------------------------------------------------------------------------
