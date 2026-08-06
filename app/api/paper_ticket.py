@@ -240,7 +240,6 @@ def create_paper_ticket(
             .filter(PaperTicket.service_id == form_param.service_id)
             .count()
         )
-
         if paper_ticket_count >= MAX_PAPER_TICKETS_PER_SERVICE:
             raise exceptions.LimitExceeded(PaperTicket)
 
