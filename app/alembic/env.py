@@ -24,6 +24,7 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 target_metadata = ORMbase.metadata
+MODEL_TABLES = {table.name for table in ORMbase.metadata.sorted_tables}
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -32,9 +33,19 @@ target_metadata = ORMbase.metadata
 
 
 def include_name(name, type_, parent_names):
-    if type_ == "schema" and name in {"public"}:
-        return True
-    return False
+    # Restrict schema scanning to public, but include all non-schema objects.
+    if type_ == "schema":
+        return name in {"public", None}
+    return True
+
+
+def include_object(obj, name, type_, reflected, compare_to):
+    # Ignore DB-only tables (e.g. PostGIS sample/system tables) so autogenerate
+    # doesn't emit destructive drop operations for objects we do not own.
+    if type_ == "table" and reflected and name not in MODEL_TABLES:
+        return False
+
+    return alembic_helpers.include_object(obj, name, type_, reflected, compare_to)
 
 
 def run_migrations_offline() -> None:
@@ -55,7 +66,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        include_object=alembic_helpers.include_object,
+        include_object=include_object,
         process_revision_directives=alembic_helpers.writer,
         render_item=alembic_helpers.render_item,
         include_name=include_name,
@@ -82,7 +93,7 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            include_object=alembic_helpers.include_object,
+            include_object=include_object,
             process_revision_directives=alembic_helpers.writer,
             render_item=alembic_helpers.render_item,
             include_name=include_name,

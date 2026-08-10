@@ -3042,6 +3042,7 @@ class LocationInTrace(ORMbase):
     location_type: Mapped[LocationType] = orm.mapped_column(
         Integer, nullable=False, default=LocationType.WAYPOINT
     )
+    description: Mapped[str | None] = orm.mapped_column(TEXT)
     # Metadata
     created_on: Mapped[datetime] = orm.mapped_column(
         DateTime(timezone=True), nullable=False, default=func.now()
