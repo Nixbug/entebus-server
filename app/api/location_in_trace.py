@@ -225,6 +225,7 @@ def create_location_in_trace(
             company_id=trace.company_id,
             location=to_WKB(location_geom),
             location_type=trace_record.location_type,
+            description=trace_record.description,
         )
         session.add(location_in_trace)
     session.commit()
