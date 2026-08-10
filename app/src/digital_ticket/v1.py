@@ -147,7 +147,7 @@ class TicketCreator:
     """
 
     SIGNATURE_SIZE = 42  # Bytes
-    FIXED_PART_SIZE = 12  # Bytes
+    FIXED_PART_SIZE = 24  # Bytes
     R_COMPONENT_SIZE = int(SIGNATURE_SIZE / 2)
     S_COMPONENT_SIZE = int(SIGNATURE_SIZE / 2)
 

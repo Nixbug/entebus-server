@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 API_TITLE = "Entebus Server"
 API_VERSION = "1.0.0"
 
+
 # ---------------------------------------------------------------------------
 # CORS configuration
 # ---------------------------------------------------------------------------
@@ -24,6 +25,7 @@ CORS_ORIGINS = [
     for origin in environ.get("CORS_ORIGINS", "*").split(",")
     if origin.strip()
 ]
+
 
 # ---------------------------------------------------------------------------
 # PostgreSQL configuration
