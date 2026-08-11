@@ -12,7 +12,6 @@ from cryptography.hazmat.primitives.asymmetric.utils import (
 from pydantic import BaseModel, Field
 from app.src.exceptions import InvalidTicketVersion, InvalidDigitalTicket
 
-
 TwoDecimalPlaces = Annotated[Decimal, Field(max_digits=10, decimal_places=2, ge=0)]
 
 
@@ -190,12 +189,12 @@ class TicketCreator:
         Returns:
             DigitalTicket: The created digital ticket.
         """
-        ticket_id_bytes = id.to_bytes(4, byteorder="big", signed=False)
+        ticket_id_bytes = id.to_bytes(8, byteorder="big", signed=False)
         pickup_point_bytes = pickup_landmark_id.to_bytes(
-            4, byteorder="big", signed=False
+            8, byteorder="big", signed=False
         )
         dropping_point_bytes = dropping_landmark_id.to_bytes(
-            4, byteorder="big", signed=False
+            8, byteorder="big", signed=False
         )
         fixed_part = ticket_id_bytes + pickup_point_bytes + dropping_point_bytes
 
