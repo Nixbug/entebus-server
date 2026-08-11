@@ -3014,6 +3014,9 @@ class LocationInTrace(ORMbase):
         location_type (Integer, not null, default=LocationType.WAYPOINT):
             Type of the location. Mapped from the `LocationType` enum.
 
+        description (TEXT, nullable):
+            Optional description or notes about the location in trace record.
+
         created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the location in trace record was created.
     """
