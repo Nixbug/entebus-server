@@ -108,9 +108,9 @@ class DigitalTicket:
         if len(variable_part) % 2 != 0:
             raise InvalidDigitalTicket()
 
-        ticket_id_bytes = fixed_part[:4]
-        pickup_point_bytes = fixed_part[4:8]
-        dropping_point_bytes = fixed_part[8:]
+        ticket_id_bytes = fixed_part[:8]
+        pickup_point_bytes = fixed_part[8:16]
+        dropping_point_bytes = fixed_part[16:24]
 
         ticket_id = int.from_bytes(ticket_id_bytes, byteorder="big", signed=False)
         pickup_point = int.from_bytes(pickup_point_bytes, byteorder="big", signed=False)
