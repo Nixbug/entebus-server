@@ -12,7 +12,6 @@ from cryptography.hazmat.primitives.asymmetric.utils import (
 from pydantic import BaseModel, Field
 from app.src.exceptions import InvalidTicketVersion, InvalidDigitalTicket
 
-
 TwoDecimalPlaces = Annotated[Decimal, Field(max_digits=10, decimal_places=2, ge=0)]
 
 
@@ -109,9 +108,9 @@ class DigitalTicket:
         if len(variable_part) % 2 != 0:
             raise InvalidDigitalTicket()
 
-        ticket_id_bytes = fixed_part[:4]
-        pickup_point_bytes = fixed_part[4:8]
-        dropping_point_bytes = fixed_part[8:]
+        ticket_id_bytes = fixed_part[:8]
+        pickup_point_bytes = fixed_part[8:16]
+        dropping_point_bytes = fixed_part[16:24]
 
         ticket_id = int.from_bytes(ticket_id_bytes, byteorder="big", signed=False)
         pickup_point = int.from_bytes(pickup_point_bytes, byteorder="big", signed=False)
@@ -147,7 +146,7 @@ class TicketCreator:
     """
 
     SIGNATURE_SIZE = 42  # Bytes
-    FIXED_PART_SIZE = 12  # Bytes
+    FIXED_PART_SIZE = 24  # Bytes
     R_COMPONENT_SIZE = int(SIGNATURE_SIZE / 2)
     S_COMPONENT_SIZE = int(SIGNATURE_SIZE / 2)
 
@@ -190,12 +189,12 @@ class TicketCreator:
         Returns:
             DigitalTicket: The created digital ticket.
         """
-        ticket_id_bytes = id.to_bytes(4, byteorder="big", signed=False)
+        ticket_id_bytes = id.to_bytes(8, byteorder="big", signed=False)
         pickup_point_bytes = pickup_landmark_id.to_bytes(
-            4, byteorder="big", signed=False
+            8, byteorder="big", signed=False
         )
         dropping_point_bytes = dropping_landmark_id.to_bytes(
-            4, byteorder="big", signed=False
+            8, byteorder="big", signed=False
         )
         fixed_part = ticket_id_bytes + pickup_point_bytes + dropping_point_bytes
 

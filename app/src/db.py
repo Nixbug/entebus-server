@@ -3014,6 +3014,9 @@ class LocationInTrace(ORMbase):
         location_type (Integer, not null, default=LocationType.WAYPOINT):
             Type of the location. Mapped from the `LocationType` enum.
 
+        description (TEXT, nullable):
+            Optional description or notes about the location in trace record.
+
         created_on (DateTime, not null, default=func.now()):
             Timestamp indicating when the location in trace record was created.
     """
@@ -3042,6 +3045,7 @@ class LocationInTrace(ORMbase):
     location_type: Mapped[LocationType] = orm.mapped_column(
         Integer, nullable=False, default=LocationType.WAYPOINT
     )
+    description: Mapped[str | None] = orm.mapped_column(TEXT)
     # Metadata
     created_on: Mapped[datetime] = orm.mapped_column(
         DateTime(timezone=True), nullable=False, default=func.now()

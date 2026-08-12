@@ -65,6 +65,7 @@ class LocationInTraceSchema(BaseModel):
     captured_at: datetime
     company_id: int
     location: str
+    description: str | None
     location_type: int
     created_on: datetime
 
@@ -81,6 +82,11 @@ class LocationInTraceForm(BaseModel):
         description=(
             "Accepts only SRID 4326 (WGS84) and valid WKT strings representing `POINT`s."
         )
+    )
+    description: str | None = Field(
+        default=None,
+        description="Optional description or name for the location in trace.",
+        max_length=32,
     )
 
 
@@ -219,6 +225,7 @@ def create_location_in_trace(
             company_id=trace.company_id,
             location=to_WKB(location_geom),
             location_type=trace_record.location_type,
+            description=trace_record.description,
         )
         session.add(location_in_trace)
     session.commit()
