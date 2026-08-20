@@ -12,7 +12,9 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     environment: develop
-
+    concurrency:
+      group: entebus-develop-deploy
+      cancel-in-progress: false
     permissions:
       contents: read
       packages: write
