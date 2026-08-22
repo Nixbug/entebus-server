@@ -1,0 +1,222 @@
+"""
+Enumerations for Entebus Server.
+
+These enums define standard codes used throughout the application,
+including application IDs, account status, entity types, and operational states.
+They are primarily used for:
+    - Database storage (as integer codes).
+    - API request/response validation.
+    - Consistent state management across services.
+"""
+
+from enum import IntEnum, StrEnum
+
+
+class AppID(IntEnum):
+    """Identifiers for different applications within the Entebus ecosystem."""
+
+    EXECUTIVE = 1
+    VENDOR = 2
+    OPERATOR = 3
+    PUBLIC = 4
+
+
+class GrantType(StrEnum):
+    """Authentication grant types."""
+
+    PASSWORD = "password"
+    REFRESH_TOKEN = "refresh_token"
+
+
+class OrderIn(StrEnum):
+    """Enum for ordering results."""
+
+    ASCENDING = "asc"
+    DESCENDING = "desc"
+
+
+class AccountStatus(IntEnum):
+    """Status of an account (executive, operator, vendor, etc.)."""
+
+    ACTIVE = 1
+    SUSPENDED = 2
+
+
+class GenderType(IntEnum):
+    """Gender identifiers for user profiles."""
+
+    OTHER = 1
+    FEMALE = 2
+    MALE = 3
+    TRANSGENDER = 4
+
+
+class PlatformType(IntEnum):
+    """Platform used to access the system."""
+
+    OTHER = 1
+    WEB = 2
+    NATIVE = 3
+    SERVER = 4
+
+
+class LandmarkType(IntEnum):
+    """Administrative level or importance of a landmark"""
+
+    LOCAL = 1
+    VILLAGE = 2
+    DISTRICT = 3
+    STATE = 4
+    NATIONAL = 5
+
+
+class BusinessStatus(IntEnum):
+    """Status of a registered business."""
+
+    ACTIVE = 1
+    SUSPENDED = 2
+    BLOCKED = 3
+
+
+class BusinessType(IntEnum):
+    """Type of registered business entity."""
+
+    OTHER = 1
+    ORGANIZATION = 2
+    INDIVIDUAL = 3
+
+
+class CompanyStatus(IntEnum):
+    """Verification and operational status of a company."""
+
+    UNDER_VERIFICATION = 1
+    VERIFIED = 2
+    SUSPENDED = 3
+
+
+class CompanyType(IntEnum):
+    """Classification of companies."""
+
+    OTHER = 1
+    PRIVATE = 2
+    GOVERNMENT = 3
+
+
+class BankAccountType(IntEnum):
+    """Supported types of bank accounts."""
+
+    OTHER = 1
+    SAVINGS_ACCOUNT = 2
+    CURRENT_ACCOUNT = 3
+    SALARY_ACCOUNT = 4
+
+
+class VehicleStatus(IntEnum):
+    """Operational status of a vehicle."""
+
+    CREATED = 1
+    ACTIVE = 2
+    MAINTENANCE = 3
+    SUSPENDED = 4
+
+
+class TicketingMode(IntEnum):
+    """Modes of ticketing supported by the system."""
+
+    HYBRID = 1
+    DIGITAL = 2
+    CONVENTIONAL = 3
+
+
+class TriggeringMode(IntEnum):
+    """Job triggering configuration."""
+
+    AUTO = 1
+    MANUAL = 2
+    DISABLED = 3
+
+
+class ServiceStatus(IntEnum):
+    """Lifecycle states of a service."""
+
+    CREATED = 1
+    CACHED = 2
+    STARTED = 3
+    ENDED = 4
+    AUDITED = 5
+
+
+class DutyStatus(IntEnum):
+    """Lifecycle states of a duty."""
+
+    STARTED = 1
+    ENDED = 2
+    AUDITED = 3
+
+
+class RouteStatus(IntEnum):
+    """Validation status of a route."""
+
+    VALID = 1
+    INVALID = 2
+
+
+class OperatorType(IntEnum):
+    """User type of the operator."""
+
+    NORMAL = 1
+    OWNER = 2
+    MANAGER = 3
+    HR = 4
+    LEGAL = 5
+    ADMIN = 6
+    BOT = 7
+
+
+class VendorType(IntEnum):
+    """User type of the vendor."""
+
+    NORMAL = 1
+    OWNER = 2
+    MANAGER = 3
+    HR = 4
+    LEGAL = 5
+    ADMIN = 6
+    BOT = 7
+
+
+class FareScope(IntEnum):
+    """Scope of fare applicability."""
+
+    GLOBAL = 1
+    LOCAL = 2
+
+
+class PaperTicketWarning(IntEnum):
+    """Warnings associated with a paper ticket upload."""
+
+    OPERATOR_NOT_FOUND = 1
+    OPERATOR_MISMATCH = 2
+
+
+class LocationType(IntEnum):
+    """Type of location in trace records."""
+
+    WAYPOINT = 1
+    INTERMEDIATE_STOP = 2
+    MAIN_STOP = 3
+
+
+class JobType(IntEnum):
+    """Types of background jobs."""
+
+    SERVICE_CREATION = 1
+    STATEMENT_CREATION = 2
+
+
+class WaypointType(IntEnum):
+    """Types of landmark within a route."""
+
+    MAIN_STOP = 1
+    INTERMEDIATE_STOP = 2
+    TEMPORARY_STOP = 3

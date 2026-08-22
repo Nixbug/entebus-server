@@ -1,0 +1,37 @@
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtualenvs
+.env
+.venv
+env/
+venv/
+
+# Build / dist
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Logs
+*.log
+
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# IDE configs
+.vscode/
+.idea/
+
+# Docker configs (not needed inside image)
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Exclude non-runtime files
+docs/

@@ -1,0 +1,21 @@
+{
+    "cSpell.words": [
+        "AABB",
+        "automations",
+        "dateutil",
+        "Entebus",
+        "geoalchemy",
+        "geofence",
+        "geospatial",
+        "ilike",
+        "jsonable",
+        "Nixbug",
+        "ondelete",
+        "onupdate",
+        "OPENOBSERVE",
+        "rrule",
+        "sessionmaker",
+        "sqlstate"
+    ],
+    "python.analysis.typeCheckingMode": "standard"
+}
