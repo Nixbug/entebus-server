@@ -38,6 +38,8 @@ URL_VENDOR_ROLE_MAP = "/business/account/role"
 # Operator
 # ---------------------------------------------------------------------------
 URL_COMPANY = "/company"
+URL_COMPANY_NOTIFICATION = "/company/notification"
+URL_OPERATOR_NOTIFICATION = "/company/account/notification"
 URL_OPERATOR_TOKEN = "/company/account/token"
 URL_OPERATOR_ACCOUNT = "/company/account"
 URL_OPERATOR_PICTURE = "/company/account/picture"
