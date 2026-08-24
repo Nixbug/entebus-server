@@ -82,10 +82,8 @@ class OrderBy(StrEnum):
 
 
 class QueryParamsForOP(IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFilter):
-    """Query parameters for operator notifications."""
+    """Query parameters for operators."""
 
-    company_id: int | None = Field(Query(default=None))
-    operator_id: int | None = Field(Query(default=None))
     type_list: list[NotificationType] | None = Field(
         Query(default=None, description=enum_str(NotificationType))
     )
@@ -97,9 +95,10 @@ class QueryParamsForOP(IDFilter, CreatedOnFilter, UpdatedOnFilter, PaginationFil
 
 
 class QueryParamsForEX(QueryParamsForOP):
-    """Query parameters for executive notifications."""
+    """Query parameters for executives."""
 
-    pass
+    company_id: int | None = Field(Query(default=None))
+    operator_id: int | None = Field(Query(default=None))
 
 
 class QueryParams(QueryParamsForEX):
@@ -275,7 +274,7 @@ async def fetch_operator_notifications_for_operator(
         return search_operator_notifications(
             session,
             QueryParams(
-                **query_params.model_dump(exclude={"company_id", "operator_id"}),
+                **query_params.model_dump(),
                 company_id=token.company_id,
                 operator_id=token.operator_id,
             ),
