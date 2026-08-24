@@ -246,7 +246,7 @@ async def fetch_operator_notifications_for_executive(
 ):
     try:
         verify_token(session, ExecutiveToken, access_token)
-        search_operator_notifications(
+        return search_operator_notifications(
             session,
             QueryParams(**query_params.model_dump()),
         )
@@ -272,10 +272,10 @@ async def fetch_operator_notifications_for_operator(
 ):
     try:
         token = verify_token(session, OperatorToken, access_token.credentials)
-        search_operator_notifications(
+        return search_operator_notifications(
             session,
             QueryParams(
-                **query_params.model_dump(),
+                **query_params.model_dump(exclude={"company_id", "operator_id"}),
                 company_id=token.company_id,
                 operator_id=token.operator_id,
             ),

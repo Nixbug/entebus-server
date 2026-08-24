@@ -258,7 +258,7 @@ async def fetch_company_notifications_for_executive(
 ):
     try:
         verify_token(session, ExecutiveToken, access_token)
-        search_company_notifications(
+        return search_company_notifications(
             session,
             QueryParams(**query_params.model_dump()),
         )
@@ -284,9 +284,12 @@ async def fetch_company_notifications_for_operator(
 ):
     try:
         token = verify_token(session, OperatorToken, access_token.credentials)
-        search_company_notifications(
+        return search_company_notifications(
             session,
-            QueryParams(**query_params.model_dump(), company_id=token.company_id),
+            QueryParams(
+                **query_params.model_dump(exclude={"company_id"}),
+                company_id=token.company_id,
+            ),
         )
     except Exception as e:
         exceptions.handle(e)
