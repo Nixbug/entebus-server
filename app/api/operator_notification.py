@@ -234,7 +234,7 @@ PATCH_DESCRIPTION = (
 @route_executive.get(
     URL_OPERATOR_NOTIFICATION,
     summary="Fetch operator notifications",
-    tags=["Company Notification"],
+    tags=["Operator Notification"],
     response_model=list[OperatorNotificationSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=GET_DESCRIPTION.to_string(),
@@ -260,7 +260,7 @@ async def fetch_operator_notifications_for_executive(
 @route_operator.get(
     URL_OPERATOR_NOTIFICATION,
     summary="Fetch operator notifications",
-    tags=["Company Notification"],
+    tags=["Operator Notification"],
     response_model=list[OperatorNotificationSchema],
     responses=fuse_exception_responses(GET_EXCEPTIONS),
     description=GET_DESCRIPTION.to_string(),
@@ -287,7 +287,7 @@ async def fetch_operator_notifications_for_operator(
 @route_operator.patch(
     URL_OPERATOR_NOTIFICATION,
     summary="Update operator notification read state",
-    tags=["Company Notification"],
+    tags=["Operator Notification"],
     response_model=OperatorNotificationSchema,
     responses=fuse_exception_responses(PATCH_EXCEPTIONS),
     description=PATCH_DESCRIPTION.copy()
