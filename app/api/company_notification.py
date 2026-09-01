@@ -26,7 +26,7 @@ from app.src.db import (
     OperatorToken,
     get_db_session,
 )
-from app.src.enums import NotificationType, OrderIn
+from app.src.enums import NotificationType, OperatorType, OrderIn
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, UpdatedOnFilter
 from app.src.functions import (
     apply_created_on_filters,
@@ -100,6 +100,9 @@ class QueryParamsForEX(QueryParamsForOP):
     """Query parameters for executives."""
 
     company_id: int | None = Field(Query(default=None))
+    operator_types_list: list[OperatorType] | None = Field(
+        Query(default=None, description=enum_str(OperatorType))
+    )
 
 
 class QueryParams(QueryParamsForEX):
@@ -143,12 +146,7 @@ def update_company_notification(
     if "is_read" in update_data:
         if company_notification.is_read != update_data["is_read"]:
             operator = (
-                session.query(Operator)
-                .filter(
-                    Operator.id == token.operator_id,
-                    Operator.company_id == token.company_id,
-                )
-                .first()
+                session.query(Operator).filter(Operator.id == token.operator_id).first()
             )
             assert operator is not None, "Operator should not be None"
             if (
@@ -283,9 +281,17 @@ async def fetch_company_notifications_for_operator(
 ):
     try:
         token = verify_token(session, OperatorToken, access_token.credentials)
+        operator = (
+            session.query(Operator).filter(Operator.id == token.operator_id).first()
+        )
+        assert operator is not None, "Operator should not be None"
         return search_company_notifications(
             session,
-            QueryParams(**query_params.model_dump(), company_id=token.company_id),
+            QueryParams(
+                **query_params.model_dump(),
+                operator_types_list=[operator.type],
+                company_id=token.company_id,
+            ),
         )
     except Exception as e:
         exceptions.handle(e)
