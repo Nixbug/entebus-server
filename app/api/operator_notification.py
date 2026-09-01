@@ -284,7 +284,7 @@ async def fetch_operator_notifications_for_operator(
 
 
 @route_operator.patch(
-    URL_OPERATOR_NOTIFICATION,
+    f"{URL_OPERATOR_NOTIFICATION}/{{id}}",
     summary="Update operator notification read state",
     tags=["Operator Notification"],
     response_model=OperatorNotificationSchema,

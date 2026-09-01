@@ -292,7 +292,7 @@ async def fetch_company_notifications_for_operator(
 
 
 @route_operator.patch(
-    URL_COMPANY_NOTIFICATION,
+    f"{URL_COMPANY_NOTIFICATION}/{{id}}",
     summary="Update company notification read state",
     tags=["Company Notification"],
     response_model=CompanyNotificationSchema,
