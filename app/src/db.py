@@ -65,6 +65,7 @@ from app.src.enums import (
     PlatformType,
     CompanyStatus,
     CompanyType,
+    NotificationType,
     OperatorType,
     VendorType,
     BankAccountType,
@@ -1188,6 +1189,69 @@ class Company(ORMbase):
     )
 
 
+class CompanyNotification(ORMbase):
+    """
+    Represents a notification sent to a company scope, optionally limited to selected operator types.
+
+    Columns:
+        id (BigInteger, not null):
+            Primary identifier for the company notification.
+
+        company_id (BigInteger, not null):
+            Foreign key referencing `company.id`.
+            Identifies the company to which the notification belongs.
+            Cascades on delete — if the company is removed, related notifications are deleted.
+
+        operator_types (ARRAY(Integer), nullable):
+            Optional list of operator types targeted by this company notification.
+
+        type (Integer, not null):
+            Category of the notification. Mapped from the `NotificationType` enum.
+
+        title (TEXT, not null):
+            Notification title.
+
+        details (JSONB, not null):
+            Notification body in JSONB format.
+
+        is_read (Boolean, not null, default=False):
+            Indicates whether the notification has been read.
+
+        read_at (DateTime, nullable):
+            Timestamp when the notification was read.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated when the record changes.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the notification was created.
+    """
+
+    __tablename__ = "company_notification"
+
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    operator_types: Mapped[list[OperatorType] | None] = orm.mapped_column(
+        ARRAY(Integer), nullable=True, default=list
+    )
+    type: Mapped[NotificationType] = orm.mapped_column(Integer, nullable=False)
+    title: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    details: Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False)
+    is_read: Mapped[bool] = orm.mapped_column(Boolean, nullable=False, default=False)
+    read_at: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
+
+
 class Operator(ORMbase):
     """
     Represents an operator user within the system, typically someone who manages or operates
@@ -1301,6 +1365,74 @@ def preprocess_operator_password(
     history = inspect(target).attrs.password.history
     if history.has_changes() and target.password:
         target.password = argon2.make_password(target.password)
+
+
+class OperatorNotification(ORMbase):
+    """
+    Represents a notification specifically sent to a single operator within a company.
+
+    Columns:
+        id (BigInteger, not null):
+            Primary identifier for the operator notification.
+
+        company_id (BigInteger, not null):
+            Foreign key referencing `company.id`.
+            Identifies the company to which the notification belongs.
+            Cascades on delete — if the company is removed, related notifications are deleted.
+
+        operator_id (BigInteger, not null):
+            Foreign key referencing `operator.id`.
+            Identifies the operator to whom the notification is sent.
+            Cascades on delete — if the operator is removed, related notifications are deleted.
+
+        type (Integer, not null):
+            Category of the notification. Mapped from the `NotificationType` enum.
+
+        title (TEXT, not null):
+            Notification title.
+
+        details (JSONB, not null):
+            Notification body in JSONB format.
+
+        is_read (Boolean, not null, default=False):
+            Indicates whether the notification has been read.
+
+        read_at (DateTime, nullable):
+            Timestamp when the notification was read.
+
+        updated_on (DateTime, nullable, onupdate=func.now()):
+            Timestamp automatically updated when the record changes.
+
+        created_on (DateTime, not null, default=func.now()):
+            Timestamp indicating when the notification was created.
+    """
+
+    __tablename__ = "operator_notification"
+
+    id: Mapped[int] = orm.mapped_column(BigInteger, primary_key=True)
+    company_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
+        ForeignKey("company.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    operator_id: Mapped[int] = orm.mapped_column(
+        BigInteger,
+        ForeignKey("operator.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    type: Mapped[NotificationType] = orm.mapped_column(Integer, nullable=False)
+    title: Mapped[str] = orm.mapped_column(TEXT, nullable=False)
+    details: Mapped[dict[str, Any]] = orm.mapped_column(JSONB, nullable=False)
+    is_read: Mapped[bool] = orm.mapped_column(Boolean, nullable=False, default=False)
+    read_at: Mapped[datetime | None] = orm.mapped_column(DateTime(timezone=True))
+    updated_on: Mapped[datetime | None] = orm.mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    created_on: Mapped[datetime] = orm.mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
 
 
 class OperatorImage(ORMbase):
