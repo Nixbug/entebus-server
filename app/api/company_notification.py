@@ -141,20 +141,17 @@ def update_company_notification(
         CompanyNotification.id,
         extra_filter=(CompanyNotification.company_id == token.company_id),
     )
+    operator = session.query(Operator).filter(Operator.id == token.operator_id).first()
+    assert operator is not None, "Operator should not be None"
+    if (
+        company_notification.operator_types
+        and operator.type not in company_notification.operator_types
+    ):
+        raise exceptions.UnknownValue(CompanyNotification.id)
 
     update_data = form_param.model_dump(exclude_unset=True)
     if "is_read" in update_data:
         if company_notification.is_read != update_data["is_read"]:
-            operator = (
-                session.query(Operator).filter(Operator.id == token.operator_id).first()
-            )
-            assert operator is not None, "Operator should not be None"
-            if (
-                company_notification.operator_types
-                and operator.type not in company_notification.operator_types
-            ):
-                raise exceptions.NoPermission()
-
             company_notification.is_read = update_data["is_read"]
             company_notification.read_at = (
                 datetime.now(TMZ_PRIMARY) if update_data["is_read"] else None
