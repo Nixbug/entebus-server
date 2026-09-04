@@ -10,7 +10,7 @@ from app.api.service_assignment import CreateForm as ServiceAssignmentCreateForm
 from app.api.service_assignment import create_service_assignment
 from app.src import exceptions
 from app.src.constants import TMZ_PRIMARY
-from app.src.enums import JobType, NotificationType, TriggeringMode
+from app.src.enums import JobType, NotificationType, OperatorType, TriggeringMode
 from app.src.redis import (
     acquire_lock,
     release_lock,
@@ -19,6 +19,7 @@ from app.src.redis import (
     queue_pop,
 )
 from app.src.db import (
+    CompanyNotification,
     Job,
     OperatorNotification,
     ServiceAssignmentAutomation,
@@ -67,20 +68,38 @@ def run_service_creation_job(session: Session, job: Job):
 
         try:
             with SessionLocal() as atomic_session:
-                service_data = create_service(
-                    atomic_session,
-                    ServiceCreateForm(
-                        route_id=service_automation.route_id,
-                        fare_id=service_automation.fare_id,
-                        vehicle_id=service_automation.vehicle_id,
-                        name=service_automation.name,
-                        ticket_mode=service_automation.ticket_mode,
-                        starting_at=starting_at,
+                try:
+                    service_data = create_service(
+                        atomic_session,
+                        ServiceCreateForm(
+                            route_id=service_automation.route_id,
+                            fare_id=service_automation.fare_id,
+                            vehicle_id=service_automation.vehicle_id,
+                            name=service_automation.name,
+                            ticket_mode=service_automation.ticket_mode,
+                            starting_at=starting_at,
+                            company_id=service_automation.company_id,
+                        ),
+                        token=None,
+                        request_info=None,
+                    )
+                except exceptions.APIException as e:
+                    company_notification = CompanyNotification(
                         company_id=service_automation.company_id,
-                    ),
-                    token=None,
-                    request_info=None,
-                )
+                        operator_types=[OperatorType.ADMIN, OperatorType.MANAGER],
+                        type=NotificationType.EXCEPTION,
+                        title=e.headers,
+                        details={
+                            "detail": e.detail,
+                            "service_automation": {
+                                "id": service_automation.id,
+                                "name": service_automation.name,
+                            },
+                        },
+                    )
+                    atomic_session.add(company_notification)
+                    atomic_session.commit()
+                    continue
 
                 service_assignment_automations = (
                     session.query(ServiceAssignmentAutomation)
