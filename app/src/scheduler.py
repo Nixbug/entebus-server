@@ -56,90 +56,86 @@ def run_service_creation_job(session: Session, job: Job):
 
     utc_now = datetime.now(TMZ_PRIMARY)
     for service_automation in service_automations:
-        starting_at = datetime(
-            utc_now.year,
-            utc_now.month,
-            utc_now.day,
-            service_automation.starting_at.hour,
-            service_automation.starting_at.minute,
-            service_automation.starting_at.second,
-            tzinfo=service_automation.starting_at.tzinfo or TMZ_PRIMARY,
-        )
+        with SessionLocal() as atomic_session:
+            starting_at = datetime(
+                utc_now.year,
+                utc_now.month,
+                utc_now.day,
+                service_automation.starting_at.hour,
+                service_automation.starting_at.minute,
+                service_automation.starting_at.second,
+                tzinfo=service_automation.starting_at.tzinfo or TMZ_PRIMARY,
+            )
 
-        try:
-            with SessionLocal() as atomic_session:
-                try:
-                    service_data = create_service(
-                        atomic_session,
-                        ServiceCreateForm(
-                            route_id=service_automation.route_id,
-                            fare_id=service_automation.fare_id,
-                            vehicle_id=service_automation.vehicle_id,
-                            name=service_automation.name,
-                            ticket_mode=service_automation.ticket_mode,
-                            starting_at=starting_at,
-                            company_id=service_automation.company_id,
-                        ),
-                        token=None,
-                        request_info=None,
-                    )
-                except exceptions.APIException as e:
-                    company_notification = CompanyNotification(
+            try:
+                service_data = create_service(
+                    atomic_session,
+                    ServiceCreateForm(
+                        route_id=service_automation.route_id,
+                        fare_id=service_automation.fare_id,
+                        vehicle_id=service_automation.vehicle_id,
+                        name=service_automation.name,
+                        ticket_mode=service_automation.ticket_mode,
+                        starting_at=starting_at,
                         company_id=service_automation.company_id,
-                        operator_types=[OperatorType.ADMIN, OperatorType.MANAGER],
-                        type=NotificationType.EXCEPTION,
-                        title=e.headers,
-                        details={
-                            "detail": e.detail,
-                            "service_automation": {
-                                "id": service_automation.id,
-                                "name": service_automation.name,
-                            },
-                        },
-                    )
-                    atomic_session.add(company_notification)
-                    atomic_session.commit()
-                    continue
-
-                service_assignment_automations = (
-                    session.query(ServiceAssignmentAutomation)
-                    .filter(
-                        ServiceAssignmentAutomation.service_automation_id
-                        == service_automation.id
-                    )
-                    .all()
+                    ),
+                    token=None,
+                    request_info=None,
                 )
-                for service_assignment in service_assignment_automations:
-                    service_assignment_data = create_service_assignment(
-                        atomic_session,
-                        ServiceAssignmentCreateForm(
-                            service_id=service_data["id"],
-                            operator_id=service_assignment.operator_id,
-                            company_id=service_assignment.company_id,
-                        ),
-                        token=None,
-                        request_info=None,
-                    )
-                    operator_notification = OperatorNotification(
-                        company_id=service_assignment.company_id,
-                        operator_id=service_assignment.operator_id,
-                        type=NotificationType.INFORMATION,
-                        title="DUTY_ASSIGNED",
-                        details={
-                            "service_assignment": {
-                                "id": service_assignment_data["id"],
-                            },
-                            "service": {
-                                "id": service_data["id"],
-                                "name": service_data["name"],
-                            },
+            except exceptions.APIException as e:
+                company_notification = CompanyNotification(
+                    company_id=service_automation.company_id,
+                    operator_types=[OperatorType.ADMIN, OperatorType.MANAGER],
+                    type=NotificationType.EXCEPTION,
+                    title=e.headers,
+                    details={
+                        "detail": e.detail,
+                        "service_automation": {
+                            "id": service_automation.id,
+                            "name": service_automation.name,
                         },
-                    )
-                    atomic_session.add(operator_notification)
-                    atomic_session.commit()
-        except Exception:
-            # TODO: Create a notification or log exception details here for debugging purposes.
-            continue
+                    },
+                )
+                atomic_session.add(company_notification)
+                atomic_session.commit()
+                continue
+
+            service_assignment_automations = (
+                session.query(ServiceAssignmentAutomation)
+                .filter(
+                    ServiceAssignmentAutomation.service_automation_id
+                    == service_automation.id
+                )
+                .all()
+            )
+            for service_assignment in service_assignment_automations:
+                service_assignment_data = create_service_assignment(
+                    atomic_session,
+                    ServiceAssignmentCreateForm(
+                        service_id=service_data["id"],
+                        operator_id=service_assignment.operator_id,
+                        company_id=service_assignment.company_id,
+                    ),
+                    token=None,
+                    request_info=None,
+                )
+                operator_notification = OperatorNotification(
+                    company_id=service_assignment.company_id,
+                    operator_id=service_assignment.operator_id,
+                    type=NotificationType.INFORMATION,
+                    title="DUTY_ASSIGNED",
+                    details={
+                        "service_assignment": {
+                            "id": service_assignment_data["id"],
+                        },
+                        "service": {
+                            "id": service_data["id"],
+                            "name": service_data["name"],
+                        },
+                    },
+                )
+                atomic_session.add(operator_notification)
+                atomic_session.commit()
 
 
 def run_statement_creation_job(session: Session, job: Job):
@@ -306,6 +302,9 @@ def run_job_from_queue(job_id: int):
             if job.next_trigger_on is None:
                 job.triggering_mode = TriggeringMode.DISABLED
             session.commit()
+    except Exception:
+        pass
+        # TODO: Create a notification or log exception details here for debugging purposes.
     finally:
         release_lock(job_lock)
 
