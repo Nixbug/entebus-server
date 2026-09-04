@@ -10,7 +10,7 @@ from app.api.service_assignment import CreateForm as ServiceAssignmentCreateForm
 from app.api.service_assignment import create_service_assignment
 from app.src import exceptions
 from app.src.constants import TMZ_PRIMARY
-from app.src.enums import JobType, TriggeringMode
+from app.src.enums import JobType, NotificationType, TriggeringMode
 from app.src.redis import (
     acquire_lock,
     release_lock,
@@ -18,7 +18,13 @@ from app.src.redis import (
     queue_push,
     queue_pop,
 )
-from app.src.db import Job, ServiceAssignmentAutomation, ServiceAutomation, SessionLocal
+from app.src.db import (
+    Job,
+    OperatorNotification,
+    ServiceAssignmentAutomation,
+    ServiceAutomation,
+    SessionLocal,
+)
 
 # ---------------------------------------------------------------------------
 ## Constants and configurations
@@ -60,9 +66,9 @@ def run_service_creation_job(session: Session, job: Job):
         )
 
         try:
-            with SessionLocal() as temp_session:
+            with SessionLocal() as atomic_session:
                 service_data = create_service(
-                    temp_session,
+                    atomic_session,
                     ServiceCreateForm(
                         route_id=service_automation.route_id,
                         fare_id=service_automation.fare_id,
@@ -85,8 +91,8 @@ def run_service_creation_job(session: Session, job: Job):
                     .all()
                 )
                 for service_assignment in service_assignment_automations:
-                    create_service_assignment(
-                        temp_session,
+                    service_assignment_data = create_service_assignment(
+                        atomic_session,
                         ServiceAssignmentCreateForm(
                             service_id=service_data["id"],
                             operator_id=service_assignment.operator_id,
@@ -95,6 +101,23 @@ def run_service_creation_job(session: Session, job: Job):
                         token=None,
                         request_info=None,
                     )
+                    operator_notification = OperatorNotification(
+                        company_id=service_assignment.company_id,
+                        operator_id=service_assignment.operator_id,
+                        type=NotificationType.INFORMATION,
+                        title="DUTY_ASSIGNED",
+                        details={
+                            "service_assignment": {
+                                "id": service_assignment_data["id"],
+                            },
+                            "service": {
+                                "id": service_data["id"],
+                                "name": service_data["name"],
+                            },
+                        },
+                    )
+                    atomic_session.add(operator_notification)
+                    atomic_session.commit()
         except Exception:
             # TODO: Create a notification or log exception details here for debugging purposes.
             continue
