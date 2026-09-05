@@ -131,16 +131,9 @@ def run_service_creation_job(session: Session, job: Job):
                 )
                 company_notification = CompanyNotification(
                     company_id=service_automation.company_id,
-                    operator_types=[
-                        int(OperatorType.ADMIN),
-                        int(OperatorType.MANAGER),
-                    ],
-                    type=int(NotificationType.EXCEPTION),
-                    title=(
-                        e.headers.get("X-Error", "SERVICE_CREATION_FAILED")
-                        if isinstance(e.headers, dict)
-                        else str(e.headers)
-                    ),
+                    operator_types=[OperatorType.ADMIN, OperatorType.MANAGER],
+                    type=NotificationType.EXCEPTION,
+                    title=e.headers,
                     details={
                         "detail": e.detail,
                         "service_automation": {
@@ -163,7 +156,7 @@ def run_service_creation_job(session: Session, job: Job):
                 continue
 
             service_assignment_automations = (
-                atomic_session.query(ServiceAssignmentAutomation)
+                session.query(ServiceAssignmentAutomation)
                 .filter(
                     ServiceAssignmentAutomation.service_automation_id
                     == service_automation.id
@@ -271,17 +264,15 @@ def calculate_next_trigger_on(job: Job) -> Optional[datetime]:
         extra={
             "job_id": job.id,
             "utc_now": utc_now.isoformat(),
-            "last_trigger_on": (
-                job.last_trigger_on.isoformat()
-                if job.last_trigger_on is not None
-                else None
-            ),
-            "trigger_from": (
-                job.trigger_from.isoformat() if job.trigger_from is not None else None
-            ),
-            "trigger_till": (
-                job.trigger_till.isoformat() if job.trigger_till is not None else None
-            ),
+            "last_trigger_on": job.last_trigger_on.isoformat()
+            if job.last_trigger_on is not None
+            else None,
+            "trigger_from": job.trigger_from.isoformat()
+            if job.trigger_from is not None
+            else None,
+            "trigger_till": job.trigger_till.isoformat()
+            if job.trigger_till is not None
+            else None,
             "trigger_at": job.trigger_at.isoformat(),
             "recurrence_rule": job.recurrence_rule,
         },
@@ -368,9 +359,7 @@ def load_jobs_to_queue() -> int:
     try:
         try:
             queue_lock = acquire_lock(JOB_QUEUE_PUSH_LOCK, blocking=False)
-            logger.debug(
-                "acquired queue push lock", extra={"lock": JOB_QUEUE_PUSH_LOCK}
-            )
+            logger.debug("acquired queue push lock", extra={"lock": JOB_QUEUE_PUSH_LOCK})
         except exceptions.LockAcquireTimeout:
             # Another master is already pushing jobs, skip this cycle.
             logger.debug(
@@ -453,9 +442,7 @@ def run_job_from_queue(job_id: int):
 
             utc_now = datetime.now(TMZ_PRIMARY)
             if job.next_trigger_on is None:
-                logger.info(
-                    "job has no next trigger; skipping", extra={"job_id": job_id}
-                )
+                logger.info("job has no next trigger; skipping", extra={"job_id": job_id})
                 return
             if job.next_trigger_on > utc_now:
                 logger.info(
@@ -470,10 +457,7 @@ def run_job_from_queue(job_id: int):
             if job.triggering_mode != TriggeringMode.AUTO:
                 logger.info(
                     "job triggering mode is not AUTO; skipping",
-                    extra={
-                        "job_id": job_id,
-                        "triggering_mode": int(job.triggering_mode),
-                    },
+                    extra={"job_id": job_id, "triggering_mode": int(job.triggering_mode)},
                 )
                 return
             logger.debug(
@@ -488,14 +472,10 @@ def run_job_from_queue(job_id: int):
             job.last_trigger_on = utc_now
 
             if job.job_type == JobType.SERVICE_CREATION:
-                logger.info(
-                    "dispatching service creation job", extra={"job_id": job_id}
-                )
+                logger.info("dispatching service creation job", extra={"job_id": job_id})
                 run_service_creation_job(session, job)
             elif job.job_type == JobType.STATEMENT_CREATION:
-                logger.info(
-                    "dispatching statement creation job", extra={"job_id": job_id}
-                )
+                logger.info("dispatching statement creation job", extra={"job_id": job_id})
                 run_statement_creation_job(session, job)
             else:
                 logger.warning(
@@ -505,34 +485,21 @@ def run_job_from_queue(job_id: int):
 
             if job.next_trigger_on is None:
                 job.triggering_mode = TriggeringMode.DISABLED
-                logger.info(
-                    "job disabled because next trigger is None",
-                    extra={"job_id": job_id},
-                )
+                logger.info("job disabled because next trigger is None", extra={"job_id": job_id})
             session.commit()
-            last_trigger_on = job.last_trigger_on
-            next_trigger_on = job.next_trigger_on
             logger.info(
                 "job execution committed",
                 extra={
                     "job_id": job_id,
-                    "last_trigger_on": (
-                        last_trigger_on.isoformat()
-                        if last_trigger_on is not None
-                        else None
-                    ),
-                    "next_trigger_on": (
-                        next_trigger_on.isoformat()
-                        if next_trigger_on is not None
-                        else None
-                    ),
+                    "last_trigger_on": job.last_trigger_on.isoformat(),
+                    "next_trigger_on": job.next_trigger_on.isoformat()
+                    if job.next_trigger_on is not None
+                    else None,
                     "triggering_mode": int(job.triggering_mode),
                 },
             )
     except Exception:
-        logger.exception(
-            "unhandled exception while running job", extra={"job_id": job_id}
-        )
+        logger.exception("unhandled exception while running job", extra={"job_id": job_id})
     finally:
         release_lock(job_lock)
         logger.debug("released job lock", extra={"job_id": job_id})
