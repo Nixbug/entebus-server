@@ -66,9 +66,9 @@ class APIException(HTTPException):
     Provides default handling of status_code, detail, and headers.
     """
 
-    status_code = status.HTTP_400_BAD_REQUEST
-    detail = None
-    headers = None
+    status_code: int = status.HTTP_400_BAD_REQUEST
+    detail: str
+    headers: dict
 
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("status_code", self.status_code)
