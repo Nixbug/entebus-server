@@ -67,8 +67,8 @@ class APIException(HTTPException):
     """
 
     status_code: int = status.HTTP_400_BAD_REQUEST
-    detail: str = None
-    headers: dict = None
+    detail: object = None
+    headers: dict[str, str] | None = None
 
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("status_code", self.status_code)
