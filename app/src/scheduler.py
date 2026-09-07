@@ -303,8 +303,8 @@ def run_job_from_queue(job_id: int):
             if job.next_trigger_on is None:
                 job.triggering_mode = TriggeringMode.DISABLED
             session.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        exceptions.log_exception(e)
         # TODO: Create a notification or log exception details here for debugging purposes.
     finally:
         release_lock(job_lock)
