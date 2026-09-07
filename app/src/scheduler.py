@@ -87,8 +87,9 @@ def run_service_creation_job(session: Session, job: Job):
                     company_id=service_automation.company_id,
                     operator_types=[OperatorType.ADMIN, OperatorType.MANAGER],
                     type=NotificationType.EXCEPTION,
-                    title=e.headers.get("X-Error"),
+                    title="SERVICE_CREATION_FAILED",
                     details={
+                        "error": e.headers.get("X-Error"),
                         "detail": e.detail,
                         "service_automation": {
                             "id": service_automation.id,
