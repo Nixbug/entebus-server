@@ -326,7 +326,6 @@ def construct_service_creation_lock(registration_number: str) -> str:
 def validate_starting_at(starting_at: datetime) -> datetime:
     """
     Normalize a datetime to UTC and validate it is within the allowed creation window.
-
     Services may be created for a start time up to one lead-time window in the past or future.
 
     Returns the normalized `starting_at` in UTC.
