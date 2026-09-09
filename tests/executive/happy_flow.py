@@ -67,6 +67,8 @@ from app.api.operator_image import OperatorImageSchema
 from app.api.business import BusinessSchema
 from app.api.vendor_account import VendorSchema
 from app.api.vendor_image import VendorImageSchema
+from app.src.constants import TMZ_PRIMARY
+from datetime import datetime, timedelta
 
 
 def test_executive_token_endpoint(token_url: str, credentials: dict):
@@ -632,6 +634,50 @@ def test_service_assignment(
     assert response.status_code == 204
 
 
+def test_service_starting_at_boundaries(
+    service_url: str, service_data: dict, token_headers: dict
+):
+    now = datetime.now(TMZ_PRIMARY)
+    accepted_starting_at = (now - timedelta(hours=23, minutes=59)).isoformat()
+    rejected_starting_at = (now - timedelta(hours=24, minutes=1)).isoformat()
+
+    print("Rejecting service creation beyond the past starting_at boundary")
+    response = requests.post(
+        service_url,
+        headers=token_headers,
+        json={**service_data, "starting_at": rejected_starting_at},
+    )
+    assert response.status_code == 422
+
+    print("Creating service within the past starting_at boundary")
+    response = requests.post(
+        service_url,
+        headers=token_headers,
+        json={**service_data, "starting_at": accepted_starting_at},
+    )
+    assert response.status_code == 201
+    service = MaskedServiceSchema.model_validate(response.json())
+
+    print("Updating service within the past starting_at boundary")
+    response = requests.patch(
+        f"{service_url}/{service.id}",
+        headers=token_headers,
+        json={"starting_at": accepted_starting_at},
+    )
+    assert response.status_code == 200
+
+    print("Rejecting service update beyond the past starting_at boundary")
+    response = requests.patch(
+        f"{service_url}/{service.id}",
+        headers=token_headers,
+        json={"starting_at": rejected_starting_at},
+    )
+    assert response.status_code == 422
+
+    response = requests.delete(f"{service_url}/{service.id}", headers=token_headers)
+    assert response.status_code == 204
+
+
 def test_business_endpoint(business_url: str, business_data: dict, token_headers: dict):
     print("Creating business")
     response = requests.post(business_url, headers=token_headers, json=business_data)
@@ -967,6 +1013,11 @@ def run_test(target_url):
 
     # Test service creation, retrieval, updating and deletion
     test_service_endpoint(
+        SERVICE_URL,
+        generate_service_payload(route.id, fare.id, vehicle.id, company.id),
+        admin_headers,
+    )
+    test_service_starting_at_boundaries(
         SERVICE_URL,
         generate_service_payload(route.id, fare.id, vehicle.id, company.id),
         admin_headers,
