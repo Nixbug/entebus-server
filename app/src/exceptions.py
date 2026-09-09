@@ -11,7 +11,7 @@ It ensures consistent error responses across the API.
 
 from traceback import format_exception
 from logging import getLogger
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, Mapping, NoReturn
 from fastapi import status, HTTPException
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
@@ -66,9 +66,9 @@ class APIException(HTTPException):
     Provides default handling of status_code, detail, and headers.
     """
 
-    status_code = status.HTTP_400_BAD_REQUEST
-    detail = None
-    headers = None
+    status_code: int = status.HTTP_400_BAD_REQUEST
+    detail: object = None
+    headers: Mapping[str, str] = {}
 
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("status_code", self.status_code)

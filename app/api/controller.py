@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from app.api import (
     business,
     company,
+    company_notification,
     duty,
     executive_account,
     executive_image,
@@ -22,6 +23,7 @@ from app.api import (
     location_in_trace,
     operator_account,
     operator_image,
+    operator_notification,
     operator_role,
     operator_role_map,
     operator_token,
@@ -73,6 +75,8 @@ app_executive.include_router(landmark.route_executive)
 app_executive.include_router(station.route_executive)
 app_executive.include_router(operator_token.route_executive)
 app_executive.include_router(company.route_executive)
+app_executive.include_router(company_notification.route_executive)
+app_executive.include_router(operator_notification.route_executive)
 app_executive.include_router(business.route_executive)
 app_executive.include_router(vendor_token.route_executive)
 app_executive.include_router(operator_account.route_executive)
@@ -125,7 +129,9 @@ app_vendor.include_router(service.route_vendor)
 app_operator.include_router(operator_token.route_operator)
 app_operator.include_router(landmark.route_operator)
 app_operator.include_router(station.route_operator)
+app_operator.include_router(company_notification.route_operator)
 app_operator.include_router(company.route_operator)
+app_operator.include_router(operator_notification.route_operator)
 app_operator.include_router(operator_account.route_operator)
 app_operator.include_router(operator_role.route_operator)
 app_operator.include_router(operator_role_map.route_operator)

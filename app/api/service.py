@@ -326,15 +326,15 @@ def construct_service_creation_lock(registration_number: str) -> str:
 def validate_starting_at(starting_at: datetime) -> datetime:
     """
     Normalize a datetime to UTC and validate it is within the allowed creation window.
+    Services may be created for a start time up to one lead-time window in the past or future.
 
     Returns the normalized `starting_at` in UTC.
     """
     starting_at = normalize_timestamp(starting_at)
     utc_now = datetime.now(TMZ_PRIMARY)
-    if (
-        starting_at > (utc_now + timedelta(days=SERVICE_CREATION_LEAD_TIME_DAYS))
-        or starting_at < utc_now
-    ):
+    if starting_at > (
+        utc_now + timedelta(days=SERVICE_CREATION_LEAD_TIME_DAYS)
+    ) or starting_at < (utc_now - timedelta(days=SERVICE_CREATION_LEAD_TIME_DAYS)):
         raise exceptions.InvalidValue(Service.starting_at)
     return starting_at
 
@@ -1301,7 +1301,7 @@ POST_DESCRIPTION = (
         "Status of vehicle must be ACTIVE, company must be VERIFIED, and route must be VALID."
     )
     .add_line(
-        f"`starting_at` must be between now and {SERVICE_CREATION_LEAD_TIME_DAYS} days from now."
+        f"`starting_at` must be within {SERVICE_CREATION_LEAD_TIME_DAYS} day(s) before or after now."
     )
     .add_line(
         "The service name is auto-generated based on the route, vehicle, and starting date if not provided."
@@ -1326,7 +1326,7 @@ PATCH_DESCRIPTION = (
         "`vehicle_id`, `route_id`, `fare_id`, and `starting_at` can only be updated when service status is CREATED."
     )
     .add_line(
-        f"`starting_at` must be between now and {SERVICE_CREATION_LEAD_TIME_DAYS} days from now."
+        f"`starting_at` must be within {SERVICE_CREATION_LEAD_TIME_DAYS} day(s) before or after now."
     )
     .add_line(
         "When status transitions to ENDED, the service collection is calculated and saved."

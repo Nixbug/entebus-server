@@ -220,3 +220,12 @@ class WaypointType(IntEnum):
     MAIN_STOP = 1
     INTERMEDIATE_STOP = 2
     TEMPORARY_STOP = 3
+
+
+class NotificationType(IntEnum):
+    """Types of notifications sent to users."""
+
+    INFORMATION = 1
+    WARNING = 2
+    ALERT = 3
+    EXCEPTION = 4
