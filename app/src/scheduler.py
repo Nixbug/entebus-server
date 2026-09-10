@@ -9,7 +9,7 @@ from app.api.service import CreateForm as ServiceCreateForm
 from app.api.service_assignment import CreateForm as ServiceAssignmentCreateForm
 from app.api.service_assignment import create_service_assignment
 from app.src import exceptions
-from app.src.constants import TMZ_PRIMARY
+from app.src.constants import TMZ_PRIMARY, TMZ_SECONDARY
 from app.src.enums import JobType, NotificationType, OperatorType, TriggeringMode
 from app.src.redis import (
     acquire_lock,
@@ -54,17 +54,17 @@ def run_service_creation_job(session: Session, job: Job):
         .all()
     )
 
-    utc_now = datetime.now(TMZ_PRIMARY)
+    local_now = datetime.now(TMZ_SECONDARY)
     for service_automation in service_automations:
         with SessionLocal() as atomic_session:
             starting_at = datetime(
-                utc_now.year,
-                utc_now.month,
-                utc_now.day,
+                local_now.year,
+                local_now.month,
+                local_now.day,
                 service_automation.starting_at.hour,
                 service_automation.starting_at.minute,
                 service_automation.starting_at.second,
-                tzinfo=service_automation.starting_at.tzinfo or TMZ_PRIMARY,
+                tzinfo=service_automation.starting_at.tzinfo or TMZ_SECONDARY,
             )
 
             try:
