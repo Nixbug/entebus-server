@@ -64,7 +64,7 @@ def run_service_creation_job(session: Session, job: Job):
                 service_automation.starting_at.hour,
                 service_automation.starting_at.minute,
                 service_automation.starting_at.second,
-                tzinfo=service_automation.starting_at.tzinfo or TMZ_SECONDARY,
+                tzinfo=TMZ_SECONDARY,
             )
 
             try:
