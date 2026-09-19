@@ -234,7 +234,7 @@ def generate_service_payload(
     # offset range based on lead-time days
     minutes_offset = int(
         np.random.randint(
-            -SERVICE_CREATION_LEAD_TIME_DAYS * 1440,
+            -((SERVICE_CREATION_LEAD_TIME_DAYS * 1440) + 1),
             SERVICE_CREATION_LEAD_TIME_DAYS * 1440,
         )
     )
