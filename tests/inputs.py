@@ -175,7 +175,7 @@ def generate_landmark_payload():
     suffix = str(np.random.randint(1000, 9999))
     center_lon = float(77.59 + np.random.uniform(0, 0.01))
     center_lat = float(12.97 + np.random.uniform(0, 0.01))
-    # small offsets in degrees (~10-50 meters)
+    # Small offsets in degrees (~10-50 meters)
     d1 = float(np.random.uniform(0.00005, 0.0002))
     d2 = float(np.random.uniform(0.00005, 0.0002))
     p1 = (center_lon - d1, center_lat - d2)
@@ -231,7 +231,7 @@ def generate_landmark_in_route_payload(
 def generate_service_payload(
     route_id: int, fare_id: int, vehicle_id: int, company_id: int | None = None
 ):
-    # offset range based on lead-time days
+    # Offset range based on lead-time days
     minutes_offset = int(
         np.random.randint(
             -((SERVICE_CREATION_LEAD_TIME_DAYS * 1440) + 1),
