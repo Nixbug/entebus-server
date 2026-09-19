@@ -8,7 +8,7 @@ from PIL import Image
 import numpy as np
 from shapely import wkt
 
-from app.src.constants import TMZ_PRIMARY
+from app.src.constants import SERVICE_CREATION_LEAD_TIME_DAYS, TMZ_PRIMARY
 from app.src.enums import (
     BusinessType,
     GenderType,
@@ -231,8 +231,13 @@ def generate_landmark_in_route_payload(
 def generate_service_payload(
     route_id: int, fare_id: int, vehicle_id: int, company_id: int | None = None
 ):
-    # choose a start offset in minutes (5–1439) to avoid `starting_at` == now
-    minutes_offset = int(np.random.randint(5, 1440))
+    # offset range based on lead-time days
+    minutes_offset = int(
+        np.random.randint(
+            -SERVICE_CREATION_LEAD_TIME_DAYS * 1440,
+            SERVICE_CREATION_LEAD_TIME_DAYS * 1440,
+        )
+    )
     payload = {
         "name": f"Service {np.random.randint(1000, 9999)}",
         "starting_at": (
