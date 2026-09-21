@@ -48,7 +48,7 @@ OPENOBSERVE_USERNAME = environ.get("OPENOBSERVE_USERNAME", "admin@entebus.com")
 OPENOBSERVE_PASSWORD = environ.get("OPENOBSERVE_PASSWORD", "password")
 OPENOBSERVE_ORG = environ.get("OPENOBSERVE_ORG", "nixbug")
 OPENOBSERVE_STREAM = environ.get("OPENOBSERVE_STREAM", "entebus-server")
-LOGGING_TYPE = environ.get("LOGGING_TYPE", "OPEN_OBSERVE")
+LOGGING_TYPE = environ.get("LOGGING_TYPE", "OPENOBSERVE")
 
 
 # ---------------------------------------------------------------------------

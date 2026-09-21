@@ -33,29 +33,24 @@ from app.src.schemas import RequestInfo
 credentials = base64.b64encode(
     f"{OPENOBSERVE_USERNAME}:{OPENOBSERVE_PASSWORD}".encode("utf-8")
 ).decode("utf-8")
-
 # Default headers for all requests
 headers = {"Content-Type": "application/json", "Authorization": f"Basic {credentials}"}
-
 # Construct OpenObserve endpoint URL
 openobserve_host = f"{OPENOBSERVE_PROTOCOL}://{OPENOBSERVE_HOST}:{OPENOBSERVE_PORT}"
 openobserve_url = f"{openobserve_host}/api/{OPENOBSERVE_ORG}/{OPENOBSERVE_STREAM}/_json"
+
+# Bind the correct logging function once at startup
+if LOGGING_TYPE == "OPENOBSERVE":
+    send_log = lambda e: _post_log_event(e)
+elif LOGGING_TYPE == "CLOUD":
+    send_log = lambda e: logging.info(json.dumps(e, default=str))
+else:
+    send_log = lambda e: print(e)
 
 
 # ---------------------------------------------------------------------------
 ## Logging Functions
 # ---------------------------------------------------------------------------
-def _send_log_event(event_data: dict) -> None:
-    """Route a log event based on configured logging backend."""
-    if LOGGING_TYPE == "OPEN_OBSERVE":
-        _post_log_event(event_data)
-    elif LOGGING_TYPE == "CLOUD":
-        # Cloud Run/GKE capture stdout/stderr and forward to Cloud Logging.
-        logging.info(json.dumps(event_data, default=str))
-    else:
-        print(event_data)
-
-
 def _post_log_event(event_data: dict) -> Response | None:
     """
     Send an event log to the configured OpenObserve instance.
@@ -107,7 +102,7 @@ def log_event(
             - Operator  → `_operator_id`
             - Vendor    → `_vendor_id`
         - Log destination is controlled by `LOGGING_TYPE`:
-            - `OPEN_OBSERVE` sends events to OpenObserve.
+            - `OPENOBSERVE` sends events to OpenObserve.
             - `CLOUD` emits JSON logs through Python logging.
             - Any other value logs to local console with print.
     """
@@ -125,4 +120,4 @@ def log_event(
         log_details["_vendor_id"] = token.vendor_id
 
     log_details.update(data)
-    _send_log_event(log_details)
+    send_log(log_details)
