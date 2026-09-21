@@ -10,10 +10,11 @@ These functions are primarily used for auditing, analytics,
 and monitoring of API activities across different application contexts.
 """
 
-import base64, json, requests
+import base64, json, logging, requests
 from requests import Response
 
 from app.src.constants import (
+    LOGGING_TYPE,
     OPENOBSERVE_HOST,
     OPENOBSERVE_ORG,
     OPENOBSERVE_PASSWORD,
@@ -44,6 +45,17 @@ openobserve_url = f"{openobserve_host}/api/{OPENOBSERVE_ORG}/{OPENOBSERVE_STREAM
 # ---------------------------------------------------------------------------
 ## Logging Functions
 # ---------------------------------------------------------------------------
+def _send_log_event(event_data: dict) -> None:
+    """Route a log event based on configured logging backend."""
+    if LOGGING_TYPE == "OPEN_OBSERVE":
+        _post_log_event(event_data)
+    elif LOGGING_TYPE == "CLOUD":
+        # Cloud Run/GKE capture stdout/stderr and forward to Cloud Logging.
+        logging.info(json.dumps(event_data, default=str))
+    else:
+        print(event_data)
+
+
 def _post_log_event(event_data: dict) -> Response | None:
     """
     Send an event log to the configured OpenObserve instance.
@@ -67,7 +79,7 @@ def _post_log_event(event_data: dict) -> Response | None:
     """
     try:
         response = requests.post(
-            openobserve_url, headers=headers, data=json.dumps(event_data)
+            openobserve_url, headers=headers, json=event_data, timeout=3
         )
         response.raise_for_status()
     except Exception:
@@ -94,6 +106,10 @@ def log_event(
             - Executive → `_executive_id`
             - Operator  → `_operator_id`
             - Vendor    → `_vendor_id`
+        - Log destination is controlled by `LOGGING_TYPE`:
+            - `OPEN_OBSERVE` sends events to OpenObserve.
+            - `CLOUD` emits JSON logs through Python logging.
+            - Any other value logs to local console with print.
     """
     log_details = {
         "_method": request_info.method,
@@ -108,10 +124,5 @@ def log_event(
     elif isinstance(token, VendorToken):
         log_details["_vendor_id"] = token.vendor_id
 
-    for key, value in data.items():
-        if isinstance(value, (dict, list)):
-            log_details[key] = json.dumps(value)
-        else:
-            log_details[key] = value
-
-    _post_log_event(log_details)
+    log_details.update(data)
+    _send_log_event(log_details)
