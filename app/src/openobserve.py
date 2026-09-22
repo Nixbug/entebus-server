@@ -45,7 +45,7 @@ if LOGGING_TYPE == "OPENOBSERVE":
 elif LOGGING_TYPE == "CLOUD":
     send_log = lambda e: logging.info("%s", json.dumps(e, default=str))
 else:
-    send_log = print
+    send_log = lambda e: print(json.dumps(e, default=str))
 
 
 # ---------------------------------------------------------------------------
