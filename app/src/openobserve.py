@@ -78,6 +78,7 @@ def _post_log_event(event_data: dict) -> Response | None:
         )
         response.raise_for_status()
     except Exception:
+        logging.exception("Failed to post log event to OpenObserve.")
         return None
     return response
 
