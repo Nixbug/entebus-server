@@ -43,9 +43,9 @@ openobserve_url = f"{openobserve_host}/api/{OPENOBSERVE_ORG}/{OPENOBSERVE_STREAM
 if LOGGING_TYPE == "OPENOBSERVE":
     send_log = lambda e: _post_log_event(e)
 elif LOGGING_TYPE == "CLOUD":
-    send_log = lambda e: logging.info(json.dumps(e, default=str))
+    send_log = lambda e: logging.info("%s", json.dumps(e, default=str))
 else:
-    send_log = lambda e: print(e)
+    send_log = print
 
 
 # ---------------------------------------------------------------------------
