@@ -10,10 +10,11 @@ These functions are primarily used for auditing, analytics,
 and monitoring of API activities across different application contexts.
 """
 
-import base64, json, requests
+import base64, json, logging, requests
 from requests import Response
 
 from app.src.constants import (
+    LOGGING_TYPE,
     OPENOBSERVE_HOST,
     OPENOBSERVE_ORG,
     OPENOBSERVE_PASSWORD,
@@ -32,13 +33,19 @@ from app.src.schemas import RequestInfo
 credentials = base64.b64encode(
     f"{OPENOBSERVE_USERNAME}:{OPENOBSERVE_PASSWORD}".encode("utf-8")
 ).decode("utf-8")
-
 # Default headers for all requests
 headers = {"Content-Type": "application/json", "Authorization": f"Basic {credentials}"}
-
 # Construct OpenObserve endpoint URL
 openobserve_host = f"{OPENOBSERVE_PROTOCOL}://{OPENOBSERVE_HOST}:{OPENOBSERVE_PORT}"
 openobserve_url = f"{openobserve_host}/api/{OPENOBSERVE_ORG}/{OPENOBSERVE_STREAM}/_json"
+
+# Bind the correct logging function once at startup
+if LOGGING_TYPE == "OPENOBSERVE":
+    send_log = lambda e: _post_log_event(e)
+elif LOGGING_TYPE == "CLOUD":
+    send_log = lambda e: logging.info("%s", json.dumps(e, default=str))
+else:
+    send_log = lambda e: print(json.dumps(e, default=str))
 
 
 # ---------------------------------------------------------------------------
@@ -67,10 +74,11 @@ def _post_log_event(event_data: dict) -> Response | None:
     """
     try:
         response = requests.post(
-            openobserve_url, headers=headers, data=json.dumps(event_data)
+            openobserve_url, headers=headers, json=event_data, timeout=3
         )
         response.raise_for_status()
     except Exception:
+        logging.exception("Failed to post log event to OpenObserve.")
         return None
     return response
 
@@ -94,6 +102,10 @@ def log_event(
             - Executive → `_executive_id`
             - Operator  → `_operator_id`
             - Vendor    → `_vendor_id`
+        - Log destination is controlled by `LOGGING_TYPE`:
+            - `OPENOBSERVE` sends events to OpenObserve.
+            - `CLOUD` emits JSON logs through Python logging.
+            - Any other value logs to local console with print.
     """
     log_details = {
         "_method": request_info.method,
@@ -108,10 +120,5 @@ def log_event(
     elif isinstance(token, VendorToken):
         log_details["_vendor_id"] = token.vendor_id
 
-    for key, value in data.items():
-        if isinstance(value, (dict, list)):
-            log_details[key] = json.dumps(value)
-        else:
-            log_details[key] = value
-
-    _post_log_event(log_details)
+    log_details.update(data)
+    send_log(log_details)
