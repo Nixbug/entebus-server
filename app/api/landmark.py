@@ -11,18 +11,29 @@ Provides endpoints for managing landmarks:
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import Query
+from fastapi import Response
+from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from geoalchemy2 import Geography
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel
+from pydantic import Field
+from pydantic import StringConstraints
 from sqlalchemy.orm.session import Session
-from shapely.geometry import Polygon, Point
-from sqlalchemy import String, func, or_
+from shapely.geometry import Polygon
+from shapely.geometry import Point
+from sqlalchemy import String
+from sqlalchemy import func
+from sqlalchemy import or_
 from shapely import wkt
 from shapely.ops import transform
 import pyproj
 
-from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
+from app.api.bearer import oauth2_executive
+from app.api.bearer import bearer_operator
+from app.api.bearer import bearer_vendor
 from app.src.constants import (
     MAX_LANDMARK_AREA,
     MAX_LANDMARK_UPDATE_DISTANCE,
@@ -36,7 +47,8 @@ from app.src.db import (
     OperatorToken,
     get_db_session,
 )
-from app.src.enums import LandmarkType, OrderIn
+from app.src.enums import LandmarkType
+from app.src.enums import OrderIn
 from app.src.filters import (
     CreatedOnFilter,
     IDFilter,
@@ -45,7 +57,8 @@ from app.src.filters import (
     UpdatedOnFilter,
 )
 from app.src.permissions.executive import PermissionPath
-from app.src import exceptions, schemas
+from app.src import exceptions
+from app.src import schemas
 from app.src.schemas import PatchForm
 from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_LANDMARK

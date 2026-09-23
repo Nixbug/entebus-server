@@ -11,14 +11,22 @@ Provides endpoints for managing vehicles:
 from typing import Annotated
 from enum import StrEnum
 from datetime import datetime
-from fastapi import APIRouter, status, Depends, Response, Query
+from fastapi import APIRouter
+from fastapi import status
+from fastapi import Depends
+from fastapi import Response
+from fastapi import Query
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import String, or_
+from sqlalchemy import String
+from sqlalchemy import or_
 from sqlalchemy.sql import ColumnElement
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 from sqlalchemy.orm.session import Session
 
-from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
+from app.api.bearer import oauth2_executive
+from app.api.bearer import bearer_operator
+from app.api.bearer import bearer_vendor
 from app.src.db import (
     Company,
     ExecutiveToken,
@@ -35,9 +43,11 @@ from app.src.enums import (
 from app.src.constants import MAX_VEHICLES_PER_COMPANY
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
-from app.src import exceptions, schemas
+from app.src import exceptions
+from app.src import schemas
 from app.src.schemas import PatchForm
-from app.src.regex import VEHICLE_NUMBER_PATTERN, NAME_PATTERN
+from app.src.regex import VEHICLE_NUMBER_PATTERN
+from app.src.regex import NAME_PATTERN
 from app.src.urls import URL_VEHICLE
 from app.src.openobserve import log_event
 from app.src.description import Description

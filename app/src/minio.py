@@ -5,11 +5,15 @@ Handles basic operations with the configured MinIO server,
 providing a simple interface for managing stored data.
 """
 
-from typing import BinaryIO, Optional
+from typing import BinaryIO
+from typing import Optional
 from minio import Minio
 from minio.error import S3Error
 
-from app.src.constants import MINIO_HOST, MINIO_PASSWORD, MINIO_PORT, MINIO_USERNAME
+from app.src.constants import MINIO_HOST
+from app.src.constants import MINIO_PASSWORD
+from app.src.constants import MINIO_PORT
+from app.src.constants import MINIO_USERNAME
 
 # MinIO client instance
 client: Minio = Minio(

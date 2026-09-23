@@ -8,12 +8,15 @@ Provides endpoints for managing service locations:
 
 from datetime import datetime
 from enum import StrEnum
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import Query
 from geoalchemy2 import Geography
 from sqlalchemy import func
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 from shapely.geometry import Point
 from shapely import wkt
 from fastapi.encoders import jsonable_encoder
@@ -28,7 +31,10 @@ from app.src.db import (
 from app.src.description import Description
 from app.src.enums import OrderIn
 from app.src.schemas import PatchForm
-from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, UpdatedOnFilter
+from app.src.filters import CreatedOnFilter
+from app.src.filters import IDFilter
+from app.src.filters import PaginationFilter
+from app.src.filters import UpdatedOnFilter
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.urls import URL_SERVICE_TRACE
 from app.src.validators import (
@@ -38,7 +44,9 @@ from app.src.validators import (
     validate_wkt_string,
     verify_token,
 )
-from app.api.bearer import bearer_operator, oauth2_executive, bearer_vendor
+from app.api.bearer import bearer_operator
+from app.api.bearer import oauth2_executive
+from app.api.bearer import bearer_vendor
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,

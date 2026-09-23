@@ -11,17 +11,29 @@ Provides endpoints for managing executive accounts:
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import Query
+from fastapi import Response
+from fastapi import status
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel
+from pydantic import EmailStr
+from pydantic import Field
 from pydantic_extra_types.phone_numbers import PhoneNumber
-from sqlalchemy import String, or_
+from sqlalchemy import String
+from sqlalchemy import or_
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive
 from app.src.buckets import EXECUTIVE_IMAGES
-from app.src.db import Executive, ExecutiveImage, ExecutiveToken, get_db_session
-from app.src.enums import AccountStatus, GenderType, OrderIn
+from app.src.db import Executive
+from app.src.db import ExecutiveImage
+from app.src.db import ExecutiveToken
+from app.src.db import get_db_session
+from app.src.enums import AccountStatus
+from app.src.enums import GenderType
+from app.src.enums import OrderIn
 from app.src.filters import (
     AccountDataFilter,
     CreatedOnFilter,
@@ -31,9 +43,11 @@ from app.src.filters import (
 )
 from app.src.minio import delete_file
 from app.src.permissions.executive import PermissionPath
-from app.src import exceptions, schemas
+from app.src import exceptions
+from app.src import schemas
 from app.src.schemas import PatchForm
-from app.src.regex import PASSWORD_PATTERN, USERNAME_PATTERN
+from app.src.regex import PASSWORD_PATTERN
+from app.src.regex import USERNAME_PATTERN
 from app.src.urls import URL_EXECUTIVE_ACCOUNT
 from app.src.openobserve import log_event
 from app.src.validators import (

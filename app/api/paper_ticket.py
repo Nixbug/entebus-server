@@ -9,13 +9,18 @@ Provides endpoints for managing paper tickets:
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import status
+from fastapi import Query
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 from sqlalchemy.orm.session import Session
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.api.bearer import bearer_operator, oauth2_executive
+from app.api.bearer import bearer_operator
+from app.api.bearer import oauth2_executive
 from app.src.db import (
     OperatorToken,
     ExecutiveToken,
@@ -28,7 +33,9 @@ from app.src.db import (
     ServiceLocation,
     get_db_session,
 )
-from app.src.enums import DutyStatus, ServiceStatus, OrderIn
+from app.src.enums import DutyStatus
+from app.src.enums import ServiceStatus
+from app.src.enums import OrderIn
 from app.src.urls import URL_PAPER_TICKET
 from app.src.description import Description
 from app.src.constants import MAX_PAPER_TICKETS_PER_SERVICE
@@ -44,11 +51,15 @@ from app.src.functions import (
     apply_id_filters,
     apply_created_on_filters,
 )
-from app.src.filters import PaginationFilter, IDFilter, CreatedOnFilter
+from app.src.filters import PaginationFilter
+from app.src.filters import IDFilter
+from app.src.filters import CreatedOnFilter
 from app.src import exceptions
-from app.src.redis import acquire_lock, release_lock
+from app.src.redis import acquire_lock
+from app.src.redis import release_lock
 from app.src.dynamic_fare import v1
-from app.src.digital_ticket.v1 import TwoDecimalPlaces, TicketTypeSchema
+from app.src.digital_ticket.v1 import TwoDecimalPlaces
+from app.src.digital_ticket.v1 import TicketTypeSchema
 from app.api.service import construct_service_transition_lock
 from app.src.enums import PaperTicketWarning
 

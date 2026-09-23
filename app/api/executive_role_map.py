@@ -10,9 +10,14 @@ Provides endpoints for managing executive role maps:
 
 from datetime import datetime
 from enum import StrEnum
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import Query
+from fastapi import Response
+from fastapi import status
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive
@@ -24,13 +29,19 @@ from app.src.db import (
     get_db_session,
 )
 from app.src.enums import OrderIn
-from app.src.filters import IDFilter, PaginationFilter, UpdatedOnFilter, CreatedOnFilter
+from app.src.filters import IDFilter
+from app.src.filters import PaginationFilter
+from app.src.filters import UpdatedOnFilter
+from app.src.filters import CreatedOnFilter
 from app.src.urls import URL_EXECUTIVE_ROLE_MAP
 from app.src.permissions.executive import PermissionPath
-from app.src import exceptions, schemas
+from app.src import exceptions
+from app.src import schemas
 from app.src.schemas import PatchForm
 from app.src.openobserve import log_event
-from app.src.validators import validate_id, verify_token, authorize_executive
+from app.src.validators import validate_id
+from app.src.validators import verify_token
+from app.src.validators import authorize_executive
 from app.src.functions import (
     enum_str,
     fuse_exception_responses,

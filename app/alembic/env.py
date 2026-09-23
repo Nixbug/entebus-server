@@ -5,7 +5,8 @@ from alembic import context
 from geoalchemy2 import alembic_helpers
 
 # import your app’s DB metadata + runtime DB URL
-from app.src.db import ORMbase, get_db_url
+from app.src.db import ORMbase
+from app.src.db import get_db_url
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

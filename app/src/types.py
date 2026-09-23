@@ -3,7 +3,10 @@ from typing import TypeVar
 from pydantic import BaseModel
 from shapely.geometry.base import BaseGeometry
 
-from app.src.db import ExecutiveToken, ORMbase, OperatorToken, VendorToken
+from app.src.db import ExecutiveToken
+from app.src.db import ORMbase
+from app.src.db import OperatorToken
+from app.src.db import VendorToken
 
 # ---------------------------------------------------------------------------
 ## Type Variables

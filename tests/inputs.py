@@ -2,13 +2,15 @@
 This module generates input data or payloads for tests.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
+from datetime import timedelta
 from io import BytesIO
 from PIL import Image
 import numpy as np
 from shapely import wkt
 
-from app.src.constants import SERVICE_CREATION_LEAD_TIME_DAYS, TMZ_PRIMARY
+from app.src.constants import SERVICE_CREATION_LEAD_TIME_DAYS
+from app.src.constants import TMZ_PRIMARY
 from app.src.enums import (
     BusinessType,
     GenderType,

@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Optional, cast
+from typing import Optional
+from typing import cast
 from sqlalchemy.orm import Session
 import time
 from dateutil import rrule as rrulelib
@@ -9,8 +10,12 @@ from app.api.service import CreateForm as ServiceCreateForm
 from app.api.service_assignment import CreateForm as ServiceAssignmentCreateForm
 from app.api.service_assignment import create_service_assignment
 from app.src import exceptions
-from app.src.constants import TMZ_PRIMARY, TMZ_SECONDARY
-from app.src.enums import JobType, NotificationType, OperatorType, TriggeringMode
+from app.src.constants import TMZ_PRIMARY
+from app.src.constants import TMZ_SECONDARY
+from app.src.enums import JobType
+from app.src.enums import NotificationType
+from app.src.enums import OperatorType
+from app.src.enums import TriggeringMode
 from app.src.redis import (
     acquire_lock,
     release_lock,

@@ -11,15 +11,25 @@ Provides endpoints for managing vendor images:
 from datetime import datetime
 from enum import StrEnum
 from io import BytesIO
-from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import File
+from fastapi import Form
+from fastapi import Query
+from fastapi import Response
+from fastapi import UploadFile
+from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
-from app.api.bearer import bearer_vendor, oauth2_executive
-from app.src import exceptions, schemas
+from app.api.bearer import bearer_vendor
+from app.api.bearer import oauth2_executive
+from app.src import exceptions
+from app.src import schemas
 from app.src.buckets import VENDOR_IMAGES
 from app.src.constants import (
     MAX_IMAGE_FILE_SIZE,
@@ -36,7 +46,10 @@ from app.src.db import (
 )
 from app.src.description import Description
 from app.src.enums import OrderIn
-from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, PictureFilter
+from app.src.filters import CreatedOnFilter
+from app.src.filters import IDFilter
+from app.src.filters import PaginationFilter
+from app.src.filters import PictureFilter
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
@@ -48,7 +61,9 @@ from app.src.functions import (
     get_vendor_roles,
     resize_image,
 )
-from app.src.minio import delete_file, download_file, upload_file
+from app.src.minio import delete_file
+from app.src.minio import download_file
+from app.src.minio import upload_file
 from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.vendor import PermissionPath as VendorPermissionPath

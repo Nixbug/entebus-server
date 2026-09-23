@@ -18,8 +18,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.src.schemas import HealthStatus
-from app.src.constants import API_TITLE, API_VERSION, CORS_ORIGINS
-from app.api.controller import app_executive, app_operator, app_vendor, app_public
+from app.src.constants import API_TITLE
+from app.src.constants import API_VERSION
+from app.src.constants import CORS_ORIGINS
+from app.api.controller import app_executive
+from app.api.controller import app_operator
+from app.api.controller import app_vendor
+from app.api.controller import app_public
 from app.src.urls import URL_HEALTH
 from app.src.scheduler import start_job_manager
 

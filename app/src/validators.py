@@ -5,9 +5,14 @@ It includes reusable utilities to handle common operations,
 making it easier for developers to integrate them into their projects.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
+from datetime import timedelta
 from enum import IntEnum
-from typing import Any, List, Mapping, Sequence, Type
+from typing import Any
+from typing import List
+from typing import Mapping
+from typing import Sequence
+from typing import Type
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm import InstrumentedAttribute
@@ -15,9 +20,12 @@ from sqlalchemy.orm.session import Session
 import math
 import mimetypes
 from io import BytesIO
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
+from PIL import UnidentifiedImageError
 from shapely.geometry.base import BaseGeometry
-from shapely import Polygon, wkt, errors
+from shapely import Polygon
+from shapely import wkt
+from shapely import errors
 from dateutil.rrule import rrulestr
 
 from app.src.functions import (
@@ -27,8 +35,12 @@ from app.src.functions import (
     get_operator_roles,
     get_vendor_roles,
 )
-from app.src import argon2, exceptions
-from app.src.enums import AccountStatus, BusinessStatus, CompanyStatus, GrantType
+from app.src import argon2
+from app.src import exceptions
+from app.src.enums import AccountStatus
+from app.src.enums import BusinessStatus
+from app.src.enums import CompanyStatus
+from app.src.enums import GrantType
 from app.src.db import (
     Executive,
     ExecutiveRole,
@@ -53,7 +65,9 @@ from app.src.constants import (
     TMZ_PRIMARY,
 )
 from app.src.dynamic_fare.v1 import DynamicFare
-from app.src.types import GeometryT, ORMbaseT, TokenT
+from app.src.types import GeometryT
+from app.src.types import ORMbaseT
+from app.src.types import TokenT
 from app.src.types import EnumT
 
 

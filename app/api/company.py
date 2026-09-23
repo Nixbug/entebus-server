@@ -11,19 +11,28 @@ Provides endpoints for managing companies:
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated
-from fastapi import APIRouter, Query, Response, status, Depends
+from fastapi import APIRouter
+from fastapi import Query
+from fastapi import Response
+from fastapi import status
+from fastapi import Depends
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 from shapely import wkt
 from shapely.geometry import Point
 from sqlalchemy.orm.session import Session
-from sqlalchemy import func, String, or_
+from sqlalchemy import func
+from sqlalchemy import String
+from sqlalchemy import or_
 from sqlalchemy.sql import ColumnElement
 from geoalchemy2 import Geography
 
-from app.api.bearer import oauth2_executive, bearer_operator
+from app.api.bearer import oauth2_executive
+from app.api.bearer import bearer_operator
 from app.src import schemas
-from app.src.buckets import OPERATOR_IMAGES, VEHICLE_IMAGES
+from app.src.buckets import OPERATOR_IMAGES
+from app.src.buckets import VEHICLE_IMAGES
 from app.src.db import (
     Company,
     CompanyWallet,
@@ -48,7 +57,9 @@ from app.src.permissions.executive import PermissionPath as ExecutivePermissionP
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src import exceptions
 from app.src.regex import NAME_PATTERN
-from app.src.enums import CompanyStatus, CompanyType, OrderIn
+from app.src.enums import CompanyStatus
+from app.src.enums import CompanyType
+from app.src.enums import OrderIn
 from app.src.urls import URL_COMPANY
 from app.src.schemas import PatchForm
 from app.src.openobserve import log_event

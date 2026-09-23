@@ -9,14 +9,19 @@ Provides endpoints for managing duties:
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import Query
+from fastapi import status
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 from sqlalchemy.orm.session import Session
 from sqlalchemy import func
 from sqlalchemy.sql import ColumnElement
 
-from app.api.bearer import bearer_operator, oauth2_executive
+from app.api.bearer import bearer_operator
+from app.api.bearer import oauth2_executive
 from app.src.constants import TMZ_PRIMARY
 from app.src.db import (
     OperatorToken,
@@ -26,7 +31,8 @@ from app.src.db import (
     PaperTicket,
     get_db_session,
 )
-from app.src.enums import DutyStatus, ServiceStatus
+from app.src.enums import DutyStatus
+from app.src.enums import ServiceStatus
 from app.src.urls import URL_DUTY
 from app.src.validators import (
     verify_token,
@@ -48,11 +54,16 @@ from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
 )
-from app.src.redis import acquire_lock, release_lock
-from app.src import exceptions, schemas
+from app.src.redis import acquire_lock
+from app.src.redis import release_lock
+from app.src import exceptions
+from app.src import schemas
 from app.src.schemas import PatchForm
 from app.src.enums import OrderIn
-from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, UpdatedOnFilter
+from app.src.filters import CreatedOnFilter
+from app.src.filters import IDFilter
+from app.src.filters import PaginationFilter
+from app.src.filters import UpdatedOnFilter
 from app.api.service import construct_service_transition_lock
 
 route_executive = APIRouter()

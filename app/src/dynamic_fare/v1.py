@@ -1,5 +1,7 @@
-from py_mini_racer import MiniRacer, py_mini_racer
-from app.src.constants import JSX_TIMEOUT_MS, JSX_MAX_MEMORY_BYTES
+from py_mini_racer import MiniRacer
+from py_mini_racer import py_mini_racer
+from app.src.constants import JSX_TIMEOUT_MS
+from app.src.constants import JSX_MAX_MEMORY_BYTES
 from app.src import exceptions
 
 

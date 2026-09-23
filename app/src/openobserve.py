@@ -10,7 +10,10 @@ These functions are primarily used for auditing, analytics,
 and monitoring of API activities across different application contexts.
 """
 
-import base64, json, logging, requests
+import base64
+import json
+import logging
+import requests
 from requests import Response
 
 from app.src.constants import (
@@ -23,7 +26,9 @@ from app.src.constants import (
     OPENOBSERVE_STREAM,
     OPENOBSERVE_USERNAME,
 )
-from app.src.db import ExecutiveToken, OperatorToken, VendorToken
+from app.src.db import ExecutiveToken
+from app.src.db import OperatorToken
+from app.src.db import VendorToken
 from app.src.schemas import RequestInfo
 
 # ---------------------------------------------------------------------------

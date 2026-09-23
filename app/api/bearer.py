@@ -7,7 +7,8 @@ Each authentication scheme is designed to enforce role-based access control
 for protected API endpoints.
 """
 
-from fastapi.security import HTTPBearer, OAuth2PasswordBearer
+from fastapi.security import HTTPBearer
+from fastapi.security import OAuth2PasswordBearer
 
 # OAuth2 Password Bearer scheme for Executive users
 oauth2_executive = OAuth2PasswordBearer(

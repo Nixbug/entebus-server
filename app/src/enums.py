@@ -9,7 +9,8 @@ They are primarily used for:
     - Consistent state management across services.
 """
 
-from enum import IntEnum, StrEnum
+from enum import IntEnum
+from enum import StrEnum
 
 
 class AppID(IntEnum):

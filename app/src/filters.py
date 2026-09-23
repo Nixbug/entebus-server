@@ -7,9 +7,11 @@ This module defines reusable Pydantic models for filtering database queries.
 from datetime import datetime
 from typing import List
 from fastapi import Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 
-from app.src.enums import GenderType, PlatformType
+from app.src.enums import GenderType
+from app.src.enums import PlatformType
 from app.src.functions import enum_str
 
 

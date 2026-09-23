@@ -9,17 +9,26 @@ Provides endpoints for managing vendor tokens:
     - GET (vendor, executive)
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
+from datetime import timedelta
 from enum import StrEnum
 from typing import Optional
-from fastapi import APIRouter, Depends, Form, Query, Response, status
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import Form
+from fastapi import Query
+from fastapi import Response
+from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 from sqlalchemy.orm.session import Session
 
-from app.api.bearer import bearer_vendor, oauth2_executive
-from app.src import exceptions, schemas
+from app.api.bearer import bearer_vendor
+from app.api.bearer import oauth2_executive
+from app.src import exceptions
+from app.src import schemas
 from app.src.constants import (
     MAX_ACCESS_TOKEN_VALIDITY,
     MAX_REFRESH_TOKEN_VALIDITY,
@@ -32,7 +41,9 @@ from app.src.db import (
     get_db_session,
 )
 from app.src.description import Description
-from app.src.enums import GrantType, OrderIn, PlatformType
+from app.src.enums import GrantType
+from app.src.enums import OrderIn
+from app.src.enums import PlatformType
 from app.src.filters import (
     ClientDataFilter,
     CreatedOnFilter,

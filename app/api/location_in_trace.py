@@ -8,16 +8,23 @@ Provides endpoints for managing locations in traces:
 
 from datetime import datetime
 from enum import StrEnum
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import Query
+from fastapi import Response
+from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from geoalchemy2 import Geography
-from pydantic import BaseModel, Field
-from shapely import Point, wkt
+from pydantic import BaseModel
+from pydantic import Field
+from shapely import Point
+from shapely import wkt
 from sqlalchemy import func
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
-from app.api.bearer import bearer_operator, oauth2_executive
+from app.api.bearer import bearer_operator
+from app.api.bearer import oauth2_executive
 from app.src.db import (
     ExecutiveToken,
     LocationInTrace,
@@ -26,10 +33,14 @@ from app.src.db import (
     get_db_session,
 )
 from app.src import exceptions
-from app.src.constants import MAX_LOCATIONS_PER_BATCH, MAX_LOCATIONS_PER_TRACE
+from app.src.constants import MAX_LOCATIONS_PER_BATCH
+from app.src.constants import MAX_LOCATIONS_PER_TRACE
 from app.src.description import Description
-from app.src.enums import LocationType, OrderIn
-from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter
+from app.src.enums import LocationType
+from app.src.enums import OrderIn
+from app.src.filters import CreatedOnFilter
+from app.src.filters import IDFilter
+from app.src.filters import PaginationFilter
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,

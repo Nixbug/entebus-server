@@ -10,15 +10,23 @@ Provides endpoints for managing vendor roles:
 
 from datetime import datetime
 from enum import StrEnum
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import Query
+from fastapi import Response
+from fastapi import status
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, Field
-from sqlalchemy import String, or_
+from pydantic import BaseModel
+from pydantic import Field
+from sqlalchemy import String
+from sqlalchemy import or_
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
-from app.api.bearer import bearer_vendor, oauth2_executive
-from app.src import exceptions, schemas
+from app.api.bearer import bearer_vendor
+from app.api.bearer import oauth2_executive
+from app.src import exceptions
+from app.src import schemas
 from app.src.constants import MAX_VENDOR_ROLE
 from app.src.db import (
     ExecutiveToken,

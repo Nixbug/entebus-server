@@ -10,12 +10,19 @@ Provides endpoints for managing landmarks in routes:
 
 from datetime import datetime
 from enum import StrEnum
-from fastapi import APIRouter, Depends, status, Query, Response
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import status
+from fastapi import Query
+from fastapi import Response
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
-from pydantic import BaseModel, Field
-from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
+from pydantic import BaseModel
+from pydantic import Field
+from app.api.bearer import oauth2_executive
+from app.api.bearer import bearer_operator
+from app.api.bearer import bearer_vendor
 from app.src.db import (
     LandmarkInRoute,
     Route,
@@ -25,7 +32,8 @@ from app.src.db import (
     VendorToken,
     get_db_session,
 )
-from app.src.enums import OrderIn, WaypointType
+from app.src.enums import OrderIn
+from app.src.enums import WaypointType
 from app.src.urls import URL_LANDMARK_IN_ROUTE
 from app.src.validators import (
     validate_id,
@@ -45,7 +53,8 @@ from app.src.functions import (
     apply_created_on_filters,
     apply_updated_on_filters,
 )
-from app.src.redis import acquire_lock, release_lock
+from app.src.redis import acquire_lock
+from app.src.redis import release_lock
 from app.src.enums import RouteStatus
 from app.src.filters import (
     IDFilter,
@@ -55,7 +64,8 @@ from app.src.filters import (
 )
 from app.src.openobserve import log_event
 from app.src.description import Description
-from app.src import exceptions, schemas
+from app.src import exceptions
+from app.src import schemas
 from app.src.schemas import PatchForm
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath

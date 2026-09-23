@@ -13,7 +13,8 @@ from app.src.enums import (
     BusinessStatus,
 )
 
-from app.src import buckets, minio
+from app.src import buckets
+from app.src import minio
 from app.src.db import (
     BusinessWallet,
     CompanyWallet,

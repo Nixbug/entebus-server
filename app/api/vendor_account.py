@@ -11,16 +11,25 @@ Provides endpoints for managing vendor accounts:
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import Query
+from fastapi import Response
+from fastapi import status
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel
+from pydantic import EmailStr
+from pydantic import Field
 from pydantic_extra_types.phone_numbers import PhoneNumber
-from sqlalchemy import String, or_
+from sqlalchemy import String
+from sqlalchemy import or_
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
-from app.api.bearer import bearer_vendor, oauth2_executive
-from app.src import exceptions, schemas
+from app.api.bearer import bearer_vendor
+from app.api.bearer import oauth2_executive
+from app.src import exceptions
+from app.src import schemas
 from app.src.buckets import VENDOR_IMAGES
 from app.src.constants import MAX_VENDORS_PER_COMPANY
 from app.src.db import (
@@ -31,7 +40,10 @@ from app.src.db import (
     get_db_session,
 )
 from app.src.description import Description
-from app.src.enums import AccountStatus, GenderType, OrderIn, VendorType
+from app.src.enums import AccountStatus
+from app.src.enums import GenderType
+from app.src.enums import OrderIn
+from app.src.enums import VendorType
 from app.src.filters import (
     AccountDataFilter,
     CreatedOnFilter,
@@ -57,7 +69,8 @@ from app.src.minio import delete_file
 from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.vendor import PermissionPath as VendorPermissionPath
-from app.src.regex import PASSWORD_PATTERN, USERNAME_PATTERN
+from app.src.regex import PASSWORD_PATTERN
+from app.src.regex import USERNAME_PATTERN
 from app.src.schemas import PatchForm
 from app.src.urls import URL_VENDOR_ACCOUNT
 from app.src.validators import (

@@ -9,12 +9,16 @@ Provides endpoints for viewing and updating company-level notifications:
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter
+from fastapi import Depends
+from fastapi import Query
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 from sqlalchemy.orm.session import Session
 
-from app.api.bearer import bearer_operator, oauth2_executive
+from app.api.bearer import bearer_operator
+from app.api.bearer import oauth2_executive
 from app.src import exceptions
 from app.src import schemas
 from app.src.constants import TMZ_PRIMARY
@@ -26,8 +30,13 @@ from app.src.db import (
     OperatorToken,
     get_db_session,
 )
-from app.src.enums import NotificationType, OperatorType, OrderIn
-from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, UpdatedOnFilter
+from app.src.enums import NotificationType
+from app.src.enums import OperatorType
+from app.src.enums import OrderIn
+from app.src.filters import CreatedOnFilter
+from app.src.filters import IDFilter
+from app.src.filters import PaginationFilter
+from app.src.filters import UpdatedOnFilter
 from app.src.functions import (
     apply_created_on_filters,
     apply_id_filters,
@@ -39,7 +48,8 @@ from app.src.functions import (
 from app.src.openobserve import log_event
 from app.src.schemas import PatchForm
 from app.src.urls import URL_COMPANY_NOTIFICATION
-from app.src.validators import validate_id, verify_token
+from app.src.validators import validate_id
+from app.src.validators import verify_token
 
 route_executive = APIRouter()
 route_operator = APIRouter()

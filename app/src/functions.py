@@ -9,11 +9,16 @@ import pyproj
 from enum import Enum
 from io import BytesIO
 from PIL import Image
-from typing import Any, Dict, Sequence, Type
-from fastapi import Query, Request
+from typing import Any
+from typing import Dict
+from typing import Sequence
+from typing import Type
+from fastapi import Query
+from fastapi import Request
 from pydantic import BaseModel
 from shapely import wkb
-from sqlalchemy import asc, desc
+from sqlalchemy import asc
+from sqlalchemy import desc
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.orm.session import Session
 from shapely.geometry.base import BaseGeometry
@@ -22,7 +27,8 @@ from datetime import datetime
 from geoalchemy2.shape import from_shape
 from app.src.types import ORMbaseT
 
-from app.src import schemas, exceptions
+from app.src import schemas
+from app.src import exceptions
 from app.src.constants import TMZ_PRIMARY
 from app.src.db import (
     ExecutiveRole,
@@ -36,7 +42,8 @@ from app.src.db import (
     VendorRoleMap,
     VendorToken,
 )
-from app.src.types import BaseModelT, TokenT
+from app.src.types import BaseModelT
+from app.src.types import TokenT
 
 
 def get_request_info(request: Request) -> schemas.RequestInfo:

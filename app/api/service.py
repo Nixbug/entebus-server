@@ -12,17 +12,27 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from fastapi.encoders import jsonable_encoder
-from typing import Annotated, Any
-from fastapi import APIRouter, Query, Response
-from pydantic import BaseModel, Field
+from typing import Annotated
+from typing import Any
+from fastapi import APIRouter
+from fastapi import Query
+from fastapi import Response
+from pydantic import BaseModel
+from pydantic import Field
 from datetime import timedelta
-from fastapi import status, Depends
-from sqlalchemy import String, and_, func, or_
+from fastapi import status
+from fastapi import Depends
+from sqlalchemy import String
+from sqlalchemy import and_
+from sqlalchemy import func
+from sqlalchemy import or_
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import aliased
 
-from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
+from app.api.bearer import oauth2_executive
+from app.api.bearer import bearer_operator
+from app.api.bearer import bearer_vendor
 from app.api.fare import FareAttributes
 from app.src import schemas
 from app.src.schemas import PatchForm
@@ -89,8 +99,10 @@ from app.src.filters import (
 )
 from app.src.regex import NAME_PATTERN
 from app.src.digital_ticket.v1 import TicketCreator
-from app.src.constants import SERVICE_CREATION_LEAD_TIME_DAYS, TMZ_PRIMARY
-from app.src.redis import acquire_lock, release_lock
+from app.src.constants import SERVICE_CREATION_LEAD_TIME_DAYS
+from app.src.constants import TMZ_PRIMARY
+from app.src.redis import acquire_lock
+from app.src.redis import release_lock
 from app.api.fare import construct_fare_reference_lock
 from app.api.vehicle import construct_vehicle_reference_lock
 

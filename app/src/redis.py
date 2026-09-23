@@ -1,5 +1,6 @@
 from redis import Redis
-from typing import Optional, cast
+from typing import Optional
+from typing import cast
 from redis.exceptions import LockError
 from redis.lock import Lock
 import json

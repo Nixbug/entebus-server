@@ -8,16 +8,25 @@ Provides endpoints for managing routes:
     - GET (executive, operator, vendor, public)
 """
 
-from datetime import datetime, time
+from datetime import datetime
+from datetime import time
 from enum import StrEnum
-from fastapi import APIRouter, status, Depends, Query, Response
+from fastapi import APIRouter
+from fastapi import status
+from fastapi import Depends
+from fastapi import Query
+from fastapi import Response
 from sqlalchemy.orm.session import Session
-from sqlalchemy import or_, String
+from sqlalchemy import or_
+from sqlalchemy import String
 from sqlalchemy.sql import ColumnElement
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 
-from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
+from app.api.bearer import oauth2_executive
+from app.api.bearer import bearer_operator
+from app.api.bearer import bearer_vendor
 from app.src.db import (
     Route,
     ExecutiveToken,
@@ -26,7 +35,8 @@ from app.src.db import (
     VendorToken,
     get_db_session,
 )
-from app.src import exceptions, schemas
+from app.src import exceptions
+from app.src import schemas
 from app.src.schemas import PatchForm
 from app.src.openobserve import log_event
 from app.src.description import Description
@@ -59,7 +69,8 @@ from app.src.filters import (
 )
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
-from app.src.enums import OrderIn, RouteStatus
+from app.src.enums import OrderIn
+from app.src.enums import RouteStatus
 from app.src.constants import MAX_ROUTES_PER_COMPANY
 
 route_executive = APIRouter()

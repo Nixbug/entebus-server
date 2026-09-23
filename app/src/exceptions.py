@@ -11,13 +11,20 @@ It ensures consistent error responses across the API.
 
 from traceback import format_exception
 from logging import getLogger
-from typing import TYPE_CHECKING, Mapping, NoReturn
-from fastapi import status, HTTPException
-from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
-from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
+from typing import TYPE_CHECKING
+from typing import Mapping
+from typing import NoReturn
+from fastapi import status
+from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import ProgrammingError
+from psycopg2.errorcodes import UNIQUE_VIOLATION
+from psycopg2.errorcodes import FOREIGN_KEY_VIOLATION
 from pydantic import ValidationError
 from redis.exceptions import RedisError
-from requests.exceptions import ConnectionError, Timeout
+from requests.exceptions import ConnectionError
+from requests.exceptions import Timeout
 from sqlalchemy.orm import InstrumentedAttribute
 
 if TYPE_CHECKING:
