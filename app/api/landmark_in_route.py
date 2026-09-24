@@ -45,7 +45,7 @@ from app.src.functions import (
     apply_created_on_filters,
     apply_updated_on_filters,
 )
-from app.src.redis import acquire_lock, release_lock
+from app.src.valkey import acquire_lock, release_lock
 from app.src.enums import RouteStatus
 from app.src.filters import (
     IDFilter,

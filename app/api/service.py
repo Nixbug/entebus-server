@@ -90,7 +90,7 @@ from app.src.filters import (
 from app.src.regex import NAME_PATTERN
 from app.src.digital_ticket.v1 import TicketCreator
 from app.src.constants import SERVICE_CREATION_LEAD_TIME_DAYS, TMZ_PRIMARY
-from app.src.redis import acquire_lock, release_lock
+from app.src.valkey import acquire_lock, release_lock
 from app.api.fare import construct_fare_reference_lock
 from app.api.vehicle import construct_vehicle_reference_lock
 

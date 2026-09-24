@@ -46,7 +46,7 @@ from app.src.functions import (
 )
 from app.src.filters import PaginationFilter, IDFilter, CreatedOnFilter
 from app.src import exceptions
-from app.src.redis import acquire_lock, release_lock
+from app.src.valkey import acquire_lock, release_lock
 from app.src.dynamic_fare import v1
 from app.src.digital_ticket.v1 import TwoDecimalPlaces, TicketTypeSchema
 from app.api.service import construct_service_transition_lock

@@ -11,7 +11,7 @@ from app.api.service_assignment import create_service_assignment
 from app.src import exceptions
 from app.src.constants import TMZ_PRIMARY, TMZ_SECONDARY
 from app.src.enums import JobType, NotificationType, OperatorType, TriggeringMode
-from app.src.redis import (
+from app.src.valkey import (
     acquire_lock,
     release_lock,
     valkey_client,
