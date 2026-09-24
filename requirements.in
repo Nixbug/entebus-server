@@ -15,7 +15,7 @@ argon2-cffi
 minio
 requests
 pyproj
-redis
+valkey
 py-mini-racer
 Pillow
 python-dateutil
