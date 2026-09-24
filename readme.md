@@ -12,7 +12,7 @@ The **Entebus Server** is a high-performance API server built with [FastAPI](htt
 - 🐘 **PostGIS support** for geospatial data  
 - 📦 **MinIO integration** for object storage  
 - 📊 **OpenObserve** for logs, metrics & traces  
-- ⚡ **Redis support** for caching & queues  
+- ⚡ **Valkey support** for caching & queues  
 - 🐳 Ready-to-use **Docker image** with CI-friendly tags  
 - ☸️ Deployment ready for **Kubernetes**  
 
@@ -95,14 +95,14 @@ docker run -d --name openobserve \
     openobserve/openobserve:v0.80.3
 ```
 
-**Redis DB**
+**Valkey DB**
 
 ```bash
-docker run -d --name redis \
+docker run -d --name valkey \
     --restart unless-stopped \
     -p 6379:6379 \
-    redis:8.6.3-alpine \
-    redis-server --requirepass "password" --save "" --appendonly no
+    valkey/valkey:9.1.2-alpine \
+    valkey-server --requirepass "password" --save "" --appendonly no
 ```
 
 

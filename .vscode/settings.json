@@ -15,7 +15,8 @@
         "OPENOBSERVE",
         "rrule",
         "sessionmaker",
-        "sqlstate"
+        "sqlstate",
+        "valkey"
     ],
     "python.analysis.typeCheckingMode": "standard"
 }

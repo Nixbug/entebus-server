@@ -4,7 +4,7 @@ Centralized exception handling for EnteBus API.
 This module defines a unified approach to managing application errors by
 providing custom exception classes, formatting utilities, and a central
 `handle()` function to normalize and re-raise errors from various sources
-(e.g., database, Redis, Pydantic, network).
+(e.g., database, Valkey, Pydantic, network).
 
 It ensures consistent error responses across the API.
 """
@@ -16,7 +16,7 @@ from fastapi import status, HTTPException
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
 from pydantic import ValidationError
-from redis.exceptions import RedisError
+from valkey.exceptions import ValkeyError
 from requests.exceptions import ConnectionError, Timeout
 from sqlalchemy.orm import InstrumentedAttribute
 
@@ -84,7 +84,7 @@ def handle(e: Exception) -> NoReturn:
     """
     Normalize and re-raise exceptions as API-friendly errors.
 
-    Converts raw exceptions from DB, Pydantic, Redis, etc. into
+    Converts raw exceptions from DB, Pydantic, Valkey, etc. into
     corresponding APIException subclasses.
     """
     if isinstance(e, IntegrityError):
@@ -99,8 +99,8 @@ def handle(e: Exception) -> NoReturn:
         raise DatabaseError(detail=format_integrity_error(e))
     if isinstance(e, ValidationError):
         raise PydanticError(detail=e.errors())
-    if isinstance(e, RedisError):
-        raise RedisDBError(detail=str(e))
+    if isinstance(e, ValkeyError):
+        raise ValkeyDBError(detail=str(e))
     if isinstance(e, (OperationalError, ConnectionError, Timeout)):
         raise NetworkError(detail=str(e))
     # Log and raise an unhandled exception
@@ -119,7 +119,7 @@ class PydanticError(APIException):
     Raised when a Pydantic validation error occurs.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     headers = {"X-Error": "PydanticError"}
 
     def __init__(self, detail: str):
@@ -143,20 +143,20 @@ class ForeignKeyViolation(APIException):
     Raised when a foreign key constraint is violated.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     headers = {"X-Error": "ForeignKeyViolation"}
 
     def __init__(self, detail: str):
         super().__init__(detail=detail)
 
 
-class RedisDBError(APIException):
+class ValkeyDBError(APIException):
     """
-    Raised when a Redis database operation fails.
+    Raised when a Valkey database operation fails.
     """
 
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-    headers = {"X-Error": "RedisDBError"}
+    headers = {"X-Error": "ValkeyDBError"}
 
     def __init__(self, detail: str):
         super().__init__(detail=detail)
@@ -238,7 +238,7 @@ class InvalidValue(APIException):
     Raised when an invalid id or value is provided.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     headers = {"X-Error": "InvalidValue"}
 
     def __init__(self, column: InstrumentedAttribute | str):
@@ -265,7 +265,7 @@ class MissingParameter(APIException):
     Raised when a required parameter is missing from the request.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     headers = {"X-Error": "MissingParameter"}
 
     def __init__(self, column: InstrumentedAttribute):
@@ -276,7 +276,7 @@ class MissingParameter(APIException):
 class UnexpectedParameter(APIException):
     """Raised when an unexpected parameter is provided in the request."""
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     headers = {"X-Error": "UnexpectedParameter"}
 
     def __init__(self, column: InstrumentedAttribute):
@@ -342,7 +342,7 @@ class InvalidGrantType(APIException):
     Raised when an invalid grant type is provided.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "Invalid grant type"
     headers = {"X-Error": "InvalidGrantType"}
 
@@ -352,7 +352,7 @@ class InvalidImageFile(APIException):
     Raised when an invalid image file is provided.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     headers = {"X-Error": "InvalidImageFile"}
     detail = "Invalid image provided"
 
@@ -362,7 +362,7 @@ class InvalidWKTStringOrType(APIException):
     Raised when an invalid WKT string or type is provided.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "Invalid WKT string or type"
     headers = {"X-Error": "InvalidWKTStringOrType"}
 
@@ -372,7 +372,7 @@ class InvalidSRID4326(APIException):
     Raised when the SRID of a geometry is not 4326.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "Coordinates are outside valid WGS84 (SRID 4326) bounds"
     headers = {"X-Error": "InvalidSRID4326"}
 
@@ -382,7 +382,7 @@ class InvalidAABB(APIException):
     Raised when the geometry is not a valid Axis-Aligned Bounding Box.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "The geometry is not a valid Axis-Aligned Bounding Box"
     headers = {"X-Error": "InvalidAABB"}
 
@@ -392,7 +392,7 @@ class InvalidRRULEString(APIException):
     Raised when an invalid RRULE string is provided.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "Invalid RRULE string"
     headers = {"X-Error": "InvalidRRULEString"}
 
@@ -423,7 +423,7 @@ class InvalidBoundaryArea(APIException):
     Raised when the area of a landmark boundary is not within the prescribed limits.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "Boundary area not within the prescribed limits"
     headers = {"X-Error": "InvalidBoundaryArea"}
 
@@ -433,7 +433,7 @@ class StationOutsideLandmark(APIException):
     Raised when the station location is not within the landmark boundary.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "The station location is not within the landmark boundary"
     headers = {"X-Error": "StationOutsideLandmark"}
 
@@ -443,7 +443,7 @@ class LandmarkDistanceLimitExceeded(APIException):
     Raised when the updated landmark boundary is beyond the allowed distance limit.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "Landmark centroid movement exceeds allowed limit"
     headers = {"X-Error": "LandmarkDistanceLimitExceeded"}
 
@@ -453,7 +453,7 @@ class InvalidFareVersion(APIException):
     Raised when an invalid fare version is provided.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "Invalid dynamic fare version"
     headers = {"X-Error": "InvalidFareVersion"}
 
@@ -463,7 +463,7 @@ class InvalidFareFunction(APIException):
     Raised when an invalid fare function is provided.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "Invalid fare function"
     headers = {"X-Error": "InvalidFareFunction"}
 
@@ -473,7 +473,7 @@ class InvalidTicketVersion(APIException):
     Raised when an invalid ticket version is provided.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "Invalid ticket version"
     headers = {"X-Error": "InvalidTicketVersion"}
 
@@ -483,7 +483,7 @@ class InvalidDigitalTicket(APIException):
     Raised when an invalid digital ticket is provided.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "Invalid digital ticket"
     headers = {"X-Error": "InvalidDigitalTicket"}
 
@@ -493,7 +493,7 @@ class JSTimeLimitExceeded(APIException):
     Raised when JavaScript execution exceeds the time limit.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "JavaScript execution timed out"
     headers = {"X-Error": "JSTimeLimitExceeded"}
 
@@ -503,7 +503,7 @@ class JSMemoryLimitExceeded(APIException):
     Raised when JavaScript execution exceeds the memory limit.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "JavaScript memory limit exceeded"
     headers = {"X-Error": "JSMemoryLimitExceeded"}
 
@@ -513,14 +513,14 @@ class UnknownTicketType(APIException):
     Raised when an unknown ticket type is provided to the fare function.
     """
 
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     detail = "Unknown ticket type"
     headers = {"X-Error": "UnknownTicketType"}
 
 
 class LockAcquireTimeout(APIException):
     """
-    Raised when a Redis lock cannot be acquired within the specified timeout.
+    Raised when a Valkey lock cannot be acquired within the specified timeout.
     """
 
     status_code = status.HTTP_423_LOCKED

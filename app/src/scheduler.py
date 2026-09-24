@@ -11,10 +11,10 @@ from app.api.service_assignment import create_service_assignment
 from app.src import exceptions
 from app.src.constants import TMZ_PRIMARY, TMZ_SECONDARY
 from app.src.enums import JobType, NotificationType, OperatorType, TriggeringMode
-from app.src.redis import (
+from app.src.valkey import (
     acquire_lock,
     release_lock,
-    redis_client,
+    valkey_client,
     queue_push,
     queue_pop,
 )
@@ -231,7 +231,7 @@ def load_jobs_to_queue() -> int:
 
         with SessionLocal() as session:
             last_job_id = int(
-                cast(Optional[str], redis_client.get(GLOB_LAST_JOB_ID)) or 0
+                cast(Optional[str], valkey_client.get(GLOB_LAST_JOB_ID)) or 0
             )
             jobs = (
                 session.query(Job)
@@ -252,14 +252,14 @@ def load_jobs_to_queue() -> int:
                     {"job_id": job.id},
                 )
 
-            # Update the last job ID in Redis
+            # Update the last job ID in Valkey
             if jobs:
-                redis_client.set(
+                valkey_client.set(
                     GLOB_LAST_JOB_ID,
                     jobs[-1].id,
                 )
             else:
-                redis_client.set(
+                valkey_client.set(
                     GLOB_LAST_JOB_ID,
                     0,
                 )

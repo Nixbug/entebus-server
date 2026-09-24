@@ -48,7 +48,7 @@ from app.src.functions import (
     fuse_exception_responses,
     get_request_info,
 )
-from app.src.redis import acquire_lock, release_lock
+from app.src.valkey import acquire_lock, release_lock
 from app.src import exceptions, schemas
 from app.src.schemas import PatchForm
 from app.src.enums import OrderIn

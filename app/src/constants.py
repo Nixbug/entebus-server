@@ -52,11 +52,11 @@ LOGGING_TYPE = environ.get("LOGGING_TYPE", "OPENOBSERVE")
 
 
 # ---------------------------------------------------------------------------
-# Redis configuration
+# Valkey configuration
 # ---------------------------------------------------------------------------
-REDIS_HOST = environ.get("REDIS_HOST", "localhost")
-REDIS_PORT = environ.get("REDIS_PORT", "6379")
-REDIS_PASSWORD = environ.get("REDIS_PASSWORD", "password")
+VALKEY_HOST = environ.get("VALKEY_HOST", "localhost")
+VALKEY_PORT = environ.get("VALKEY_PORT", "6379")
+VALKEY_PASSWORD = environ.get("VALKEY_PASSWORD", "password")
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +123,7 @@ JSX_MAX_MEMORY_BYTES = 68 * 1024  # Max memory size (68 KB)
 
 
 # ---------------------------------------------------------------------------
-# Redis mutex lock constants
+# Valkey mutex lock constants
 # ---------------------------------------------------------------------------
 # Maximum time a lock can be held before it is automatically released (in seconds)
 LOCK_TIMEOUT_SECONDS = 10

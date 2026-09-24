@@ -45,7 +45,7 @@ from app.src.functions import (
     apply_created_on_filters,
     apply_updated_on_filters,
 )
-from app.src.redis import acquire_lock, release_lock
+from app.src.valkey import acquire_lock, release_lock
 from app.src.enums import RouteStatus
 from app.src.filters import (
     IDFilter,
@@ -171,7 +171,7 @@ class QueryParams(QueryParamsForEX):
 # ---------------------------------------------------------------------------
 def construct_route_transition_lock(route_id: int) -> str:
     """
-    Creates a Redis lock key used to prevent concurrent route transition operations.
+    Creates a Valkey lock key used to prevent concurrent route transition operations.
 
     Prevents concurrent create, update, and delete operations on the same
     route, as these actions can affect the route's status and validation.
