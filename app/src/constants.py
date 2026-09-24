@@ -123,7 +123,7 @@ JSX_MAX_MEMORY_BYTES = 68 * 1024  # Max memory size (68 KB)
 
 
 # ---------------------------------------------------------------------------
-# Redis mutex lock constants
+# Valkey mutex lock constants
 # ---------------------------------------------------------------------------
 # Maximum time a lock can be held before it is automatically released (in seconds)
 LOCK_TIMEOUT_SECONDS = 10

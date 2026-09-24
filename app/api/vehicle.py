@@ -218,7 +218,7 @@ class QueryParams(QueryParamsForEX):
 # ---------------------------------------------------------------------------
 def construct_vehicle_reference_lock(vehicle_id: int, version: int) -> str:
     """
-    Creates a Redis lock key for Vehicle snapshot creation and reference operations.
+    Creates a Valkey lock key for Vehicle snapshot creation and reference operations.
 
     Serializes access to Vehicle snapshot operations for the same
     vehicle_id, preventing concurrent creation or reference count
@@ -229,7 +229,7 @@ def construct_vehicle_reference_lock(vehicle_id: int, version: int) -> str:
         version (int): Version of the vehicle.
 
     Returns:
-        str: Redis lock key in the format "lk_vehicle_:<vehicle_id>:<version>".
+        str: Valkey lock key in the format "lk_vehicle_:<vehicle_id>:<version>".
     """
     return f"lk_vehicle_:{vehicle_id}:{version}"
 

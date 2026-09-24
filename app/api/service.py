@@ -296,7 +296,7 @@ class QueryParams(QueryParamsForEX):
 # ---------------------------------------------------------------------------
 def construct_service_transition_lock(service_id: int) -> str:
     """
-    Creates a Redis lock key for a service.
+    Creates a Valkey lock key for a service.
 
     Prevents concurrent service transitions, duty state transitions,
     duty creation, and paper ticket creation for the same service.
@@ -309,7 +309,7 @@ def construct_service_transition_lock(service_id: int) -> str:
 
 def construct_service_creation_lock(registration_number: str) -> str:
     """
-    Creates a Redis lock key for service creation.
+    Creates a Valkey lock key for service creation.
 
     Prevents overlapping services from being created concurrently
     for the same vehicle registration number.

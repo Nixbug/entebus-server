@@ -186,7 +186,7 @@ class QueryParams(QueryParamsForEX):
 # ---------------------------------------------------------------------------
 def construct_fare_reference_lock(fare_id: int, version: int) -> str:
     """
-    Creates a Redis lock key for Fare snapshot creation and reference operations.
+    Creates a Valkey lock key for Fare snapshot creation and reference operations.
 
     Serializes access to Fare snapshot operations for the same
     fare_id, preventing concurrent creation or reference count
@@ -197,7 +197,7 @@ def construct_fare_reference_lock(fare_id: int, version: int) -> str:
         version (int): Version of the fare.
 
     Returns:
-        str: Redis lock key in the format "lk_fare_:<fare_id>:<version>".
+        str: Valkey lock key in the format "lk_fare_:<fare_id>:<version>".
     """
     return f"lk_fare_:{fare_id}:{version}"
 

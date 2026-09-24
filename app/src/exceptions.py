@@ -4,7 +4,7 @@ Centralized exception handling for EnteBus API.
 This module defines a unified approach to managing application errors by
 providing custom exception classes, formatting utilities, and a central
 `handle()` function to normalize and re-raise errors from various sources
-(e.g., database, Redis, Pydantic, network).
+(e.g., database, Valkey, Pydantic, network).
 
 It ensures consistent error responses across the API.
 """
@@ -16,7 +16,7 @@ from fastapi import status, HTTPException
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from psycopg2.errorcodes import UNIQUE_VIOLATION, FOREIGN_KEY_VIOLATION
 from pydantic import ValidationError
-from redis.exceptions import RedisError
+from valkey.exceptions import ValkeyError
 from requests.exceptions import ConnectionError, Timeout
 from sqlalchemy.orm import InstrumentedAttribute
 
@@ -84,7 +84,7 @@ def handle(e: Exception) -> NoReturn:
     """
     Normalize and re-raise exceptions as API-friendly errors.
 
-    Converts raw exceptions from DB, Pydantic, Redis, etc. into
+    Converts raw exceptions from DB, Pydantic, Valkey, etc. into
     corresponding APIException subclasses.
     """
     if isinstance(e, IntegrityError):
@@ -99,8 +99,8 @@ def handle(e: Exception) -> NoReturn:
         raise DatabaseError(detail=format_integrity_error(e))
     if isinstance(e, ValidationError):
         raise PydanticError(detail=e.errors())
-    if isinstance(e, RedisError):
-        raise RedisDBError(detail=str(e))
+    if isinstance(e, ValkeyError):
+        raise ValkeyDBError(detail=str(e))
     if isinstance(e, (OperationalError, ConnectionError, Timeout)):
         raise NetworkError(detail=str(e))
     # Log and raise an unhandled exception
@@ -150,13 +150,13 @@ class ForeignKeyViolation(APIException):
         super().__init__(detail=detail)
 
 
-class RedisDBError(APIException):
+class ValkeyDBError(APIException):
     """
-    Raised when a Redis database operation fails.
+    Raised when a Valkey database operation fails.
     """
 
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-    headers = {"X-Error": "RedisDBError"}
+    headers = {"X-Error": "ValkeyDBError"}
 
     def __init__(self, detail: str):
         super().__init__(detail=detail)
@@ -520,7 +520,7 @@ class UnknownTicketType(APIException):
 
 class LockAcquireTimeout(APIException):
     """
-    Raised when a Redis lock cannot be acquired within the specified timeout.
+    Raised when a Valkey lock cannot be acquired within the specified timeout.
     """
 
     status_code = status.HTTP_423_LOCKED
