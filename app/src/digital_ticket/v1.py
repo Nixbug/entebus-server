@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated, Any, List, Dict
+from typing import Annotated, Any, List, Dict, cast
 from base91 import encode, decode
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
@@ -86,8 +86,8 @@ class DigitalTicket:
         if len(body_and_signature) < minimum_payload_size:
             raise InvalidDigitalTicket()
 
-        ticket_signature = body_and_signature[: TicketCreator.SIGNATURE_SIZE]
-        ticket_body = body_and_signature[TicketCreator.SIGNATURE_SIZE :]
+        ticket_signature = bytes(body_and_signature[: TicketCreator.SIGNATURE_SIZE])
+        ticket_body = bytes(body_and_signature[TicketCreator.SIGNATURE_SIZE :])
         return DigitalTicket(ticket_signature, ticket_body)
 
     def expand(self, ticket_attributes: dict) -> dict:
@@ -145,7 +145,7 @@ class TicketCreator:
         S_COMPONENT_SIZE (int): Size of S component of ECDSA signature.
     """
 
-    SIGNATURE_SIZE = 42  # Bytes
+    SIGNATURE_SIZE = 48  # Bytes
     FIXED_PART_SIZE = 24  # Bytes
     R_COMPONENT_SIZE = int(SIGNATURE_SIZE / 2)
     S_COMPONENT_SIZE = int(SIGNATURE_SIZE / 2)
@@ -155,19 +155,23 @@ class TicketCreator:
     ):
         """
         Initializes the TicketCreator with optional PEM keys.
-        If not provided, a new SECT163K1 key pair will be generated.
+        If not provided, a new SECP192R1 key pair will be generated.
 
         Args:
             pem_private_key (bytes | None, optional): PEM-encoded private key.
             pem_public_key (bytes | None, optional): PEM-encoded public key.
         """
         if pem_private_key and pem_public_key:
-            self._private_key = serialization.load_pem_private_key(
-                pem_private_key, password=None
+            self._private_key = cast(
+                ec.EllipticCurvePrivateKey,
+                serialization.load_pem_private_key(pem_private_key, password=None),
             )
-            self._public_key = serialization.load_pem_public_key(pem_public_key)
+            self._public_key = cast(
+                ec.EllipticCurvePublicKey,
+                serialization.load_pem_public_key(pem_public_key),
+            )
         else:
-            self._private_key = ec.generate_private_key(ec.SECT163K1())
+            self._private_key = ec.generate_private_key(ec.SECP192R1())
             self._public_key = self._private_key.public_key()
 
     def create_ticket(
@@ -213,7 +217,7 @@ class TicketCreator:
                     1, byteorder="big", signed=False
                 )
                 variable_part += ticket_type_id_byte + ticket_count_byte
-        ticket_body = fixed_part + variable_part
+        ticket_body: bytes = fixed_part + bytes(variable_part)
 
         # Create the digital signature and construct the digital ticket
         encoded_ticket_signature = self.private_key.sign(
