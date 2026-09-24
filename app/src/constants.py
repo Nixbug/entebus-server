@@ -52,11 +52,11 @@ LOGGING_TYPE = environ.get("LOGGING_TYPE", "OPENOBSERVE")
 
 
 # ---------------------------------------------------------------------------
-# Redis configuration
+# Valkey configuration
 # ---------------------------------------------------------------------------
-REDIS_HOST = environ.get("REDIS_HOST", "localhost")
-REDIS_PORT = environ.get("REDIS_PORT", "6379")
-REDIS_PASSWORD = environ.get("REDIS_PASSWORD", "password")
+VALKEY_HOST = environ.get("VALKEY_HOST", "localhost")
+VALKEY_PORT = environ.get("VALKEY_PORT", "6379")
+VALKEY_PASSWORD = environ.get("VALKEY_PASSWORD", "password")
 
 
 # ---------------------------------------------------------------------------
