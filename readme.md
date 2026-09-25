@@ -108,7 +108,8 @@ docker run -d --name valkey \
 
 ## 🗄️ Database Setup & Management
 
-All database migrations and schema management are handled via **Alembic** and the helper script `setup.py`. This script provides commands for revising, migrating, resetting, and managing DB tables and the MinIO bucket.
+All database migrations and schema management are handled via **Alembic** and the helper script `setup.py`. This script provides commands for revising, migrating, resetting, and managing DB tables and the MinIO bucket.
+
 
 ### Usage
 
