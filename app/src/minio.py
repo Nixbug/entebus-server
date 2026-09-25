@@ -16,7 +16,7 @@ client: Minio = Minio(
     endpoint=f"{MINIO_HOST}:{MINIO_PORT}",
     access_key=MINIO_USERNAME,
     secret_key=MINIO_PASSWORD,
-    secure=False,
+    secure=(MINIO_PORT == "443"),
 )
 
 
