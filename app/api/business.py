@@ -23,7 +23,7 @@ from geoalchemy2 import Geography
 
 from app.api.bearer import oauth2_executive, bearer_vendor
 from app.src import schemas
-from app.src.buckets import VENDOR_IMAGES
+from app.src.constants import MINIO_BUCKET
 from app.src.db import (
     Business,
     BusinessWallet,
@@ -51,6 +51,7 @@ from app.src.enums import BusinessStatus, BusinessType, OrderIn
 from app.src.urls import URL_BUSINESS
 from app.src.schemas import PatchForm
 from app.src.openobserve import log_event
+from app.src.prefixes import PREFIX_FOR_VENDOR_IMAGES
 from app.src.description import Description
 from app.src.validators import (
     validate_id,
@@ -470,7 +471,7 @@ def delete_business(
 
     # Delete vendor images from object storage
     for vendor_image in vendor_images:
-        delete_file(VENDOR_IMAGES, str(vendor_image.id))
+        delete_file(MINIO_BUCKET, f"{PREFIX_FOR_VENDOR_IMAGES}/{vendor_image.id}")
 
     log_event(token, request_info, business_data)
 

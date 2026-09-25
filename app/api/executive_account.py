@@ -19,7 +19,7 @@ from sqlalchemy import String, or_
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive
-from app.src.buckets import EXECUTIVE_IMAGES
+from app.src.constants import MINIO_BUCKET
 from app.src.db import Executive, ExecutiveImage, ExecutiveToken, get_db_session
 from app.src.enums import AccountStatus, GenderType, OrderIn
 from app.src.filters import (
@@ -55,6 +55,7 @@ from app.src.functions import (
     update_if_changed,
     get_executive_roles,
 )
+from app.src.prefixes import PREFIX_FOR_EXECUTIVE_IMAGES
 from app.src.description import Description
 
 route_executive = APIRouter()
@@ -335,7 +336,7 @@ def delete_executive(
 
     # Delete executive images from object storage.
     for executive_image in executive_images:
-        delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
+        delete_file(MINIO_BUCKET, f"{PREFIX_FOR_EXECUTIVE_IMAGES}/{executive_image.id}")
 
     log_event(token, request_info, executive_account_data)
 

@@ -17,7 +17,6 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
 
-from app.src.buckets import EXECUTIVE_IMAGES
 from app.src import exceptions, schemas
 from app.src.enums import OrderIn
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, PictureFilter
@@ -27,6 +26,7 @@ from app.api.bearer import oauth2_executive
 from app.src.db import Executive, ExecutiveImage, ExecutiveToken, get_db_session
 from app.src.permissions.executive import PermissionPath
 from app.src.openobserve import log_event
+from app.src.prefixes import PREFIX_FOR_EXECUTIVE_IMAGES
 from app.src.description import Description
 from app.src.validators import (
     verify_permission,
@@ -35,6 +35,7 @@ from app.src.validators import (
     validate_image,
 )
 from app.src.constants import (
+    MINIO_BUCKET,
     MAX_IMAGE_FILE_SIZE,
     MAX_IMAGE_RESOLUTION,
     MIN_IMAGE_FILE_SIZE,
@@ -164,8 +165,8 @@ async def create_executive_image(
     session.add(executive_image)
     session.flush()
     upload_file(
-        EXECUTIVE_IMAGES,
-        str(executive_image.id),
+        MINIO_BUCKET,
+        f"{PREFIX_FOR_EXECUTIVE_IMAGES}/{executive_image.id}",
         len(file_bytes),
         BytesIO(file_bytes),
     )
@@ -195,7 +196,7 @@ def delete_executive_image(
     executive_image_data = jsonable_encoder(executive_image)
     session.delete(executive_image)
     session.commit()
-    delete_file(EXECUTIVE_IMAGES, str(executive_image.id))
+    delete_file(MINIO_BUCKET, f"{PREFIX_FOR_EXECUTIVE_IMAGES}/{executive_image.id}")
     log_event(token, request_info, executive_image_data)
 
 
@@ -256,7 +257,10 @@ def fetch_executive_image(
     if executive_image is None:
         raise exceptions.UnknownValue(ExecutiveImage.id)
 
-    file_bytes = download_file(EXECUTIVE_IMAGES, str(executive_image.id))
+    file_bytes = download_file(
+        MINIO_BUCKET,
+        f"{PREFIX_FOR_EXECUTIVE_IMAGES}/{executive_image.id}",
+    )
     assert file_bytes is not None, "Downloaded file bytes should not be None"
     resized_bytes = resize_image(
         file_bytes,
