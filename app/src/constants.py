@@ -66,6 +66,7 @@ MINIO_HOST = environ.get("MINIO_HOST", "localhost")
 MINIO_PORT = environ.get("MINIO_PORT", "9000")
 MINIO_USERNAME = environ.get("MINIO_USERNAME", "minio")
 MINIO_PASSWORD = environ.get("MINIO_PASSWORD", "password")
+MINIO_BUCKET = environ.get("MINIO_BUCKET", "entebus-development")
 
 
 # ---------------------------------------------------------------------------
