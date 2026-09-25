@@ -4,6 +4,7 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
 from alembic.script import ScriptDirectory
+from app.src.constants import MINIO_BUCKET
 from app.src.enums import (
     CompanyStatus,
     GenderType,
@@ -13,7 +14,7 @@ from app.src.enums import (
     BusinessStatus,
 )
 
-from app.src import buckets, minio
+from app.src import minio
 from app.src.db import (
     BusinessWallet,
     CompanyWallet,
@@ -90,16 +91,14 @@ def downgrade(step):
     print(f"* Database downgraded to {step}")
 
 
-def create_buckets():
-    for bucket in buckets.ALL:
-        minio.create_bucket(bucket)
-    print("* All buckets created")
+def create_bucket():
+    minio.create_bucket(MINIO_BUCKET)
+    print("* Bucket created")
 
 
-def delete_buckets():
-    for bucket in buckets.ALL:
-        minio.delete_bucket(bucket)
-    print("* All buckets deleted")
+def delete_bucket():
+    minio.delete_bucket(MINIO_BUCKET)
+    print("* Bucket deleted")
 
 
 def create_tables():
@@ -335,13 +334,13 @@ def main():
         "message", nargs="?", default="auto revise", help="Revision message"
     )
 
-    buckets_parser = subparsers.add_parser("buckets", help="Storage bucket commands")
-    buckets_subparsers = buckets_parser.add_subparsers(
+    bucket_parser = subparsers.add_parser("bucket", help="Storage bucket commands")
+    bucket_subparsers = bucket_parser.add_subparsers(
         dest="command", required=True, help="Bucket command"
     )
 
-    buckets_subparsers.add_parser("create", help="Create storage buckets")
-    buckets_subparsers.add_parser("delete", help="Delete storage buckets")
+    bucket_subparsers.add_parser("create", help="Create storage bucket")
+    bucket_subparsers.add_parser("delete", help="Delete storage bucket")
 
     args = parser.parse_args()
 
@@ -361,11 +360,11 @@ def main():
             downgrade(args.steps)
         elif args.command == "revise":
             revise(args.message)
-    elif args.group == "buckets":
+    elif args.group == "bucket":
         if args.command == "create":
-            create_buckets()
+            create_bucket()
         elif args.command == "delete":
-            delete_buckets()
+            delete_bucket()
 
 
 if __name__ == "__main__":

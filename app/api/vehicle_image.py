@@ -19,7 +19,6 @@ from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive, bearer_operator
-from app.src.buckets import VEHICLE_IMAGES
 from app.src import exceptions, schemas
 from app.src.enums import OrderIn
 from app.src.filters import CreatedOnFilter, IDFilter, PaginationFilter, PictureFilter
@@ -35,6 +34,7 @@ from app.src.db import (
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.openobserve import log_event
+from app.src.prefixes import PREFIX_VEHICLE_IMAGES
 from app.src.description import Description
 from app.src.validators import (
     verify_token,
@@ -44,6 +44,7 @@ from app.src.validators import (
     authorize_operator,
 )
 from app.src.constants import (
+    MINIO_BUCKET,
     MAX_IMAGE_FILE_SIZE,
     MAX_IMAGE_RESOLUTION,
     MIN_IMAGE_FILE_SIZE,
@@ -217,8 +218,8 @@ async def create_vehicle_image(
     session.add(vehicle_image)
     session.flush()
     upload_file(
-        VEHICLE_IMAGES,
-        str(vehicle_image.id),
+        MINIO_BUCKET,
+        f"{PREFIX_VEHICLE_IMAGES}/{vehicle_image.id}",
         len(file_bytes),
         BytesIO(file_bytes),
     )
@@ -256,7 +257,7 @@ def delete_vehicle_image(
     vehicle_image_data = jsonable_encoder(vehicle_image)
     session.delete(vehicle_image)
     session.commit()
-    delete_file(VEHICLE_IMAGES, str(vehicle_image.id))
+    delete_file(MINIO_BUCKET, f"{PREFIX_VEHICLE_IMAGES}/{vehicle_image.id}")
     log_event(token, request_info, vehicle_image_data)
 
 
@@ -325,7 +326,10 @@ def fetch_vehicle_image(
     if vehicle_image is None:
         raise exceptions.UnknownValue(VehicleImage.id)
 
-    file_bytes = download_file(VEHICLE_IMAGES, str(vehicle_image.id))
+    file_bytes = download_file(
+        MINIO_BUCKET,
+        f"{PREFIX_VEHICLE_IMAGES}/{vehicle_image.id}",
+    )
     assert file_bytes is not None, "Downloaded file bytes should not be None"
     resized_bytes = resize_image(
         file_bytes,

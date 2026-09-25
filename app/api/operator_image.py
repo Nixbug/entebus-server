@@ -20,8 +20,8 @@ from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
 from app.src import exceptions, schemas
-from app.src.buckets import OPERATOR_IMAGES
 from app.src.constants import (
+    MINIO_BUCKET,
     MAX_IMAGE_FILE_SIZE,
     MAX_IMAGE_RESOLUTION,
     MIN_IMAGE_FILE_SIZE,
@@ -52,6 +52,7 @@ from app.src.minio import delete_file, download_file, upload_file
 from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
+from app.src.prefixes import PREFIX_OPERATOR_IMAGES
 from app.src.urls import URL_OPERATOR_PICTURE
 from app.src.validators import (
     authorize_executive,
@@ -211,8 +212,8 @@ async def create_operator_image(
     session.add(operator_image)
     session.flush()
     upload_file(
-        OPERATOR_IMAGES,
-        str(operator_image.id),
+        MINIO_BUCKET,
+        f"{PREFIX_OPERATOR_IMAGES}/{operator_image.id}",
         len(file_bytes),
         BytesIO(file_bytes),
     )
@@ -242,7 +243,7 @@ def delete_operator_image(
     operator_image_data = jsonable_encoder(operator_image)
     session.delete(operator_image)
     session.commit()
-    delete_file(OPERATOR_IMAGES, str(operator_image.id))
+    delete_file(MINIO_BUCKET, f"{PREFIX_OPERATOR_IMAGES}/{operator_image.id}")
     log_event(token, request_info, operator_image_data)
 
 
@@ -309,7 +310,10 @@ def fetch_operator_image(
     if operator_image is None:
         raise exceptions.UnknownValue(OperatorImage.id)
 
-    file_bytes = download_file(OPERATOR_IMAGES, str(operator_image.id))
+    file_bytes = download_file(
+        MINIO_BUCKET,
+        f"{PREFIX_OPERATOR_IMAGES}/{operator_image.id}",
+    )
     assert file_bytes is not None, "Downloaded file bytes should not be None"
     resized_bytes = resize_image(
         file_bytes,

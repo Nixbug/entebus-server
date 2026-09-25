@@ -21,8 +21,7 @@ from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_vendor, oauth2_executive
 from app.src import exceptions, schemas
-from app.src.buckets import VENDOR_IMAGES
-from app.src.constants import MAX_VENDORS_PER_COMPANY
+from app.src.constants import MAX_VENDORS_PER_COMPANY, MINIO_BUCKET
 from app.src.db import (
     ExecutiveToken,
     Vendor,
@@ -60,6 +59,7 @@ from app.src.permissions.vendor import PermissionPath as VendorPermissionPath
 from app.src.regex import PASSWORD_PATTERN, USERNAME_PATTERN
 from app.src.schemas import PatchForm
 from app.src.urls import URL_VENDOR_ACCOUNT
+from app.src.prefixes import PREFIX_VENDOR_IMAGES
 from app.src.validators import (
     authorize_executive,
     authorize_vendor,
@@ -422,7 +422,7 @@ def delete_vendor(
 
     # Delete vendor images from object storage.
     for vendor_image in vendor_images:
-        delete_file(VENDOR_IMAGES, str(vendor_image.id))
+        delete_file(MINIO_BUCKET, f"{PREFIX_VENDOR_IMAGES}/{vendor_image.id}")
 
     log_event(token, request_info, vendor_account_data)
 

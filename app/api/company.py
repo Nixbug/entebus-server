@@ -23,7 +23,7 @@ from geoalchemy2 import Geography
 
 from app.api.bearer import oauth2_executive, bearer_operator
 from app.src import schemas
-from app.src.buckets import OPERATOR_IMAGES, VEHICLE_IMAGES
+from app.src.constants import MINIO_BUCKET
 from app.src.db import (
     Company,
     CompanyWallet,
@@ -52,6 +52,7 @@ from app.src.enums import CompanyStatus, CompanyType, OrderIn
 from app.src.urls import URL_COMPANY
 from app.src.schemas import PatchForm
 from app.src.openobserve import log_event
+from app.src.prefixes import PREFIX_OPERATOR_IMAGES, PREFIX_VEHICLE_IMAGES
 from app.src.description import Description
 from app.src.validators import (
     validate_id,
@@ -410,10 +411,10 @@ def delete_company(
 
     # Delete operator images from object storage
     for operator_image in operator_images:
-        delete_file(OPERATOR_IMAGES, str(operator_image.id))
+        delete_file(MINIO_BUCKET, f"{PREFIX_OPERATOR_IMAGES}/{operator_image.id}")
     # Delete vehicle images from object storage
     for vehicle_image in vehicle_images:
-        delete_file(VEHICLE_IMAGES, str(vehicle_image.id))
+        delete_file(MINIO_BUCKET, f"{PREFIX_VEHICLE_IMAGES}/{vehicle_image.id}")
 
     log_event(token, request_info, company_data)
 
