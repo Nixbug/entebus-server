@@ -48,9 +48,9 @@ def delete_bucket(bucket_name: str) -> None:
         S3Error: If the bucket or objects cannot be deleted.
     """
     if client.bucket_exists(bucket_name):
-        objects_in_bucket = client.list_objects(bucket_name)
-        for obj in objects_in_bucket:
-            client.remove_object(bucket_name, obj.object_name)
+        for obj in client.list_objects(bucket_name):
+            if obj.object_name is not None:
+                client.remove_object(bucket_name, obj.object_name)
         client.remove_bucket(bucket_name)
 
 
