@@ -11,10 +11,10 @@ Example:
     vehicle-images/123
 """
 
-PREFIX_FOR_BUS_IMAGES = "bus-images"
-PREFIX_FOR_EXECUTIVE_IMAGES = "executive-images"
-PREFIX_FOR_OPERATOR_IMAGES = "operator-images"
-PREFIX_FOR_VENDOR_IMAGES = "vendor-images"
-PREFIX_FOR_COMPANY_IMAGES = "company-images"
-PREFIX_FOR_BUSINESS_IMAGES = "business-images"
-PREFIX_FOR_VEHICLE_IMAGES = "vehicle-images"
+PREFIX_BUS_IMAGES = "bus-images"
+PREFIX_EXECUTIVE_IMAGES = "executive-images"
+PREFIX_OPERATOR_IMAGES = "operator-images"
+PREFIX_VENDOR_IMAGES = "vendor-images"
+PREFIX_COMPANY_IMAGES = "company-images"
+PREFIX_BUSINESS_IMAGES = "business-images"
+PREFIX_VEHICLE_IMAGES = "vehicle-images"

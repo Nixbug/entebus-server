@@ -55,7 +55,7 @@ from app.src.functions import (
     update_if_changed,
     get_executive_roles,
 )
-from app.src.prefixes import PREFIX_FOR_EXECUTIVE_IMAGES
+from app.src.prefixes import PREFIX_EXECUTIVE_IMAGES
 from app.src.description import Description
 
 route_executive = APIRouter()
@@ -336,7 +336,7 @@ def delete_executive(
 
     # Delete executive images from object storage.
     for executive_image in executive_images:
-        delete_file(MINIO_BUCKET, f"{PREFIX_FOR_EXECUTIVE_IMAGES}/{executive_image.id}")
+        delete_file(MINIO_BUCKET, f"{PREFIX_EXECUTIVE_IMAGES}/{executive_image.id}")
 
     log_event(token, request_info, executive_account_data)
 

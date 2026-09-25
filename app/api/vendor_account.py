@@ -59,7 +59,7 @@ from app.src.permissions.vendor import PermissionPath as VendorPermissionPath
 from app.src.regex import PASSWORD_PATTERN, USERNAME_PATTERN
 from app.src.schemas import PatchForm
 from app.src.urls import URL_VENDOR_ACCOUNT
-from app.src.prefixes import PREFIX_FOR_VENDOR_IMAGES
+from app.src.prefixes import PREFIX_VENDOR_IMAGES
 from app.src.validators import (
     authorize_executive,
     authorize_vendor,
@@ -422,7 +422,7 @@ def delete_vendor(
 
     # Delete vendor images from object storage.
     for vendor_image in vendor_images:
-        delete_file(MINIO_BUCKET, f"{PREFIX_FOR_VENDOR_IMAGES}/{vendor_image.id}")
+        delete_file(MINIO_BUCKET, f"{PREFIX_VENDOR_IMAGES}/{vendor_image.id}")
 
     log_event(token, request_info, vendor_account_data)
 

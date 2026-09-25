@@ -52,7 +52,7 @@ from app.src.minio import delete_file, download_file, upload_file
 from app.src.openobserve import log_event
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
-from app.src.prefixes import PREFIX_FOR_OPERATOR_IMAGES
+from app.src.prefixes import PREFIX_OPERATOR_IMAGES
 from app.src.urls import URL_OPERATOR_PICTURE
 from app.src.validators import (
     authorize_executive,
@@ -213,7 +213,7 @@ async def create_operator_image(
     session.flush()
     upload_file(
         MINIO_BUCKET,
-        f"{PREFIX_FOR_OPERATOR_IMAGES}/{operator_image.id}",
+        f"{PREFIX_OPERATOR_IMAGES}/{operator_image.id}",
         len(file_bytes),
         BytesIO(file_bytes),
     )
@@ -243,7 +243,7 @@ def delete_operator_image(
     operator_image_data = jsonable_encoder(operator_image)
     session.delete(operator_image)
     session.commit()
-    delete_file(MINIO_BUCKET, f"{PREFIX_FOR_OPERATOR_IMAGES}/{operator_image.id}")
+    delete_file(MINIO_BUCKET, f"{PREFIX_OPERATOR_IMAGES}/{operator_image.id}")
     log_event(token, request_info, operator_image_data)
 
 
@@ -312,7 +312,7 @@ def fetch_operator_image(
 
     file_bytes = download_file(
         MINIO_BUCKET,
-        f"{PREFIX_FOR_OPERATOR_IMAGES}/{operator_image.id}",
+        f"{PREFIX_OPERATOR_IMAGES}/{operator_image.id}",
     )
     assert file_bytes is not None, "Downloaded file bytes should not be None"
     resized_bytes = resize_image(

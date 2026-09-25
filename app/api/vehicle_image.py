@@ -34,7 +34,7 @@ from app.src.db import (
 from app.src.permissions.executive import PermissionPath as ExecutivePermissionPath
 from app.src.permissions.operator import PermissionPath as OperatorPermissionPath
 from app.src.openobserve import log_event
-from app.src.prefixes import PREFIX_FOR_VEHICLE_IMAGES
+from app.src.prefixes import PREFIX_VEHICLE_IMAGES
 from app.src.description import Description
 from app.src.validators import (
     verify_token,
@@ -219,7 +219,7 @@ async def create_vehicle_image(
     session.flush()
     upload_file(
         MINIO_BUCKET,
-        f"{PREFIX_FOR_VEHICLE_IMAGES}/{vehicle_image.id}",
+        f"{PREFIX_VEHICLE_IMAGES}/{vehicle_image.id}",
         len(file_bytes),
         BytesIO(file_bytes),
     )
@@ -257,7 +257,7 @@ def delete_vehicle_image(
     vehicle_image_data = jsonable_encoder(vehicle_image)
     session.delete(vehicle_image)
     session.commit()
-    delete_file(MINIO_BUCKET, f"{PREFIX_FOR_VEHICLE_IMAGES}/{vehicle_image.id}")
+    delete_file(MINIO_BUCKET, f"{PREFIX_VEHICLE_IMAGES}/{vehicle_image.id}")
     log_event(token, request_info, vehicle_image_data)
 
 
@@ -328,7 +328,7 @@ def fetch_vehicle_image(
 
     file_bytes = download_file(
         MINIO_BUCKET,
-        f"{PREFIX_FOR_VEHICLE_IMAGES}/{vehicle_image.id}",
+        f"{PREFIX_VEHICLE_IMAGES}/{vehicle_image.id}",
     )
     assert file_bytes is not None, "Downloaded file bytes should not be None"
     resized_bytes = resize_image(

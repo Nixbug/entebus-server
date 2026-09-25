@@ -59,7 +59,7 @@ from app.src.permissions.operator import PermissionPath as OperatorPermissionPat
 from app.src.regex import PASSWORD_PATTERN, USERNAME_PATTERN
 from app.src.schemas import PatchForm
 from app.src.urls import URL_OPERATOR_ACCOUNT
-from app.src.prefixes import PREFIX_FOR_OPERATOR_IMAGES
+from app.src.prefixes import PREFIX_OPERATOR_IMAGES
 from app.src.validators import (
     authorize_executive,
     authorize_operator,
@@ -426,7 +426,7 @@ def delete_operator(
 
     # Delete operator images from object storage.
     for operator_image in operator_images:
-        delete_file(MINIO_BUCKET, f"{PREFIX_FOR_OPERATOR_IMAGES}/{operator_image.id}")
+        delete_file(MINIO_BUCKET, f"{PREFIX_OPERATOR_IMAGES}/{operator_image.id}")
 
     log_event(token, request_info, operator_account_data)
 
