@@ -43,5 +43,4 @@ WORKDIR /code/app
 EXPOSE 8080
 ENV PYTHONPATH=/code
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--log-level", "warning", "--no-access-log"]
-
+CMD ["python", "app/entrypoint.py"]

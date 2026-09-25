@@ -145,6 +145,9 @@ The preferred server to run the FastAPI application is Uvicorn.
 ```bash
 # Run with Uvicorn (hot reload enabled)
 uvicorn app.main:app --port 8080 --reload
+
+# The job runner will run scheduled job invocations and terminate once finished.
+MODE=JOB_RUNNER python3 -m app.entrypoint
 ```
 You can access the API from http://127.0.0.1:8080/docs.
 

@@ -310,20 +310,14 @@ def run_job_from_queue(job_id: int):
         release_lock(job_lock)
 
 
-def start_job_manager():
+def start_job_runner():
     """
     Main loop for the job manager. Continuously loads jobs into the queue and processes them.
     Designed to be run in a separate process or thread.
     """
-    while True:
-        load_jobs_to_queue()
+    load_jobs_to_queue()
+    job = queue_pop(JOB_QUEUE_NAME)
+    job_id = job.get("job_id") if job else None
 
-        while True:
-            job = queue_pop(JOB_QUEUE_NAME)
-            job_id = job.get("job_id") if job else None
-
-            if job_id is None:
-                break
-            run_job_from_queue(job_id)
-
-        time.sleep(30)
+    if job_id is not None:
+        run_job_from_queue(job_id)
