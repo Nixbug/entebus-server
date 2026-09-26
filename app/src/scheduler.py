@@ -241,7 +241,6 @@ def start_job_runner():
                     except Exception as e:
                         logging.error("Job %s failed: %s", job.id, str(e))
                         session.rollback()
-                        continue
 
                     job.next_trigger_on = calculate_next_trigger_on(job)
                     job.last_trigger_on = datetime.now(TMZ_PRIMARY)
