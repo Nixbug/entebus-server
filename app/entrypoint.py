@@ -30,3 +30,5 @@ elif MODE == "INTERACTIVE":
 
     while True:
         time.sleep(3600)
+else:
+    raise SystemExit(f"Unsupported MODE={MODE}.")
