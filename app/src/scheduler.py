@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Optional, cast
+import logging
+from typing import Optional
 from sqlalchemy.orm import Session
-import time
 from dateutil import rrule as rrulelib
 
 from app.api.service import create_service
@@ -14,9 +14,6 @@ from app.src.enums import JobType, NotificationType, OperatorType, TriggeringMod
 from app.src.valkey import (
     acquire_lock,
     release_lock,
-    valkey_client,
-    queue_push,
-    queue_pop,
 )
 from app.src.db import (
     CompanyNotification,
@@ -30,10 +27,8 @@ from app.src.db import (
 # ---------------------------------------------------------------------------
 ## Constants and configurations
 # ---------------------------------------------------------------------------
-JOB_QUEUE_NAME = "job_queue"
-JOB_QUEUE_PUSH_LOCK = "lk_job_queue_push"
-JOB_QUEUE_BATCH_SIZE = 100
-GLOB_LAST_JOB_ID = "gb_last_job_id"
+JOB_EXECUTION_LOCK = "lk_job_execution"
+JOB_EXECUTION_BATCH_SIZE = 10
 
 
 # ---------------------------------------------------------------------------
@@ -143,7 +138,6 @@ def run_statement_creation_job(session: Session, job: Job):
     """
     Placeholder function to execute a statement creation job.
     """
-    time.sleep(1)
     print(f"Executed statement creation job {job.id} at {datetime.now(TMZ_PRIMARY)}")
 
 
@@ -212,118 +206,46 @@ def calculate_next_trigger_on(job: Job) -> Optional[datetime]:
     return candidate
 
 
-def load_jobs_to_queue() -> int:
-    """
-    Master routine to push jobs to the queue.
-    Only one master should be active at a time, enforced by a distributed lock.
-
-    Returns:
-        int: The number of jobs pushed to the queue.
-    """
+def start_job_runner():
     queue_lock = None
-    jobs: list[Job] = []
     try:
         try:
-            queue_lock = acquire_lock(JOB_QUEUE_PUSH_LOCK, blocking=False)
+            queue_lock = acquire_lock(JOB_EXECUTION_LOCK, blocking=False)
         except exceptions.LockAcquireTimeout:
-            # Another master is already pushing jobs, skip this cycle.
+            # Another job runner is already handling jobs.
             return 0
 
-        with SessionLocal() as session:
-            last_job_id = int(
-                cast(Optional[str], valkey_client.get(GLOB_LAST_JOB_ID)) or 0
-            )
-            jobs = (
-                session.query(Job)
-                .filter(
-                    Job.id > last_job_id,
-                    Job.triggering_mode == TriggeringMode.AUTO,
-                    Job.next_trigger_on <= datetime.now(TMZ_PRIMARY),
+        have_jobs = True
+        while have_jobs:
+            with SessionLocal() as session:
+                jobs = (
+                    session.query(Job)
+                    .filter(
+                        Job.triggering_mode == TriggeringMode.AUTO,
+                        Job.next_trigger_on <= datetime.now(TMZ_PRIMARY),
+                    )
+                    .order_by(Job.id)
+                    .limit(JOB_EXECUTION_BATCH_SIZE)
+                    .all()
                 )
-                .order_by(Job.id)
-                .limit(JOB_QUEUE_BATCH_SIZE)
-                .all()
-            )
+                if not jobs:
+                    have_jobs = False
+                    continue
 
-            # Push jobs to the queue
-            for job in jobs:
-                queue_push(
-                    JOB_QUEUE_NAME,
-                    {"job_id": job.id},
-                )
+                for job in jobs:
+                    try:
+                        if job.job_type == JobType.SERVICE_CREATION:
+                            run_service_creation_job(session, job)
+                        elif job.job_type == JobType.STATEMENT_CREATION:
+                            run_statement_creation_job(session, job)
+                    except Exception as e:
+                        logging.error("Job %s failed: %s", job.id, str(e))
+                        session.rollback()
 
-            # Update the last job ID in Valkey
-            if jobs:
-                valkey_client.set(
-                    GLOB_LAST_JOB_ID,
-                    jobs[-1].id,
-                )
-            else:
-                valkey_client.set(
-                    GLOB_LAST_JOB_ID,
-                    0,
-                )
+                    job.next_trigger_on = calculate_next_trigger_on(job)
+                    job.last_trigger_on = datetime.now(TMZ_PRIMARY)
+                    if job.next_trigger_on is None:
+                        job.triggering_mode = TriggeringMode.DISABLED
+                    session.commit()
     finally:
         release_lock(queue_lock)
-
-    return len(jobs)
-
-
-def run_job_from_queue(job_id: int):
-    """
-    Execute a job from the queue.
-
-    Args:
-        job_id (int): The ID of the job to be executed.
-    """
-    job_lock = None
-    try:
-        job_lock = acquire_lock(f"lk_job_{job_id}")
-
-        with SessionLocal() as session:
-            job = session.query(Job).filter(Job.id == job_id).first()
-            if job is None:
-                return
-
-            utc_now = datetime.now(TMZ_PRIMARY)
-            if job.next_trigger_on is None:
-                return
-            if job.next_trigger_on > utc_now:
-                return
-            if job.triggering_mode != TriggeringMode.AUTO:
-                return
-            job.next_trigger_on = calculate_next_trigger_on(job)
-            job.last_trigger_on = utc_now
-
-            if job.job_type == JobType.SERVICE_CREATION:
-                run_service_creation_job(session, job)
-            elif job.job_type == JobType.STATEMENT_CREATION:
-                run_statement_creation_job(session, job)
-
-            if job.next_trigger_on is None:
-                job.triggering_mode = TriggeringMode.DISABLED
-            session.commit()
-    except Exception as e:
-        exceptions.log_exception(e)
-        # TODO: Create a notification or log exception details here for debugging purposes.
-    finally:
-        release_lock(job_lock)
-
-
-def start_job_manager():
-    """
-    Main loop for the job manager. Continuously loads jobs into the queue and processes them.
-    Designed to be run in a separate process or thread.
-    """
-    while True:
-        load_jobs_to_queue()
-
-        while True:
-            job = queue_pop(JOB_QUEUE_NAME)
-            job_id = job.get("job_id") if job else None
-
-            if job_id is None:
-                break
-            run_job_from_queue(job_id)
-
-        time.sleep(30)
