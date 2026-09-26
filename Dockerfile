@@ -43,4 +43,4 @@ WORKDIR /code/app
 EXPOSE 8080
 ENV PYTHONPATH=/code
 
-CMD ["python", "app/entrypoint.py"]
+CMD ["python", "-m", "app.entrypoint"]
