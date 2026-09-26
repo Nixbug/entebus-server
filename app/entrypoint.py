@@ -4,7 +4,7 @@ Entrypoint for the EnteBus service.
 This module:
     - Determines the mode of operation based on the MODE constant.
     - Starts the FastAPI server if MODE is "API_SERVER".
-    - Starts the job manager if MODE is "JOB_RUNNER".
+    - Starts the job runner if MODE is "JOB_RUNNER".
     - Keeps the container alive if MODE is "INTERACTIVE".
 """
 
