@@ -29,6 +29,7 @@ from app.src.db import (
 # ---------------------------------------------------------------------------
 JOB_EXECUTION_LOCK = "lk_job_execution"
 JOB_EXECUTION_BATCH_SIZE = 10
+JOB_EXECUTION_LOCK_TIMEOUT = 3600  # Auto-released lock after this many seconds
 
 
 # ---------------------------------------------------------------------------
@@ -210,7 +211,9 @@ def start_job_runner():
     queue_lock = None
     try:
         try:
-            queue_lock = acquire_lock(JOB_EXECUTION_LOCK, blocking=False)
+            queue_lock = acquire_lock(
+                JOB_EXECUTION_LOCK, blocking=False, timeout=JOB_EXECUTION_LOCK_TIMEOUT
+            )
         except exceptions.LockAcquireTimeout:
             # Another job runner is already handling jobs.
             return 0
