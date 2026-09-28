@@ -56,7 +56,7 @@ LOGGING_TYPE = environ.get("LOGGING_TYPE", "OPENOBSERVE")
 # ---------------------------------------------------------------------------
 VALKEY_HOST = environ.get("VALKEY_HOST", "localhost")
 VALKEY_PORT = environ.get("VALKEY_PORT", "6379")
-VALKEY_PASSWORD = environ.get("VALKEY_PASSWORD", "password")
+VALKEY_PASSWORD = environ.get("VALKEY_PASSWORD") or None
 
 
 # ---------------------------------------------------------------------------
