@@ -480,11 +480,23 @@ async def create_executive_token_for_executive(
 )
 async def refresh_executive_token_for_executive(
     form_param: UpdateForm = Depends(),
+    access_token=Depends(oauth2_executive),
     request_info=Depends(get_request_info),
     session: Session = Depends(get_db_session),
 ):
     try:
+        actor = verify_token(session, ExecutiveToken, access_token)
+        roles = get_executive_roles(session, actor)
+        has_permission = verify_permission(
+            roles,
+            PermissionPath.DELETE_EXECUTIVE_TOKEN,
+            raise_exception=False,
+        )
+
         token = validate_and_revoke_refresh_token(session, ExecutiveToken, form_param)
+        if token.executive_id != actor.executive_id and not has_permission:
+            raise exceptions.NoPermission()
+
         return refresh_executive_token(session, token, request_info)
     except Exception as e:
         exceptions.handle(e)

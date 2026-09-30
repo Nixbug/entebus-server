@@ -202,6 +202,31 @@ def authenticate_vendor(
     return user_credentials(vendor, credentials)
 
 
+def validate_refresh_token(
+    session: Session,
+    model_cls: Type[TokenT],
+    form_param: Any,
+) -> TokenT:
+    """
+    Validate a refresh token without mutating it.
+
+    This helper is used when the caller must be authorized before the target
+    token is revoked.
+    """
+    if form_param.grant_type != GrantType.REFRESH_TOKEN:
+        raise exceptions.InvalidGrantType()
+    token = (
+        session.query(model_cls)
+        .filter(model_cls.refresh_token == form_param.refresh_token)
+        .first()
+    )
+    if token is None or token.is_revoked:
+        raise exceptions.InvalidToken()
+    if token.refresh_before < datetime.now(TMZ_PRIMARY):
+        raise exceptions.InvalidToken()
+    return token
+
+
 def validate_and_revoke_refresh_token(
     session: Session,
     model_cls: Type[TokenT],
