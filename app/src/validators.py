@@ -54,13 +54,13 @@ from app.src.constants import (
 )
 from app.src.dynamic_fare.v1 import DynamicFare
 from app.src.types import GeometryT, ORMbaseT, TokenT
-from app.src.types import EnumT
+from app.src.types import EnumT, UserT
 
 
 def user_credentials(
-    user: Executive | Operator | Vendor,
+    user: UserT,
     credentials: OAuth2PasswordRequestForm,
-) -> Executive | Operator | Vendor:
+) -> UserT:
     """
     Generic user authentication function for Executive, Operator, and Vendor.
 
@@ -69,11 +69,11 @@ def user_credentials(
     the account is active.
 
     Args:
-        user (Executive | Operator | Vendor): The already fetched user instance.
+        user (UserT): The already fetched user instance.
         credentials (OAuth2PasswordRequestForm): Credentials containing password, and grant_type.
 
     Returns:
-        Executive | Operator | Vendor: The authenticated user instance.
+        UserT: The authenticated user instance.
 
     Raises:
         InvalidGrantType: If the grant_type is not PASSWORD.

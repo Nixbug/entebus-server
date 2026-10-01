@@ -3,7 +3,15 @@ from typing import TypeVar
 from pydantic import BaseModel
 from shapely.geometry.base import BaseGeometry
 
-from app.src.db import ExecutiveToken, ORMbase, OperatorToken, VendorToken
+from app.src.db import (
+    ExecutiveToken,
+    ORMbase,
+    OperatorToken,
+    VendorToken,
+    Vendor,
+    Executive,
+    Operator,
+)
 
 # ---------------------------------------------------------------------------
 ## Type Variables
@@ -13,3 +21,4 @@ BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
 ORMbaseT = TypeVar("ORMbaseT", bound=ORMbase)
 GeometryT = TypeVar("GeometryT", bound=BaseGeometry)
 EnumT = TypeVar("EnumT", bound=Enum)
+UserT = TypeVar("UserT", Executive, Operator, Vendor)
