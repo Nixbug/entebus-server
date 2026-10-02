@@ -211,7 +211,6 @@ def refresh_executive_token(
     Returns:
         dict: Refreshed executive token data.
     """
-    token.is_revoked = True
     cleanup_old_tokens(
         session,
         ExecutiveToken,
