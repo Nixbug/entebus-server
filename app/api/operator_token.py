@@ -234,7 +234,6 @@ def refresh_operator_token(
     Returns:
         dict: Refreshed operator token data.
     """
-    token.is_revoked = True
     cleanup_old_tokens(
         session,
         OperatorToken,
