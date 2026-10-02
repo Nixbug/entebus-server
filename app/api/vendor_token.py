@@ -550,23 +550,11 @@ async def create_vendor_token_for_vendor(
 )
 async def refresh_vendor_token_for_vendor(
     form_param: UpdateForm = Depends(),
-    access_token=Depends(bearer_vendor),
     request_info=Depends(get_request_info),
     session: Session = Depends(get_db_session),
 ):
     try:
-        actor = verify_token(session, VendorToken, access_token.credentials)
-        roles = get_vendor_roles(session, actor)
-        has_permission = verify_permission(
-            roles,
-            VendorPermissionPath.DELETE_BUSINESS_VENDOR_TOKEN,
-            raise_exception=False,
-        )
-
         token = validate_and_revoke_refresh_token(session, VendorToken, form_param)
-        if token.vendor_id != actor.vendor_id and not has_permission:
-            raise exceptions.NoPermission()
-
         return refresh_vendor_token(session, token, request_info)
     except Exception as e:
         exceptions.handle(e)

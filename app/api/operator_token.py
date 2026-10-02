@@ -555,23 +555,11 @@ async def create_operator_token_for_operator(
 )
 async def refresh_operator_token_for_operator(
     form_param: UpdateForm = Depends(),
-    access_token=Depends(bearer_operator),
     request_info=Depends(get_request_info),
     session: Session = Depends(get_db_session),
 ):
     try:
-        actor = verify_token(session, OperatorToken, access_token.credentials)
-        roles = get_operator_roles(session, actor)
-        has_permission = verify_permission(
-            roles,
-            OperatorPermissionPath.DELETE_COMPANY_OPERATOR_TOKEN,
-            raise_exception=False,
-        )
-
         token = validate_and_revoke_refresh_token(session, OperatorToken, form_param)
-        if token.operator_id != actor.operator_id and not has_permission:
-            raise exceptions.NoPermission()
-
         return refresh_operator_token(session, token, request_info)
     except Exception as e:
         exceptions.handle(e)
