@@ -232,7 +232,6 @@ def refresh_vendor_token(
     Returns:
         dict: Refreshed vendor token data.
     """
-    token.is_revoked = True
     cleanup_old_tokens(
         session,
         VendorToken,
