@@ -8,12 +8,13 @@ from geoalchemy2.elements import WKBElement
 import pyproj
 from enum import Enum
 from io import BytesIO
+import re
 from PIL import Image
 from typing import Any, Dict, Sequence, Type
 from fastapi import Query, Request
 from pydantic import BaseModel
 from shapely import wkb
-from sqlalchemy import asc, desc
+from sqlalchemy import asc, desc, func, String
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.orm.session import Session
 from shapely.geometry.base import BaseGeometry
@@ -113,6 +114,26 @@ def enum_str(enum_class: Type[Enum]) -> str:
         str: A human-readable string representation of the enum members.
     """
     return ", ".join(f"{x.name}: {x.value}" for x in enum_class)
+
+
+def normalize_phone_number(phone_number: str | None) -> str | None:
+    """Normalize a phone number by stripping formatting characters."""
+    if phone_number is None:
+        return None
+
+    normalized = re.sub(r"\D", "", phone_number)
+    return normalized or None
+
+
+def build_phone_number_search_expression(column: Any, phone_number: str | None):
+    """Match a phone number regardless of RFC 3966 punctuation and spacing."""
+    normalized_phone_number = normalize_phone_number(phone_number)
+    if normalized_phone_number is None:
+        return None
+
+    return func.regexp_replace(
+        func.coalesce(column, ""), r"[^0-9]", "", "g", type_=String
+    ).ilike(f"%{normalized_phone_number}%")
 
 
 def cleanup_old_tokens(
@@ -386,7 +407,15 @@ def apply_account_filters(
     if params.email_id is not None:
         query = query.filter(model_cls.email_id.ilike(f"%{params.email_id}%"))
     if params.phone_number is not None:
-        query = query.filter(model_cls.phone_number.ilike(f"%{params.phone_number}%"))
+        phone_expression = build_phone_number_search_expression(
+            model_cls.phone_number, params.phone_number
+        )
+        if phone_expression is not None:
+            query = query.filter(phone_expression)
+        else:
+            query = query.filter(
+                model_cls.phone_number.ilike(f"%{params.phone_number}%")
+            )
     return query
 
 

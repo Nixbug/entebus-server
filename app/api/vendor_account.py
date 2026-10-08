@@ -45,12 +45,14 @@ from app.src.functions import (
     apply_status_filters,
     apply_type_filters,
     apply_updated_on_filters,
+    build_phone_number_search_expression,
     enum_str,
     fuse_exception_responses,
     get_by_id,
     get_request_info,
     get_vendor_roles,
     update_if_changed,
+    normalize_phone_number,
 )
 from app.src.minio import delete_file
 from app.src.openobserve import log_event
@@ -359,16 +361,21 @@ def search_vendors(session: Session, query_params: QueryParams) -> list[Vendor]:
     # Common search
     if query_params.search:
         search = f"%{query_params.search}%"
-        query = query.filter(
-            or_(
-                Vendor.id.cast(String).ilike(search),
-                Vendor.username.ilike(search),
-                Vendor.full_name.ilike(search),
-                Vendor.description.ilike(search),
-                Vendor.phone_number.ilike(search),
-                Vendor.email_id.ilike(search),
+        search_conditions = [
+            Vendor.id.cast(String).ilike(search),
+            Vendor.username.ilike(search),
+            Vendor.full_name.ilike(search),
+            Vendor.description.ilike(search),
+            Vendor.email_id.ilike(search),
+        ]
+        normalized_phone_number = normalize_phone_number(query_params.search)
+        if normalized_phone_number is not None:
+            search_conditions.append(
+                build_phone_number_search_expression(
+                    Vendor.phone_number, query_params.search
+                )
             )
-        )
+        query = query.filter(or_(*search_conditions))
 
     # Generalized filters
     query = apply_id_filters(query, Vendor, query_params)

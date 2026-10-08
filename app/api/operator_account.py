@@ -45,12 +45,14 @@ from app.src.functions import (
     apply_status_filters,
     apply_type_filters,
     apply_updated_on_filters,
+    build_phone_number_search_expression,
     enum_str,
     fuse_exception_responses,
     get_by_id,
     get_operator_roles,
     get_request_info,
     update_if_changed,
+    normalize_phone_number,
 )
 from app.src.minio import delete_file
 from app.src.openobserve import log_event
@@ -361,16 +363,22 @@ def search_operators(session: Session, query_params: QueryParams) -> list[Operat
     # Common search
     if query_params.search:
         search = f"%{query_params.search}%"
-        query = query.filter(
-            or_(
-                Operator.id.cast(String).ilike(search),
-                Operator.username.ilike(search),
-                Operator.full_name.ilike(search),
-                Operator.description.ilike(search),
-                Operator.phone_number.ilike(search),
-                Operator.email_id.ilike(search),
+        search_conditions = [
+            Operator.id.cast(String).ilike(search),
+            Operator.username.ilike(search),
+            Operator.full_name.ilike(search),
+            Operator.description.ilike(search),
+            Operator.email_id.ilike(search),
+        ]
+
+        normalized_phone_number = normalize_phone_number(query_params.search)
+        if normalized_phone_number is not None:
+            search_conditions.append(
+                build_phone_number_search_expression(
+                    Operator.phone_number, query_params.search
+                )
             )
-        )
+        query = query.filter(or_(*search_conditions))
 
     # Generalized filters
     query = apply_id_filters(query, Operator, query_params)

@@ -48,12 +48,14 @@ from app.src.functions import (
     apply_id_filters,
     apply_status_filters,
     apply_updated_on_filters,
+    build_phone_number_search_expression,
     enum_str,
     fuse_exception_responses,
     get_by_id,
     get_request_info,
     update_if_changed,
     get_executive_roles,
+    normalize_phone_number,
 )
 from app.src.prefixes import PREFIX_EXECUTIVE_IMAGES
 from app.src.description import Description
@@ -276,16 +278,21 @@ def search_executives(session: Session, query_params: QueryParams) -> list[Execu
     # Common search
     if query_params.search:
         search = f"%{query_params.search}%"
-        query = query.filter(
-            or_(
-                Executive.id.cast(String).ilike(search),
-                Executive.username.ilike(search),
-                Executive.full_name.ilike(search),
-                Executive.designation.ilike(search),
-                Executive.phone_number.ilike(search),
-                Executive.email_id.ilike(search),
+        search_conditions = [
+            Executive.id.cast(String).ilike(search),
+            Executive.username.ilike(search),
+            Executive.full_name.ilike(search),
+            Executive.designation.ilike(search),
+            Executive.email_id.ilike(search),
+        ]
+        normalized_phone_number = normalize_phone_number(query_params.search)
+        if normalized_phone_number is not None:
+            search_conditions.append(
+                build_phone_number_search_expression(
+                    Executive.phone_number, query_params.search
+                )
             )
-        )
+        query = query.filter(or_(*search_conditions))
 
     # Generalized filters
     query = apply_id_filters(query, Executive, query_params)
