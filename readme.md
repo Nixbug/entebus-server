@@ -102,8 +102,9 @@ docker run -d --name valkey \
     --restart unless-stopped \
     -p 6379:6379 \
     valkey/valkey:9.1.2-alpine \
-    valkey-server --requirepass "password" --save "" --appendonly no
+    valkey-server --save "" --appendonly no
 ```
+If your want a Valkey database with password-protection, include `--requirepass "password"` when starting the container.
 
 
 ## 🗄️ Database Setup & Management
