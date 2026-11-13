@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from enum import IntEnum
 from typing import Any, List, Mapping, Sequence, Type
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import select
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.orm.session import Session
@@ -108,11 +109,9 @@ def authenticate_executive(
         InvalidGrantType: If credentials.grant_type is not GrantType.PASSWORD.
         InactiveAccount: If the executive account is not ACTIVE.
     """
-    executive = (
-        session.query(Executive)
-        .filter(Executive.username == credentials.username)
-        .first()
-    )
+    executive = session.scalars(
+        select(Executive).filter(Executive.username == credentials.username)
+    ).first()
     if executive is None:
         raise exceptions.InvalidCredentials()
     return user_credentials(executive, credentials)
@@ -140,20 +139,20 @@ def authenticate_operator(
         InactiveAccount: If the company account is not verified or under verification.
         UnknownValue: If the provided company_id does not exist.
     """
-    company = session.query(Company).filter(Company.id == form_param.company_id).first()
+    company = session.scalars(
+        select(Company).filter(Company.id == form_param.company_id)
+    ).first()
     if company is None:
         raise exceptions.UnknownValue(Operator.company_id)
     if company.status not in (CompanyStatus.VERIFIED, CompanyStatus.UNDER_VERIFICATION):
         raise exceptions.InactiveAccount()
 
-    operator = (
-        session.query(Operator)
-        .filter(
+    operator = session.scalars(
+        select(Operator).filter(
             Operator.username == credentials.username,
             Operator.company_id == form_param.company_id,
         )
-        .first()
-    )
+    ).first()
     if operator is None:
         raise exceptions.InvalidCredentials()
     return user_credentials(operator, credentials)
@@ -181,22 +180,20 @@ def authenticate_vendor(
         InactiveAccount: If the business account is not active.
         UnknownValue: If the provided business_id does not exist.
     """
-    business = (
-        session.query(Business).filter(Business.id == form_param.business_id).first()
-    )
+    business = session.scalars(
+        select(Business).filter(Business.id == form_param.business_id)
+    ).first()
     if business is None:
         raise exceptions.UnknownValue(Vendor.business_id)
     if business.status != BusinessStatus.ACTIVE:
         raise exceptions.InactiveAccount()
 
-    vendor = (
-        session.query(Vendor)
-        .filter(
+    vendor = session.scalars(
+        select(Vendor).filter(
             Vendor.username == credentials.username,
             Vendor.business_id == form_param.business_id,
         )
-        .first()
-    )
+    ).first()
     if vendor is None:
         raise exceptions.InvalidCredentials()
     return user_credentials(vendor, credentials)
@@ -229,11 +226,9 @@ def validate_and_revoke_refresh_token(
     """
     if form_param.grant_type != GrantType.REFRESH_TOKEN:
         raise exceptions.InvalidGrantType()
-    token = (
-        session.query(model_cls)
-        .filter(model_cls.refresh_token == form_param.refresh_token)
-        .first()
-    )
+    token = session.scalars(
+        select(model_cls).filter(model_cls.refresh_token == form_param.refresh_token)
+    ).first()
     if token is None or token.is_revoked:
         raise exceptions.InvalidToken()
     # TODO: Optionally suspend account if revoked token reuse detected
@@ -266,12 +261,11 @@ def verify_token(
     """
     # Get token ensuring it's not revoked
     current_time = datetime.now(TMZ_PRIMARY)
-    token = (
-        session.query(model_cls)
+    token = session.scalars(
+        select(model_cls)
         .filter(model_cls.access_token == access_token)
         .filter(model_cls.is_revoked == False)
-        .first()
-    )
+    ).first()
     if token is None:
         raise exceptions.InvalidToken()
     token_expires_on = token.created_on + timedelta(seconds=token.expires_in)
@@ -545,12 +539,11 @@ def validate_route(route_id: int, session: Session) -> bool:
     Returns:
         bool: True if the route passes validation, False otherwise.
     """
-    landmarks = (
-        session.query(LandmarkInRoute)
+    landmarks = session.scalars(
+        select(LandmarkInRoute)
         .filter(LandmarkInRoute.route_id == route_id)
         .order_by(LandmarkInRoute.distance_from_start.asc())
-        .all()
-    )
+    ).all()
 
     # Minimum landmarks & must start at 0
     if (
