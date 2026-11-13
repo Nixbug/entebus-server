@@ -9,6 +9,7 @@ Provides endpoints for managing operator tokens:
     - GET (operator, executive)
 """
 
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Optional
@@ -16,6 +17,7 @@ from fastapi import APIRouter, Depends, Form, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
@@ -272,16 +274,15 @@ def revoke_operator_token(
         token (OperatorToken): Authenticated operator token.
         request_info (schemas.RequestInfo): Request information for logging.
     """
-    operator_token = (
-        session.query(OperatorToken)
+    operator_token = session.scalars(
+        select(OperatorToken)
         .filter(OperatorToken.operator_id == token.operator_id)
         .filter(
             (OperatorToken.access_token == form_param.token)
             | (OperatorToken.refresh_token == form_param.token)
         )
         .filter(OperatorToken.is_revoked.is_(False))
-        .first()
-    )
+    ).first()
     if operator_token is None:
         return
 
@@ -316,7 +317,7 @@ def delete_operator_token(
 
 def search_operator_tokens(
     session: Session, query_params: QueryParams
-) -> list[OperatorToken]:
+) -> Sequence[OperatorToken]:
     """
     Search for operator tokens based on provided query parameters.
 
@@ -330,7 +331,7 @@ def search_operator_tokens(
     Returns:
         list[OperatorToken]: List of operator tokens that match the search criteria.
     """
-    query = session.query(OperatorToken).filter(OperatorToken.is_revoked.is_(False))
+    query = select(OperatorToken).filter(OperatorToken.is_revoked.is_(False))
     if query_params.company_id is not None:
         query = query.filter(OperatorToken.company_id == query_params.company_id)
     if query_params.operator_id is not None:
@@ -351,7 +352,7 @@ def search_operator_tokens(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    operator_tokens = query.all()
+    operator_tokens = session.scalars(query).all()
     return operator_tokens
 
 

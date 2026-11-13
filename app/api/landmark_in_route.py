@@ -8,10 +8,12 @@ Provides endpoints for managing landmarks in routes:
     - GET (executive, operator, vendor, public)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, status, Query, Response
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy import func, select
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 from pydantic import BaseModel, Field
@@ -219,11 +221,14 @@ def create_landmark_in_route(
         session.refresh(route)
 
         landmark_count = (
-            session.query(LandmarkInRoute)
-            .filter(
-                LandmarkInRoute.route_id == route.id,
+            session.scalar(
+                select(func.count())
+                .select_from(LandmarkInRoute)
+                .filter(
+                    LandmarkInRoute.route_id == route.id,
+                )
             )
-            .count()
+            or 0
         )
         if landmark_count >= MAX_LANDMARKS_PER_ROUTE:
             raise exceptions.LimitExceeded(LandmarkInRoute)
@@ -388,7 +393,7 @@ def delete_landmark_in_route(
 
 def search_landmarks_in_route(
     session: Session, query_params: QueryParams
-) -> list[LandmarkInRoute]:
+) -> Sequence[LandmarkInRoute]:
     """
     Search for Landmark In Route based on provided query parameters.
 
@@ -402,7 +407,7 @@ def search_landmarks_in_route(
     Returns:
         list[LandmarkInRoute]: List of Landmark In Route that match the search criteria.
     """
-    query = session.query(LandmarkInRoute)
+    query = select(LandmarkInRoute)
     if query_params.company_id is not None:
         query = query.filter(LandmarkInRoute.company_id == query_params.company_id)
     if query_params.route_id is not None:
@@ -450,7 +455,7 @@ def search_landmarks_in_route(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    landmark_in_routes = query.all()
+    landmark_in_routes = session.scalars(query).all()
     return landmark_in_routes
 
 

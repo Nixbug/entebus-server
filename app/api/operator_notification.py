@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
@@ -168,7 +169,7 @@ def search_operator_notifications(session: Session, query_params: QueryParams):
     Returns:
         list[OperatorNotification]: List of OperatorNotification instances that match the search criteria.
     """
-    query = session.query(OperatorNotification)
+    query = select(OperatorNotification)
     if query_params.company_id is not None:
         query = query.filter(OperatorNotification.company_id == query_params.company_id)
     if query_params.operator_id is not None:
@@ -195,7 +196,7 @@ def search_operator_notifications(session: Session, query_params: QueryParams):
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    operator_notifications = query.all()
+    operator_notifications = session.scalars(query).all()
     return operator_notifications
 
 

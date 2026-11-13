@@ -8,12 +8,13 @@ Provides endpoints for managing traces:
     - GET (executive, operator)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from sqlalchemy import String, or_
+from sqlalchemy import String, func, or_, select
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
@@ -163,7 +164,12 @@ def create_trace(
         dict: The created trace data.
     """
     trace_count = (
-        session.query(Trace).filter(Trace.company_id == form_param.company_id).count()
+        session.scalar(
+            select(func.count())
+            .select_from(Trace)
+            .filter(Trace.company_id == form_param.company_id)
+        )
+        or 0
     )
     if trace_count >= MAX_TRACES_PER_COMPANY:
         raise exceptions.LimitExceeded(Trace)
@@ -245,7 +251,7 @@ def delete_trace(
     log_event(token, request_info, trace_data)
 
 
-def search_traces(session: Session, query_params: QueryParams) -> list[Trace]:
+def search_traces(session: Session, query_params: QueryParams) -> Sequence[Trace]:
     """
     Search for traces based on provided query parameters.
 
@@ -259,7 +265,7 @@ def search_traces(session: Session, query_params: QueryParams) -> list[Trace]:
     Returns:
         list[Trace]: List of traces that match the search criteria.
     """
-    query = session.query(Trace)
+    query = select(Trace)
     if query_params.company_id is not None:
         query = query.filter(Trace.company_id == query_params.company_id)
 
@@ -289,7 +295,7 @@ def search_traces(session: Session, query_params: QueryParams) -> list[Trace]:
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    traces = query.all()
+    traces = session.scalars(query).all()
     return traces
 
 

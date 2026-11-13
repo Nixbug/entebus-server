@@ -8,6 +8,7 @@ Provides endpoints for managing operator accounts:
     - GET (executive, operator)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated
@@ -15,7 +16,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, EmailStr, Field
 from pydantic_extra_types.phone_numbers import PhoneNumber
-from sqlalchemy import String, or_
+from sqlalchemy import String, func, or_, select, update
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
@@ -256,9 +257,12 @@ def create_operator(
         dict: Created operator account data.
     """
     operator_count = (
-        session.query(Operator)
-        .filter(Operator.company_id == form_param.company_id)
-        .count()
+        session.scalar(
+            select(func.count())
+            .select_from(Operator)
+            .filter(Operator.company_id == form_param.company_id)
+        )
+        or 0
     )
     if operator_count >= MAX_OPERATORS_PER_COMPANY:
         raise exceptions.LimitExceeded(Operator)
@@ -318,10 +322,14 @@ def update_operator(
     if "status" in update_data:
         if operator.status != update_data["status"]:
             if update_data["status"] == AccountStatus.SUSPENDED:
-                session.query(OperatorToken).filter(
-                    OperatorToken.operator_id == id,
-                    OperatorToken.is_revoked.is_(False),
-                ).update({OperatorToken.is_revoked: True})
+                session.execute(
+                    update(OperatorToken)
+                    .where(
+                        OperatorToken.operator_id == id,
+                        OperatorToken.is_revoked.is_(False),
+                    )
+                    .values({OperatorToken.is_revoked: True})
+                )
             operator.status = update_data["status"]
         update_data.pop("status")
 
@@ -336,7 +344,7 @@ def update_operator(
     return operator_account_data
 
 
-def search_operators(session: Session, query_params: QueryParams) -> list[Operator]:
+def search_operators(session: Session, query_params: QueryParams) -> Sequence[Operator]:
     """
     Search for operator accounts based on provided query parameters.
 
@@ -350,7 +358,7 @@ def search_operators(session: Session, query_params: QueryParams) -> list[Operat
     Returns:
         list[Operator]: List of operators that match the search criteria.
     """
-    query = session.query(Operator)
+    query = select(Operator)
     if query_params.company_id is not None:
         query = query.filter(Operator.company_id == query_params.company_id)
     if query_params.description is not None:
@@ -390,7 +398,7 @@ def search_operators(session: Session, query_params: QueryParams) -> list[Operat
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    operators = query.all()
+    operators = session.scalars(query).all()
     return operators
 
 
@@ -415,11 +423,9 @@ def delete_operator(
     if operator is None:
         return
 
-    operator_images = (
-        session.query(OperatorImage)
-        .filter(OperatorImage.operator_id == operator.id)
-        .all()
-    )
+    operator_images = session.scalars(
+        select(OperatorImage).filter(OperatorImage.operator_id == operator.id)
+    ).all()
     operator_account_data = operator_account_to_dict(operator)
     session.delete(operator)
     session.commit()

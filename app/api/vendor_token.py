@@ -9,6 +9,7 @@ Provides endpoints for managing vendor tokens:
     - GET (vendor, executive)
 """
 
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Optional
@@ -16,6 +17,7 @@ from fastapi import APIRouter, Depends, Form, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_vendor, oauth2_executive
@@ -269,16 +271,15 @@ def revoke_vendor_token(
         token (VendorToken): Authenticated vendor token.
         request_info (schemas.RequestInfo): Request information for logging.
     """
-    vendor_token = (
-        session.query(VendorToken)
+    vendor_token = session.scalars(
+        select(VendorToken)
         .filter(VendorToken.vendor_id == token.vendor_id)
         .filter(
             (VendorToken.access_token == form_param.token)
             | (VendorToken.refresh_token == form_param.token)
         )
         .filter(VendorToken.is_revoked.is_(False))
-        .first()
-    )
+    ).first()
     if vendor_token is None:
         return
 
@@ -313,7 +314,7 @@ def delete_vendor_token(
 
 def search_vendor_tokens(
     session: Session, query_params: QueryParams
-) -> list[VendorToken]:
+) -> Sequence[VendorToken]:
     """
     Search for vendor tokens based on provided query parameters.
 
@@ -327,7 +328,7 @@ def search_vendor_tokens(
     Returns:
         list[VendorToken]: List of vendor tokens that match the search criteria.
     """
-    query = session.query(VendorToken).filter(VendorToken.is_revoked.is_(False))
+    query = select(VendorToken).filter(VendorToken.is_revoked.is_(False))
     if query_params.business_id is not None:
         query = query.filter(VendorToken.business_id == query_params.business_id)
     if query_params.vendor_id is not None:
@@ -348,7 +349,7 @@ def search_vendor_tokens(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    vendor_tokens = query.all()
+    vendor_tokens = session.scalars(query).all()
     return vendor_tokens
 
 

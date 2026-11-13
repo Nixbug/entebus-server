@@ -8,6 +8,7 @@ Provides endpoints for managing vendor images:
     - GET /{id} (executive, vendor)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from io import BytesIO
@@ -15,6 +16,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile,
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
@@ -249,7 +251,7 @@ def delete_vendor_image(
 
 def search_vendor_images(
     session: Session, query_params: QueryParams
-) -> list[VendorImage]:
+) -> Sequence[VendorImage]:
     """
     Search for vendor images based on provided query parameters.
 
@@ -263,7 +265,7 @@ def search_vendor_images(
     Returns:
         list[VendorImage]: List of vendor images that match the search criteria.
     """
-    query = session.query(VendorImage)
+    query = select(VendorImage)
     if query_params.business_id is not None:
         query = query.filter(VendorImage.business_id == query_params.business_id)
     if query_params.vendor_id is not None:
@@ -284,7 +286,7 @@ def search_vendor_images(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    vendor_images = query.all()
+    vendor_images = session.scalars(query).all()
     return vendor_images
 
 

@@ -8,13 +8,14 @@ Provides endpoints for managing service automations:
     - GET (executive, operator)
 """
 
+from collections.abc import Sequence
 from datetime import datetime, time
 from enum import StrEnum
 from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from sqlalchemy import String, or_
+from sqlalchemy import String, or_, select
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
@@ -377,7 +378,7 @@ def delete_service_automation(
 
 def search_service_automations(
     session: Session, query_params: QueryParams
-) -> list[ServiceAutomation]:
+) -> Sequence[ServiceAutomation]:
     """
     Searches for service automations based on the provided query parameters.
 
@@ -388,7 +389,7 @@ def search_service_automations(
     Returns:
         list[ServiceAutomation]: A list of matching service automations.
     """
-    query = session.query(ServiceAutomation)
+    query = select(ServiceAutomation)
     if query_params.company_id is not None:
         query = query.filter(ServiceAutomation.company_id == query_params.company_id)
     if query_params.description is not None:
@@ -441,7 +442,7 @@ def search_service_automations(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    service_automations = query.all()
+    service_automations = session.scalars(query).all()
     return service_automations
 
 

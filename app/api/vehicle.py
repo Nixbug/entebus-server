@@ -8,12 +8,13 @@ Provides endpoints for managing vehicles:
     - GET (executive, operator, vendor, public)
 """
 
+from collections.abc import Sequence
 from typing import Annotated
 from enum import StrEnum
 from datetime import datetime
 from fastapi import APIRouter, status, Depends, Response, Query
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import String, or_
+from sqlalchemy import String, func, or_, select
 from sqlalchemy.sql import ColumnElement
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
@@ -256,9 +257,12 @@ def create_vehicle(
         dict: The created vehicle data.
     """
     vehicle_count = (
-        session.query(Vehicle)
-        .filter(Vehicle.company_id == form_param.company_id)
-        .count()
+        session.scalar(
+            select(func.count())
+            .select_from(Vehicle)
+            .filter(Vehicle.company_id == form_param.company_id)
+        )
+        or 0
     )
     if vehicle_count >= MAX_VEHICLES_PER_COMPANY:
         raise exceptions.LimitExceeded(Vehicle)
@@ -376,7 +380,7 @@ def delete_vehicle(
     log_event(token, request_info, vehicle_data)
 
 
-def search_vehicles(session: Session, query_params: QueryParams) -> list[Vehicle]:
+def search_vehicles(session: Session, query_params: QueryParams) -> Sequence[Vehicle]:
     """
     Search for Vehicles based on provided query parameters.
 
@@ -390,7 +394,7 @@ def search_vehicles(session: Session, query_params: QueryParams) -> list[Vehicle
     Returns:
         list[Vehicle]: List of Vehicles that match the search criteria.
     """
-    query = session.query(Vehicle)
+    query = select(Vehicle)
     if query_params.company_id is not None:
         query = query.filter(Vehicle.company_id == query_params.company_id)
     if query_params.registration_number is not None:
@@ -456,7 +460,7 @@ def search_vehicles(session: Session, query_params: QueryParams) -> list[Vehicle
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    vehicles = query.all()
+    vehicles = session.scalars(query).all()
     return vehicles
 
 

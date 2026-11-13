@@ -8,6 +8,7 @@ Provides endpoints for managing vendor accounts:
     - GET (executive, vendor)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated
@@ -15,7 +16,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, EmailStr, Field
 from pydantic_extra_types.phone_numbers import PhoneNumber
-from sqlalchemy import String, or_
+from sqlalchemy import String, func, or_, select, update
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
@@ -256,9 +257,12 @@ def create_vendor(
         dict: Created vendor account data.
     """
     vendor_count = (
-        session.query(Vendor)
-        .filter(Vendor.business_id == form_param.business_id)
-        .count()
+        session.scalar(
+            select(func.count())
+            .select_from(Vendor)
+            .filter(Vendor.business_id == form_param.business_id)
+        )
+        or 0
     )
     if vendor_count >= MAX_VENDORS_PER_COMPANY:
         raise exceptions.LimitExceeded(Vendor)
@@ -318,10 +322,14 @@ def update_vendor(
     if "status" in update_data:
         if vendor.status != update_data["status"]:
             if update_data["status"] == AccountStatus.SUSPENDED:
-                session.query(VendorToken).filter(
-                    VendorToken.vendor_id == id,
-                    VendorToken.is_revoked.is_(False),
-                ).update({VendorToken.is_revoked: True})
+                session.execute(
+                    update(VendorToken)
+                    .where(
+                        VendorToken.vendor_id == id,
+                        VendorToken.is_revoked.is_(False),
+                    )
+                    .values({VendorToken.is_revoked: True})
+                )
             vendor.status = update_data["status"]
         update_data.pop("status")
 
@@ -336,7 +344,7 @@ def update_vendor(
     return vendor_account_data
 
 
-def search_vendors(session: Session, query_params: QueryParams) -> list[Vendor]:
+def search_vendors(session: Session, query_params: QueryParams) -> Sequence[Vendor]:
     """
     Search for vendor accounts based on provided query parameters.
 
@@ -350,7 +358,7 @@ def search_vendors(session: Session, query_params: QueryParams) -> list[Vendor]:
     Returns:
         list[Vendor]: List of vendors that match the search criteria.
     """
-    query = session.query(Vendor)
+    query = select(Vendor)
     if query_params.business_id is not None:
         query = query.filter(Vendor.business_id == query_params.business_id)
     if query_params.description is not None:
@@ -388,7 +396,7 @@ def search_vendors(session: Session, query_params: QueryParams) -> list[Vendor]:
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    vendors = query.all()
+    vendors = session.scalars(query).all()
     return vendors
 
 
@@ -413,9 +421,9 @@ def delete_vendor(
     if vendor is None:
         return
 
-    vendor_images = (
-        session.query(VendorImage).filter(VendorImage.vendor_id == vendor.id).all()
-    )
+    vendor_images = session.scalars(
+        select(VendorImage).filter(VendorImage.vendor_id == vendor.id)
+    ).all()
     vendor_account_data = vendor_account_to_dict(vendor)
     session.delete(vendor)
     session.commit()

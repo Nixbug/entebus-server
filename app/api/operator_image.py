@@ -8,6 +8,7 @@ Provides endpoints for managing operator images:
     - GET /{id} (executive, operator)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from io import BytesIO
@@ -15,6 +16,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile,
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
@@ -249,7 +251,7 @@ def delete_operator_image(
 
 def search_operator_images(
     session: Session, query_params: QueryParams
-) -> list[OperatorImage]:
+) -> Sequence[OperatorImage]:
     """
     Search for operator images based on provided query parameters.
 
@@ -263,7 +265,7 @@ def search_operator_images(
     Returns:
         list[OperatorImage]: List of operator images that match the search criteria.
     """
-    query = session.query(OperatorImage)
+    query = select(OperatorImage)
     if query_params.company_id is not None:
         query = query.filter(OperatorImage.company_id == query_params.company_id)
     if query_params.operator_id is not None:
@@ -284,7 +286,7 @@ def search_operator_images(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    operator_images = query.all()
+    operator_images = session.scalars(query).all()
     return operator_images
 
 

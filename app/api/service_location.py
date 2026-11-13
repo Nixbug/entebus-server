@@ -6,11 +6,12 @@ Provides endpoints for managing service locations:
     - GET (executive, operator, vendor, public)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, Query
 from geoalchemy2 import Geography
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
@@ -237,7 +238,7 @@ def update_service_location(
 
 def search_service_locations(
     session: Session, query_params: QueryParams
-) -> list[ServiceLocation]:
+) -> Sequence[ServiceLocation]:
     """
     Search for service locations based on provided query parameters.
 
@@ -251,7 +252,7 @@ def search_service_locations(
     Returns:
         List[ServiceLocation]: List of service locations that match the search criteria.
     """
-    query = session.query(ServiceLocation)
+    query = select(ServiceLocation)
     validated_location = None
     if query_params.location is not None:
         geometry = validate_wkt_string(
@@ -295,7 +296,7 @@ def search_service_locations(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    service_locations = query.all()
+    service_locations = session.scalars(query).all()
     return service_locations
 
 

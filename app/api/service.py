@@ -8,6 +8,7 @@ Provides endpoints for managing services:
     - DELETE (executive, operator)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -17,7 +18,7 @@ from fastapi import APIRouter, Query, Response
 from pydantic import BaseModel, Field
 from datetime import timedelta
 from fastapi import status, Depends
-from sqlalchemy import String, and_, func, or_
+from sqlalchemy import String, and_, delete, func, or_, select, update
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 from sqlalchemy.orm import aliased
@@ -359,18 +360,20 @@ def validate_service_timing(
     Raises:
         exceptions.OverlappingService: If there is an overlapping service with the same vehicle registration number.
     """
-    query = session.query(Service).filter(
+    query = select(Service).filter(
         Service.registration_number == registration_number,
         Service.starting_at < ending_at,
         Service.ending_at > starting_at,
     )
     if exclude_service_id is not None:
         query = query.filter(Service.id != exclude_service_id)
-    if query.first():
+    if session.scalars(query).first():
         raise exceptions.OverlappingService()
 
 
-def fetch_landmarks_in_route(session: Session, route: Route) -> list[LandmarkInRoute]:
+def fetch_landmarks_in_route(
+    session: Session, route: Route
+) -> Sequence[LandmarkInRoute]:
     """
     Fetch and return all landmarks in a given route, ordered by distance from start.
 
@@ -381,18 +384,17 @@ def fetch_landmarks_in_route(session: Session, route: Route) -> list[LandmarkInR
     Returns:
         List[LandmarkInRoute]: List of `LandmarkInRoute` objects ordered by distance from start.
     """
-    return (
-        session.query(LandmarkInRoute)
+    return session.scalars(
+        select(LandmarkInRoute)
         .filter(LandmarkInRoute.route_id == route.id)
         .order_by(LandmarkInRoute.distance_from_start.asc())
-        .all()
-    )
+    ).all()
 
 
 def create_landmarks_in_service(
     session: Session,
     service: Service,
-    landmarks_in_route: list[LandmarkInRoute],
+    landmarks_in_route: Sequence[LandmarkInRoute],
 ) -> list[LandmarkInService]:
     """
     Create landmark snapshot rows for a service based on route timing deltas.
@@ -424,7 +426,7 @@ def create_landmarks_in_service(
 
 def fetch_landmarks_in_service(
     session: Session, service: Service
-) -> list[LandmarkInService]:
+) -> Sequence[LandmarkInService]:
     """
     Fetch and return landmark snapshots (`LandmarkInService`) for a service.
 
@@ -435,12 +437,11 @@ def fetch_landmarks_in_service(
     Returns:
         List[LandmarkInService]: List of `LandmarkInService` objects.
     """
-    return (
-        session.query(LandmarkInService)
+    return session.scalars(
+        select(LandmarkInService)
         .filter(LandmarkInService.service_id == service.id)
         .order_by(LandmarkInService.distance_from_start.asc())
-        .all()
-    )
+    ).all()
 
 
 def delete_landmarks_in_service(session: Session, service: Service) -> None:
@@ -451,9 +452,9 @@ def delete_landmarks_in_service(session: Session, service: Service) -> None:
         session (Session): SQLAlchemy session.
         service (Service): Service whose landmark snapshots should be removed.
     """
-    session.query(LandmarkInService).filter(
-        LandmarkInService.service_id == service.id
-    ).delete(synchronize_session=False)
+    session.execute(
+        delete(LandmarkInService).where(LandmarkInService.service_id == service.id)
+    )
     session.flush()
 
 
@@ -469,11 +470,11 @@ def create_fare_in_service(session: Session, fare: Fare) -> FareInService:
     Returns:
         FareInService: The existing or newly created FareInService snapshot associated with the given fare.
     """
-    fare_in_service = (
-        session.query(FareInService)
-        .filter(FareInService.fare_id == fare.id, FareInService.version == fare.version)
-        .first()
-    )
+    fare_in_service = session.scalars(
+        select(FareInService).filter(
+            FareInService.fare_id == fare.id, FareInService.version == fare.version
+        )
+    ).first()
     if fare_in_service:
         fare_in_service.reference_count += 1
     else:
@@ -501,11 +502,9 @@ def fetch_fare_in_service(session: Session, service: Service) -> FareInService:
     Returns:
         FareInService: `FareInService` object.
     """
-    fare_in_service = (
-        session.query(FareInService)
-        .filter(FareInService.id == service.fare_in_service_id)
-        .first()
-    )
+    fare_in_service = session.scalars(
+        select(FareInService).filter(FareInService.id == service.fare_in_service_id)
+    ).first()
     assert fare_in_service is not None, "FareInService snapshot should not be None."
     return fare_in_service
 
@@ -536,14 +535,12 @@ def create_vehicle_in_service(session: Session, vehicle: Vehicle) -> VehicleInSe
     Returns:
         VehicleInService: The existing or newly created VehicleInService snapshot associated with the given vehicle.
     """
-    vehicle_in_service = (
-        session.query(VehicleInService)
-        .filter(
+    vehicle_in_service = session.scalars(
+        select(VehicleInService).filter(
             VehicleInService.vehicle_id == vehicle.id,
             VehicleInService.version == vehicle.version,
         )
-        .first()
-    )
+    ).first()
     if vehicle_in_service:
         vehicle_in_service.reference_count += 1
     else:
@@ -571,11 +568,11 @@ def fetch_vehicle_in_service(session: Session, service: Service) -> VehicleInSer
     Returns:
         VehicleInService: `VehicleInService` object.
     """
-    vehicle_in_service = (
-        session.query(VehicleInService)
-        .filter(VehicleInService.id == service.vehicle_in_service_id)
-        .first()
-    )
+    vehicle_in_service = session.scalars(
+        select(VehicleInService).filter(
+            VehicleInService.id == service.vehicle_in_service_id
+        )
+    ).first()
     assert (
         vehicle_in_service is not None
     ), "VehicleInService snapshot should not be None."
@@ -932,16 +929,17 @@ def update_service(
                 old_starting_at = service.starting_at
                 new_starting_at = validate_starting_at(update_data["starting_at"])
                 time_difference = new_starting_at - old_starting_at
-                session.query(LandmarkInService).filter(
-                    LandmarkInService.service_id == service.id
-                ).update(
-                    {
-                        LandmarkInService.arrival_at: LandmarkInService.arrival_at
-                        + time_difference,
-                        LandmarkInService.departure_at: LandmarkInService.departure_at
-                        + time_difference,
-                    },
-                    synchronize_session=False,
+                session.execute(
+                    update(LandmarkInService)
+                    .where(LandmarkInService.service_id == service.id)
+                    .values(
+                        {
+                            LandmarkInService.arrival_at: LandmarkInService.arrival_at
+                            + time_difference,
+                            LandmarkInService.departure_at: LandmarkInService.departure_at
+                            + time_difference,
+                        }
+                    )
                 )
                 service.starting_at = new_starting_at
                 service.ending_at = service.ending_at + time_difference
@@ -981,18 +979,19 @@ def update_service(
                     service.collection = Decimal(0)
                 elif update_data["status"] == ServiceStatus.ENDED:
                     utc_now = datetime.now(TMZ_PRIMARY)
-                    duties = (
-                        session.query(Duty).filter(Duty.service_id == service.id).all()
-                    )
+                    duties = session.scalars(
+                        select(Duty).filter(Duty.service_id == service.id)
+                    ).all()
 
                     collections_by_duty_id: dict[int, Decimal] = {
                         duty_id: total
-                        for duty_id, total in session.query(
-                            PaperTicket.duty_id, func.sum(PaperTicket.amount)
-                        )
-                        .filter(PaperTicket.duty_id.in_([duty.id for duty in duties]))
-                        .group_by(PaperTicket.duty_id)
-                        .all()
+                        for duty_id, total in session.execute(
+                            select(PaperTicket.duty_id, func.sum(PaperTicket.amount))
+                            .filter(
+                                PaperTicket.duty_id.in_([duty.id for duty in duties])
+                            )
+                            .group_by(PaperTicket.duty_id)
+                        ).all()
                     }
 
                     service_collection = Decimal(0)
@@ -1026,7 +1025,7 @@ def update_service(
         release_lock(service_lock)
 
 
-def search_service(session: Session, query_params: QueryParams) -> list[Service]:
+def search_service(session: Session, query_params: QueryParams) -> Sequence[Service]:
     """
     Search for Services based on provided query parameters.
 
@@ -1052,7 +1051,7 @@ def search_service(session: Session, query_params: QueryParams) -> list[Service]
         ending_lmk = aliased(LandmarkInService)
 
         services_to_consider = (
-            session.query(starting_lmk.service_id)
+            select(starting_lmk.service_id)
             .join(
                 ending_lmk,
                 and_(
@@ -1068,7 +1067,7 @@ def search_service(session: Session, query_params: QueryParams) -> list[Service]
     elif query_params.starting_landmark_id is not None:
         # Find services with the starting landmark only
         services_to_consider = (
-            session.query(LandmarkInService.service_id)
+            select(LandmarkInService.service_id)
             .filter(LandmarkInService.landmark_id == query_params.starting_landmark_id)
             .distinct()
         )
@@ -1076,12 +1075,12 @@ def search_service(session: Session, query_params: QueryParams) -> list[Service]
     elif query_params.ending_landmark_id is not None:
         # Find services with the ending landmark only
         services_to_consider = (
-            session.query(LandmarkInService.service_id)
+            select(LandmarkInService.service_id)
             .filter(LandmarkInService.landmark_id == query_params.ending_landmark_id)
             .distinct()
         )
 
-    query = session.query(Service)
+    query = select(Service)
     if services_to_consider is not None:
         query = query.filter(Service.id.in_(services_to_consider))
     if query_params.company_id is not None:
@@ -1108,6 +1107,7 @@ def search_service(session: Session, query_params: QueryParams) -> list[Service]
         query = query.filter(Service.ending_at >= query_params.ending_at_ge)
     if query_params.ending_at_le is not None:
         query = query.filter(Service.ending_at <= query_params.ending_at_le)
+
     # Common search
     if query_params.search:
         search = f"%{query_params.search}%"
@@ -1136,7 +1136,7 @@ def search_service(session: Session, query_params: QueryParams) -> list[Service]
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    services = query.all()
+    services = session.scalars(query).all()
     return services
 
 

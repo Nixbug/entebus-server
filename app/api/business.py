@@ -8,6 +8,7 @@ Provides endpoints for managing businesses:
     - DELETE (executive)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated
@@ -17,7 +18,7 @@ from pydantic import BaseModel, Field
 from shapely import wkt
 from shapely.geometry import Point
 from sqlalchemy.orm.session import Session
-from sqlalchemy import func, String, or_
+from sqlalchemy import func, String, or_, select
 from sqlalchemy.sql import ColumnElement
 from geoalchemy2 import Geography
 
@@ -347,19 +348,15 @@ def update_business(
     if "name" in update_data:
         if update_data["name"] != business.name:
             business.name = update_data["name"]
-            business_wallet = (
-                session.query(BusinessWallet)
-                .filter(BusinessWallet.business_id == business.id)
-                .first()
-            )
+            business_wallet = session.scalars(
+                select(BusinessWallet).filter(BusinessWallet.business_id == business.id)
+            ).first()
             assert (
                 business_wallet is not None
             ), "BusinessWallet should exist for the business"
-            wallet = (
-                session.query(Wallet)
-                .filter(Wallet.id == business_wallet.wallet_id)
-                .first()
-            )
+            wallet = session.scalars(
+                select(Wallet).filter(Wallet.id == business_wallet.wallet_id)
+            ).first()
             assert wallet is not None, "Wallet should exist for the business"
             wallet.name = update_data["name"]
         update_data.pop("name")
@@ -377,7 +374,9 @@ def update_business(
     return business_data
 
 
-def search_businesses(session: Session, query_params: QueryParams) -> list[Business]:
+def search_businesses(
+    session: Session, query_params: QueryParams
+) -> Sequence[Business]:
     """
     Search for businesses based on provided query parameters.
 
@@ -391,7 +390,7 @@ def search_businesses(session: Session, query_params: QueryParams) -> list[Busin
     Returns:
         list[Business]: List of businesses that match the search criteria.
     """
-    query = session.query(Business)
+    query = select(Business)
     validated_location = None
     if query_params.location is not None:
         geometry = validate_wkt_string(query_params.location, Point)
@@ -442,7 +441,7 @@ def search_businesses(session: Session, query_params: QueryParams) -> list[Busin
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    businesses = query.all()
+    businesses = session.scalars(query).all()
     return businesses
 
 
@@ -462,9 +461,9 @@ def delete_business(
     if business is None:
         return
 
-    vendor_images = (
-        session.query(VendorImage).filter(VendorImage.business_id == id).all()
-    )
+    vendor_images = session.scalars(
+        select(VendorImage).filter(VendorImage.business_id == id)
+    ).all()
     business_data = business_to_dict(business)
     session.delete(business)
     session.commit()
