@@ -8,11 +8,13 @@ Provides endpoints for managing vendor role maps:
     - GET (executive, vendor)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
@@ -273,7 +275,7 @@ def delete_vendor_role_map(
 
 def search_vendor_role_maps(
     session: Session, query_params: QueryParams
-) -> list[VendorRoleMap]:
+) -> Sequence[VendorRoleMap]:
     """
     Searches for vendor role mappings based on the provided query parameters.
 
@@ -287,7 +289,7 @@ def search_vendor_role_maps(
     Returns:
         list[VendorRoleMap]: List of vendor role mappings that match the search criteria.
     """
-    query = session.query(VendorRoleMap)
+    query = select(VendorRoleMap)
     if query_params.business_id is not None:
         query = query.filter(VendorRoleMap.business_id == query_params.business_id)
     if query_params.role_id is not None:
@@ -310,7 +312,7 @@ def search_vendor_role_maps(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    vendor_role_maps = query.all()
+    vendor_role_maps = session.scalars(query).all()
     return vendor_role_maps
 
 

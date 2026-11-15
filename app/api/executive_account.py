@@ -8,6 +8,7 @@ Provides endpoints for managing executive accounts:
     - GET (executive)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated
@@ -15,7 +16,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, EmailStr, Field
 from pydantic_extra_types.phone_numbers import PhoneNumber
-from sqlalchemy import String, or_
+from sqlalchemy import String, or_, select, update
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive
@@ -235,10 +236,14 @@ def update_executive(
     if "status" in update_data:
         if executive.status != update_data["status"]:
             if update_data["status"] == AccountStatus.SUSPENDED:
-                session.query(ExecutiveToken).filter(
-                    ExecutiveToken.executive_id == id,
-                    ExecutiveToken.is_revoked.is_(False),
-                ).update({ExecutiveToken.is_revoked: True})
+                session.execute(
+                    update(ExecutiveToken)
+                    .where(
+                        ExecutiveToken.executive_id == id,
+                        ExecutiveToken.is_revoked.is_(False),
+                    )
+                    .values({ExecutiveToken.is_revoked: True})
+                )
             executive.status = update_data["status"]
         update_data.pop("status")
 
@@ -253,7 +258,9 @@ def update_executive(
     return executive_account_data
 
 
-def search_executives(session: Session, query_params: QueryParams) -> list[Executive]:
+def search_executives(
+    session: Session, query_params: QueryParams
+) -> Sequence[Executive]:
     """
     Search for executive accounts based on provided query parameters.
 
@@ -267,7 +274,7 @@ def search_executives(session: Session, query_params: QueryParams) -> list[Execu
     Returns:
         list[Executive]: List of executive accounts that match the search criteria.
     """
-    query = session.query(Executive)
+    query = select(Executive)
     if query_params.designation is not None:
         query = query.filter(
             Executive.designation.ilike(f"%{query_params.designation}%")
@@ -304,7 +311,7 @@ def search_executives(session: Session, query_params: QueryParams) -> list[Execu
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    executives = query.all()
+    executives = session.scalars(query).all()
     return executives
 
 
@@ -327,9 +334,9 @@ def delete_executive(
     if executive is None:
         return
 
-    executive_images = (
-        session.query(ExecutiveImage).filter(ExecutiveImage.executive_id == id).all()
-    )
+    executive_images = session.scalars(
+        select(ExecutiveImage).filter(ExecutiveImage.executive_id == id)
+    ).all()
     executive_account_data = executive_account_to_dict(executive)
     session.delete(executive)
     session.commit()

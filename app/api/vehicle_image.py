@@ -8,6 +8,7 @@ Provides endpoints for managing vehicle images:
     - GET /{id} (executive, operator, public)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from io import BytesIO
@@ -15,6 +16,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile,
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
@@ -263,7 +265,7 @@ def delete_vehicle_image(
 
 def search_vehicle_images(
     session: Session, query_params: QueryParams
-) -> list[VehicleImage]:
+) -> Sequence[VehicleImage]:
     """
     Search for vehicle images based on provided query parameters.
 
@@ -277,7 +279,7 @@ def search_vehicle_images(
     Returns:
         list[VehicleImage]: List of vehicle images that match the search criteria.
     """
-    query = session.query(VehicleImage)
+    query = select(VehicleImage)
     if query_params.company_id is not None:
         query = query.filter(VehicleImage.company_id == query_params.company_id)
     if query_params.vehicle_id is not None:
@@ -298,7 +300,7 @@ def search_vehicle_images(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    vehicle_images = query.all()
+    vehicle_images = session.scalars(query).all()
     return vehicle_images
 
 

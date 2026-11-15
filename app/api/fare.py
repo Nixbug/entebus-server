@@ -8,6 +8,7 @@ Provides endpoints for managing fares:
     - GET (executive, operator, vendor)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
@@ -15,7 +16,7 @@ from fastapi import APIRouter, status, Depends, Response, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
-from sqlalchemy import or_, String
+from sqlalchemy import func, or_, String, select
 
 from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
 from app.src.db import (
@@ -225,12 +226,15 @@ def create_fare(
     """
     if form_param.scope == FareScope.LOCAL:
         local_fare_count = (
-            session.query(Fare)
-            .filter(
-                Fare.company_id == form_param.company_id,
-                Fare.scope == FareScope.LOCAL,
+            session.scalar(
+                select(func.count())
+                .select_from(Fare)
+                .filter(
+                    Fare.company_id == form_param.company_id,
+                    Fare.scope == FareScope.LOCAL,
+                )
             )
-            .count()
+            or 0
         )
         if local_fare_count >= MAX_LOCAL_FARES_PER_COMPANY:
             raise exceptions.LimitExceeded(Fare)
@@ -318,7 +322,7 @@ def delete_fare(
     log_event(token, request_info, fare_data)
 
 
-def search_fares(session: Session, query_params: QueryParams) -> list[Fare]:
+def search_fares(session: Session, query_params: QueryParams) -> Sequence[Fare]:
     """
     Search for Fares based on provided query parameters.
 
@@ -332,7 +336,7 @@ def search_fares(session: Session, query_params: QueryParams) -> list[Fare]:
     Returns:
         list[Fare]: List of Fares that match the search criteria.
     """
-    query = session.query(Fare)
+    query = select(Fare)
     if query_params.company_id is not None:
         query = query.filter(
             or_(Fare.company_id == query_params.company_id, Fare.company_id.is_(None))
@@ -372,7 +376,7 @@ def search_fares(session: Session, query_params: QueryParams) -> list[Fare]:
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    fares = query.all()
+    fares = session.scalars(query).all()
     return fares
 
 

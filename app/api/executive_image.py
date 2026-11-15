@@ -8,6 +8,7 @@ Provides endpoints for managing executive images:
     - GET /{id} (executive)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from io import BytesIO
@@ -15,6 +16,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile,
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm.session import Session
 
 from app.src import exceptions, schemas
@@ -202,7 +204,7 @@ def delete_executive_image(
 
 def search_executive_images(
     session: Session, query_params: QueryParams
-) -> list[ExecutiveImage]:
+) -> Sequence[ExecutiveImage]:
     """
     Search for executive images based on provided query parameters.
 
@@ -216,7 +218,7 @@ def search_executive_images(
     Returns:
         list[ExecutiveImage]: List of executive images that match the search criteria.
     """
-    query = session.query(ExecutiveImage)
+    query = select(ExecutiveImage)
     if query_params.executive_id is not None:
         query = query.filter(ExecutiveImage.executive_id == query_params.executive_id)
 
@@ -235,7 +237,7 @@ def search_executive_images(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    executive_images = query.all()
+    executive_images = session.scalars(query).all()
     return executive_images
 
 

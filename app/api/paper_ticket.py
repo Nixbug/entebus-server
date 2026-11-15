@@ -6,12 +6,14 @@ Provides endpoints for managing paper tickets:
     - GET (executive, operator)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from fastapi import APIRouter, Depends, status, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 from sqlalchemy.orm.session import Session
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -195,21 +197,19 @@ def create_paper_ticket(
         session.refresh(service)
 
         # Fetch all landmarks in that service and construct a map for validation and distance calculation
-        landmarks_in_service = (
-            session.query(LandmarkInService)
-            .filter(LandmarkInService.service_id == form_param.service_id)
-            .all()
-        )
+        landmarks_in_service = session.scalars(
+            select(LandmarkInService).filter(
+                LandmarkInService.service_id == form_param.service_id
+            )
+        ).all()
         landmarks_in_service_map = {
             lis.landmark_id: lis for lis in landmarks_in_service
         }
 
         # Fetch fare function and ticket types for the service and construct a map for validation
-        fare_in_service = (
-            session.query(FareInService)
-            .filter(FareInService.id == service.fare_in_service_id)
-            .first()
-        )
+        fare_in_service = session.scalars(
+            select(FareInService).filter(FareInService.id == service.fare_in_service_id)
+        ).first()
         assert fare_in_service is not None, "FareInService should exist for the service"
         fare_function = v1.DynamicFare(fare_in_service.function)
         fare_ticket_types = fare_in_service.attributes["ticket_types"]
@@ -222,11 +222,11 @@ def create_paper_ticket(
         )  # Cache to store operator_id to Duty mapping
         paper_tickets: list[PaperTicket] = []
 
-        service_location = (
-            session.query(ServiceLocation)
-            .filter(ServiceLocation.service_id == form_param.service_id)
-            .first()
-        )
+        service_location = session.scalars(
+            select(ServiceLocation).filter(
+                ServiceLocation.service_id == form_param.service_id
+            )
+        ).first()
         assert (
             service_location is not None
         ), "ServiceLocation should exist for the service"
@@ -236,9 +236,12 @@ def create_paper_ticket(
         ), "Current landmark in service should exist for the service location"
 
         paper_ticket_count = (
-            session.query(PaperTicket)
-            .filter(PaperTicket.service_id == form_param.service_id)
-            .count()
+            session.scalar(
+                select(func.count())
+                .select_from(PaperTicket)
+                .filter(PaperTicket.service_id == form_param.service_id)
+            )
+            or 0
         )
         if paper_ticket_count >= MAX_PAPER_TICKETS_PER_SERVICE:
             raise exceptions.LimitExceeded(PaperTicket)
@@ -285,14 +288,12 @@ def create_paper_ticket(
             # Check for amount mismatch and operator mismatch, but do not abort the process,
             # instead, record warnings and uploaded_by info in the ticket payload
             warnings = []
-            operator = (
-                session.query(Operator)
-                .filter(
+            operator = session.scalars(
+                select(Operator).filter(
                     Operator.id == ticket.operator_id,
                     Operator.company_id == token.company_id,
                 )
-                .first()
-            )
+            ).first()
             if operator is None:
                 warnings.append(PaperTicketWarning.OPERATOR_NOT_FOUND)
             if token.operator_id != ticket.operator_id:
@@ -306,15 +307,13 @@ def create_paper_ticket(
             # Check cache for existing duty for the operator
             duty = None
             if operator_id not in duty_cache:
-                duty = (
-                    session.query(Duty)
-                    .filter(
+                duty = session.scalars(
+                    select(Duty).filter(
                         Duty.service_id == form_param.service_id,
                         Duty.operator_id == operator_id,
                         Duty.status.in_((DutyStatus.STARTED, DutyStatus.ENDED)),
                     )
-                    .first()
-                )
+                ).first()
 
                 # Create new duty if not found, or reactivate if ended
                 if duty is None:
@@ -393,7 +392,7 @@ def create_paper_ticket(
 
 def search_paper_tickets(
     session: Session, query_params: QueryParams
-) -> list[PaperTicket]:
+) -> Sequence[PaperTicket]:
     """
     Search for paper tickets provided on query parameters.
 
@@ -408,7 +407,7 @@ def search_paper_tickets(
     Returns:
         list[PaperTicket]: List of paper tickets that match the search criteria.
     """
-    query = session.query(PaperTicket)
+    query = select(PaperTicket)
     if query_params.company_id is not None:
         query = query.filter(PaperTicket.company_id == query_params.company_id)
     if query_params.service_id is not None:
@@ -430,7 +429,7 @@ def search_paper_tickets(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    paper_tickets = query.all()
+    paper_tickets = session.scalars(query).all()
     return paper_tickets
 
 

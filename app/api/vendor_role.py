@@ -8,12 +8,13 @@ Provides endpoints for managing vendor roles:
     - GET (executive, vendor)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from sqlalchemy import String, or_
+from sqlalchemy import String, func, or_, select
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
@@ -171,9 +172,12 @@ def create_vendor_role(
         dict: Created vendor role data.
     """
     role_count = (
-        session.query(VendorRole)
-        .filter(VendorRole.business_id == form_param.business_id)
-        .count()
+        session.scalar(
+            select(func.count())
+            .select_from(VendorRole)
+            .filter(VendorRole.business_id == form_param.business_id)
+        )
+        or 0
     )
     if role_count >= MAX_VENDOR_ROLE:
         raise exceptions.LimitExceeded(VendorRole)
@@ -263,7 +267,7 @@ def delete_vendor_role(
 
 def search_vendor_roles(
     session: Session, query_params: QueryParams
-) -> list[VendorRole]:
+) -> Sequence[VendorRole]:
     """
     Searches for vendor roles based on the provided query parameters.
 
@@ -277,7 +281,7 @@ def search_vendor_roles(
     Returns:
         list[VendorRole]: List of vendor roles that match the search criteria.
     """
-    query = session.query(VendorRole)
+    query = select(VendorRole)
     if query_params.business_id is not None:
         query = query.filter(VendorRole.business_id == query_params.business_id)
 
@@ -307,7 +311,7 @@ def search_vendor_roles(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    vendor_roles = query.all()
+    vendor_roles = session.scalars(query).all()
     return vendor_roles
 
 

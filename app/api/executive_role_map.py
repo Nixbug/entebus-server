@@ -8,11 +8,13 @@ Provides endpoints for managing executive role maps:
     - GET (executive)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive
@@ -202,7 +204,7 @@ def delete_executive_role_map(
 
 def search_executive_role_maps(
     session: Session, query_params: QueryParams
-) -> list[ExecutiveRoleMap]:
+) -> Sequence[ExecutiveRoleMap]:
     """
     Searches for executive role mappings based on the provided query parameters.
 
@@ -213,7 +215,7 @@ def search_executive_role_maps(
     Returns:
         list[ExecutiveRoleMap]: List of executive role mappings matching the query parameters.
     """
-    query = session.query(ExecutiveRoleMap)
+    query = select(ExecutiveRoleMap)
     if query_params.role_id is not None:
         query = query.filter(ExecutiveRoleMap.role_id == query_params.role_id)
     if query_params.executive_id is not None:
@@ -234,7 +236,7 @@ def search_executive_role_maps(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    executive_role_maps = query.all()
+    executive_role_maps = session.scalars(query).all()
     return executive_role_maps
 
 

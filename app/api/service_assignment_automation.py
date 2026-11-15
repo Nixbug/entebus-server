@@ -8,11 +8,13 @@ Provides endpoints for managing service assignment automations:
     - GET (executive, operator)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
@@ -283,7 +285,7 @@ def delete_service_assignment_automation(
 
 def search_service_assignment_automations(
     session: Session, query_params: QueryParams
-) -> list[ServiceAssignmentAutomation]:
+) -> Sequence[ServiceAssignmentAutomation]:
     """
     Search for ServiceAssignmentAutomation entries based on provided query parameters.
 
@@ -297,7 +299,7 @@ def search_service_assignment_automations(
     Returns:
         list[ServiceAssignmentAutomation]: List of assignment automation entries that match the search criteria.
     """
-    query = session.query(ServiceAssignmentAutomation)
+    query = select(ServiceAssignmentAutomation)
     if query_params.company_id is not None:
         query = query.filter(
             ServiceAssignmentAutomation.company_id == query_params.company_id
@@ -327,7 +329,7 @@ def search_service_assignment_automations(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    service_assignment_automations = query.all()
+    service_assignment_automations = session.scalars(query).all()
     return service_assignment_automations
 
 

@@ -1,6 +1,7 @@
 from datetime import datetime
 import logging
 from typing import Optional
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from dateutil import rrule as rrulelib
 
@@ -44,11 +45,9 @@ def run_service_creation_job(session: Session, job: Job):
         session (Session): SQLAlchemy database session.
         job (Job): The job object containing scheduling information.
     """
-    service_automations = (
-        session.query(ServiceAutomation)
-        .filter(ServiceAutomation.job_id == job.id)
-        .all()
-    )
+    service_automations = session.scalars(
+        select(ServiceAutomation).filter(ServiceAutomation.job_id == job.id)
+    ).all()
 
     local_now = datetime.now(TMZ_SECONDARY)
     for service_automation in service_automations:
@@ -97,14 +96,12 @@ def run_service_creation_job(session: Session, job: Job):
                 atomic_session.commit()
                 continue
 
-            service_assignment_automations = (
-                session.query(ServiceAssignmentAutomation)
-                .filter(
+            service_assignment_automations = session.scalars(
+                select(ServiceAssignmentAutomation).filter(
                     ServiceAssignmentAutomation.service_automation_id
                     == service_automation.id
                 )
-                .all()
-            )
+            ).all()
             for service_assignment in service_assignment_automations:
                 service_assignment_data = create_service_assignment(
                     atomic_session,
@@ -222,7 +219,7 @@ def start_job_runner():
         while have_jobs:
             with SessionLocal() as session:
                 jobs = (
-                    session.query(Job)
+                    select(Job)
                     .filter(
                         Job.triggering_mode == TriggeringMode.AUTO,
                         Job.next_trigger_on <= datetime.now(TMZ_PRIMARY),

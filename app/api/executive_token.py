@@ -9,6 +9,7 @@ Provides endpoints for managing executive tokens:
     - GET (executive)
 """
 
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Optional
@@ -16,6 +17,7 @@ from fastapi import APIRouter, Depends, Form, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import select
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive
@@ -248,16 +250,15 @@ def revoke_executive_token(
         token (ExecutiveToken): Authenticated executive token.
         request_info (schemas.RequestInfo): Request information for logging.
     """
-    executive_token = (
-        session.query(ExecutiveToken)
+    executive_token = session.scalars(
+        select(ExecutiveToken)
         .filter(ExecutiveToken.executive_id == token.executive_id)
         .filter(
             (ExecutiveToken.access_token == form_param.token)
             | (ExecutiveToken.refresh_token == form_param.token)
         )
         .filter(ExecutiveToken.is_revoked.is_(False))
-        .first()
-    )
+    ).first()
     if executive_token is None:
         return
 
@@ -293,7 +294,7 @@ def delete_executive_token(
 def search_executive_tokens(
     session: Session,
     query_params: QueryParams,
-) -> list[ExecutiveToken]:
+) -> Sequence[ExecutiveToken]:
     """
     Search for executive tokens based on provided query parameters.
 
@@ -309,7 +310,7 @@ def search_executive_tokens(
     Returns:
         list[ExecutiveToken]: List of executive tokens that match the search criteria.
     """
-    query = session.query(ExecutiveToken).filter(ExecutiveToken.is_revoked.is_(False))
+    query = select(ExecutiveToken).filter(ExecutiveToken.is_revoked.is_(False))
     if query_params.executive_id is not None:
         query = query.filter(ExecutiveToken.executive_id == query_params.executive_id)
 
@@ -328,7 +329,7 @@ def search_executive_tokens(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    executive_tokens = query.all()
+    executive_tokens = session.scalars(query).all()
     return executive_tokens
 
 

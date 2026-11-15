@@ -8,6 +8,7 @@ Provides endpoints for managing landmarks:
     - GET (executive, vendor, operator, public)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated
@@ -17,7 +18,7 @@ from geoalchemy2 import Geography
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy.orm.session import Session
 from shapely.geometry import Polygon, Point
-from sqlalchemy import String, func, or_
+from sqlalchemy import String, func, or_, select
 from shapely import wkt
 from shapely.ops import transform
 import pyproj
@@ -208,7 +209,7 @@ def validate_boundary(
         raise exceptions.InvalidBoundaryArea()
 
     # Check for overlaps with other landmarks
-    overlapping = session.query(Landmark).filter(
+    overlapping = select(Landmark).filter(
         func.ST_Intersects(
             Landmark.boundary, func.ST_GeomFromText(boundary_geom.wkt, 4326)
         )
@@ -217,7 +218,7 @@ def validate_boundary(
     # If updating, exclude the current landmark from overlap check
     if landmark_id is not None:
         overlapping = overlapping.filter(Landmark.id != landmark_id)
-    if overlapping.first():
+    if session.scalars(overlapping).first() is not None:
         raise exceptions.OverlappingLandmarkBoundary()
     return boundary_geom
 
@@ -311,7 +312,9 @@ def update_landmark(
             if distance_in_meters > MAX_LANDMARK_UPDATE_DISTANCE:
                 raise exceptions.LandmarkDistanceLimitExceeded()
 
-            stations = session.query(Station).filter(Station.landmark_id == id).all()
+            stations = session.scalars(
+                select(Station).filter(Station.landmark_id == id)
+            ).all()
             for station in stations:
                 station_geom = load_geometry(station.location)
                 if not station_geom.within(new_boundary_geom):
@@ -353,7 +356,7 @@ def delete_landmark(
     log_event(token, request_info, landmark_data)
 
 
-def search_landmarks(session: Session, query_params: QueryParams) -> list[Landmark]:
+def search_landmarks(session: Session, query_params: QueryParams) -> Sequence[Landmark]:
     """
     Search for landmarks based on provided query parameters.
 
@@ -367,7 +370,7 @@ def search_landmarks(session: Session, query_params: QueryParams) -> list[Landma
     Returns:
         list[Landmark]: List of landmarks that match the search criteria.
     """
-    query = session.query(Landmark)
+    query = select(Landmark)
     validated_location = None
     if query_params.location is not None:
         geometry = validate_wkt_string(query_params.location, Point)
@@ -417,7 +420,7 @@ def search_landmarks(session: Session, query_params: QueryParams) -> list[Landma
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    landmarks = query.all()
+    landmarks = session.scalars(query).all()
     return landmarks
 
 

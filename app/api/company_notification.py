@@ -6,12 +6,14 @@ Provides endpoints for viewing and updating company-level notifications:
     - PATCH (operator)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
 from fastapi import APIRouter, Depends, Query
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import bearer_operator, oauth2_executive
@@ -141,7 +143,9 @@ def update_company_notification(
         CompanyNotification.id,
         extra_filter=(CompanyNotification.company_id == token.company_id),
     )
-    operator = session.query(Operator).filter(Operator.id == token.operator_id).first()
+    operator = session.scalars(
+        select(Operator).filter(Operator.id == token.operator_id)
+    ).first()
     assert operator is not None, "Operator should not be None"
     if (
         company_notification.operator_types
@@ -168,7 +172,9 @@ def update_company_notification(
     return notification_data
 
 
-def search_company_notifications(session: Session, query_params: QueryParams):
+def search_company_notifications(
+    session: Session, query_params: QueryParams
+) -> Sequence[CompanyNotification]:
     """
     Search company notifications using the project's standard filter pattern.
 
@@ -179,7 +185,7 @@ def search_company_notifications(session: Session, query_params: QueryParams):
     Returns:
         list[CompanyNotification]: List of CompanyNotification instances that match the search criteria.
     """
-    query = session.query(CompanyNotification)
+    query = select(CompanyNotification)
     if query_params.company_id is not None:
         query = query.filter(CompanyNotification.company_id == query_params.company_id)
     if query_params.type_list is not None:
@@ -202,7 +208,7 @@ def search_company_notifications(session: Session, query_params: QueryParams):
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    company_notifications = query.all()
+    company_notifications = session.scalars(query).all()
     return company_notifications
 
 
@@ -278,9 +284,9 @@ async def fetch_company_notifications_for_operator(
 ):
     try:
         token = verify_token(session, OperatorToken, access_token.credentials)
-        operator = (
-            session.query(Operator).filter(Operator.id == token.operator_id).first()
-        )
+        operator = session.scalars(
+            select(Operator).filter(Operator.id == token.operator_id)
+        ).first()
         assert operator is not None, "Operator should not be None"
         return search_company_notifications(
             session,

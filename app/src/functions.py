@@ -4,6 +4,7 @@ This module provides helper functions commonly used across FastAPI routes.
 It offers reusable utilities that make it easier for developers to integrate them into their projects.
 """
 
+from collections.abc import Sequence
 from geoalchemy2.elements import WKBElement
 import pyproj
 from enum import Enum
@@ -13,7 +14,7 @@ from typing import Any, Dict, Sequence, Type
 from fastapi import Query, Request
 from pydantic import BaseModel
 from shapely import wkb
-from sqlalchemy import asc, desc
+from sqlalchemy import asc, desc, select
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.orm.session import Session
 from shapely.geometry.base import BaseGeometry
@@ -137,12 +138,11 @@ def cleanup_old_tokens(
     Returns:
         None
     """
-    tokens = (
-        session.query(model_cls)
+    tokens = session.scalars(
+        select(model_cls)
         .filter(filter_condition)
         .order_by(desc(model_cls.is_revoked), asc(model_cls.created_on))
-        .all()
-    )
+    ).all()
     # Remove oldest tokens if we exceed max_tokens
     while len(tokens) > max_tokens:
         token_to_delete = tokens.pop(0)
@@ -153,7 +153,7 @@ def cleanup_old_tokens(
 def get_executive_roles(
     session: Session,
     token: ExecutiveToken,
-) -> list[ExecutiveRole]:
+) -> Sequence[ExecutiveRole]:
     """
     Retrieve all roles assigned to a specific executive.
 
@@ -162,21 +162,20 @@ def get_executive_roles(
         token (ExecutiveToken): Token model instance.
 
     Returns:
-        list[ExecutiveRole]: List of ExecutiveRole objects assigned to the executive.
+        Sequence[ExecutiveRole]: List of ExecutiveRole objects assigned to the executive.
                              Returns an empty list if no roles are found.
     """
-    return (
-        session.query(ExecutiveRole)
+    return session.scalars(
+        select(ExecutiveRole)
         .join(ExecutiveRoleMap, ExecutiveRole.id == ExecutiveRoleMap.role_id)
         .filter(ExecutiveRoleMap.executive_id == token.executive_id)
-        .all()
-    )
+    ).all()
 
 
 def get_vendor_roles(
     session: Session,
     token: VendorToken,
-) -> list[VendorRole]:
+) -> Sequence[VendorRole]:
     """
     Retrieve all roles assigned to a specific vendor.
 
@@ -185,21 +184,20 @@ def get_vendor_roles(
         token (VendorToken): Token model instance.
 
     Returns:
-        list[VendorRole]: List of VendorRole objects assigned to the vendor.
+        Sequence[VendorRole]: List of VendorRole objects assigned to the vendor.
                           Returns an empty list if no roles are found.
     """
-    return (
-        session.query(VendorRole)
+    return session.scalars(
+        select(VendorRole)
         .join(VendorRoleMap, VendorRole.id == VendorRoleMap.role_id)
         .filter(VendorRoleMap.vendor_id == token.vendor_id)
-        .all()
-    )
+    ).all()
 
 
 def get_operator_roles(
     session: Session,
     token: OperatorToken,
-) -> list[OperatorRole]:
+) -> Sequence[OperatorRole]:
     """
     Retrieve all roles assigned to a specific operator.
 
@@ -208,15 +206,14 @@ def get_operator_roles(
         token (OperatorToken): Token model instance.
 
     Returns:
-        list[OperatorRole]: List of OperatorRole objects assigned to the operator.
+        Sequence[OperatorRole]: List of OperatorRole objects assigned to the operator.
                             Returns an empty list if no roles are found.
     """
-    return (
-        session.query(OperatorRole)
+    return session.scalars(
+        select(OperatorRole)
         .join(OperatorRoleMap, OperatorRole.id == OperatorRoleMap.role_id)
         .filter(OperatorRoleMap.operator_id == token.operator_id)
-        .all()
-    )
+    ).all()
 
 
 def get_by_path(data: dict, path: str) -> Any:
@@ -622,10 +619,10 @@ def get_by_id(
     Returns:
         ORMbaseT | None: The instance of the model class matching the given ID, or None if not found.
     """
-    query = session.query(model_cls).filter(model_cls.id == unique_id)
+    query = select(model_cls).filter(model_cls.id == unique_id)
     if extra_filter is not None:
         query = query.filter(extra_filter)
-    return query.first()
+    return session.scalars(query).first()
 
 
 def is_in_future(timestamp: datetime) -> bool:

@@ -8,12 +8,13 @@ Provides endpoints for managing operator roles:
     - GET (executive, operator)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from sqlalchemy import String, or_
+from sqlalchemy import String, func, or_, select
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
@@ -171,9 +172,12 @@ def create_operator_role(
         dict: Created operator role data.
     """
     role_count = (
-        session.query(OperatorRole)
-        .filter(OperatorRole.company_id == form_param.company_id)
-        .count()
+        session.scalar(
+            select(func.count())
+            .select_from(OperatorRole)
+            .filter(OperatorRole.company_id == form_param.company_id)
+        )
+        or 0
     )
     if role_count >= MAX_OPERATOR_ROLE:
         raise exceptions.LimitExceeded(OperatorRole)
@@ -263,7 +267,7 @@ def delete_operator_role(
 
 def search_operator_roles(
     session: Session, query_params: QueryParams
-) -> list[OperatorRole]:
+) -> Sequence[OperatorRole]:
     """
     Searches for operator roles based on the provided query parameters.
 
@@ -277,7 +281,7 @@ def search_operator_roles(
     Returns:
         list[OperatorRole]: List of operator roles that match the search criteria.
     """
-    query = session.query(OperatorRole)
+    query = select(OperatorRole)
     if query_params.company_id is not None:
         query = query.filter(OperatorRole.company_id == query_params.company_id)
 
@@ -307,7 +311,7 @@ def search_operator_roles(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    operator_roles = query.all()
+    operator_roles = session.scalars(query).all()
     return operator_roles
 
 

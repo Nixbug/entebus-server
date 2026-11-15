@@ -8,12 +8,13 @@ Provides endpoints for managing executive roles:
     - GET (executive)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
-from sqlalchemy import or_, String
+from sqlalchemy import func, or_, String, select
 from sqlalchemy.orm.session import Session
 
 from app.api.bearer import oauth2_executive
@@ -126,7 +127,7 @@ def create_executive_role(
     Returns:
         dict: Created executive role data.
     """
-    role_count = session.query(ExecutiveRole).count()
+    role_count = session.scalar(select(func.count()).select_from(ExecutiveRole)) or 0
     if role_count >= MAX_EXECUTIVE_ROLE:
         raise exceptions.LimitExceeded(ExecutiveRole)
 
@@ -204,7 +205,7 @@ def delete_executive_role(
 
 def search_executive_roles(
     session: Session, query_params: QueryParams
-) -> list[ExecutiveRole]:
+) -> Sequence[ExecutiveRole]:
     """
     Searches for executive roles based on the provided query parameters.
 
@@ -218,8 +219,7 @@ def search_executive_roles(
     Returns:
         list[ExecutiveRole]: List of executive roles matching the search criteria.
     """
-    query = session.query(ExecutiveRole)
-
+    query = select(ExecutiveRole)
     # Common search
     if query_params.search:
         search = f"%{query_params.search}%"
@@ -246,7 +246,7 @@ def search_executive_roles(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    executive_roles = query.all()
+    executive_roles = session.scalars(query).all()
     return executive_roles
 
 

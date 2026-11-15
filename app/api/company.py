@@ -8,6 +8,7 @@ Provides endpoints for managing companies:
     - DELETE (executive)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated
@@ -17,7 +18,7 @@ from pydantic import BaseModel, Field
 from shapely import wkt
 from shapely.geometry import Point
 from sqlalchemy.orm.session import Session
-from sqlalchemy import func, String, or_
+from sqlalchemy import func, String, or_, select
 from sqlalchemy.sql import ColumnElement
 from geoalchemy2 import Geography
 
@@ -353,19 +354,15 @@ def update_company(
     if "name" in update_data:
         if update_data["name"] != company.name:
             company.name = update_data["name"]
-            company_wallet = (
-                session.query(CompanyWallet)
-                .filter(CompanyWallet.company_id == company.id)
-                .first()
-            )
+            company_wallet = session.scalars(
+                select(CompanyWallet).filter(CompanyWallet.company_id == company.id)
+            ).first()
             assert (
                 company_wallet is not None
             ), "CompanyWallet should exist for the company"
-            wallet = (
-                session.query(Wallet)
-                .filter(Wallet.id == company_wallet.wallet_id)
-                .first()
-            )
+            wallet = session.scalars(
+                select(Wallet).filter(Wallet.id == company_wallet.wallet_id)
+            ).first()
             assert wallet is not None, "Wallet should exist for the company"
             wallet.name = update_data["name"]
         update_data.pop("name")
@@ -399,12 +396,12 @@ def delete_company(
     if company is None:
         return
 
-    operator_images = (
-        session.query(OperatorImage).filter(OperatorImage.company_id == id).all()
-    )
-    vehicle_images = (
-        session.query(VehicleImage).filter(VehicleImage.company_id == id).all()
-    )
+    operator_images = session.scalars(
+        select(OperatorImage).filter(OperatorImage.company_id == id)
+    ).all()
+    vehicle_images = session.scalars(
+        select(VehicleImage).filter(VehicleImage.company_id == id)
+    ).all()
     company_data = company_to_dict(company)
     session.delete(company)
     session.commit()
@@ -419,7 +416,7 @@ def delete_company(
     log_event(token, request_info, company_data)
 
 
-def search_companies(session: Session, query_params: QueryParams) -> list[Company]:
+def search_companies(session: Session, query_params: QueryParams) -> Sequence[Company]:
     """
     Search for companies based on provided query parameters.
 
@@ -433,7 +430,7 @@ def search_companies(session: Session, query_params: QueryParams) -> list[Compan
     Returns:
         list[Company]: List of companies that match the search criteria.
     """
-    query = session.query(Company)
+    query = select(Company)
     validated_location = None
     if query_params.location is not None:
         geometry = validate_wkt_string(query_params.location, Point)
@@ -482,7 +479,7 @@ def search_companies(session: Session, query_params: QueryParams) -> list[Compan
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    companies = query.all()
+    companies = session.scalars(query).all()
     return companies
 
 

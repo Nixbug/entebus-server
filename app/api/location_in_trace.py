@@ -6,6 +6,7 @@ Provides endpoints for managing locations in traces:
     - GET (executive, operator)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, Query, Response, status
@@ -13,7 +14,7 @@ from fastapi.encoders import jsonable_encoder
 from geoalchemy2 import Geography
 from pydantic import BaseModel, Field
 from shapely import Point, wkt
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
@@ -210,9 +211,12 @@ def create_location_in_trace(
     )
 
     trace_location_count = (
-        session.query(LocationInTrace)
-        .filter(LocationInTrace.trace_id == trace.id)
-        .count()
+        session.scalar(
+            select(func.count())
+            .select_from(LocationInTrace)
+            .filter(LocationInTrace.trace_id == trace.id)
+        )
+        or 0
     )
     if trace_location_count > MAX_LOCATIONS_PER_TRACE:
         raise exceptions.LimitExceeded(LocationInTrace)
@@ -234,7 +238,7 @@ def create_location_in_trace(
 def search_locations_in_trace(
     session: Session,
     query_params: QueryParams,
-) -> list[LocationInTrace]:
+) -> Sequence[LocationInTrace]:
     """
     Search for locations in trace based on provided query parameters.
 
@@ -248,7 +252,7 @@ def search_locations_in_trace(
     Returns:
         list[LocationInTrace]: List of locations in trace that match the search criteria.
     """
-    query = session.query(LocationInTrace)
+    query = select(LocationInTrace)
     if query_params.company_id is not None:
         query = query.filter(LocationInTrace.company_id == query_params.company_id)
     validated_location = None
@@ -288,7 +292,7 @@ def search_locations_in_trace(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    locations_in_trace = query.all()
+    locations_in_trace = session.scalars(query).all()
     return locations_in_trace
 
 

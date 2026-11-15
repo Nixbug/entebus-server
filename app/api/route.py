@@ -8,11 +8,12 @@ Provides endpoints for managing routes:
     - GET (executive, operator, vendor, public)
 """
 
+from collections.abc import Sequence
 from datetime import datetime, time
 from enum import StrEnum
 from fastapi import APIRouter, status, Depends, Query, Response
 from sqlalchemy.orm.session import Session
-from sqlalchemy import or_, String
+from sqlalchemy import func, or_, String, select
 from sqlalchemy.sql import ColumnElement
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
@@ -191,7 +192,12 @@ def create_route(
         dict: The created route data.
     """
     route_count = (
-        session.query(Route).filter(Route.company_id == form_param.company_id).count()
+        session.scalar(
+            select(func.count())
+            .select_from(Route)
+            .filter(Route.company_id == form_param.company_id)
+        )
+        or 0
     )
     if route_count >= MAX_ROUTES_PER_COMPANY:
         raise exceptions.LimitExceeded(Route)
@@ -275,7 +281,7 @@ def delete_route(
     log_event(token, request_info, route_data)
 
 
-def search_routes(session: Session, query_params: QueryParams) -> list[Route]:
+def search_routes(session: Session, query_params: QueryParams) -> Sequence[Route]:
     """
     Search for Routes based on provided query parameters.
 
@@ -289,7 +295,7 @@ def search_routes(session: Session, query_params: QueryParams) -> list[Route]:
     Returns:
         list[Route]: List of Routes that match the search criteria.
     """
-    query = session.query(Route)
+    query = select(Route)
     if query_params.company_id is not None:
         query = query.filter(Route.company_id == query_params.company_id)
     if query_params.start_time_ge is not None:
@@ -324,7 +330,7 @@ def search_routes(session: Session, query_params: QueryParams) -> list[Route]:
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    routes = query.all()
+    routes = session.scalars(query).all()
     return routes
 
 

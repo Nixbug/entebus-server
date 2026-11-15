@@ -8,11 +8,13 @@ Provides endpoints for managing service assignments:
     - GET (executive, operator)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
@@ -276,7 +278,7 @@ def delete_service_assignment(
 
 def search_service_assignments(
     session: Session, query_params: QueryParams
-) -> list[ServiceAssignment]:
+) -> Sequence[ServiceAssignment]:
     """
     Search for ServiceAssignments based on provided query parameters.
 
@@ -291,7 +293,7 @@ def search_service_assignments(
     Returns:
         list[ServiceAssignment]: List of ServiceAssignments that match the search criteria.
     """
-    query = session.query(ServiceAssignment)
+    query = select(ServiceAssignment)
     need_service_join = (
         query_params.starting_at_ge is not None
         or query_params.starting_at_le is not None
@@ -333,7 +335,7 @@ def search_service_assignments(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    service_assignments = query.all()
+    service_assignments = session.scalars(query).all()
     return service_assignments
 
 

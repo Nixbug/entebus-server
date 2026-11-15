@@ -6,6 +6,7 @@ Provides endpoints for managing duties:
     - GET (operator, executive)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -13,7 +14,7 @@ from fastapi import APIRouter, Depends, Query, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.sql import ColumnElement
 
 from app.api.bearer import bearer_operator, oauth2_executive
@@ -176,21 +177,19 @@ def update_duty(
 
                 # Handle status transitions
                 if update_data["status"] == DutyStatus.ENDED:
-                    duty.collection = (
-                        session.query(func.sum(PaperTicket.amount))
-                        .filter(PaperTicket.duty_id == duty.id)
-                        .scalar()
+                    duty.collection = session.scalar(
+                        select(func.sum(PaperTicket.amount)).filter(
+                            PaperTicket.duty_id == duty.id
+                        )
                     )
                     utc_now = datetime.now(TMZ_PRIMARY)
                     duty.finished_on = utc_now
                 elif update_data["status"] == DutyStatus.STARTED:
                     duty.finished_on = None
                     duty.collection = Decimal(0)
-                    service = (
-                        session.query(Service)
-                        .filter(Service.id == duty.service_id)
-                        .first()
-                    )
+                    service = session.scalars(
+                        select(Service).filter(Service.id == duty.service_id)
+                    ).first()
                     assert service is not None, "Service cannot be None."
                     if service.status == ServiceStatus.ENDED:
                         service.status = ServiceStatus.STARTED
@@ -209,7 +208,7 @@ def update_duty(
         release_lock(service_lock)
 
 
-def search_duties(session: Session, query_params: QueryParams) -> list[Duty]:
+def search_duties(session: Session, query_params: QueryParams) -> Sequence[Duty]:
     """
     Search for Duties based on provided query parameters.
 
@@ -223,7 +222,7 @@ def search_duties(session: Session, query_params: QueryParams) -> list[Duty]:
     Returns:
         list[Duty]: List of Duties that match the search criteria.
     """
-    query = session.query(Duty)
+    query = select(Duty)
 
     if query_params.company_id is not None:
         query = query.filter(Duty.company_id == query_params.company_id)
@@ -248,7 +247,7 @@ def search_duties(session: Session, query_params: QueryParams) -> list[Duty]:
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    duties = query.all()
+    duties = session.scalars(query).all()
     return duties
 
 

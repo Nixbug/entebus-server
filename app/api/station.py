@@ -8,6 +8,7 @@ Provides endpoints for managing stations:
     - GET (executive, vendor, operator, public)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Response, Query, status, Depends
@@ -17,7 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm.session import Session
 from shapely.geometry import Point
 from shapely import wkt
-from sqlalchemy import String, func, or_
+from sqlalchemy import String, func, or_, select
 
 from app.api.bearer import oauth2_executive, bearer_operator, bearer_vendor
 from app.src.db import (
@@ -222,9 +223,12 @@ def create_station(
         dict: Created station data with location in WKT format.
     """
     station_count = (
-        session.query(Station)
-        .filter(Station.landmark_id == form_param.landmark_id)
-        .count()
+        session.scalar(
+            select(func.count())
+            .select_from(Station)
+            .filter(Station.landmark_id == form_param.landmark_id)
+        )
+        or 0
     )
     if station_count >= MAX_STATIONS_PER_LANDMARK:
         raise exceptions.LimitExceeded(Station)
@@ -312,7 +316,7 @@ def delete_station(
     log_event(token, request_info, station_data)
 
 
-def search_stations(session: Session, query_params: QueryParams) -> list[Station]:
+def search_stations(session: Session, query_params: QueryParams) -> Sequence[Station]:
     """
     Search for stations based on provided query parameters.
 
@@ -326,7 +330,7 @@ def search_stations(session: Session, query_params: QueryParams) -> list[Station
     Returns:
         list[Station]: List of stations that match the search criteria.
     """
-    query = session.query(Station)
+    query = select(Station)
     validated_location = None
     if query_params.location is not None:
         geometry = validate_wkt_string(query_params.location, Point)
@@ -367,7 +371,7 @@ def search_stations(session: Session, query_params: QueryParams) -> list[Station
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    stations = query.all()
+    stations = session.scalars(query).all()
     return stations
 
 

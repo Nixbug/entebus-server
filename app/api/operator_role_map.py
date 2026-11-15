@@ -8,11 +8,13 @@ Provides endpoints for managing operator role maps:
     - GET (executive, operator)
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from fastapi import APIRouter, Depends, Query, Response, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.orm.session import Session
 
@@ -273,7 +275,7 @@ def delete_operator_role_map(
 
 def search_operator_role_maps(
     session: Session, query_params: QueryParams
-) -> list[OperatorRoleMap]:
+) -> Sequence[OperatorRoleMap]:
     """
     Searches for operator role mappings based on the provided query parameters.
 
@@ -287,7 +289,7 @@ def search_operator_role_maps(
     Returns:
         list[OperatorRoleMap]: List of operator role mappings that match the search criteria.
     """
-    query = session.query(OperatorRoleMap)
+    query = select(OperatorRoleMap)
     if query_params.company_id is not None:
         query = query.filter(OperatorRoleMap.company_id == query_params.company_id)
     if query_params.role_id is not None:
@@ -310,7 +312,7 @@ def search_operator_role_maps(
     query = query.order_by(ordering_func())
     query = query.offset(query_params.offset).limit(query_params.limit)
 
-    operator_role_maps = query.all()
+    operator_role_maps = session.scalars(query).all()
     return operator_role_maps
 
 
